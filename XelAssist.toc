@@ -1,0 +1,16 @@
+## Interface: 11200
+## Title: XelAssist
+## Notes: Standalone input-driven action graph for OctoWoW 1.18.
+## Author: Xeltor
+## Version: 0.2.0
+## Dependencies: SuperAPI
+## SavedVariables: XelAssistDB
+## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
+
+XelAssist_Prelude.lua
+XelAssist_Capabilities.lua
+XelAssist_Profiles.lua
+XelAssist_Graph.lua
+XelAssist_UI.lua
+XelAssist_Core.lua
+Bindings.xml
