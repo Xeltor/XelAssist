@@ -19,17 +19,36 @@ widget.__index = function(self, key)
     end
     if key == "GetName" then return function(s) return s.name end end
     if key == "GetFrameLevel" then return function() return 1 end end
-    if key == "GetPoint" then return function() return "CENTER", UIParent, "CENTER", 0, 0 end end
+    if key == "GetPoint" then return function(s, index)
+        local points = rawget(s, "points")
+        local point = points and points[index or 1]
+        if point then return point[1], point[2], point[3], point[4], point[5] end
+        return "CENTER", UIParent, "CENTER", 0, 0
+    end end
     if key == "GetScale" then return function(s) return s.scale or 1 end end
+    if key == "GetWidth" then return function(s) return s.width or 0 end end
+    if key == "GetHeight" then return function(s) return s.height or 0 end end
     if key == "GetValue" then return function(s) return s.value or 1 end end
     if key == "GetChecked" then return function(s) return s.checked end end
+    if key == "IsEnabled" then return function(s) return s.enabled ~= false end end
     if key == "IsShown" then return function(s) return s.shown ~= false end end
     if key == "GetText" then return function(s) return s.text end end
+    if key == "GetStringWidth" then return function(s) return string.len(s.text or "") * 5 end end
     if key == "GetFont" then return function() return "Fonts\\FRIZQT__.TTF", 10, "" end end
     if key == "SetText" then return function(s, value) s.text = value end end
     if key == "SetScale" then return function(s, value) s.scale = value end end
+    if key == "SetWidth" then return function(s, value) s.width = value end end
+    if key == "SetHeight" then return function(s, value) s.height = value end end
     if key == "SetValue" then return function(s, value) s.value = value end end
     if key == "SetChecked" then return function(s, value) s.checked = value end end
+    if key == "SetPoint" then return function(s, point, relative, relativePoint, x, y)
+        local points = rawget(s, "points")
+        if not points then points = {}; rawset(s, "points", points) end
+        table.insert(points, { point, relative, relativePoint, x, y })
+    end end
+    if key == "ClearAllPoints" then return function(s) rawset(s, "points", {}) end end
+    if key == "Enable" then return function(s) s.enabled = true end end
+    if key == "Disable" then return function(s) s.enabled = false end end
     if key == "Show" then return function(s) s.shown = true end end
     if key == "Hide" then return function(s) s.shown = false end end
     if key == "SetScript" then return function(s, eventName, callback) s[eventName] = callback end end
@@ -43,7 +62,8 @@ end
 
 CreateFrame = function(_, name)
     serial = serial + 1
-    local frame = setmetatable({ name = name or ("Mock" .. serial), shown = true }, widget)
+    local frame = setmetatable({ name = name or ("Mock" .. serial), shown = true,
+        enabled = true }, widget)
     table.insert(createdFrames, frame)
     return frame
 end
@@ -85,6 +105,14 @@ local cvars = {}
 GetCVar = function(name) return cvars[name] or "0" end
 SetCVar = function(name, value) cvars[name] = tostring(value) end
 UnitClass = function() return "Mage", "MAGE" end
+UnitName = function(unit)
+    if unit == "target" then return "Target" end
+    if unit == "party1" then return "Test Ally" end
+    if unit == "party2" then return "An Extremely Long Friendly Target Name" end
+    if unit == "pet" then return "Companion" end
+    if unit == "player" then return "Player" end
+    return unit
+end
 local testTargetGUID, testPetGUID
 UnitExists = function(unit)
     if unit == "target" and testTargetGUID then return true, testTargetGUID end
@@ -135,14 +163,18 @@ XelAssist:Init()
 XelAssistConfig:Build()
 XelAssistUI:Refresh(true)
 assert(XelAssistUI.frame and XelAssistUI.frame.main, "recommendation frame did not build")
+assert(XelAssistUI.frame:GetWidth() == 372,
+    "recommendation runway must reserve enough width for readable action contracts")
 assert(table.getn(XelAssistUI.frame.follow) == 4, "future-action runway should expose four slots")
 assert(XelAssistConfig.frame and XelAssistConfig.frame.depth, "character graph controls did not build")
+assert(getglobal("XelAssistDepthSliderText"):GetText() == "Visible action steps",
+    "graph-depth control must describe the visible runway rather than implementation depth")
 assert(XelAssistMinimap.button, "minimap entry did not build")
 assert(XelAssistCharDB.graphDepth == 3 and XelAssistCharDB.role == "auto", "character defaults missing")
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.5.0" and runtime.nampower == "test-3.0", "runtime versions missing")
+assert(runtime.version == "0.5.1" and runtime.nampower == "test-3.0", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(runtime.evidenceEvents.damage and runtime.evidenceEvents.miss,
@@ -168,14 +200,20 @@ local tooltipResistance = { school = 2, schoolName = "Fire", multiplier = 0.8,
     decisionMultiplier = 1.2, damageTakenMultiplier = 1.5, uncertaintyMultiplier = 1,
     source = "test target data", confidence = "observed", samples = 3,
     raw = 100, penetration = 0, penetrationUnknown = true, unknown = false }
-local tooltipAction = { name = "Frostbolt", rank = 1, facts = { kind = "damage" } }
-local followAction = { name = "Fireball", rank = 1, facts = { kind = "damage" } }
+local tooltipAction = { name = "Frostbolt", rank = 1, actor = "player",
+    facts = { kind = "damage" } }
+local followAction = { name = "Fireball", rank = 1, actor = "pet",
+    facts = { kind = "damage" } }
+local estimatedFollowAction = { name = "Arcane Intellect", rank = 1, actor = "player",
+    facts = { kind = "buff" } }
 local displayPlan = { action = tooltipAction, target = "target", reason = "test resistance",
     confidence = "partial data", value = 1, threat = 1, downtime = 1.5, observed = {},
-    resistance = tooltipResistance, follow = { followAction }, path = {
-        { action = tooltipAction, resistance = tooltipResistance },
-        { action = followAction, reason = "future exploit", downtime = 1.5,
+    resistance = tooltipResistance, follow = { followAction, estimatedFollowAction }, path = {
+        { action = tooltipAction, target = "target", resistance = tooltipResistance },
+        { action = followAction, target = "target", reason = "future exploit", downtime = 1.5,
             resistance = tooltipResistance },
+        { action = estimatedFollowAction, target = "player", reason = "future setup",
+            downtime = 3, estimated = true },
     } }
 gameTooltipLines = {}; XelAssistUI.lastPlan = displayPlan; XelAssistUI.lastReason = "test"
 this = XelAssistUI.frame.main; this.OnEnter()
@@ -202,9 +240,106 @@ assert(string.find(tooltipText, "Physical 50% · 60% share", 1, true)
 local savedEvaluatorForTooltip = XelAssistGraph.Evaluate
 XelAssistGraph.Evaluate = function() return displayPlan, nil, false end
 XelAssistUI:Refresh(true)
+local actionFrame = XelAssistUI.frame
+assert(actionFrame.route:GetText() == "You -> Target",
+    "current action must visibly identify its actor and target")
+assert(string.find(actionFrame.status:GetText(), "NOW", 1, true)
+    and string.find(actionFrame.status:GetText(), "OPEN", 1, true),
+    "current partial-data action must expose immediate timing and open evidence")
+assert(actionFrame:GetHeight() == 124,
+    "two visible predictions must add two 24px rows to the 76px current card")
+assert(actionFrame.main:IsEnabled(), "a valid current recommendation must enable execution")
+local mainPoint, mainRelative, mainRelativePoint, mainX, mainY = actionFrame.main:GetPoint()
+assert(mainPoint == "TOPLEFT" and mainRelative == actionFrame
+    and mainRelativePoint == "TOPLEFT" and mainX == 12 and mainY == -12,
+    "the current action must stay anchored to the top card as the runway grows")
+local actorLeft, actorRelative, actorRelativePoint, actorX, actorY = actionFrame.actorBar:GetPoint(1)
+local actorRight, actorRightRelative, actorRightPoint, actorRightX, actorRightY =
+    actionFrame.actorBar:GetPoint(2)
+assert(actorLeft == "TOPLEFT" and actorRelative == actionFrame
+    and actorRelativePoint == "TOPLEFT" and actorX == 7 and actorY == -72
+    and actorRight == "TOPRIGHT" and actorRightRelative == actionFrame
+    and actorRightPoint == "TOPRIGHT" and actorRightX == -7 and actorRightY == -72,
+    "the companion marker must remain on the current-card boundary")
+local movePoint, moveRelative, moveRelativePoint = actionFrame.move:GetPoint()
+assert(movePoint == "TOPRIGHT" and moveRelative == actionFrame
+    and moveRelativePoint == "TOPRIGHT",
+    "the drag handle must remain inside the clamped current card")
+local firstFollow, secondFollow = actionFrame.follow[1], actionFrame.follow[2]
+assert(firstFollow:IsShown() and firstFollow:GetHeight() == 24
+    and firstFollow.route:GetText() == "Companion -> Target"
+    and firstFollow.name:GetText() == "Fireball"
+    and string.find(firstFollow.time:GetText(), "+", 1, true)
+    and string.find(firstFollow.time:GetText(), "s", 1, true)
+    and firstFollow.certainty:GetText() == "OPEN"
+    and firstFollow.action == followAction and firstFollow.candidate == displayPlan.path[2],
+    "first future row must expose actor, target, action, timing, open evidence, and source candidate")
+assert(secondFollow:IsShown() and secondFollow:GetHeight() == 24
+    and secondFollow.route:GetText() == "You -> Self"
+    and secondFollow.name:GetText() == "Arcane Intellect"
+    and secondFollow.certainty:GetText() == "EST"
+    and secondFollow.action == estimatedFollowAction
+    and secondFollow.candidate == displayPlan.path[3],
+    "estimated future row must remain visibly distinct without relying on color")
+assert(rawget(firstFollow, "OnClick") == nil and rawget(secondFollow, "OnClick") == nil,
+    "future action rows must remain read-only")
 gameTooltipLines = {}; this = XelAssistUI.frame.follow[1]; this.OnEnter()
-assert(string.find(table.concat(gameTooltipLines, "|"), "Graph-scored factor 120%", 1, true),
-    "predicted-action tooltip must retain its resistance explanation")
+local futureTooltip = table.concat(gameTooltipLines, "|")
+assert(string.find(futureTooltip, "Graph-scored factor 120%", 1, true)
+    and string.find(futureTooltip, "0.0s wait", 1, true)
+    and string.find(futureTooltip, "1.5s occupied", 1, true),
+    "predicted tooltip must retain resistance and separate wait from occupancy")
+gameTooltipLines = {}; this = actionFrame.main; this.OnEnter()
+tooltipText = string.lower(table.concat(gameTooltipLines, "|"))
+assert(string.find(tooltipText, "re-evaluates now", 1, true)
+    and string.find(tooltipText, "performs one action", 1, true),
+    "current action tooltip must explain fresh evaluation and one-action execution")
+local savedExecute, executeCalls = XelAssist.Execute, 0
+XelAssist.Execute = function() executeCalls = executeCalls + 1 end
+this = actionFrame.main; this.OnClick()
+XelAssist.Execute = savedExecute
+assert(executeCalls == 1, "one main-button click must request exactly one execution")
+
+XelAssistCharDB.graphDepth = 1
+XelAssistUI:Refresh(true)
+assert(actionFrame:GetHeight() == 76 and not actionFrame.follow[1]:IsShown(),
+    "one visible step must collapse predictions without moving the current card")
+mainPoint, mainRelative, mainRelativePoint, mainX, mainY = actionFrame.main:GetPoint()
+assert(mainPoint == "TOPLEFT" and mainRelative == actionFrame
+    and mainRelativePoint == "TOPLEFT" and mainX == 12 and mainY == -12,
+    "depth changes must not move the current action inside the frame")
+XelAssistCharDB.graphDepth = 3
+
+local groundAction = { name = "Blizzard", rank = 1, actor = "player",
+    facts = { kind = "damage", ground = true } }
+local groundPlan = { action = groundAction, target = "target", reason = "area control",
+    confidence = "client data", value = 1, threat = 1, downtime = 1.5,
+    observed = {}, follow = {}, path = { { action = groundAction, target = "target" } } }
+XelAssistGraph.Evaluate = function() return groundPlan, nil, false end
+XelAssistUI:Refresh(true)
+assert(actionFrame.route:GetText() == "You -> Ground placement",
+    "ground actions must not pretend to execute on the selected unit")
+
+local longFollowAction = { name = "An Extraordinarily Long Spell Name", rank = 1,
+    actor = "player", facts = { kind = "heal" } }
+local longPlan = { action = tooltipAction, target = "target", reason = "test fit",
+    confidence = "client data", value = 1, threat = 1, downtime = 1.5, observed = {},
+    follow = { longFollowAction }, path = {
+        { action = tooltipAction, target = "target" },
+        { action = longFollowAction, target = "party2", reason = "future fit",
+            downtime = 1.5 },
+    } }
+XelAssistGraph.Evaluate = function() return longPlan, nil, false end
+XelAssistUI:Refresh(true)
+assert(actionFrame.follow[1].route:GetStringWidth() <= 112
+    and actionFrame.follow[1].name:GetStringWidth() <= 112
+    and string.find(actionFrame.follow[1].route:GetText(), "..", 1, true)
+    and string.find(actionFrame.follow[1].name:GetText(), "..", 1, true)
+    and actionFrame.follow[1].certainty:GetText() == "MODEL",
+    "long future contracts must fit one row and unproven predictions must say MODEL")
+
+XelAssistGraph.Evaluate = function() return displayPlan, nil, false end
+XelAssistUI:Refresh(true)
 XelAssistGraph.Evaluate = savedEvaluatorForTooltip
 tooltipResistance.school, tooltipResistance.schoolName = nil, nil
 XelAssistLog = {}
@@ -501,16 +636,29 @@ XelAssistGraph.Evaluate = function() error("synthetic graph failure") end
 XelAssistUI:Refresh(true)
 assert(string.find(XelAssistUI.lastReason, "Graph data could not be evaluated"), "preview failure did not hold safely")
 assert(XelAssistCharDB.runtime.lastError, "graph failure was not retained for diagnostics")
+assert(not XelAssistUI.frame.main:IsEnabled() and XelAssistUI.frame:GetHeight() == 76,
+    "evaluation failure must disable execution and collapse the runway")
+for i = 1, table.getn(XelAssistUI.frame.follow) do
+    assert(not XelAssistUI.frame.follow[i]:IsShown()
+        and rawget(XelAssistUI.frame.follow[i], "action") == nil
+        and rawget(XelAssistUI.frame.follow[i], "candidate") == nil,
+        "evaluation failure must clear every stale future row")
+end
 XelAssistGraph.Evaluate = evaluator
 XelAssist.executionEnabled = false; XelAssist.missing = { "Nampower" }
 XelAssistUI:Refresh(true)
 assert(string.find(XelAssistUI.lastReason, "Dependencies missing: Nampower"), "dependency state was not surfaced")
+assert(not XelAssistUI.frame.main:IsEnabled() and XelAssistUI.frame:GetHeight() == 76,
+    "dependency hold must remain visibly non-executable")
 XelAssist.executionEnabled = true
 XelAssistGraph.Evaluate = function()
     return { action = { name = "Frostbolt", rank = 1, rankText = "Rank 1", facts = { kind = "damage" } },
         target = "target", reason = "test", confidence = "client data", value = 1,
         threat = 1, downtime = 1.5, observed = {}, follow = {}, path = {} }, nil, false
 end
+XelAssistUI:Refresh(true)
+assert(XelAssistUI.frame.main:IsEnabled() and XelAssistUI.frame:GetHeight() == 76,
+    "a later valid recommendation must restore execution without stale future rows")
 XelAssist:Execute()
 assert(queuedSpell == "Frostbolt(Rank 1)" and not directlyCast,
     "selected-target actions must use the Nampower queue")

@@ -1,6 +1,8 @@
 XelAssistUI = {}
 local UI = XelAssistUI
 local FALLBACK_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
+local BASE_HEIGHT = 76
+local STEP_HEIGHT = 24
 
 local function iconFor(action)
     if action and action.texture then return action.texture end
@@ -13,6 +15,99 @@ local function actionName(action)
     local highest = XelAssistCapabilities:SpellRank(action.name)
     if action.rank and action.rank < highest then return action.name .. " · R" .. action.rank end
     return action.name
+end
+
+local function trimLastCharacter(value)
+    local index = string.len(value)
+    while index > 0 do
+        local byte = string.byte(value, index)
+        index = index - 1
+        if byte < 128 or byte >= 192 then break end
+    end
+    return string.sub(value, 1, index)
+end
+
+local function setFittedText(fontString, value, maxWidth)
+    value = tostring(value or "")
+    fontString:SetText(value)
+    if not fontString.GetStringWidth then return end
+    local ok, width = pcall(fontString.GetStringWidth, fontString)
+    if not ok or type(width) ~= "number" then return end
+    local fitted = value
+    while width > maxWidth and fitted ~= "" do
+        fitted = trimLastCharacter(fitted)
+        fontString:SetText(fitted .. "..")
+        ok, width = pcall(fontString.GetStringWidth, fontString)
+        if not ok or type(width) ~= "number" then return end
+    end
+end
+
+local function actorCopy(action)
+    local actor = action and action.actor or "player"
+    if actor == "pet" then return "Companion" end
+    if actor == "player" then return "You" end
+    return tostring(action and action.actorName or actor)
+end
+
+local function targetCopy(target)
+    if target == "player" then return "Self" end
+    if target == "pet" then return "Companion" end
+    if not target or target == "target" then
+        local name = UnitName and UnitName("target")
+        return name or "Target"
+    end
+    local name = UnitName and UnitName(target)
+    if name then return name end
+    if string.find(target, "party", 1, true) == 1 then
+        return "Party " .. string.sub(target, 6)
+    end
+    if string.find(target, "raid", 1, true) == 1 then
+        return "Raid " .. string.sub(target, 5)
+    end
+    return tostring(target)
+end
+
+local function routeCopy(action, target)
+    if action and action.facts and action.facts.ground then
+        return actorCopy(action) .. " -> Ground placement"
+    end
+    return actorCopy(action) .. " -> " .. targetCopy(target)
+end
+
+local function timeCopy(value)
+    value = math.max(0, tonumber(value) or 0)
+    if value <= 0.05 then return "NOW" end
+    if value < 10 then return string.format("+%.1fs", value) end
+    return "+" .. math.floor(value + 0.5) .. "s"
+end
+
+local function resistanceOpen(resistance)
+    if not resistance then return false end
+    if resistance.unknown or resistance.penetrationUnknown then return true end
+    local i
+    for i = 1, table.getn(resistance.components or {}) do
+        local component = resistance.components[i]
+        if component.unknown or component.penetrationUnknown then return true end
+    end
+    return false
+end
+
+local function certaintyCopy(plan, candidate)
+    local resistance = candidate and candidate.resistance or plan and plan.resistance
+    if (plan and plan.confidence == "partial data")
+        or (candidate and candidate.confidence == "partial data")
+        or (candidate and candidate.unknowns and table.getn(candidate.unknowns) > 0)
+        or resistanceOpen(resistance) then
+        return "OPEN", 1, 0.70, 0.26
+    end
+    if (candidate and candidate.estimated)
+        or (plan and plan.confidence == "estimated") then
+        return "EST", 0.95, 0.73, 0.34
+    end
+    if candidate and candidate.confidence ~= "client data" then
+        return "MODEL", 0.58, 0.72, 0.88
+    end
+    return "LIVE", 0.48, 0.82, 0.69
 end
 
 local function classColor()
@@ -148,14 +243,35 @@ end
 function UI:SavePosition()
     if not self.frame then return end
     local point, _, relativePoint, x, y = self.frame:GetPoint()
-    XelAssistDB.ui.position = { point = point, relativePoint = relativePoint, x = x, y = y }
+    XelAssistDB.ui.position = { point = point, relativePoint = relativePoint, x = x, y = y,
+        height = self.frameHeight or BASE_HEIGHT }
 end
 
 function UI:ResetPosition()
     if not self.frame then return end
     self.frame:ClearAllPoints()
-    self.frame:SetPoint("CENTER", UIParent, "CENTER", 0, -180)
+    self.frame:SetPoint("TOP", UIParent, "CENTER", 0, -180)
     self:SavePosition()
+end
+
+function UI:SetVisiblePredictions(count)
+    if not self.frame then return end
+    count = math.max(0, math.min(4, tonumber(count) or 0))
+    local height = BASE_HEIGHT + count * STEP_HEIGHT
+    local oldHeight = self.frameHeight or BASE_HEIGHT
+    if height == oldHeight then return end
+    local point, _, relativePoint, x, y = self.frame:GetPoint()
+    self.frame:SetHeight(height)
+    if point then
+        local delta = height - oldHeight
+        local adjustment = 0
+        if string.find(point, "TOP", 1, true) then adjustment = 0
+        elseif string.find(point, "BOTTOM", 1, true) then adjustment = -delta
+        else adjustment = -delta / 2 end
+        self.frame:ClearAllPoints()
+        self.frame:SetPoint(point, UIParent, relativePoint, x or 0, (y or 0) + adjustment)
+    end
+    self.frameHeight = height
 end
 
 function UI:SetScale(value)
@@ -180,7 +296,12 @@ function UI:Build()
     if self.frame then return end
     local r, g, b = classColor()
     local f = CreateFrame("Frame", "XelAssistFrame", UIParent)
-    f:SetWidth(246); f:SetHeight(76)
+    local pos = XelAssistDB.ui.position
+    self.frameHeight = pos and tonumber(pos.height) or BASE_HEIGHT
+    if self.frameHeight < BASE_HEIGHT or self.frameHeight > BASE_HEIGHT + STEP_HEIGHT * 4 then
+        self.frameHeight = BASE_HEIGHT
+    end
+    f:SetWidth(372); f:SetHeight(self.frameHeight)
     f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true,
         tileSize = 16, edgeSize = 10,
@@ -188,10 +309,10 @@ function UI:Build()
     f:SetBackdropColor(0.025, 0.035, 0.055, 0.94)
     f:SetBackdropBorderColor(0.22, 0.25, 0.31, 1)
     f:SetFrameStrata("MEDIUM")
+    if f.SetClampedToScreen then f:SetClampedToScreen(true) end
 
-    local pos = XelAssistDB.ui.position
     if pos then f:SetPoint(pos.point or "CENTER", UIParent, pos.relativePoint or "CENTER", pos.x or 0, pos.y or -180)
-    else f:SetPoint("CENTER", UIParent, "CENTER", 0, -180) end
+    else f:SetPoint("TOP", UIParent, "CENTER", 0, -180) end
     f:SetScale(XelAssistDB.ui.scale or 1)
 
     local stripe = f:CreateTexture(nil, "ARTWORK")
@@ -199,19 +320,28 @@ function UI:Build()
     stripe:SetTexture(r, g, b, 1)
 
     local actorBar = f:CreateTexture(nil, "ARTWORK")
-    actorBar:SetHeight(2); actorBar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 7, 4)
-    actorBar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -7, 4)
+    actorBar:SetHeight(2); actorBar:SetPoint("TOPLEFT", f, "TOPLEFT", 7, -72)
+    actorBar:SetPoint("TOPRIGHT", f, "TOPRIGHT", -7, -72)
     actorBar:SetTexture(0.62, 0.38, 0.86, 1); actorBar:Hide()
     f.actorBar = actorBar
 
-    local eyebrow = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    eyebrow:SetPoint("TOPLEFT", f, "TOPLEFT", 69, -8)
-    eyebrow:SetText("XELASSIST  ·  SMART")
-    eyebrow:SetTextColor(r, g, b)
-    f.eyebrow = eyebrow
+    local route = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    route:SetPoint("TOPLEFT", f, "TOPLEFT", 69, -8)
+    route:SetWidth(210); route:SetHeight(12); route:SetJustifyH("LEFT")
+    if route.SetNonSpaceWrap then route:SetNonSpaceWrap(false) end
+    route:SetText("You -> Target")
+    route:SetTextColor(r, g, b)
+    f.route, f.eyebrow = route, route
+
+    local status = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    status:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -8)
+    status:SetWidth(80); status:SetJustifyH("RIGHT")
+    status:SetText("HOLD")
+    status:SetTextColor(0.60, 0.64, 0.70)
+    f.status = status
 
     local main = CreateFrame("Button", "XelAssistActionButton", f, "ActionButtonTemplate")
-    main:SetWidth(52); main:SetHeight(52); main:SetPoint("LEFT", f, "LEFT", 12, -4)
+    main:SetWidth(52); main:SetHeight(52); main:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -12)
     main.icon = getglobal("XelAssistActionButtonIcon") or main:CreateTexture(nil, "ARTWORK")
     main.icon:SetAllPoints(main)
     main.cooldown = getglobal("XelAssistActionButtonCooldown")
@@ -222,13 +352,18 @@ function UI:Build()
     main:SetScript("OnClick", function() XelAssist:Execute() end)
     main:SetScript("OnEnter", function()
         GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Execute recommendation")
-        if UI.lastPlan and UI.lastPlan.actor == "pet" then
-            GameTooltip:AddLine("Actor: active companion", 0.72, 0.52, 0.92)
-        end
-        GameTooltip:AddLine(UI.lastReason or "No recommendation yet", 1, 1, 1)
         local plan = UI.lastPlan
-        if plan then
+        if not plan then
+            GameTooltip:SetText("No executable recommendation")
+            GameTooltip:AddLine(UI.lastReason or "The graph is holding safely", 0.78, 0.80, 0.84)
+        else
+            GameTooltip:SetText("Execute recommendation")
+            GameTooltip:AddLine("Re-evaluates now and performs one action.", 0.72, 0.82, 1)
+            GameTooltip:AddLine(routeCopy(plan.action, plan.target),
+                plan.actor == "pet" and 0.72 or 0.82,
+                plan.actor == "pet" and 0.52 or 0.84,
+                plan.actor == "pet" and 0.92 or 0.88)
+            GameTooltip:AddLine(UI.lastReason or "No recommendation yet", 1, 1, 1)
             GameTooltip:AddLine(string.format("Downtime %.1fs · threat %d", plan.downtime or 0,
                 math.floor(plan.threat or 0)), 0.72, 0.75, 0.82)
             local resistance = plan.resistance
@@ -247,6 +382,8 @@ function UI:Build()
             if plan.unknowns and table.getn(plan.unknowns) > 0 then
                 GameTooltip:AddLine("Unknown: " .. table.concat(plan.unknowns, ", "), 1, 0.72, 0.28)
             end
+            GameTooltip:AddLine("Mode " .. string.upper(XelAssist.mode or "smart") .. " · role "
+                .. string.upper(XelAssistCharDB.role or "auto"), 0.55, 0.58, 0.64)
         end
         GameTooltip:Show()
     end)
@@ -254,15 +391,19 @@ function UI:Build()
     f.main = main
 
     local name = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    name:SetPoint("TOPLEFT", f, "TOPLEFT", 69, -25); name:SetWidth(132); name:SetJustifyH("LEFT")
+    name:SetPoint("TOPLEFT", f, "TOPLEFT", 69, -25); name:SetWidth(286); name:SetHeight(14)
+    name:SetJustifyH("LEFT")
+    if name.SetNonSpaceWrap then name:SetNonSpaceWrap(false) end
     f.name = name
     local reason = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    reason:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3); reason:SetWidth(150); reason:SetJustifyH("LEFT")
+    reason:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3); reason:SetWidth(225); reason:SetHeight(12)
+    reason:SetJustifyH("LEFT")
+    if reason.SetNonSpaceWrap then reason:SetNonSpaceWrap(false) end
     reason:SetTextColor(0.68, 0.71, 0.76)
     f.reason = reason
 
     local move = CreateFrame("Button", nil, f)
-    move:SetWidth(34); move:SetHeight(15); move:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -6)
+    move:SetWidth(34); move:SetHeight(15); move:SetPoint("TOPRIGHT", f, "TOPRIGHT", -42, -54)
     move.text = move:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     move.text:SetAllPoints(move); move.text:SetText("DRAG"); move.text:SetTextColor(0.48, 0.52, 0.58)
     move:RegisterForDrag("LeftButton")
@@ -281,7 +422,7 @@ function UI:Build()
     if XelAssistDB.ui.locked then move:Hide() end
 
     local config = CreateFrame("Button", nil, f)
-    config:SetWidth(28); config:SetHeight(15); config:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -8, 7)
+    config:SetWidth(28); config:SetHeight(15); config:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -54)
     config.text = config:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     config.text:SetAllPoints(config); config.text:SetText("CFG"); config.text:SetTextColor(0.48, 0.52, 0.58)
     config:SetScript("OnClick", function() XelAssistConfig:Toggle() end)
@@ -293,13 +434,40 @@ function UI:Build()
     local i
     for i = 1, 4 do
         local pip = CreateFrame("Frame", nil, f)
-        pip:SetWidth(18); pip:SetHeight(18)
-        pip:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 69 + ((i - 1) * 23), 7)
-        pip.icon = pip:CreateTexture(nil, "ARTWORK"); pip.icon:SetAllPoints(pip)
-        pip.border = pip:CreateTexture(nil, "OVERLAY"); pip.border:SetAllPoints(pip)
+        pip:SetWidth(360); pip:SetHeight(STEP_HEIGHT)
+        pip:SetPoint("TOPLEFT", f, "TOPLEFT", 6, -(BASE_HEIGHT + ((i - 1) * STEP_HEIGHT)))
+        pip.background = pip:CreateTexture(nil, "BACKGROUND")
+        pip.background:SetAllPoints(pip)
+        pip.background:SetTexture(0.055, 0.075, 0.105, i == 1 and 0.92 or 0.72)
+        pip.rail = pip:CreateTexture(nil, "ARTWORK")
+        pip.rail:SetWidth(2); pip.rail:SetPoint("TOPLEFT", pip, "TOPLEFT", 13, 0)
+        pip.rail:SetPoint("BOTTOMLEFT", pip, "BOTTOMLEFT", 13, 0)
+        pip.rail:SetTexture(r, g, b, 0.58)
+        pip.icon = pip:CreateTexture(nil, "ARTWORK")
+        pip.icon:SetWidth(20); pip.icon:SetHeight(20); pip.icon:SetPoint("LEFT", pip, "LEFT", 24, 0)
+        pip.border = pip:CreateTexture(nil, "OVERLAY")
+        pip.border:SetWidth(20); pip.border:SetHeight(20)
+        pip.border:SetPoint("CENTER", pip.icon, "CENTER", 0, 0)
         pip.border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
         pip.step = pip:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmallGray")
-        pip.step:SetPoint("BOTTOMRIGHT", pip, "BOTTOMRIGHT", 1, -1); pip.step:SetText(i + 1)
+        pip.step:SetPoint("LEFT", pip, "LEFT", 1, 0); pip.step:SetWidth(19)
+        pip.step:SetJustifyH("CENTER"); pip.step:SetText(string.format("%02d", i + 1))
+        pip.route = pip:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        pip.route:SetPoint("LEFT", pip, "LEFT", 49, 0); pip.route:SetWidth(112)
+        pip.route:SetHeight(12); pip.route:SetJustifyH("LEFT")
+        if pip.route.SetNonSpaceWrap then pip.route:SetNonSpaceWrap(false) end
+        pip.route:SetTextColor(0.64, 0.69, 0.76)
+        pip.name = pip:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        pip.name:SetPoint("LEFT", pip, "LEFT", 164, 0); pip.name:SetWidth(112)
+        pip.name:SetHeight(12); pip.name:SetJustifyH("LEFT")
+        if pip.name.SetNonSpaceWrap then pip.name:SetNonSpaceWrap(false) end
+        pip.name:SetTextColor(0.90, 0.93, 0.96)
+        pip.time = pip:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmallGray")
+        pip.time:SetPoint("LEFT", pip, "LEFT", 278, 0); pip.time:SetWidth(41)
+        pip.time:SetJustifyH("RIGHT")
+        pip.certainty = pip:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        pip.certainty:SetPoint("RIGHT", pip, "RIGHT", -2, 0); pip.certainty:SetWidth(37)
+        pip.certainty:SetJustifyH("RIGHT")
         pip:EnableMouse(true)
         pip:Hide(); f.follow[i] = pip
     end
@@ -331,20 +499,31 @@ function UI:Refresh(force)
         self.lastPlan = plan
         local action = plan.action
         local petAction = (action.actor or "player") == "pet"
-        f.eyebrow:SetText((petAction and "COMPANION" or string.upper(XelAssist.mode or "smart"))
-            .. "  ·  " .. string.upper(XelAssistCharDB.role or "auto"))
+        local classR, classG, classB = classColor()
+        setFittedText(f.route, routeCopy(action, plan.target), 210)
+        f.route:SetTextColor(petAction and 0.72 or classR,
+            petAction and 0.48 or classG, petAction and 0.92 or classB)
+        local certainty, cr, cg, cb = certaintyCopy(plan, nil)
+        local first = plan.path and plan.path[1]
+        f.status:SetText(timeCopy(first and first.actionStart or plan.wait) .. " · " .. certainty)
+        f.status:SetTextColor(cr, cg, cb)
         if petAction then f.actorBar:Show() else f.actorBar:Hide() end
         f.main.icon:SetTexture(iconFor(action))
-        f.name:SetText(actionName(action)); f.reason:SetText(plan.reason .. " · " .. plan.confidence)
+        if f.main.icon.SetDesaturated then f.main.icon:SetDesaturated(false) end
+        f.main:SetAlpha(1); f.main:Enable()
+        setFittedText(f.name, actionName(action), 286)
+        setFittedText(f.reason, plan.reason .. " · " .. plan.confidence, 225)
         updateCooldown(f.main, action)
         f.main.count:SetText(action.executor == "item" and tostring(action.count or "") or "")
         self.lastReason = actionName(action) .. " — " .. plan.reason
-        local i
+        local i, visible = nil, 0
+        local pathTime = math.max(0, tonumber(plan.downtime) or 0)
         for i = 1, 4 do
             local follow = plan.follow[i]
             local pip = f.follow[i]
             if follow and i < (XelAssistCharDB.graphDepth or 3) then
                 pip.icon:SetTexture(iconFor(follow)); pip:Show()
+                visible = visible + 1
                 if follow.actor == "pet" then pip.border:SetVertexColor(0.72, 0.48, 0.92)
                 else pip.border:SetVertexColor(1, 1, 1) end
                 pip:SetScript("OnEnter", function()
@@ -353,8 +532,14 @@ function UI:Refresh(force)
                     local candidate = this.candidate
                     GameTooltip:AddLine(candidate and candidate.reason or "Predicted future action", 0.75, 0.78, 0.84)
                     if candidate then
-                        GameTooltip:AddLine(string.format("Predicted step %d · %.1fs downtime", this.stepIndex,
-                            candidate.downtime or 0), 0.55, 0.58, 0.64)
+                        GameTooltip:AddLine(this.route:GetText() .. " · " .. this.time:GetText(),
+                            0.64, 0.69, 0.76)
+                        local wait = math.max(0, tonumber(candidate.wait) or 0)
+                        local occupied = tonumber(candidate.occupancy)
+                            or math.max(0, (tonumber(candidate.downtime) or 0) - wait)
+                        GameTooltip:AddLine(string.format(
+                            "Predicted step %d · %.1fs wait · %.1fs occupied",
+                            this.stepIndex, wait, occupied), 0.55, 0.58, 0.64)
                         addResistanceLines(candidate, true)
                     end
                     GameTooltip:Show()
@@ -363,19 +548,48 @@ function UI:Refresh(force)
                 pip.action = follow
                 pip.candidate = plan.path and plan.path[i + 1] or nil
                 pip.stepIndex = i + 1
-            else pip.action = nil; pip.candidate = nil; pip:Hide() end
+                setFittedText(pip.route,
+                    routeCopy(follow, pip.candidate and pip.candidate.target), 112)
+                pip.route:SetTextColor(follow.actor == "pet" and 0.72 or 0.64,
+                    follow.actor == "pet" and 0.48 or 0.69,
+                    follow.actor == "pet" and 0.92 or 0.76)
+                setFittedText(pip.name, actionName(follow), 112)
+                local start = pip.candidate and tonumber(pip.candidate.actionStart) or pathTime
+                pip.time:SetText(timeCopy(start))
+                local label, rr, rg, rb = certaintyCopy(nil, pip.candidate)
+                pip.certainty:SetText(label); pip.certainty:SetTextColor(rr, rg, rb)
+                if pip.candidate then
+                    pathTime = math.max(pathTime, start or pathTime)
+                        + math.max(0, tonumber(pip.candidate.downtime) or 0)
+                end
+            else
+                pip.action = nil; pip.candidate = nil
+                pip.route:SetText(""); pip.name:SetText(""); pip.time:SetText("")
+                pip.certainty:SetText(""); pip:Hide()
+            end
         end
+        self:SetVisiblePredictions(visible)
     else
-        f.eyebrow:SetText(string.upper(XelAssist.mode or "smart") .. "  ·  "
+        f.route:SetText(string.upper(XelAssist.mode or "smart") .. " · "
             .. string.upper(XelAssistCharDB.role or "auto"))
+        f.route:SetTextColor(0.60, 0.64, 0.70)
+        f.status:SetText("HOLD"); f.status:SetTextColor(0.95, 0.73, 0.34)
         f.actorBar:Hide()
         local title, detail = emptyCopy(err)
         f.main.icon:SetTexture(FALLBACK_ICON)
+        if f.main.icon.SetDesaturated then f.main.icon:SetDesaturated(true) end
+        f.main:SetAlpha(0.52); f.main:Disable()
         f.main.count:SetText("")
         updateCooldown(f.main, nil)
-        f.name:SetText(title); f.reason:SetText(detail)
+        setFittedText(f.name, title, 286); setFittedText(f.reason, detail, 225)
         local i
-        for i = 1, 4 do f.follow[i]:Hide() end
+        for i = 1, 4 do
+            f.follow[i].action = nil; f.follow[i].candidate = nil
+            f.follow[i].route:SetText(""); f.follow[i].name:SetText("")
+            f.follow[i].time:SetText(""); f.follow[i].certainty:SetText("")
+            f.follow[i]:Hide()
+        end
+        self:SetVisiblePredictions(0)
         self.lastReason = title .. " — " .. detail
         self.lastPlan = nil
     end

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.1
+
+- Replaced hover-only future icons with a readable action-contract runway. The
+  current and predicted steps now expose actor, target, action, modeled start
+  time, and `LIVE`/`MODEL`/`EST`/`OPEN` evidence state without relying on color.
+- Kept future steps read-only and made the current-action tooltip state the
+  execution boundary explicitly: each click or `/xa` press re-evaluates current
+  state and performs at most one action.
+- Disabled and desaturated the primary button when the graph holds, collapsed
+  stale predictions on errors or missing dependencies, restored execution on a
+  later valid plan, and added deterministic UI-state/click-cardinality coverage.
+
 ## 0.5.0
 
 - Split stateless delivery mechanics and attributable target-modifier discovery

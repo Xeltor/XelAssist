@@ -1,4 +1,4 @@
-XelAssist = { version = "0.5.0", mode = "smart" }
+XelAssist = { version = "0.5.1", mode = "smart" }
 local XA = XelAssist
 
 local function msg(text, r, g, b)

@@ -1,4 +1,4 @@
-# XelAssist 0.5.0
+# XelAssist 0.5.1
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -11,10 +11,11 @@ runtime dependencies. XelAssist capability-checks the required SuperWoW,
 SuperAPI, Nampower, and available ClassicAPI DLL globals directly.
 
 Each physical press of `/xa` executes at most one recommendation. The on-screen
-decision runway shows the current action and up to four simulated future actions.
-The explanation describes the tradeoff that won, such as finishing the target,
-avoiding excess healing, limiting threat, interrupting a cast, or preserving
-resources.
+decision runway shows the current action and up to four simulated future actions
+as actor-to-target contracts with modeled start times and visible evidence state.
+Predicted rows are never executable. The explanation describes the tradeoff that
+won, such as finishing the target, avoiding excess healing, limiting threat,
+interrupting a cast, or preserving resources.
 
 Actions on the selected target use Nampower's one-spell queue. Explicit party,
 mouseover, self, and ground targets retain SuperWoW's unit-targeted cast path.
@@ -43,8 +44,9 @@ repository metadata, and developer files.
 4. Right-click the minimap button or use `/xa config` to set this character's
    role, optional-action policy, intent, and number of predicted actions.
 
-The primary recommendation is also clickable. XelAssist never acquires or changes
-a hostile target and never casts from an update handler.
+The primary recommendation is also clickable. A click takes a fresh snapshot and
+performs one action; it does not execute the preview cached on screen. XelAssist
+never acquires or changes a hostile target and never casts from an update handler.
 
 ## Character and global settings
 

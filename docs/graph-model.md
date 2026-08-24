@@ -163,6 +163,9 @@ resource shortage, or downtime can change which current action wins. It returns
 one executable action plus up to four simulated future actions.
 Future nodes are predictions, not queued casts; every `/xa` press takes a fresh
 snapshot and may choose differently.
+The decision runway renders each step as actor, target, action, modeled start
+time, and evidence state. Only the current step is clickable; graph errors and
+dependency holds disable it and remove stale future rows.
 Candidate pruning retains one meaningful target-modifier branch when raw
 immediate-damage branches would otherwise fill the beam, allowing a resistance
 or Armor setup to prove its value through a later exploit action. This is still
