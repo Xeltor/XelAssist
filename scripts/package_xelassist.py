@@ -5,6 +5,7 @@ import argparse
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 
 
 def addon_files():
@@ -25,7 +26,13 @@ def build(output):
     output.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in addon_files():
-            archive.write(path, Path("XelAssist") / path.relative_to(ROOT))
+            name = (Path("XelAssist") / path.relative_to(ROOT)).as_posix()
+            entry = zipfile.ZipInfo(name, ZIP_TIMESTAMP)
+            entry.create_system = 3
+            entry.external_attr = 0o100644 << 16
+            entry.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(entry, path.read_bytes(), compress_type=zipfile.ZIP_DEFLATED,
+                compresslevel=9)
     return output
 
 

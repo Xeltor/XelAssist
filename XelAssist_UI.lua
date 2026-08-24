@@ -63,6 +63,88 @@ local function updateCooldown(button, action)
     if start and duration then CooldownFrame_SetTimer(cooldown, start, duration, enabled or 1) end
 end
 
+local function roundedPercent(value)
+    return math.floor((tonumber(value) or 1) * 100 + 0.5)
+end
+
+local function addResistanceLines(plan, compact)
+    local resistance = plan and plan.resistance
+    if not resistance then return end
+    local scored = resistance.decisionMultiplier or resistance.multiplier or 1
+    if resistance.unknown then
+        GameTooltip:AddLine("Resistance: " .. (resistance.source or "unknown"), 1, 0.72, 0.28)
+        if resistance.landChance then
+            GameTooltip:AddLine(string.format("Delivery %.0f%% · landed-hit value unknown",
+                resistance.landChance * 100), 0.82, 0.7, 0.42)
+        end
+        if math.abs(scored - (resistance.multiplier or 1)) > 0.001 then
+            GameTooltip:AddLine("Graph-scored factor " .. roundedPercent(scored)
+                .. "% · uncertainty reserve", 0.82, 0.7, 0.42)
+        end
+    else
+        local base = resistance.multiplier or 1
+        local label = resistance.schoolName or "Damage"
+        if math.abs(scored - base) > 0.001 then
+            GameTooltip:AddLine(label .. ": " .. roundedPercent(base)
+                .. "% expected output", 0.62, 0.82, 1)
+            GameTooltip:AddLine("Graph-scored factor " .. roundedPercent(scored)
+                .. "% · vulnerability/uncertainty included", 0.72, 0.75, 0.82)
+        else
+            GameTooltip:AddLine(label .. ": " .. roundedPercent(base)
+                .. "% expected output", 0.62, 0.82, 1)
+        end
+        if not compact then
+            GameTooltip:AddLine((resistance.source or "modeled") .. " · "
+                .. (resistance.confidence or "unknown confidence")
+                .. ((resistance.samples or 0) > 0 and " · " .. resistance.samples .. " samples" or ""),
+                0.55, 0.58, 0.64)
+        end
+        if resistance.landChance and resistance.mitigationOnLand and not compact
+            and (resistance.landChance < 0.995 or resistance.mitigationOnLand < 0.995) then
+            GameTooltip:AddLine(string.format("Land %.0f%% · landed-hit value %.0f%%",
+                resistance.landChance * 100, resistance.mitigationOnLand * 100),
+                0.72, 0.75, 0.82)
+        end
+        if resistance.raw ~= nil and not compact then
+            local penetration = resistance.penetrationUnknown and "penetration unknown"
+                or "penetration " .. math.floor((resistance.penetration or 0) + 0.5)
+            GameTooltip:AddLine("Target value " .. math.floor(resistance.raw + 0.5)
+                .. " · " .. penetration, 0.55, 0.58, 0.64)
+        end
+    end
+    if resistance.components and not compact then
+        local totalWeight, i = 0, nil
+        for i = 1, table.getn(resistance.components) do
+            totalWeight = totalWeight
+                + math.max(0, tonumber(resistance.components[i].componentWeight) or 0)
+        end
+        for i = 1, table.getn(resistance.components) do
+            local component = resistance.components[i]
+            local label = component.componentPhase == "direct" and "Direct"
+                or component.componentPhase == "periodic" and "Periodic"
+                or component.schoolName or "Component"
+            local base = component.multiplier or 1
+            local weight = tonumber(component.componentWeight) or 0
+            local componentScored = weight > 0 and component.decisionWeight
+                and component.decisionWeight / weight or base
+            local detail = label .. " " .. roundedPercent(base) .. "%"
+            if totalWeight > 0 then
+                detail = detail .. " · "
+                    .. math.floor(weight * 100 / totalWeight + 0.5) .. "% share"
+            end
+            if math.abs(componentScored - base) > 0.001 then
+                detail = detail .. " -> " .. roundedPercent(componentScored) .. "% scored"
+            end
+            if component.unknown then detail = detail .. " · uncertain" end
+            if component.penetrationUnknown and component.school and component.school > 0 then
+                detail = detail .. " · pen ?"
+            end
+            GameTooltip:AddLine(detail, component.unknown and 1 or 0.72,
+                component.unknown and 0.72 or 0.75, component.unknown and 0.28 or 0.82)
+        end
+    end
+end
+
 function UI:SavePosition()
     if not self.frame then return end
     local point, _, relativePoint, x, y = self.frame:GetPoint()
@@ -149,6 +231,8 @@ function UI:Build()
         if plan then
             GameTooltip:AddLine(string.format("Downtime %.1fs · threat %d", plan.downtime or 0,
                 math.floor(plan.threat or 0)), 0.72, 0.75, 0.82)
+            local resistance = plan.resistance
+            if resistance then addResistanceLines(plan, false) end
             local observed = plan.observed or {}
             if observed.distance then
                 GameTooltip:AddLine(string.format("Range evidence %.1f yd · %s", observed.distance,
@@ -159,6 +243,9 @@ function UI:Build()
             if observed.talentPoints then
                 GameTooltip:AddLine(string.format("Talent-adjusted client facts · %d points", observed.talentPoints),
                     0.55, 0.58, 0.64)
+            end
+            if plan.unknowns and table.getn(plan.unknowns) > 0 then
+                GameTooltip:AddLine("Unknown: " .. table.concat(plan.unknowns, ", "), 1, 0.72, 0.28)
             end
         end
         GameTooltip:Show()
@@ -268,6 +355,7 @@ function UI:Refresh(force)
                     if candidate then
                         GameTooltip:AddLine(string.format("Predicted step %d · %.1fs downtime", this.stepIndex,
                             candidate.downtime or 0), 0.55, 0.58, 0.64)
+                        addResistanceLines(candidate, true)
                     end
                     GameTooltip:Show()
                 end)

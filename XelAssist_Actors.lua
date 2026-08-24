@@ -33,6 +33,20 @@ local function rankNumber(rank)
     return tonumber(digits) or 1
 end
 
+local function spellIdFor(name, rank)
+    local castName = name
+    if rank and rank ~= "" then castName = name .. "(" .. rank .. ")" end
+    if GetSpellSlotTypeIdForName then
+        local ok, _, _, spellId = pcall(GetSpellSlotTypeIdForName, castName)
+        if ok and spellId and spellId ~= 0 then return spellId end
+    end
+    if GetSpellIdForName then
+        local ok, spellId = pcall(GetSpellIdForName, castName)
+        if ok and spellId and spellId ~= 0 then return spellId end
+    end
+    return nil
+end
+
 function A:Invalidate()
     self.petActions = nil
     self.petIdentity = nil
@@ -40,6 +54,7 @@ end
 
 function A:PetIdentity()
     if not UnitExists("pet") or UnitIsDead("pet") then return nil end
+    local _, petGuid = UnitExists("pet")
     local family = UnitCreatureFamily and UnitCreatureFamily("pet") or nil
     local creature = UnitCreatureType and UnitCreatureType("pet") or nil
     local stance, i
@@ -53,10 +68,16 @@ function A:PetIdentity()
             end
         end
     end
-    return { id = "pet", unit = "pet", actorType = "controlled",
+    local castRemaining = XelAssist and XelAssist.petCastGuid == petGuid
+        and XelAssist.petCastUntil and math.max(0, XelAssist.petCastUntil - GetTime()) or 0
+    return { id = "pet", unit = "pet", actorType = "controlled", guid = petGuid,
         family = family, creatureType = creature, stance = stance,
+        level = UnitLevel and UnitLevel("pet") or nil,
         health = UnitHealth("pet") or 0, healthMax = UnitHealthMax("pet") or 0,
         resource = UnitMana("pet") or 0, resourceMax = UnitManaMax("pet") or 0,
+        casting = castRemaining > 0, castRemaining = castRemaining,
+        castSpellId = castRemaining > 0 and XelAssist.petCastSpellId or nil,
+        channeling = castRemaining > 0 and XelAssist.petCastChannel or false,
         targetExists = UnitExists("pettarget") and true or false,
         targetsCurrent = UnitExists("pettarget") and UnitExists("target")
             and UnitIsUnit("pettarget", "target") and true or false,
@@ -96,6 +117,7 @@ function A:BuildPetActions()
                 facts.petAbility = true
                 table.insert(actions, { name = name, rankText = rank or "", rank = rankNumber(rank),
                     slot = i, actionSlot = bar.slot, texture = bar.texture,
+                    spellId = spellIdFor(name, rank),
                     bookType = BOOKTYPE_PET, actor = "pet", executor = "petAbility",
                     autocastAllowed = bar.autocastAllowed and true or false,
                     autocastEnabled = bar.autocastEnabled and true or false,
@@ -161,15 +183,50 @@ end
 
 function A:Snapshot()
     local player = { id = "player", unit = "player", actorType = "player",
+        level = UnitLevel and UnitLevel("player") or nil,
         health = UnitHealth("player") or 0, healthMax = UnitHealthMax("player") or 0,
         resource = UnitMana("player") or 0, resourceMax = UnitManaMax("player") or 0 }
-    local actors = { player = player }
+    local actors = { player = player, allies = {}, controlled = {} }
+    if XelAssistEncounter then actors.target = XelAssistEncounter:Unit("target", "target") end
+    local raid = GetNumRaidMembers and GetNumRaidMembers() or 0
+    local party = GetNumPartyMembers and GetNumPartyMembers() or 0
+    local i
+    if XelAssistEncounter then
+        if raid > 0 then
+            for i = 1, raid do
+                local ally = XelAssistEncounter:Unit("raid" .. i, "ally")
+                if ally then table.insert(actors.allies, ally) end
+            end
+        else
+            for i = 1, party do
+                local ally = XelAssistEncounter:Unit("party" .. i, "ally")
+                if ally then table.insert(actors.allies, ally) end
+            end
+        end
+    end
     local pet = self:PetIdentity()
     if pet then
         pet.distance, pet.distanceKind = self:Distance("pet", "target")
         local geometry = XelAssistCapabilities:Geometry("pet", "target")
         pet.lineOfSight, pet.behind = geometry.lineOfSight, geometry.behind
+        pet.autocasts = {}
+        local actions = self.petActions or self:BuildPetActions()
+        for i = 1, table.getn(actions) do
+            if actions[i].autocastEnabled then
+                local tooltip = self:Facts(actions[i])
+                table.insert(pet.autocasts, { name = actions[i].name,
+                    kind = actions[i].facts.kind, threat = actions[i].facts.threat,
+                    actor = "pet", spellId = actions[i].spellId, facts = actions[i].facts,
+                    cost = tooltip.cost or 0,
+                    power = tooltip.average or tooltip.dbcAverage or 0,
+                    tooltip = tooltip,
+                    cooldown = tooltip.cooldown or 1.5,
+                    readyIn = math.max(self:PetCooldown(actions[i]) or 0,
+                        pet.castRemaining or 0) })
+            end
+        end
         actors.pet = pet
+        table.insert(actors.controlled, pet)
     end
     return actors
 end

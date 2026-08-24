@@ -97,6 +97,216 @@ function C:Invalidate()
     self.costs = nil
     self.tooltipFacts = nil
     self.talentPoints = nil
+    self:InvalidateEquipment()
+end
+
+function C:InvalidateEquipment()
+    self.penetrationCache = nil
+    self.penetrationFingerprint = nil
+end
+
+local WEAPON_SKILL_GLOBAL = {
+    [0] = "AXES", [1] = "TWO_HANDED_AXES", [2] = "BOWS", [3] = "GUNS",
+    [4] = "MACES", [5] = "TWO_HANDED_MACES", [6] = "POLEARMS", [7] = "SWORDS",
+    [8] = "TWO_HANDED_SWORDS", [10] = "STAVES", [13] = "UNARMED",
+    [15] = "DAGGERS", [16] = "THROWN", [18] = "CROSSBOWS", [19] = "WANDS",
+}
+local WEAPON_SKILL_ENGLISH = {
+    [0] = "Axes", [1] = "Two-Handed Axes", [2] = "Bows", [3] = "Guns",
+    [4] = "Maces", [5] = "Two-Handed Maces", [6] = "Polearms", [7] = "Swords",
+    [8] = "Two-Handed Swords", [10] = "Staves", [13] = "Unarmed",
+    [15] = "Daggers", [16] = "Thrown", [18] = "Crossbows", [19] = "Wands",
+}
+
+local function safeCall(fn, a, b, c)
+    if not fn then return nil end
+    local ok, first, second, third, fourth
+    if c ~= nil then ok, first, second, third, fourth = pcall(fn, a, b, c)
+    elseif b ~= nil then ok, first, second, third, fourth = pcall(fn, a, b)
+    elseif a ~= nil then ok, first, second, third, fourth = pcall(fn, a)
+    else ok, first, second, third, fourth = pcall(fn) end
+    if ok then return first, second, third, fourth end
+    return nil
+end
+
+local function equippedItemId(slot)
+    if GetEquippedItem then
+        local item = safeCall(GetEquippedItem, "player", slot)
+        local itemId = type(item) == "table" and tonumber(item.itemId)
+        if itemId and itemId > 0 then return itemId end
+    end
+    local link = safeCall(GetInventoryItemLink, "player", slot)
+    local _, _, itemId = string.find(link or "", "item:(%d+)")
+    return tonumber(itemId)
+end
+
+local function itemClassAndSubclass(slot)
+    local itemId = equippedItemId(slot)
+    if not itemId then return nil, nil, nil end
+    if GetItemStatsField then
+        local class = tonumber(safeCall(GetItemStatsField, itemId, "class"))
+        local subclass = tonumber(safeCall(GetItemStatsField, itemId, "subclass"))
+        if class ~= nil and subclass ~= nil then return class, subclass, itemId end
+    end
+    return nil, nil, itemId
+end
+
+local function skillLineName(subclass)
+    local globalName = WEAPON_SKILL_GLOBAL[subclass]
+    local localized = globalName and getglobal and getglobal(globalName) or nil
+    if type(localized) == "string" and localized ~= "" then return localized end
+    local locale = safeCall(GetLocale)
+    if locale == "enUS" or locale == "enGB" then return WEAPON_SKILL_ENGLISH[subclass] end
+    return nil
+end
+
+local function skillLine(expected)
+    if not expected or not GetSkillLineInfo then return nil end
+    local count = tonumber(safeCall(GetNumSkillLines))
+    local maximum = count and math.min(512, count) or 512
+    local index
+    for index = 1, maximum do
+        local ok, name, isHeader, _, rank, temporary, modifier, maximumRank =
+            pcall(GetSkillLineInfo, index)
+        if not ok then break end
+        if not name then break end
+        if not isHeader and name == expected and tonumber(rank) then
+            local base = tonumber(rank) or 0
+            local bonus = tonumber(modifier) or tonumber(temporary) or 0
+            return { base = base, modifier = bonus, total = base + bonus,
+                maximum = tonumber(maximumRank), known = true,
+                source = "localized skill line" }
+        end
+    end
+    return nil
+end
+
+local function attackSkill(fn, position)
+    local a, b, c, d = safeCall(fn, "player")
+    local base, modifier
+    if position == "off" then base, modifier = c, d
+    else base, modifier = a, b end
+    base, modifier = tonumber(base), tonumber(modifier)
+    if base == nil then return nil end
+    modifier = modifier or 0
+    return { base = base, modifier = modifier, total = base + modifier,
+        known = true, source = position == "ranged" and "UnitRangedAttack"
+            or "UnitAttackBothHands" }
+end
+
+local function weaponToken(slot, fallback)
+    local link = safeCall(GetInventoryItemLink, "player", slot)
+    if not link then return fallback end
+    local _, _, item = string.find(link, "item:([^|]+)")
+    return item and tostring(slot) .. ":" .. item or tostring(slot) .. ":equipped"
+end
+
+local function inventoryItemBroken(slot)
+    if GetInventoryItemBroken then
+        local broken = safeCall(GetInventoryItemBroken, "player", slot)
+        if broken ~= nil then return broken == true or broken == 1, true end
+    end
+    if GetInventoryItemDurability then
+        local current, maximum = safeCall(GetInventoryItemDurability, slot)
+        current, maximum = tonumber(current), tonumber(maximum)
+        if current ~= nil and maximum and maximum > 0 then
+            return current <= 0, true
+        end
+    end
+    return false, false
+end
+
+-- ClassicAPI exposes the stable SpellShapeshiftForm.dbc ID directly. Nampower's
+-- UNIT_FIELD_BYTES_1 mirror is an exact fallback: on the 1.12 client the form
+-- occupies byte 2 (zero based), unlike the action-bar index returned by the
+-- stock GetShapeshiftForm API. Only Cat/Bear/Dire Bear use the server's
+-- level-max feral skill and ignore the equipped weapon.
+local NO_WEAPON_FORM = { [1] = true, [5] = true, [8] = true }
+local KNOWN_WEAPON_FORM = { [0] = true, [17] = true, [18] = true, [19] = true,
+    [28] = true, [30] = true, [31] = true }
+local function stableShapeshiftForm()
+    if GetShapeshiftFormID then
+        local form = tonumber(safeCall(GetShapeshiftFormID))
+        if form and form >= 0 then return form, "ClassicAPI form ID" end
+    end
+    if GetUnitField then
+        local bytes = tonumber(safeCall(GetUnitField, "player", "bytes1"))
+        if bytes and bytes >= 0 then
+            local shifted = math.floor(bytes / 65536)
+            return shifted - math.floor(shifted / 256) * 256, "Nampower form field"
+        end
+    end
+    return nil, "stable form ID unavailable"
+end
+
+-- The Turtle client exposes the current form/equipment-aware attack skills
+-- directly. Numeric Nampower item subclasses plus localized global strings are
+-- only a fallback, avoiding English subtype comparisons on non-English clients.
+-- Each hand remains separate so a low off-hand or ranged skill can never be
+-- silently replaced by the main-hand value.
+function C:WeaponSkills()
+    local out = { source = "client attack skill APIs", known = false }
+    if UnitAttackBothHands then
+        out.main = attackSkill(UnitAttackBothHands, "main")
+        out.off = attackSkill(UnitAttackBothHands, "off")
+    elseif UnitAttack then
+        out.main = attackSkill(UnitAttack, "main")
+    end
+    if UnitRangedAttack then out.ranged = attackSkill(UnitRangedAttack, "ranged") end
+
+    local mainClass, mainSubclass = itemClassAndSubclass(16)
+    local offClass, offSubclass = itemClassAndSubclass(17)
+    local rangedClass, rangedSubclass = itemClassAndSubclass(18)
+    if not out.main then
+        out.main = skillLine(skillLineName(mainClass == 2 and mainSubclass or 13))
+    end
+    if not out.off and offClass == 2 then out.off = skillLine(skillLineName(offSubclass)) end
+    if not out.ranged and rangedClass == 2 then
+        out.ranged = skillLine(skillLineName(rangedSubclass))
+    end
+    out.unarmed = skillLine(skillLineName(13))
+
+    local formId, formSource = stableShapeshiftForm()
+    local formIndex = tonumber(safeCall(GetShapeshiftForm)) or 0
+    local noWeaponForm = formId and NO_WEAPON_FORM[formId] and true or false
+    local formWeaponUseKnown = formId ~= nil
+        and (NO_WEAPON_FORM[formId] or KNOWN_WEAPON_FORM[formId]) and true
+        or formId == nil and formIndex == 0 and true or false
+    local _, offSpeed = safeCall(UnitAttackSpeed, "player")
+    local hasOffHand = type(offSpeed) == "number" and offSpeed > 0
+        or offClass == 2 and true or false
+    local offBroken, offUsableKnown = false, true
+    if hasOffHand then offBroken, offUsableKnown = inventoryItemBroken(17) end
+    out.dualWieldKnown = noWeaponForm or not hasOffHand or offUsableKnown
+    -- If durability is unavailable, retain the equipped dual-wield table as
+    -- the conservative estimate but expose that its usability is unknown.
+    -- A proven broken off hand is excluded exactly, matching server weapon
+    -- selection.
+    out.dualWield = not noWeaponForm and hasOffHand
+        and not (offUsableKnown and offBroken) or false
+    out.offHandBroken = hasOffHand and offBroken or false
+    if not out.dualWield then out.off = nil end
+    if noWeaponForm then
+        local level = tonumber(safeCall(UnitLevel, "player"))
+        if level and level > 0 then
+            out.main = { base = level * 5, modifier = 0, total = level * 5,
+                maximum = level * 5, known = true,
+                source = "no-weapon shapeshift level-max skill" }
+        end
+    end
+    out.form, out.formId, out.formIndex = formId or formIndex, formId, formIndex
+    out.formKnown, out.formSource = formId ~= nil, formSource
+    out.noWeaponForm = noWeaponForm
+    out.formWeaponUseKnown = formWeaponUseKnown
+    local equippedMainToken = weaponToken(16, "unarmed")
+    out.mainToken = noWeaponForm and "form:" .. tostring(formId)
+        or not formWeaponUseKnown and formIndex ~= 0
+            and "form?:" .. tostring(formId or formIndex) .. ":" .. equippedMainToken
+        or equippedMainToken
+    out.offToken = out.dualWield and weaponToken(17, "offhand") or "none"
+    out.rangedToken = weaponToken(18, "none")
+    out.known = out.main and out.main.known or out.ranged and out.ranged.known or false
+    return out
 end
 
 -- Talent effects that alter cost, cast time, range, damage or healing are
@@ -168,6 +378,200 @@ local function numberFrom(text, pattern)
     return value and tonumber(value) or nil
 end
 
+local function penetrationResult(spell, armor, known, reason)
+    return { spell = spell or 0, armor = armor or 0, known = known and true or false,
+        source = known and "equipment tooltips" or "unavailable", reason = reason }
+end
+
+local function equippedFingerprint()
+    if not GetInventoryItemLink then return nil, nil, "inventory link API" end
+    local links, parts, slot = {}, {}, nil
+    for slot = 1, 19 do
+        local ok, link = pcall(GetInventoryItemLink, "player", slot)
+        if not ok then return nil, nil, "inventory link API" end
+        if not link and GetInventoryItemTexture then
+            local textureOK, texture = pcall(GetInventoryItemTexture, "player", slot)
+            if not textureOK then return nil, nil, "inventory texture API" end
+            if texture then return nil, nil, "uncached equipped item" end
+        end
+        links[slot] = link
+        parts[slot] = tostring(slot) .. "=" .. tostring(link or "")
+    end
+    return table.concat(parts, "\031"), links, nil
+end
+
+local function activeSetBonus(line)
+    if not line or not line.GetTextColor then return false end
+    local ok, red, green, blue = pcall(line.GetTextColor, line)
+    return ok and type(red) == "number" and type(green) == "number" and type(blue) == "number"
+        and green > red + 0.05 and green > blue + 0.05
+end
+
+local function penetrationValue(text, setBonus)
+    if not text then return nil, nil end
+    local lower = string.lower(string.gsub(text, ",", ""))
+    local prefix = setBonus and "^set:%s*" or "^equip:%s*"
+    local armor = numberFrom(lower, prefix .. "your attacks ignore (%d+) of the target's armor")
+    local spell = numberFrom(lower,
+        prefix .. "decreases the magical resistances of your spell targets by (%d+)")
+    if not setBonus then
+        armor = armor or numberFrom(lower, "^%+(%d+) armor penetration")
+            or numberFrom(lower, "^armor penetration %+(%d+)")
+        spell = spell or numberFrom(lower, "^%+(%d+) spell penetration")
+            or numberFrom(lower, "^spell penetration %+(%d+)")
+    end
+    return spell, armor
+end
+
+-- Vanilla has no trustworthy numeric penetration API. Equipment tooltips are
+-- the narrow fallback: only English strings with unambiguous wording count.
+-- The full equipped links form the cache key, so gear/enchant changes refresh
+-- this even if the caller did not receive an inventory event.
+function C:Penetration()
+    if not (CreateFrame and getglobal and GetLocale) then
+        return penetrationResult(0, 0, false, "tooltip APIs")
+    end
+    local localeOK, locale = pcall(GetLocale)
+    if not localeOK or (locale ~= "enUS" and locale ~= "enGB") then
+        return penetrationResult(0, 0, false, "unsupported locale")
+    end
+    local fingerprint, links, fingerprintError = equippedFingerprint()
+    if not fingerprint then return penetrationResult(0, 0, false, fingerprintError) end
+    if self.penetrationCache and self.penetrationFingerprint == fingerprint then
+        local cached = self.penetrationCache
+        return penetrationResult(cached.spell, cached.armor, true)
+    end
+
+    if not scanTip then
+        local ok, tooltip = pcall(CreateFrame, "GameTooltip", TIP_NAME, nil, "GameTooltipTemplate")
+        if not ok then return penetrationResult(0, 0, false, "tooltip creation") end
+        scanTip = tooltip
+    end
+    if not scanTip or not scanTip.SetOwner or not scanTip.ClearLines
+        or not scanTip.SetInventoryItem or not scanTip.NumLines then
+        return penetrationResult(0, 0, false, "inventory tooltip API")
+    end
+    local ownerOK = pcall(scanTip.SetOwner, scanTip, UIParent, "ANCHOR_NONE")
+    if not ownerOK then return penetrationResult(0, 0, false, "inventory tooltip owner") end
+
+    local totalSpell, totalArmor, seenSets, slot = 0, 0, {}, nil
+    for slot = 1, 19 do
+        if links[slot] then
+            pcall(scanTip.ClearLines, scanTip)
+            local ok, hasItem = pcall(scanTip.SetInventoryItem, scanTip, "player", slot)
+            if not ok or not hasItem then
+                return penetrationResult(0, 0, false, "unavailable equipped tooltip")
+            end
+            local linesOK, lineCount = pcall(scanTip.NumLines, scanTip)
+            if not linesOK or type(lineCount) ~= "number" then
+                return penetrationResult(0, 0, false, "inventory tooltip lines")
+            end
+            local setName, lineIndex, side = nil, nil, nil
+            for lineIndex = 1, lineCount do
+                for side = 1, 2 do
+                    local suffix = side == 1 and "TextLeft" or "TextRight"
+                    local line = getglobal(TIP_NAME .. suffix .. lineIndex)
+                    local text = line and line.GetText and line:GetText() or nil
+                    if text then
+                        local _, _, foundSet = string.find(text, "^(.+) %(%d+/%d+%)")
+                        if foundSet then setName = foundSet end
+                        local spell, armor = penetrationValue(text, false)
+                        totalSpell = totalSpell + (spell or 0)
+                        totalArmor = totalArmor + (armor or 0)
+                        local setSpell, setArmor = penetrationValue(text, true)
+                        if (setSpell or setArmor) and setName and activeSetBonus(line) then
+                            local key = setName .. ":" .. tostring(setSpell or 0) .. ":" .. tostring(setArmor or 0)
+                            if not seenSets[key] then
+                                seenSets[key] = true
+                                totalSpell = totalSpell + (setSpell or 0)
+                                totalArmor = totalArmor + (setArmor or 0)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    self.penetrationFingerprint = fingerprint
+    self.penetrationCache = { spell = totalSpell, armor = totalArmor }
+    return penetrationResult(totalSpell, totalArmor, true)
+end
+
+local function maskContains(mask, school)
+    mask = math.max(0, tonumber(mask) or 0)
+    local divisor = 2 ^ school
+    return math.floor(mask / divisor) - math.floor(mask / (divisor * 2)) * 2 == 1
+end
+
+-- Party-applied target modifiers may not exist in our spellbook, so their
+-- tooltip slot is unavailable. DBC effect arrays still expose the resistance
+-- school mask and damage-taken aura amount by spell id.
+function C:TargetModifierFacts(spellId, semantics)
+    if not spellId or not GetSpellRecField then return {} end
+    if not self.targetModifierFacts then self.targetModifierFacts = {} end
+    local cacheKey = tostring(spellId) .. ":" .. tostring(semantics and semantics.modifierGroup or "")
+    if self.targetModifierFacts[cacheKey] then return self.targetModifierFacts[cacheKey] end
+    local function array(field)
+        local ok, value = pcall(GetSpellRecField, spellId, field, 1)
+        if ok and type(value) == "table" then return value end
+        return nil
+    end
+    local effects = array("effect")
+    local auras = array("effectApplyAuraName")
+    local base = array("effectBasePoints")
+    local misc = array("effectMiscValue")
+    local perCombo = array("effectPointsPerComboPoint")
+    local out = { targetResistanceReduction = {}, targetDamageTaken = {},
+        source = "client DBC target modifier" }
+    local i
+    for i = 1, math.max(table.getn(effects or {}), table.getn(auras or {})) do
+        if not effects or effects[i] == 6 then
+            local aura = auras and tonumber(auras[i])
+            local baseValue = tonumber(base and base[i])
+            local signed = baseValue and baseValue + 1 or nil
+            local amount = math.abs(signed or 0)
+            local mask = tonumber(misc and misc[i]) or 0
+            if aura == 22 or aura == 123 or aura == 143 then
+                local school
+                for school = 0, 6 do
+                    if maskContains(mask, school) then
+                        if school == 0 and (semantics and semantics.armorDebuff
+                            or not semantics and signed and signed < 0) then
+                            out.targetArmorReduction = math.max(out.targetArmorReduction or 0, amount)
+                            if perCombo and tonumber(perCombo[i])
+                                and math.abs(tonumber(perCombo[i])) > 0 then
+                                out.targetArmorPerCombo = true
+                            end
+                        elseif school > 0 and (semantics and semantics.resistanceDebuff
+                            or not semantics and signed and signed < 0) then
+                            out.targetResistanceReduction[school] = math.max(
+                                out.targetResistanceReduction[school] or 0, amount)
+                        end
+                    end
+                end
+            elseif aura == 87 and signed and signed > 0 then
+                local school
+                for school = 0, 6 do
+                    if maskContains(mask, school) then
+                        out.targetDamageTaken[school] = math.max(
+                            out.targetDamageTaken[school] or 0, amount / 100)
+                    end
+                end
+            end
+        end
+    end
+    if not next(out.targetResistanceReduction) then out.targetResistanceReduction = nil end
+    if not next(out.targetDamageTaken) then out.targetDamageTaken = nil end
+    out.recognized = out.targetArmorReduction ~= nil
+        or out.targetResistanceReduction ~= nil or out.targetDamageTaken ~= nil
+    if out.recognized then
+        out.modifierGroup = semantics and semantics.modifierGroup
+            or "dbc:" .. tostring(spellId)
+    end
+    self.targetModifierFacts[cacheKey] = out
+    return out
+end
+
 -- Best-effort facts from the client tooltip. Unknown values stay nil: the
 -- graph prices uncertainty but never invents a damage, heal, range or timer.
 function C:Facts(action)
@@ -182,6 +586,7 @@ function C:Facts(action)
     local out = { cost = nil, cast = nil, cooldown = nil, minRange = nil,
         maxRange = nil, low = nil, high = nil, duration = nil, gcd = nil,
         source = "tooltip" }
+    local description = ""
     local function dbc(field)
         if not (action.spellId and GetSpellRecField) then return nil end
         local ok, value = pcall(GetSpellRecField, action.spellId, field)
@@ -201,6 +606,10 @@ function C:Facts(action)
     local gcdMs = dbc("startRecoveryTime")
     local rangeIndex = dbc("rangeIndex")
     out.school = dbc("school")
+    out.attributesEx4 = dbc("attributesEx4")
+    if out.attributesEx4 ~= nil then
+        out.ignoresResistances = out.attributesEx4 - math.floor(out.attributesEx4 / 2) * 2 == 1
+    end
     if castMs then out.cast = castMs / 1000 end
     if recoveryMs and recoveryMs > 0 then out.cooldown = recoveryMs / 1000 end
     if categoryRecoveryMs and categoryRecoveryMs > 0 then out.categoryCooldown = categoryRecoveryMs / 1000 end
@@ -245,6 +654,7 @@ function C:Facts(action)
         local lt = left and left:GetText()
         local rt = right and right:GetText()
         local text = (lt or "") .. " " .. (rt or "")
+        description = description .. " " .. string.lower(string.gsub(text, ",", ""))
         local tooltipCost = numberFrom(lt, "^(%d+) %a+$")
         if tooltipCost then out.cost = tooltipCost end
         if string.find(text, "Instant") then out.cast = 0 end
@@ -279,6 +689,58 @@ function C:Facts(action)
     end
     if out.low and not out.high then out.high = out.low end
     out.average = out.low and ((out.low + (out.high or out.low)) / 2) or nil
+    local _, _, directLow, directHigh, periodic = string.find(description,
+        "for (%d+) to (%d+) [^%.]-damage and then an additional (%d+) [^%.]-damage over")
+    local direct
+    if directLow then direct = (tonumber(directLow) + tonumber(directHigh)) / 2
+    else
+        _, _, direct, periodic = string.find(description,
+            "for (%d+) [^%.]-damage and then an additional (%d+) [^%.]-damage over")
+        if not direct then
+            _, _, direct, periodic = string.find(description,
+                "deals (%d+) [^%.]-damage and an additional (%d+) [^%.]-damage over")
+        end
+        direct, periodic = tonumber(direct), tonumber(periodic)
+    end
+    periodic = tonumber(periodic)
+    if direct and periodic then
+        out.directDamage, out.periodicDamage = direct, periodic
+        out.average = direct + periodic
+    end
+    if string.find(description, "armor") then
+        out.targetArmorReduction = numberFrom(description, "reducing armor by (%d+)")
+            or numberFrom(description, "reduce.-armor by (%d+)")
+            or numberFrom(description, "decrease.-armor.-by (%d+)")
+            or numberFrom(description, "armor.-reducing it by (%d+)")
+        if out.targetArmorReduction and string.find(description, "per combo point") then
+            out.targetArmorPerCombo = true
+        end
+    end
+    local resistanceAmount = numberFrom(description, "resistances by (%d+)")
+        or numberFrom(description, "resistance by (%d+)")
+    if resistanceAmount and string.find(description, "reduc") then
+        out.targetResistanceReduction = {}
+        local names = { [1] = "holy", [2] = "fire", [3] = "nature",
+            [4] = "frost", [5] = "shadow", [6] = "arcane" }
+        local school, name
+        for school, name in pairs(names) do
+            if string.find(description, name, 1, true) then
+                out.targetResistanceReduction[school] = resistanceAmount
+            end
+        end
+    end
+    local damagePercent = numberFrom(description, "damage taken by (%d+)%%")
+    if damagePercent and string.find(description, "increas") then
+        out.targetDamageTaken = {}
+        local names = { [1] = "holy", [2] = "fire", [3] = "nature",
+            [4] = "frost", [5] = "shadow", [6] = "arcane" }
+        local school, name
+        for school, name in pairs(names) do
+            if string.find(description, name, 1, true) then
+                out.targetDamageTaken[school] = damagePercent / 100
+            end
+        end
+    end
     self.tooltipFacts[cacheKey] = out
     return out
 end

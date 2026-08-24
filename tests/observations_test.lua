@@ -27,17 +27,29 @@ local live = XelAssistObservations:LiveResistances("target")
 assert(live and live[3] == 150, "live target resistance vector was not discovered")
 local liveMultiplier, source = XelAssistObservations:ResistanceMultiplier(action, "target", fire,
     { targetResistances = live, playerLevel = 60 })
-assert(liveMultiplier == 0.5 and source == "live resistance",
-    "150 Fire resistance at level 60 should estimate 50 percent average mitigation")
+assert(liveMultiplier == 0.625 and source == "live resistance",
+    "150 Fire resistance at level 60 should estimate 37.5 percent average mitigation")
 local missOutcome, missTarget, missSpell = XelAssistObservations:SpellMiss(348, "target-a", 2)
 assert(missOutcome == "retry" and missTarget == "target-a" and missSpell == "Immolate",
     "numeric Nampower resist events must retain spell and target identity")
+local beforeOrdinaryMiss = XelAssistObservations:ResistanceMultiplier(action, "target", fire)
+missOutcome, missTarget, missSpell = XelAssistObservations:SpellMiss(348, "target-a", 1)
+assert(missOutcome == "retry" and missTarget == "target-a" and missSpell == "Immolate",
+    "ordinary numeric Nampower misses must also permit a clean retry")
+assert(XelAssistObservations:ResistanceMultiplier(action, "target", fire) == beforeOrdinaryMiss,
+    "legacy fallback must not reinterpret an ordinary miss as school resistance")
 
 XelAssistObservations:Submitted(action, "target", fire)
 assert(XelAssistObservations:CombatMessage("Enemy is immune to your Immolate.") == "immune")
 assert(XelAssistObservations:Blocker(action, "target") == "observed immunity")
 XelAssistTestGUID = "target-b"
 assert(not XelAssistObservations:Blocker(action, "target"), "immunity must be target scoped")
+
+XelAssistObservations:Submitted(action, "target", fire)
+XelAssistObservations:Submitted({ name = "Arcane Intellect" }, "player", {})
+assert(not XelAssistObservations:ErrorMessage(SPELL_FAILED_LINE_OF_SIGHT)
+    and not XelAssistObservations:Blocker(action, "target"),
+    "an off-target submission must retire stale hostile UI-error correlation")
 
 XelAssistObservations:Submitted(action, "target", fire)
 assert(XelAssistObservations:ErrorMessage(SPELL_FAILED_LINE_OF_SIGHT) == "line of sight")

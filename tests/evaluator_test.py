@@ -31,7 +31,9 @@ assert "s.hasAggro" in graph and "s.tank" in graph and "threat" in graph
 assert 's.role == "healer"' in graph and 's.role == "damage"' in graph
 assert "s.moving and cast" in graph
 assert "math.min(power, missing)" in graph
-assert "math.min(power, s.targetHealth)" in graph
+assert "math.min(expectedPower, s.targetHealth)" in graph
+assert "resistance = XelAssistResistance:Estimate" in graph
+assert "power = expectedPower" in graph and "threatPower" in graph
 assert "s.targetHealthExact" in graph and "function C:Health" in capabilities
 assert "XelAssistCharDB.graphDepth" in graph
 assert "TargetNearestEnemy" not in graph + core
@@ -50,6 +52,11 @@ assert "function C:BonusDamage" in capabilities and "function C:RangedDamage" in
 assert "function C:TalentPoints" in capabilities
 assert "function C:InferKnowledge" in capabilities and "IsPassiveSpell" in capabilities
 assert 'event == "CHARACTER_POINTS_CHANGED"' in core
+assert 'XelAssistResistance:IsOwnedCaster(arg1)' in core
+assert re.search(r"SpellMiss\(\s*arg3, arg2, arg4, arg1\)", core)
+assert 'NP_EnableAuraCastEvents' in core
+assert 'NP_EnableSpellStartEvents' in core and 'NP_EnableSpellGoEvents' in core
+assert 'NP_EnableSpellDamageEvents' not in core and 'NP_EnableSpellMissEvents' not in core
 
 subprocess.run(["lua", str(ROOT / "tests/graph_scenarios.lua")], cwd=ROOT, check=True)
 print("ok: semantic action graph contracts and Lua scenarios")

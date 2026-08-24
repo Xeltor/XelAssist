@@ -1,4 +1,8 @@
-table.getn = table.getn or function(t) return #t end
+table.getn = table.getn or function(value)
+    local count = 0
+    while value[count + 1] ~= nil do count = count + 1 end
+    return count
+end
 BOOKTYPE_SPELL = "spell"
 BOOKTYPE_PET = "pet"
 NUM_PET_ACTION_SLOTS = 10

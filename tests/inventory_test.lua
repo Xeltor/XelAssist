@@ -1,6 +1,10 @@
 INVSLOT_AMMO, INVSLOT_MAINHAND, INVSLOT_OFFHAND, INVSLOT_RANGED = 0, 16, 17, 18
 NUM_BAG_SLOTS = 4
-table.getn = table.getn or function(t) return #t end
+table.getn = table.getn or function(value)
+    local count = 0
+    while value[count + 1] ~= nil do count = count + 1 end
+    return count
+end
 local links = { [0] = "[Sharp Arrow]", [16] = "[Broken Sword]", [18] = "[Long Bow]" }
 GetInventoryItemLink = function(_, slot) return links[slot] end
 GetInventoryItemCount = function(_, slot) return slot == 0 and 12 or 1 end

@@ -1,10 +1,14 @@
-# XelAssist 0.4.0
+# XelAssist 0.5.0
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
 graph. Curated semantics cover known Octowow abilities, while conservative live
 tooltip inference admits unambiguous unknown combat spells. It does not contain
 a class rotation or an ordered cast list.
+
+Aegis_SBR and other installed addons are read-only research references, not
+runtime dependencies. XelAssist capability-checks the required SuperWoW,
+SuperAPI, Nampower, and available ClassicAPI DLL globals directly.
 
 Each physical press of `/xa` executes at most one recommendation. The on-screen
 decision runway shows the current action and up to four simulated future actions.
@@ -48,6 +52,7 @@ Decision policy is stored per character: Smart/Single/Area/Support intent, role,
 graph depth, area-action permission, cooldown/reagent/consumable permission, companion
 actions, crowd-control permission, and companion threat posture. Display scale,
 position, lock state, and visibility are global.
+Finite consumables are always opt-in per character and default disabled.
 
 Smart mode reacts to live need. It can prefer an interrupt, unwanted-aggro escape,
 defensive, efficient heal, missing utility, or damage action without dispatching
@@ -57,7 +62,7 @@ ordering spells.
 ## Commands
 
 `/xa` executes once. Other commands are `why`, `smart`, `single`, `aoe`,
-`support`, `cooldowns`, `reagents`, `consumables`, `diagnostics`, `log`,
+`support`, `cooldowns`, `reagents`, `consumables`, `resistance`, `diagnostics`, `log`,
 `clearlog`, `config`, `show`, and `hide`.
 
 The per-character decision log keeps the latest 200 attempted recommendations and
@@ -74,6 +79,8 @@ a 3 ms hot-path budget. It accounts for:
 
 - current cast and GCD downtime, predicted action cast time, and own cooldowns;
 - explicit live range verdicts, minimum/maximum DBC ranges, and movement;
+- hitbox-aware actor-to-target distance, line of sight, and behind-position
+  evidence when UnitXP exposes it;
 - current resources, per-rank cost, effective healing, overheal, and damage needed
   to finish the target;
 - talent-adjusted client tooltip facts, refreshed whenever talent points change;
@@ -86,6 +93,30 @@ a 3 ms hot-path budget. It accounts for:
 - equipped weapon durability and ammunition, plus opt-in immediate-use healing
   and mana consumables discovered conservatively from live bag tooltips;
 - future resource, health, target-health, aura, threat-drop, and cooldown state.
+- target/ally/controlled-actor identity plus instance, zone, creature ID,
+  classification, raid marker, combat state, and owned timed aura evidence.
+- Turtle target Armor/Holy/Fire/Nature/Frost/Shadow/Arcane values, equipped
+  spell/armor penetration, DBC binary/always-hit/ignore-resistance semantics, and
+  target-school outcome learning separated into landing and landed-hit mitigation;
+- dynamic wand/seal/pet schools, armor-ignoring bleeds, and weighted mixed-school
+  and hybrid direct/periodic effects, with resistance-adjusted damage feeding
+  overkill, target lifetime, threat, future health, debuff-then-exploit paths,
+  and the final recommendation explanation.
+- exact target delivery learning from ordinary magic misses, physical hit-table
+  outcomes, Nampower white-swing rounds, binary combined rejects, landed damage,
+  and caster-attributed aura
+  events, with cast-time modifier fingerprints, tick-time resistance state,
+  refresh-generation safety, and expiring projected modifiers.
+- actual main-hand, off-hand, ranged, and no-weapon-form skill against
+  source-correct NPC/PvP Defense and observable Defense bonuses, including
+  white-only, durability-aware dual-wield miss rules, DBC damage-class and
+  Combat-Range classification, and hand/weapon/form/position/white-table-specific
+  outcome learning. The calculated value is the initial miss sub-roll; additive
+  +hit and cold active-defense rates remain explicit unknown inputs until exact
+  matching outcomes teach them.
+- probabilistic debuff applications and refreshes, generic own-caster exclusive
+  aura families, impact-time pet autocast modifiers, and a retained setup branch
+  so bounded lookahead can discover resistance-debuff-then-damage cycles.
 
 See [docs/graph-model.md](docs/graph-model.md) for evidence boundaries and current
 limitations.
