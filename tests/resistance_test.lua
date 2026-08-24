@@ -61,7 +61,7 @@ XelAssistCapabilities = { Penetration = function() return penetration end,
 -- most recently submitted GUID as selected unless a test replaces these
 -- providers explicitly to exercise a target-swap boundary.
 local testCurrentTarget = targetGuid
-XelAssistGraph = { ActiveTargetModifiers = function() return nil end }
+XelAssistTargetModifiers = { Active = function() return nil end }
 XelAssistEncounter = { Snapshot = function()
     return { target = { guid = testCurrentTarget } }
 end }
@@ -150,6 +150,7 @@ C_UnitAuras = { GetUnitAuras = function(unit, filter)
     return {}
 end }
 
+dofile("XelAssist_Delivery.lua")
 dofile("XelAssist_Resistance.lua")
 
 local submittedForCurrentTarget = XelAssistResistance.Submitted
@@ -930,10 +931,10 @@ assert(XelAssistResistance:Miss(777, targetGuid, 11, "player-a") == 5
     "every defined terminal miss outcome must retire its submission")
 
 do
-local savedGraph, savedEncounter = XelAssistGraph, XelAssistEncounter
+local savedModifiers, savedEncounter = XelAssistTargetModifiers, XelAssistEncounter
 local activeShadowReduction = 0
 local modifierEncounterTarget = "modifier-target"
-XelAssistGraph = { ActiveTargetModifiers = function()
+XelAssistTargetModifiers = { Active = function()
     return activeShadowReduction ~= 0 and { [5] = activeShadowReduction } or nil
 end }
 XelAssistEncounter = { Snapshot = function()
@@ -1007,7 +1008,7 @@ local delayedDirect = XelAssistResistance:DamageEvent(
 assert(not delayedDirect.modifierStateUnknown
     and modifierProfile.contexts["5:player:l60:p0:r50:direct"].samples == 2,
     "a delayed direct impact must retain the known modifier state captured at submission")
-XelAssistGraph, XelAssistEncounter = savedGraph, savedEncounter
+XelAssistTargetModifiers, XelAssistEncounter = savedModifiers, savedEncounter
 end
 
 local hybridProfile = isolatedState("hybrid-target", 91003, 60,

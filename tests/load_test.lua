@@ -108,8 +108,10 @@ GetShapeshiftForm = function() return 0 end
 GetComboPoints = function() return 0 end
 GetInventoryItemLink = function() return nil end
 
-local files = { "XelAssist_Prelude.lua", "XelAssist_Capabilities.lua", "XelAssist_Actions.lua",
-    "XelAssist_Encounter.lua", "XelAssist_Resistance.lua", "XelAssist_Actors.lua", "XelAssist_Observations.lua", "XelAssist_Inventory.lua",
+local files = { "XelAssist_Prelude.lua", "XelAssist_Capabilities.lua", "XelAssist_Delivery.lua",
+    "XelAssist_Actions.lua",
+    "XelAssist_Encounter.lua", "XelAssist_TargetModifiers.lua", "XelAssist_Resistance.lua",
+    "XelAssist_Actors.lua", "XelAssist_Observations.lua", "XelAssist_Inventory.lua",
     "XelAssist_Graph.lua", "XelAssist_UI.lua", "XelAssist_Config.lua",
     "XelAssist_Minimap.lua", "XelAssist_Core.lua" }
 local i

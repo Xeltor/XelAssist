@@ -16,6 +16,23 @@ excluded, and inferred nodes are visibly marked as estimated.
 The spellbook supplies the available nodes and every learned rank. Live state and
 client records supply edges and costs. The same evaluator scores every class.
 
+## Module boundaries
+
+`XelAssist_Delivery.lua` is stateless combat mechanics: DBC ordinary-hit traits,
+magic/physical priors, weapon-skill versus Defense context keys, resolved
+white-swing decoding, and delivery evidence records. It does not know about the
+graph, encounters, or resistance storage. `XelAssist_TargetModifiers.lua`
+discovers active attributable Armor/resistance/damage-taken effects and owns
+their stacking groups. This lets outcome attribution query the current modifier
+state without depending back on graph search.
+
+`XelAssist_Resistance.lua` remains the owner of target identities, persisted
+profiles, submissions, outcome attribution, and landed-hit mitigation. It uses
+Delivery through a stable façade. `XelAssist_Graph.lua` owns only bounded search
+state and future transitions; a compatibility modifier method delegates to the
+shared target-modifier module. Architecture tests prevent either dependency
+cycle from returning.
+
 ## Evidence order
 
 1. Live authoritative verdicts: known spellbook slot, `IsSpellUsable`, cooldown,

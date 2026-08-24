@@ -9,6 +9,9 @@ actions = (ROOT / "XelAssist_Actions.lua").read_text()
 graph = (ROOT / "XelAssist_Graph.lua").read_text()
 core = (ROOT / "XelAssist_Core.lua").read_text()
 capabilities = (ROOT / "XelAssist_Capabilities.lua").read_text()
+resistance = (ROOT / "XelAssist_Resistance.lua").read_text()
+target_modifiers = (ROOT / "XelAssist_TargetModifiers.lua").read_text()
+delivery = (ROOT / "XelAssist_Delivery.lua").read_text()
 
 assert not (ROOT / "XelAssist_Profiles.lua").exists(), "typed rotations must not remain"
 assert "XelAssistProfiles" not in graph + actions
@@ -57,6 +60,18 @@ assert re.search(r"SpellMiss\(\s*arg3, arg2, arg4, arg1\)", core)
 assert 'NP_EnableAuraCastEvents' in core
 assert 'NP_EnableSpellStartEvents' in core and 'NP_EnableSpellGoEvents' in core
 assert 'NP_EnableSpellDamageEvents' not in core and 'NP_EnableSpellMissEvents' not in core
+assert "XelAssistGraph" not in resistance, "resistance observations must not depend on graph search"
+assert "XelAssistTargetModifiers:Active" in resistance
+assert "function M:Active" in target_modifiers
+assert "function M:AggregateReductions" in target_modifiers
+assert "function M:AggregateDamageTaken" in target_modifiers
+assert not any(name in delivery for name in
+    ["XelAssistResistance", "XelAssistGraph", "XelAssistEncounter"]), \
+    "stateless delivery mechanics must not depend on storage, graph, or encounter modules"
+for contract in ["function D:SpellTraits", "function D:Record",
+    "function D:PhysicalContext", "function D:AutoAttackEvidence"]:
+    assert contract in delivery, contract
+assert "trimDelivery" not in resistance and "physicalHitFromSkills" not in resistance
 
 subprocess.run(["lua", str(ROOT / "tests/graph_scenarios.lua")], cwd=ROOT, check=True)
 print("ok: semantic action graph contracts and Lua scenarios")

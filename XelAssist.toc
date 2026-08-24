@@ -9,8 +9,10 @@
 
 XelAssist_Prelude.lua
 XelAssist_Capabilities.lua
+XelAssist_Delivery.lua
 XelAssist_Actions.lua
 XelAssist_Encounter.lua
+XelAssist_TargetModifiers.lua
 XelAssist_Resistance.lua
 XelAssist_Actors.lua
 XelAssist_Observations.lua

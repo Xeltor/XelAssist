@@ -6,6 +6,7 @@ end
 dofile("XelAssist_Actions.lua")
 dofile("XelAssist_Capabilities.lua")
 dofile("XelAssist_Actors.lua")
+dofile("XelAssist_TargetModifiers.lua")
 dofile("XelAssist_Graph.lua")
 
 XelAssist = {}

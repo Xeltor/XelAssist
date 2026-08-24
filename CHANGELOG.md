@@ -2,6 +2,11 @@
 
 ## 0.5.0
 
+- Split stateless delivery mechanics and attributable target-modifier discovery
+  out of the resistance and graph monoliths. Resistance remains the sole owner
+  of target profiles/submissions/mitigation, Delivery owns ordinary-hit traits,
+  weapon/Defense keys and evidence records, and observations can recover active
+  modifiers without depending back on graph search.
 - Added a target resistance subsystem that prefers capability-proven Turtle
   `UnitResistance` Armor/school values and learns privacy-safe NPC profiles from
   exact Nampower damage and miss events when live target data is unavailable.
