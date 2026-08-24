@@ -2,15 +2,20 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.2.0
+## Version: 0.4.0
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
 
 XelAssist_Prelude.lua
 XelAssist_Capabilities.lua
-XelAssist_Profiles.lua
+XelAssist_Actions.lua
+XelAssist_Actors.lua
+XelAssist_Observations.lua
+XelAssist_Inventory.lua
 XelAssist_Graph.lua
 XelAssist_UI.lua
+XelAssist_Config.lua
+XelAssist_Minimap.lua
 XelAssist_Core.lua
 Bindings.xml

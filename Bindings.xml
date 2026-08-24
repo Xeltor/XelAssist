@@ -5,6 +5,4 @@
   <Binding name="XELASSIST_SUPPORT">XelAssist:Execute("support")</Binding>
   <Binding name="XELASSIST_BUFFS">XelAssist:Execute("buff")</Binding>
   <Binding name="XELASSIST_COOLDOWNS">XelAssist:Command("cooldowns")</Binding>
-  <Binding name="XELASSIST_CONSUMABLES">XelAssist:Command("consumables")</Binding>
 </Bindings>
-
