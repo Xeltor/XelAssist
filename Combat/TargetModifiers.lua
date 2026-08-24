@@ -1,8 +1,8 @@
 -- Target modifier discovery and stacking rules are shared combat knowledge,
 -- not graph-search machinery. Keeping them here lets observation code recover
 -- the live resistance-reduction context without depending back on the graph.
-XelAssistTargetModifiers = {}
-local M = XelAssistTargetModifiers
+XelAssist.Combat.TargetModifiers = {}
+local M = XelAssist.Combat.TargetModifiers
 
 function M:AggregateReductions(effects)
     local groups, _, effect = {}, nil, nil
@@ -97,7 +97,7 @@ function M:Active(encounter, targetResistance)
     if not (harmful and type(harmful.list) == "table") then
         return nil, nil, nil
     end
-    local actions = XelAssistActors and XelAssistActors:Actions() or {}
+    local actions = XelAssist.Game.Actors and XelAssist.Game.Actors:Actions() or {}
     local byName, i = {}, nil
     for i = 1, table.getn(actions) do
         local action = actions[i]
@@ -107,7 +107,7 @@ function M:Active(encounter, targetResistance)
         end
     end
     local knowledgeName, semantics
-    for knowledgeName, semantics in pairs(XelAssistKnowledge or {}) do
+    for knowledgeName, semantics in pairs(XelAssist.Combat.Knowledge or {}) do
         if (semantics.armorDebuff or semantics.resistanceDebuff)
             and not byName[knowledgeName] then
             byName[knowledgeName] = { name = knowledgeName, facts = semantics }
@@ -117,9 +117,9 @@ function M:Active(encounter, targetResistance)
     for i = 1, table.getn(harmful.list) do
         local aura = harmful.list[i]
         local action = aura and aura.name and byName[aura.name]
-        local exact = aura and aura.spellId and XelAssistCapabilities
-            and XelAssistCapabilities.TargetModifierFacts
-            and XelAssistCapabilities:TargetModifierFacts(aura.spellId,
+        local exact = aura and aura.spellId and XelAssist.Game.Capabilities
+            and XelAssist.Game.Capabilities.TargetModifierFacts
+            and XelAssist.Game.Capabilities:TargetModifierFacts(aura.spellId,
                 action and action.facts or nil) or nil
         if (action or exact and exact.recognized) and aura.remaining ~= 0 then
             local tooltip = {}
@@ -128,7 +128,7 @@ function M:Active(encounter, targetResistance)
             -- is rank-safe only when it describes this exact aura spell ID.
             if action and action.slot and (not aura.spellId
                 or tonumber(action.spellId) == tonumber(aura.spellId)) then
-                mergeFacts(tooltip, XelAssistActors:Facts(action))
+                mergeFacts(tooltip, XelAssist.Game.Actors:Facts(action))
             end
             local facts = action and action.facts or {
                 armorDebuff = tooltip.targetArmorReduction ~= nil,

@@ -2,24 +2,40 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.5.1
+## Version: 0.6.0
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
 
-XelAssist_Prelude.lua
-XelAssist_Capabilities.lua
-XelAssist_Delivery.lua
-XelAssist_Actions.lua
-XelAssist_Encounter.lua
-XelAssist_TargetModifiers.lua
-XelAssist_Resistance.lua
-XelAssist_Actors.lua
-XelAssist_Observations.lua
-XelAssist_Inventory.lua
-XelAssist_Graph.lua
-XelAssist_UI.lua
-XelAssist_Config.lua
-XelAssist_Minimap.lua
-XelAssist_Core.lua
+# Foundation and live game state
+Core\Bootstrap.lua
+Game\Capabilities.lua
+Combat\Delivery.lua
+Combat\Knowledge.lua
+Game\Encounter.lua
+Combat\TargetModifiers.lua
+Combat\ResistanceSubmissions.lua
+Combat\Resistance.lua
+Game\Actors.lua
+Game\Friendlies.lua
+Combat\Observations.lua
+Game\Inventory.lua
+
+# Graph pipeline
+Graph\State.lua
+Graph\Targets.lua
+Graph\Effects.lua
+Graph\Scoring.lua
+Graph\OngoingEffects.lua
+Graph\ActionEffects.lua
+Graph\Transitions.lua
+Graph\Engine.lua
+
+# Presentation and execution boundary
+UI\HUD.lua
+UI\Settings.lua
+UI\Minimap.lua
+Core\Reservations.lua
+Core\Executor.lua
+Core\Runtime.lua
 Bindings.xml

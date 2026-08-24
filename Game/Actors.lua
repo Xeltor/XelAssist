@@ -1,7 +1,7 @@
 -- Combat actors and their live-discovered actions. This module contains
 -- semantics and execution evidence, never an ordered pet or class rotation.
-XelAssistActors = {}
-local A = XelAssistActors
+XelAssist.Game.Actors = {}
+local A = XelAssist.Game.Actors
 
 local PET_KNOWLEDGE = {
     ["Firebolt"] = { kind = "damage", ranged = true },
@@ -49,12 +49,32 @@ end
 
 function A:Invalidate()
     self.petActions = nil
+    self.petActionsGuid = nil
     self.petIdentity = nil
 end
 
-function A:PetIdentity()
-    if not UnitExists("pet") or UnitIsDead("pet") then return nil end
-    local _, petGuid = UnitExists("pet")
+function A:PetRef()
+    local ref = XelAssist.Game.Capabilities:UnitRef("pet", "controlled", "pet")
+    if not ref then return nil end
+    if UnitIsDead and UnitIsDead("pet") then return nil end
+    return ref
+end
+
+function A:ValidateActorRef(ref)
+    if type(ref) ~= "table" or ref.unit ~= "pet" or ref.guid == nil then
+        return nil, "companion identity unavailable"
+    end
+    if not XelAssist.Game.Capabilities:SameUnitRef(ref) then
+        return nil, "companion changed"
+    end
+    if UnitIsDead and UnitIsDead(ref.unit) then return nil, "companion defeated" end
+    return ref.unit, nil
+end
+
+function A:PetIdentity(ref)
+    ref = ref or self:PetRef()
+    if not ref then return nil end
+    local petGuid = ref.guid
     local family = UnitCreatureFamily and UnitCreatureFamily("pet") or nil
     local creature = UnitCreatureType and UnitCreatureType("pet") or nil
     local stance, i
@@ -71,6 +91,7 @@ function A:PetIdentity()
     local castRemaining = XelAssist and XelAssist.petCastGuid == petGuid
         and XelAssist.petCastUntil and math.max(0, XelAssist.petCastUntil - GetTime()) or 0
     return { id = "pet", unit = "pet", actorType = "controlled", guid = petGuid,
+        actorRef = ref,
         family = family, creatureType = creature, stance = stance,
         level = UnitLevel and UnitLevel("pet") or nil,
         health = UnitHealth("pet") or 0, healthMax = UnitHealthMax("pet") or 0,
@@ -84,7 +105,12 @@ function A:PetIdentity()
         hasAggro = UnitExists("targettarget") and UnitIsUnit("targettarget", "pet") and true or false }
 end
 
-function A:BuildPetActions()
+function A:BuildPetActions(ref)
+    ref = ref or self:PetRef()
+    if not ref then
+        self.petActions, self.petActionsGuid = {}, nil
+        return self.petActions
+    end
     local actions, barByName = {}, {}
     local slots = NUM_PET_ACTION_SLOTS or 10
     local i
@@ -110,7 +136,7 @@ function A:BuildPetActions()
         if not passive and bar then
             local facts = copyFacts(PET_KNOWLEDGE[name])
             if not facts.kind then
-                local inferred = XelAssistCapabilities:InferKnowledge(i, BOOKTYPE_PET)
+                local inferred = XelAssist.Game.Capabilities:InferKnowledge(i, BOOKTYPE_PET)
                 facts = inferred or {}
             end
             if facts.kind then
@@ -119,6 +145,7 @@ function A:BuildPetActions()
                     slot = i, actionSlot = bar.slot, texture = bar.texture,
                     spellId = spellIdFor(name, rank),
                     bookType = BOOKTYPE_PET, actor = "pet", executor = "petAbility",
+                    actorRef = ref,
                     autocastAllowed = bar.autocastAllowed and true or false,
                     autocastEnabled = bar.autocastEnabled and true or false,
                     active = bar.active and true or false, facts = facts })
@@ -127,28 +154,34 @@ function A:BuildPetActions()
         i = i + 1
     end
     self.petActions = actions
+    self.petActionsGuid = ref.guid
     return actions
 end
 
 function A:Actions()
-    local out, players, i = {}, XelAssistCapabilities:Actions(), nil
+    local out, players, i = {}, XelAssist.Game.Capabilities:Actions(), nil
     for i = 1, table.getn(players) do table.insert(out, players[i]) end
-    if UnitExists("pet") and not UnitIsDead("pet") then
-        local pets = self.petActions or self:BuildPetActions()
+    local ref = self:PetRef()
+    if ref then
+        local pets = self.petActions and self.petActionsGuid == ref.guid
+            and self.petActions or self:BuildPetActions(ref)
         for i = 1, table.getn(pets) do table.insert(out, pets[i]) end
         if PetAttack then
             table.insert(out, { name = "Pet Attack", rank = 1, actor = "pet",
                 executor = "petCommand", command = "attack",
+                actorRef = ref,
                 facts = { kind = "command", petCommand = true } })
         end
         if PetFollow then
             table.insert(out, { name = "Pet Follow", rank = 1, actor = "pet",
                 executor = "petCommand", command = "follow",
+                actorRef = ref,
                 facts = { kind = "command", petCommand = true } })
         end
         if PetPassiveMode then
             table.insert(out, { name = "Pet Passive", rank = 1, actor = "pet",
                 executor = "petCommand", command = "passive",
+                actorRef = ref,
                 facts = { kind = "command", petCommand = true } })
         end
     end
@@ -156,11 +189,11 @@ function A:Actions()
 end
 
 function A:Facts(action)
-    if action.executor == "item" and XelAssistInventory then return XelAssistInventory:Facts(action) end
+    if action.executor == "item" and XelAssist.Game.Inventory then return XelAssist.Game.Inventory:Facts(action) end
     if action.actor == "pet" and action.executor == "petCommand" then
         return { cost = 0, cast = 0, gcd = 0, source = "pet command" }
     end
-    return XelAssistCapabilities:Facts(action)
+    return XelAssist.Game.Capabilities:Facts(action)
 end
 
 function A:PetCooldown(action)
@@ -182,24 +215,26 @@ function A:Distance(from, to)
 end
 
 function A:Snapshot()
+    local _, playerGuid = UnitExists("player")
     local player = { id = "player", unit = "player", actorType = "player",
+        guid = playerGuid,
         level = UnitLevel and UnitLevel("player") or nil,
         health = UnitHealth("player") or 0, healthMax = UnitHealthMax("player") or 0,
         resource = UnitMana("player") or 0, resourceMax = UnitManaMax("player") or 0 }
     local actors = { player = player, allies = {}, controlled = {} }
-    if XelAssistEncounter then actors.target = XelAssistEncounter:Unit("target", "target") end
+    if XelAssist.Game.Encounter then actors.target = XelAssist.Game.Encounter:Unit("target", "target") end
     local raid = GetNumRaidMembers and GetNumRaidMembers() or 0
     local party = GetNumPartyMembers and GetNumPartyMembers() or 0
     local i
-    if XelAssistEncounter then
+    if XelAssist.Game.Encounter then
         if raid > 0 then
             for i = 1, raid do
-                local ally = XelAssistEncounter:Unit("raid" .. i, "ally")
+                local ally = XelAssist.Game.Encounter:Unit("raid" .. i, "ally")
                 if ally then table.insert(actors.allies, ally) end
             end
         else
             for i = 1, party do
-                local ally = XelAssistEncounter:Unit("party" .. i, "ally")
+                local ally = XelAssist.Game.Encounter:Unit("party" .. i, "ally")
                 if ally then table.insert(actors.allies, ally) end
             end
         end
@@ -207,10 +242,11 @@ function A:Snapshot()
     local pet = self:PetIdentity()
     if pet then
         pet.distance, pet.distanceKind = self:Distance("pet", "target")
-        local geometry = XelAssistCapabilities:Geometry("pet", "target")
+        local geometry = XelAssist.Game.Capabilities:Geometry("pet", "target")
         pet.lineOfSight, pet.behind = geometry.lineOfSight, geometry.behind
         pet.autocasts = {}
-        local actions = self.petActions or self:BuildPetActions()
+        local actions = self.petActions and self.petActionsGuid == pet.guid
+            and self.petActions or self:BuildPetActions(pet.actorRef)
         for i = 1, table.getn(actions) do
             if actions[i].autocastEnabled then
                 local tooltip = self:Facts(actions[i])
@@ -258,7 +294,10 @@ function A:DispelTarget(state)
     return nil
 end
 
-function A:Execute(action)
+function A:Execute(action, expectedRef)
+    if not action or action.actor ~= "pet" then return false, "not a companion action" end
+    local _, reason = self:ValidateActorRef(expectedRef or action.actorRef)
+    if reason then return false, reason end
     if action.executor == "petAbility" and action.actionSlot and CastPetAction then
         CastPetAction(action.actionSlot); return true
     end

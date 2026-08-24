@@ -1,3 +1,4 @@
+XelAssist = { Game = {}, Combat = {}, Graph = {}, UI = {} }
 table.getn = table.getn or function(value)
     local count = 0
     while value[count + 1] ~= nil do count = count + 1 end
@@ -158,15 +159,15 @@ GetTalentInfo = function(tab, talent)
     return "Talent", nil, 1, 1, ranks[tab][talent]
 end
 
-dofile("XelAssist_Actions.lua")
-dofile("XelAssist_Capabilities.lua")
+dofile("Combat/Knowledge.lua")
+dofile("Game/Capabilities.lua")
 
-local actions = XelAssistCapabilities:Actions()
+local actions = XelAssist.Game.Capabilities:Actions()
 assert(table.getn(actions) == 2, "all learned ranks should become graph nodes")
 assert(actions[1].spellId == 116 and actions[2].spellId == 205, "ranked spell IDs were not resolved")
-assert(XelAssistCapabilities:CastName(actions[1]) == "Frostbolt(Rank 1)")
+assert(XelAssist.Game.Capabilities:CastName(actions[1]) == "Frostbolt(Rank 1)")
 
-local facts = XelAssistCapabilities:Facts(actions[1])
+local facts = XelAssist.Game.Capabilities:Facts(actions[1])
 assert(facts.cost == 50, "talent-adjusted tooltip cost should override base DBC cost")
 assert(facts.cast == 2.5 and facts.gcd == 1.5 and facts.cooldown == 8)
 assert(facts.cooldownGroup == 44 and facts.categoryCooldown == 6)
@@ -175,14 +176,86 @@ assert(facts.average == 110 and facts.school == 4)
 assert(facts.attributesEx4 == 1 and facts.ignoresResistances == true,
     "DBC ignore-resistance attribute missing")
 assert(facts.dbcAverage and facts.dbcAverage > 100, "DBC effect magnitude missing")
-assert(XelAssistCapabilities:GCDRemaining() == 0.3)
-local health, maximum, exact = XelAssistCapabilities:Health("target")
+assert(XelAssist.Game.Capabilities:GCDRemaining() == 0.3)
+local health, maximum, exact = XelAssist.Game.Capabilities:Health("target")
 assert(health == 4321 and maximum == 9876 and exact == true)
-assert(XelAssistCapabilities:Usable(actions[1]) == true)
-local distance, distanceKind = XelAssistCapabilities:Distance("target")
+assert(XelAssist.Game.Capabilities:Usable(actions[1]) == true)
+local distance, distanceKind = XelAssist.Game.Capabilities:Distance("target")
 assert(distance == 6.5 and distanceKind == "hitbox", "NPC-capable UnitXP distance must have priority")
-assert(XelAssistCapabilities:TalentPoints() == 10, "talent evidence was not read")
-local weaponSkills = XelAssistCapabilities:WeaponSkills()
+
+local savedUnitExists, savedUnitCanAssist, savedUnitIsDead = UnitExists, UnitCanAssist, UnitIsDead
+local opaqueA, opaqueB = {}, {}
+local liveGuid, liveExists, liveAssist, liveDead = opaqueA, true, true, false
+UnitExists = function(unit)
+    if not liveExists then return nil, nil end
+    return true, liveGuid
+end
+UnitCanAssist = function(from, unit)
+    assert(from == "player" and unit == "party1")
+    return liveAssist
+end
+UnitIsDead = function(unit)
+    assert(unit == "party1" or unit == "player")
+    return liveDead
+end
+local allyRef = XelAssist.Game.Capabilities:UnitRef("party1", "friendly", "party")
+assert(allyRef and allyRef.unit == "party1" and allyRef.guid == opaqueA
+    and allyRef.relation == "friendly" and allyRef.source == "party",
+    "friendly references must retain their transient token and untouched opaque GUID")
+assert(XelAssist.Game.Capabilities:SameUnitRef(allyRef), "unchanged token identity must validate")
+local validatedUnit, validationReason = XelAssist.Game.Capabilities:ValidateFriendlyRef(allyRef)
+assert(validatedUnit == "party1" and validationReason == nil,
+    "a live assistable reference must remain castable")
+liveGuid = opaqueB
+assert(not XelAssist.Game.Capabilities:SameUnitRef(allyRef),
+    "a reused roster token must not match the snapshotted GUID")
+validatedUnit, validationReason = XelAssist.Game.Capabilities:ValidateFriendlyRef(allyRef)
+assert(validatedUnit == nil and validationReason == "ally changed",
+    "a reused roster token must request a fresh graph snapshot")
+liveGuid, liveAssist = opaqueA, false
+validatedUnit, validationReason = XelAssist.Game.Capabilities:ValidateFriendlyRef(allyRef)
+assert(validatedUnit == nil and validationReason == "ally no longer friendly",
+    "a unit that is no longer assistable must not remain castable")
+liveAssist, liveDead = true, true
+validatedUnit, validationReason = XelAssist.Game.Capabilities:ValidateFriendlyRef(allyRef)
+assert(validatedUnit == nil and validationReason == "ally defeated",
+    "a defeated friendly must not remain castable")
+liveDead, liveExists = false, false
+validatedUnit, validationReason = XelAssist.Game.Capabilities:ValidateFriendlyRef(allyRef)
+assert(validatedUnit == nil and validationReason == "ally unavailable",
+    "a missing friendly must not remain castable")
+assert(XelAssist.Game.Capabilities:UnitRef("party1", "friendly", "party") == nil,
+    "an unavailable unit cannot produce an identity reference")
+validatedUnit, validationReason = XelAssist.Game.Capabilities:ValidateFriendlyRef({ unit = "party1" })
+assert(validatedUnit == nil and validationReason == "ally identity unavailable",
+    "a reference without an opaque GUID must fail closed")
+liveExists, liveGuid, liveAssist = true, opaqueA, false
+local selfRef = XelAssist.Game.Capabilities:UnitRef("player", "self", "self")
+validatedUnit, validationReason = XelAssist.Game.Capabilities:ValidateFriendlyRef(selfRef)
+assert(validatedUnit == "player" and validationReason == nil,
+    "self validation must not depend on the friendly-reaction API")
+UnitExists, UnitCanAssist, UnitIsDead = savedUnitExists, savedUnitCanAssist, savedUnitIsDead
+
+local rangeName, rangeUnit, rangeResult = nil, nil, 0
+IsSpellInRange = function(name, unit)
+    rangeName, rangeUnit = name, unit
+    return rangeResult
+end
+assert(XelAssist.Game.Capabilities:InRange("Flash Heal(Rank 1)", "party1") == false
+    and rangeName == "Flash Heal(Rank 1)" and rangeUnit == "party1",
+    "authoritative range queries must receive the explicit friendly unit")
+rangeResult = 1
+assert(XelAssist.Game.Capabilities:InRange("Flash Heal(Rank 1)", "mouseover") == true
+    and rangeUnit == "mouseover", "mouseover range must use its own unit token")
+rangeResult = -1
+assert(XelAssist.Game.Capabilities:InRange("Flash Heal(Rank 1)", "party1") == nil,
+    "unsupported range verdicts must remain unknown")
+IsSpellInRange = nil
+assert(XelAssist.Game.Capabilities:InRange("Flash Heal(Rank 1)", "party1") == nil,
+    "a missing range API must remain unknown")
+
+assert(XelAssist.Game.Capabilities:TalentPoints() == 10, "talent evidence was not read")
+local weaponSkills = XelAssist.Game.Capabilities:WeaponSkills()
 assert(weaponSkills.main.total == 280 and weaponSkills.off.total == 263
     and weaponSkills.ranged.total == 294 and weaponSkills.unarmed.total == 242,
     "current main/off/ranged and independent unarmed skills must remain distinct")
@@ -191,76 +264,76 @@ assert(weaponSkills.dualWield and weaponSkills.mainToken ~= weaponSkills.offToke
 assert(weaponSkills.dualWieldKnown and not weaponSkills.offHandBroken,
     "a usable off hand must have durability-proven dual-wield state")
 offHandBroken = true
-local brokenOffHandSkills = XelAssistCapabilities:WeaponSkills()
+local brokenOffHandSkills = XelAssist.Game.Capabilities:WeaponSkills()
 assert(brokenOffHandSkills.dualWieldKnown and brokenOffHandSkills.offHandBroken
     and not brokenOffHandSkills.dualWield and not brokenOffHandSkills.off,
     "a broken off hand must not activate the server's white dual-wield miss penalty")
 offHandBroken = false
 local savedBrokenAPI = GetInventoryItemBroken
 GetInventoryItemBroken = nil
-local uncertainOffHandSkills = XelAssistCapabilities:WeaponSkills()
+local uncertainOffHandSkills = XelAssist.Game.Capabilities:WeaponSkills()
 assert(uncertainOffHandSkills.dualWield and not uncertainOffHandSkills.dualWieldKnown,
     "unknown off-hand durability must retain the conservative dual-wield table and expose uncertainty")
 GetInventoryItemBroken = savedBrokenAPI
 stableFormId, formIndex = 1, 2
-local feralSkills = XelAssistCapabilities:WeaponSkills()
+local feralSkills = XelAssist.Game.Capabilities:WeaponSkills()
 assert(feralSkills.formId == 1 and feralSkills.formSource == "ClassicAPI form ID"
     and feralSkills.noWeaponForm and feralSkills.mainToken == "form:1",
     "Cat Form must fingerprint the stable form instead of its ignored equipped weapon")
 assert(feralSkills.main.total == 300 and not feralSkills.dualWield and not feralSkills.off,
     "no-weapon shapeshifts must use level-max feral skill without an off hand")
 stableFormId, formIndex = 31, 3
-local moonkinSkills = XelAssistCapabilities:WeaponSkills()
+local moonkinSkills = XelAssist.Game.Capabilities:WeaponSkills()
 assert(not moonkinSkills.noWeaponForm and moonkinSkills.mainToken == weaponSkills.mainToken
     and moonkinSkills.dualWield and moonkinSkills.formWeaponUseKnown,
     "a weapon-using Druid form must retain the equipped weapon fingerprint")
 stableFormId, formIndex = 99, 4
-local customFormSkills = XelAssistCapabilities:WeaponSkills()
+local customFormSkills = XelAssist.Game.Capabilities:WeaponSkills()
 assert(not customFormSkills.formWeaponUseKnown
     and string.find(customFormSkills.mainToken, "form?:99:", 1, true) == 1,
     "an unverified custom form must partition its weapon rule instead of inheriting a stock form")
 stableFormId, formIndex, unitBytes1 = nil, 1, 5 * 65536
-local nampowerFeral = XelAssistCapabilities:WeaponSkills()
+local nampowerFeral = XelAssist.Game.Capabilities:WeaponSkills()
 assert(nampowerFeral.formId == 5 and nampowerFeral.mainToken == "form:5"
     and nampowerFeral.formSource == "Nampower form field",
     "Nampower UNIT_FIELD_BYTES_1 must recover the stable Bear Form ID")
 stableFormId, formIndex, unitBytes1 = 0, 0, nil
 local savedBothHands, savedRanged = UnitAttackBothHands, UnitRangedAttack
 UnitAttackBothHands, UnitRangedAttack = nil, nil
-weaponSkills = XelAssistCapabilities:WeaponSkills()
+weaponSkills = XelAssist.Game.Capabilities:WeaponSkills()
 assert(weaponSkills.main.total == 254 and weaponSkills.off.total == 221
     and weaponSkills.ranged.total == 233,
     "numeric item subclass plus localized skill lines must provide a safe API fallback")
 UnitAttackBothHands, UnitRangedAttack = savedBothHands, savedRanged
-local penetration = XelAssistCapabilities:Penetration()
+local penetration = XelAssist.Game.Capabilities:Penetration()
 assert(penetration.known and penetration.spell == 25 and penetration.armor == 40,
     "equipped penetration tooltip scan failed")
 local scans = inventoryTooltipScans
-penetration = XelAssistCapabilities:Penetration()
+penetration = XelAssist.Game.Capabilities:Penetration()
 assert(inventoryTooltipScans == scans and penetration.spell == 25,
     "unchanged equipment penetration should use its cache")
 equippedLinks[3] = "|Hitem:104:0:0:0|h[Stronger Armor Breaker]|h"
 equippedTooltipLines[3][2].left = "Equip: Your attacks ignore 55 of the target's armor."
-penetration = XelAssistCapabilities:Penetration()
+penetration = XelAssist.Game.Capabilities:Penetration()
 assert(inventoryTooltipScans > scans and penetration.armor == 55,
     "equipment link changes must invalidate penetration automatically")
-XelAssistCapabilities:Invalidate()
+XelAssist.Game.Capabilities:Invalidate()
 local savedInventoryAPI = GetInventoryItemLink
 GetInventoryItemLink = nil
-penetration = XelAssistCapabilities:Penetration()
+penetration = XelAssist.Game.Capabilities:Penetration()
 assert(not penetration.known and penetration.spell == 0 and penetration.armor == 0,
     "missing inventory API must keep penetration unknown")
 GetInventoryItemLink = savedInventoryAPI
 tooltipLines[2] = { left = "Curses the target, reducing Fire and Frost resistances by 45 and increasing Fire and Frost damage taken by 6%.", right = nil }
 tooltipLines[3] = { left = "Lasts 300 sec", right = "30 yd range" }
-local resistanceDebuff = XelAssistCapabilities:Facts({ name = "Curse of Elements", slot = 2,
+local resistanceDebuff = XelAssist.Game.Capabilities:Facts({ name = "Curse of Elements", slot = 2,
     spellId = 200, bookType = BOOKTYPE_SPELL })
 assert(resistanceDebuff.targetResistanceReduction[2] == 45
     and resistanceDebuff.targetResistanceReduction[4] == 45
     and resistanceDebuff.targetDamageTaken[2] == 0.06
     and resistanceDebuff.targetDamageTaken[4] == 0.06,
     "target resistance/damage-taken tooltip semantics missing")
-local partyModifier = XelAssistCapabilities:TargetModifierFacts(300,
+local partyModifier = XelAssist.Game.Capabilities:TargetModifierFacts(300,
     { resistanceDebuff = true, modifierGroup = "curseElements" })
 assert(partyModifier.targetResistanceReduction[2] == 45
     and partyModifier.targetResistanceReduction[4] == 45
@@ -268,20 +341,20 @@ assert(partyModifier.targetResistanceReduction[2] == 45
     "party-applied target modifiers must be recoverable from DBC arrays without a spellbook slot")
 tooltipLines[2] = { left = "Finishing move that exposes the target, reducing armor by 450 per combo point.", right = nil }
 tooltipLines[3] = { left = "Lasts 30 sec", right = nil }
-local armorDebuff = XelAssistCapabilities:Facts({ name = "Expose Armor", slot = 3,
+local armorDebuff = XelAssist.Game.Capabilities:Facts({ name = "Expose Armor", slot = 3,
     spellId = 201, bookType = BOOKTYPE_SPELL })
 assert(armorDebuff.targetArmorReduction == 450 and armorDebuff.targetArmorPerCombo,
     "target Armor reduction tooltip semantics missing")
 tooltipLines[2] = { left = "Burns the enemy for 25 to 35 Fire damage and then an additional 60 Fire damage over 15 sec.", right = nil }
 tooltipLines[3] = { left = "2 sec cast", right = "30 yd range" }
-local hybrid = XelAssistCapabilities:Facts({ name = "Immolate", slot = 4,
+local hybrid = XelAssist.Game.Capabilities:Facts({ name = "Immolate", slot = 4,
     spellId = 348, bookType = BOOKTYPE_SPELL })
 assert(hybrid.directDamage == 30 and hybrid.periodicDamage == 60 and hybrid.average == 90,
     "hybrid direct/periodic tooltip damage must remain separable")
 tooltipLines[2] = { left = "Heals a friendly target for 100 to 120.", right = nil }
 tooltipLines[3] = { left = "2 sec cast", right = "30 yd range" }
-local inferred = XelAssistCapabilities:InferKnowledge(9)
+local inferred = XelAssist.Game.Capabilities:InferKnowledge(9)
 assert(inferred and inferred.kind == "heal" and inferred.inferred, "unknown healing spell was not inferred")
 passiveSpell = true
-assert(XelAssistCapabilities:InferKnowledge(9) == nil, "passive spells must never become inferred actions")
+assert(XelAssist.Game.Capabilities:InferKnowledge(9) == nil, "passive spells must never become inferred actions")
 print("ok: ranked spell IDs, DBC facts, tooltip penetration cache, GCD and exact health")

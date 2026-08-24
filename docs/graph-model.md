@@ -2,7 +2,7 @@
 
 ## Boundary
 
-XelAssist does not encode `A → B → C` rotations. `XelAssist_Actions.lua` only
+XelAssist does not encode `A → B → C` rotations. `Combat/Knowledge.lua` only
 describes semantics the client cannot reliably infer from a spell name: damage,
 healing, periodic effects, interrupts, threat modifiers, ground targeting,
 resource recovery, optional cooldown/reagent use, and special prerequisites.
@@ -18,20 +18,23 @@ client records supply edges and costs. The same evaluator scores every class.
 
 ## Module boundaries
 
-`XelAssist_Delivery.lua` is stateless combat mechanics: DBC ordinary-hit traits,
+`Combat/Delivery.lua` is stateless combat mechanics: DBC ordinary-hit traits,
 magic/physical priors, weapon-skill versus Defense context keys, resolved
 white-swing decoding, and delivery evidence records. It does not know about the
-graph, encounters, or resistance storage. `XelAssist_TargetModifiers.lua`
+graph, encounters, or resistance storage. `Combat/TargetModifiers.lua`
 discovers active attributable Armor/resistance/damage-taken effects and owns
 their stacking groups. This lets outcome attribution query the current modifier
 state without depending back on graph search.
 
-`XelAssist_Resistance.lua` remains the owner of target identities, persisted
-profiles, submissions, outcome attribution, and landed-hit mitigation. It uses
-Delivery through a stable façade. `XelAssist_Graph.lua` owns only bounded search
-state and future transitions; a compatibility modifier method delegates to the
-shared target-modifier module. Architecture tests prevent either dependency
-cycle from returning.
+`Combat/Resistance.lua` owns target identities, persisted profiles, outcome
+attribution, and landed-hit mitigation. `Combat/ResistanceSubmissions.lua` owns
+the bounded, session-only correlation ledger for pending and recently consumed
+casts; it indexes opaque target and caster identities directly. Resistance uses
+Delivery through a stable facade. `Graph/State.lua`, `Graph/Targets.lua`,
+`Graph/Effects.lua`, `Graph/Scoring.lua`, `Graph/OngoingEffects.lua`,
+`Graph/ActionEffects.lua`, and `Graph/Transitions.lua` own one planning stage
+each; `Graph/Engine.lua` is the bounded-search facade. Architecture tests prevent
+the old monolith or a dependency cycle from returning.
 
 ## Evidence order
 
@@ -160,7 +163,9 @@ disappeared; equippable on-use gear is excluded from consumable inference.
 
 The bounded beam compares complete discounted paths, so a future cooldown, aura,
 resource shortage, or downtime can change which current action wins. It returns
-one executable action plus up to four simulated future actions.
+one current action contract plus up to four simulated future actions. A current
+action with positive wait is submitted only through Nampower's forced selected-
+target queue; exact-friendly, ground, and item paths hold until they are ready.
 Future nodes are predictions, not queued casts; every `/xa` press takes a fresh
 snapshot and may choose differently.
 The decision runway renders each step as actor, target, action, modeled start
@@ -270,6 +275,10 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
 - Pet line of sight, pathing, exact numeric threat lead, and encounter hazards
   remain unknown unless the client exposes them; they are not silently treated
   as safe.
+- Stock `CastPetAction(slot)` has no explicit recipient argument. A manual pet
+  ability that needs a friendly recipient is therefore legal only when that
+  recipient is the selected target; off-target pet buffs and dispels hold until
+  a native GUID-addressed pet-action capability is available.
 - Equipment/talent/aura +hit is not yet sourced analytically. Matching exact
   outcomes refine delivery statistically, while diagnostics state that +hit was
   excluded from the prior. White-swing outcomes are exact but post-resolution,

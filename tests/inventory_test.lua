@@ -1,3 +1,4 @@
+XelAssist = { Game = {}, Combat = {}, Graph = {}, UI = {} }
 INVSLOT_AMMO, INVSLOT_MAINHAND, INVSLOT_OFFHAND, INVSLOT_RANGED = 0, 16, 17, 18
 NUM_BAG_SLOTS = 4
 table.getn = table.getn or function(value)
@@ -54,31 +55,31 @@ GetContainerItemCooldown = function() return cooldownStart, cooldownDuration, 1 
 local usedBag, usedSlot
 UseContainerItem = function(bag, slot) usedBag, usedSlot = bag, slot end
 
-dofile("XelAssist_Inventory.lua")
-local inventory = XelAssistInventory:Snapshot()
+dofile("Game/Inventory.lua")
+local inventory = XelAssist.Game.Inventory:Snapshot()
 assert(inventory.ammo.known and inventory.ammo.count == 12 and inventory.ammo.link)
 assert(inventory.mainHand.broken and not inventory.ranged.broken)
 assert(inventory.ranged.itemSubtype == "Bows")
-assert(XelAssistInventory:Blocker({ facts = { melee = true } }, { inventory = inventory }) == "broken main-hand")
-assert(not XelAssistInventory:Blocker({ actor = "pet", facts = { melee = true } }, { inventory = inventory }),
+assert(XelAssist.Game.Inventory:Blocker({ facts = { melee = true } }, { inventory = inventory }) == "broken main-hand")
+assert(not XelAssist.Game.Inventory:Blocker({ actor = "pet", facts = { melee = true } }, { inventory = inventory }),
     "player equipment must not constrain a controlled actor")
 inventory.ammo.count = 0
-assert(XelAssistInventory:Blocker({ facts = { ammunition = true } }, { inventory = inventory }) == "ammunition")
-assert(not XelAssistInventory:Blocker({ facts = { ranged = true } }, { inventory = inventory }),
+assert(XelAssist.Game.Inventory:Blocker({ facts = { ammunition = true } }, { inventory = inventory }) == "ammunition")
+assert(not XelAssist.Game.Inventory:Blocker({ facts = { ranged = true } }, { inventory = inventory }),
     "generic ranged spells must not be mistaken for ammunition users")
-local actions = XelAssistInventory:Actions()
+local actions = XelAssist.Game.Inventory:Actions()
 assert(table.getn(actions) == 1 and actions[1].name == "Major Healing Potion",
     "only the immediate-use potion should become an item action")
 assert(actions[1].itemFacts.average == 1400 and actions[1].facts.self)
 assert(actions[1].itemId == 13446)
-assert(XelAssistInventory:Cooldown(actions[1]) == 3)
+assert(XelAssist.Game.Inventory:Cooldown(actions[1]) == 3)
 cooldownStart, cooldownDuration = 0, 0
-assert(XelAssistInventory:Execute(actions[1]) and usedBag == 0 and usedSlot == 1)
+assert(XelAssist.Game.Inventory:Execute(actions[1]) and usedBag == 0 and usedSlot == 1)
 bagLinks[1], bagLinks[2] = "|Hitem:9999:0:0:0|h[Other Item]|h", bagLinks[1]
 usedBag, usedSlot = nil, nil
-assert(XelAssistInventory:Execute(actions[1]) and usedSlot == 2,
+assert(XelAssist.Game.Inventory:Execute(actions[1]) and usedSlot == 2,
     "execution must re-resolve a moved item instead of using the stale slot")
 bagLinks[2] = nil; usedBag, usedSlot = nil, nil
-assert(not XelAssistInventory:Execute(actions[1]) and not usedSlot,
+assert(not XelAssist.Game.Inventory:Execute(actions[1]) and not usedSlot,
     "execution must refuse when the exact item is no longer carried")
 print("ok: equipment durability and ammunition constraints")

@@ -1,5 +1,5 @@
-XelAssistCapabilities = {}
-local C = XelAssistCapabilities
+XelAssist.Game.Capabilities = {}
+local C = XelAssist.Game.Capabilities
 local TIP_NAME = "XelAssistScanTip"
 local scanTip
 
@@ -66,7 +66,7 @@ function C:BuildSpellIndex()
         local digits = string.gsub(rank or "", "%D", "")
         local value = tonumber(digits) or 1
         if not ranks[name] or value > ranks[name] then ranks[name] = value end
-        local knowledge = XelAssistKnowledge and XelAssistKnowledge[name]
+        local knowledge = XelAssist.Combat.Knowledge and XelAssist.Combat.Knowledge[name]
         if not knowledge then knowledge = self:InferKnowledge(i) end
         if knowledge then
             local castName = name
@@ -794,6 +794,53 @@ function C:Health(unit)
     return health, maximum, exact
 end
 
+-- Unit tokens such as mouseover, target, partyN, and raidN are transient.
+-- Bind the token to SuperWoW's opaque identity while taking the snapshot, then
+-- carry this record unchanged through planning.  The GUID must never be
+-- coerced: callers may pass it back to SuperWoW, but must not parse, stringify,
+-- persist, or use it as a player-facing label.
+local function currentUnitGuid(unit)
+    if not unit or not UnitExists then return nil, nil end
+    local ok, exists, guid = pcall(UnitExists, unit)
+    if not ok or not exists or exists == 0 then return nil, nil end
+    if guid == nil or guid == "" then return true, nil end
+    return true, guid
+end
+
+function C:UnitRef(unit, relation, source)
+    local exists, guid = currentUnitGuid(unit)
+    if not exists or guid == nil then return nil end
+    return { unit = unit, guid = guid, relation = relation, source = source }
+end
+
+function C:SameUnitRef(ref)
+    if type(ref) ~= "table" or not ref.unit or ref.guid == nil then return false end
+    local exists, guid = currentUnitGuid(ref.unit)
+    return exists and guid ~= nil and guid == ref.guid and true or false
+end
+
+-- Revalidate identity before every explicit friendly cast.  A roster slot or
+-- mouseover token that now names somebody else is not followed: the caller
+-- must hold and build a fresh graph snapshot instead.
+function C:ValidateFriendlyRef(ref)
+    if type(ref) ~= "table" or not ref.unit or ref.guid == nil then
+        return nil, "ally identity unavailable"
+    end
+    local exists, guid = currentUnitGuid(ref.unit)
+    if not exists or guid == nil then return nil, "ally unavailable" end
+    if guid ~= ref.guid then return nil, "ally changed" end
+    if ref.relation ~= "self" then
+        if not UnitCanAssist then return nil, "ally no longer friendly" end
+        local ok, assist = pcall(UnitCanAssist, "player", ref.unit)
+        if not ok or not assist or assist == 0 then return nil, "ally no longer friendly" end
+    end
+    if UnitIsDead then
+        local ok, dead = pcall(UnitIsDead, ref.unit)
+        if ok and (dead == true or dead == 1) then return nil, "ally defeated" end
+    end
+    return ref.unit, nil
+end
+
 function C:CastName(action)
     if action.rankText and action.rankText ~= "" then
         return action.name .. "(" .. action.rankText .. ")"
@@ -893,12 +940,12 @@ function C:GCDRemaining()
     return 0
 end
 
--- Only an explicit out-of-range result blocks an action. Nampower's
--- IsSpellInRange is authoritative for the selected target; other unit tokens
--- are left unknown instead of being rejected by a guessed distance threshold.
+-- Only an explicit out-of-range result blocks an action. Nampower accepts an
+-- explicit unit token, allowing the same authoritative query for selected and
+-- off-target friendly units. Invalid or unsupported queries remain unknown.
 function C:InRange(name, unit)
-    if not unit or unit ~= "target" or not IsSpellInRange then return nil end
-    local ok, result = pcall(IsSpellInRange, name)
+    if not unit or not IsSpellInRange then return nil end
+    local ok, result = pcall(IsSpellInRange, name, unit)
     if not ok then return nil end
     if result == 0 then return false end
     if result == 1 then return true end

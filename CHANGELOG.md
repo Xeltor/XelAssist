@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.6.0
+
+- Replaced root-level `XelAssist_*.lua` modules with responsibility-based
+  `Core/`, `Game/`, `Combat/`, `Graph/`, and `UI/` folders and one path-mirrored
+  `XelAssist` namespace. The TOC remains the explicit dependency manifest.
+- Split graph state observation, target expansion/legality, hostile effects,
+  scoring, transitions, and bounded search into acyclic modules with fixed
+  architecture ceilings instead of growing the graph monolith.
+- Added a canonical bounded friendly snapshot that deduplicates aliases by
+  opaque GUID and makes player, pet, party, raid, selected-friendly, mouseover,
+  and hostile-victim allies first-class graph recipients.
+- Co-optimized action, spell rank, and friendly recipient across direct heals,
+  HoTs, absorbs, and buffs. Future graph steps can change recipient, project
+  target-local health/aura state, and charge threat only for effective healing.
+- Captured and revalidated friendly identity around range checks and dispatch;
+  token recycling now holds without casting, queuing, logging, or creating a
+  pending action, and a friendly selected target never falls through to the
+  hostile Nampower queue.
+- Bound discovered pet actions to the exact opaque companion identity and
+  revalidate it at dispatch, so a replaced demon cannot inherit a queued pet
+  spell or command. Rank-specific range checks and last-moment positive-aura
+  checks now use the same exact action and recipient that will be dispatched.
+- Conservatively hold manual pet buffs and dispels for an off-target friendly;
+  stock `CastPetAction` cannot address that recipient explicitly, while selected
+  targets and intrinsically self-resolving pet actions remain executable.
+- Revalidate a selected target's captured opaque identity immediately before a
+  pet ability or command, preventing `CastPetAction` from following a recycled
+  target token during execution.
+- Refuse to submit any positive-wait action that cannot use Nampower's forced
+  selected-target queue, including exact-GUID friendly spells, ground spells,
+  and items; the hold creates no false log, use, or pending aura.
+- Snapshot friendly buff names through SuperWoW's `UnitBuff`/`SpellInfo` path
+  when structured ClassicAPI auras are unavailable, preserving existing buffs
+  and HoTs across projected graph transitions.
+- Treat pet attack/follow/passive commands as immediate control actions instead
+  of inheriting a companion spell's future ready time.
+- Add bounded action-specific buff lanes alongside the urgent-healing pool, so
+  large groups advance to the next unbuffed ally instead of stalling forever on
+  three already-covered recipients.
+- Split bounded cast/aura reservations and the one-input dispatcher into
+  focused `Core/Reservations.lua` and `Core/Executor.lua` modules instead of
+  adding more execution policy to the runtime/event monolith.
+- Made the validator and mocked full-load test consume the TOC directly, reject
+  unlisted nested Lua, obsolete prefixed globals/files, Lua 5.1 syntax, and
+  architecture growth, while retaining deterministic nested-directory packages.
+- Replaced string-concatenated transient target keys with bounded ledgers keyed
+  by the opaque SuperWoW target and caster identities themselves for aura,
+  line-of-sight, numeric-outcome, and resistance-submission correlation.
+
 ## 0.5.1
 
 - Replaced hover-only future icons with a readable action-contract runway. The

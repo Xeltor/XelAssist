@@ -1,3 +1,4 @@
+XelAssist = { Game = {}, Combat = {}, Graph = {}, UI = {} }
 table.getn = table.getn or function(value)
     local count = 0
     while value[count + 1] ~= nil do count = count + 1 end
@@ -34,8 +35,8 @@ C_UnitAuras = { GetUnitAuras = function(_, filter)
     return {}
 end }
 
-dofile("XelAssist_Encounter.lua")
-local snapshot = XelAssistEncounter:Snapshot()
+dofile("Game/Encounter.lua")
+local snapshot = XelAssist.Game.Encounter:Snapshot()
 assert(snapshot.inInstance and snapshot.instanceType == "raid" and snapshot.zone == "Test Raid")
 assert(snapshot.target.creatureId == 12345 and snapshot.target.classification == "worldboss")
 local aura = snapshot.targetHarmful.byName.Immolate

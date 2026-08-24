@@ -1,18 +1,18 @@
-XelAssistUI = {}
-local UI = XelAssistUI
+XelAssist.UI.HUD = {}
+local UI = XelAssist.UI.HUD
 local FALLBACK_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 local BASE_HEIGHT = 76
 local STEP_HEIGHT = 24
 
 local function iconFor(action)
     if action and action.texture then return action.texture end
-    local slot = action and XelAssistCapabilities:SpellSlot(action.name)
+    local slot = action and XelAssist.Game.Capabilities:SpellSlot(action.name)
     return slot and GetSpellTexture(slot, BOOKTYPE_SPELL) or FALLBACK_ICON
 end
 
 local function actionName(action)
     if not action then return "" end
-    local highest = XelAssistCapabilities:SpellRank(action.name)
+    local highest = XelAssist.Game.Capabilities:SpellRank(action.name)
     if action.rank and action.rank < highest then return action.name .. " · R" .. action.rank end
     return action.name
 end
@@ -48,32 +48,31 @@ local function actorCopy(action)
     if actor == "player" then return "You" end
     return tostring(action and action.actorName or actor)
 end
-
-local function targetCopy(target)
+local function targetCopy(target, targetRef)
     if target == "player" then return "Self" end
     if target == "pet" then return "Companion" end
-    if not target or target == "target" then
-        local name = UnitName and UnitName("target")
-        return name or "Target"
+    -- Resolve a live name only after the mutable token still matches the exact
+    -- snapshot identity; otherwise use a role label and never render the GUID.
+    if targetRef and XelAssist.Game.Capabilities:SameUnitRef(targetRef)
+        and UnitName then
+        local ok, name = pcall(UnitName, targetRef.unit)
+        if ok and name and name ~= "" then return name end
     end
-    local name = UnitName and UnitName(target)
-    if name then return name end
-    if string.find(target, "party", 1, true) == 1 then
-        return "Party " .. string.sub(target, 6)
-    end
-    if string.find(target, "raid", 1, true) == 1 then
-        return "Raid " .. string.sub(target, 5)
-    end
-    return tostring(target)
+    if not target or target == "target" then return "Target" end
+    if type(target) == "string" and string.find(target, "party", 1, true) == 1 then return "Party " .. string.sub(target, 6) end
+    if type(target) == "string" and string.find(target, "raid", 1, true) == 1 then return "Raid " .. string.sub(target, 5) end
+    local relation = targetRef and targetRef.relation
+    if relation == "ally" or relation == "friendly" then return "Ally" end
+    if relation == "self" or relation == "player" then return "Self" end
+    if relation == "pet" or relation == "controlled" then return "Companion" end
+    return "Target"
 end
-
-local function routeCopy(action, target)
+local function routeCopy(action, target, targetRef)
     if action and action.facts and action.facts.ground then
         return actorCopy(action) .. " -> Ground placement"
     end
-    return actorCopy(action) .. " -> " .. targetCopy(target)
+    return actorCopy(action) .. " -> " .. targetCopy(target, targetRef)
 end
-
 local function timeCopy(value)
     value = math.max(0, tonumber(value) or 0)
     if value <= 0.05 then return "NOW" end
@@ -152,7 +151,7 @@ local function updateCooldown(button, action)
         end
         return
     end
-    local slot = action and XelAssistCapabilities:SpellSlot(action.name)
+    local slot = action and XelAssist.Game.Capabilities:SpellSlot(action.name)
     if not slot then return end
     local start, duration, enabled = GetSpellCooldown(slot, BOOKTYPE_SPELL)
     if start and duration then CooldownFrame_SetTimer(cooldown, start, duration, enabled or 1) end
@@ -425,7 +424,7 @@ function UI:Build()
     config:SetWidth(28); config:SetHeight(15); config:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -54)
     config.text = config:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     config.text:SetAllPoints(config); config.text:SetText("CFG"); config.text:SetTextColor(0.48, 0.52, 0.58)
-    config:SetScript("OnClick", function() XelAssistConfig:Toggle() end)
+    config:SetScript("OnClick", function() XelAssist.UI.Settings:Toggle() end)
     config:SetScript("OnEnter", function() this.text:SetTextColor(r, g, b) end)
     config:SetScript("OnLeave", function() this.text:SetTextColor(0.48, 0.52, 0.58) end)
     f.config = config
@@ -488,7 +487,7 @@ function UI:Refresh(force)
         err = "Dependencies missing: " .. table.concat(XelAssist.missing or {}, ", ")
     else
         local ok
-        ok, plan, err = pcall(function() return XelAssistGraph:Evaluate(XelAssist.mode, true) end)
+        ok, plan, err = pcall(function() return XelAssist.Graph:Evaluate(XelAssist.mode, true) end)
         if not ok then
             if XelAssist and XelAssist.RecordError then XelAssist:RecordError(plan) end
             plan, err = nil, "Evaluation paused"
@@ -500,7 +499,7 @@ function UI:Refresh(force)
         local action = plan.action
         local petAction = (action.actor or "player") == "pet"
         local classR, classG, classB = classColor()
-        setFittedText(f.route, routeCopy(action, plan.target), 210)
+        setFittedText(f.route, routeCopy(action, plan.target, plan.targetRef), 210)
         f.route:SetTextColor(petAction and 0.72 or classR,
             petAction and 0.48 or classG, petAction and 0.92 or classB)
         local certainty, cr, cg, cb = certaintyCopy(plan, nil)
@@ -549,7 +548,8 @@ function UI:Refresh(force)
                 pip.candidate = plan.path and plan.path[i + 1] or nil
                 pip.stepIndex = i + 1
                 setFittedText(pip.route,
-                    routeCopy(follow, pip.candidate and pip.candidate.target), 112)
+                    routeCopy(follow, pip.candidate and pip.candidate.target,
+                        pip.candidate and pip.candidate.targetRef), 112)
                 pip.route:SetTextColor(follow.actor == "pet" and 0.72 or 0.64,
                     follow.actor == "pet" and 0.48 or 0.69,
                     follow.actor == "pet" and 0.92 or 0.76)

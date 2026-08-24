@@ -1,7 +1,7 @@
 -- Short-lived blockers and exact combat outcomes. Long-lived target-school
--- estimates live in XelAssistResistance; absence of evidence remains unknown.
-XelAssistObservations = { immunity = {}, lineOfSight = {}, resistance = {} }
-local O = XelAssistObservations
+-- estimates live in XelAssist.Combat.Resistance; absence of evidence remains unknown.
+XelAssist.Combat.Observations = { immunity = {}, lineOfSight = {}, resistance = {} }
+local O = XelAssist.Combat.Observations
 
 local function targetGUID()
     local exists, guid = UnitExists("target")
@@ -9,9 +9,22 @@ local function targetGUID()
     return nil
 end
 
-local function key(guid, spell)
-    if not guid or not spell then return nil end
-    return guid .. ":" .. spell
+local function pairValue(store, first, second)
+    local bucket = first ~= nil and store[first] or nil
+    return bucket and second ~= nil and bucket[second] or nil
+end
+
+local function setPairValue(store, first, second, value)
+    if first == nil or second == nil then return end
+    local bucket = store[first]
+    if value == nil then
+        if not bucket then return end
+        bucket[second] = nil
+        if not next(bucket) then store[first] = nil end
+        return
+    end
+    if not bucket then bucket = {}; store[first] = bucket end
+    bucket[second] = value
 end
 
 function O:Submitted(action, target, tooltip)
@@ -23,23 +36,23 @@ function O:Submitted(action, target, tooltip)
         self.last = nil
         return
     end
-    if XelAssistResistance then
-        XelAssistResistance:RememberUnit("target")
-        local refresh = XelAssistCapabilities and XelAssistCapabilities.TargetHasDebuff
-            and XelAssistCapabilities:TargetHasDebuff(action.name) or false
-        XelAssistResistance:Submitted(action, targetGUID(), tooltip, refresh)
+    if XelAssist.Combat.Resistance then
+        XelAssist.Combat.Resistance:RememberUnit("target")
+        local refresh = XelAssist.Game.Capabilities and XelAssist.Game.Capabilities.TargetHasDebuff
+            and XelAssist.Game.Capabilities:TargetHasDebuff(action.name) or false
+        XelAssist.Combat.Resistance:Submitted(action, targetGUID(), tooltip, refresh)
     end
     local school = tooltip and tooltip.school or nil
-    if XelAssistResistance then school = XelAssistResistance:School(action, tooltip) end
+    if XelAssist.Combat.Resistance then school = XelAssist.Combat.Resistance:School(action, tooltip) end
     self.last = { name = action.name, target = targetGUID(), actor = action.actor or "player", at = GetTime(),
         school = school, spellId = action.spellId }
 end
 
 function O:AddResistance(guid, school, weight)
     if not guid or not school or school == 0 then return end
-    if XelAssistResistance then
+    if XelAssist.Combat.Resistance then
         local delivered = weight and weight >= 1 and 0 or 0.75
-        XelAssistResistance:Observe(guid, self.last and self.last.spellId, school,
+        XelAssist.Combat.Resistance:Observe(guid, self.last and self.last.spellId, school,
             delivered, delivered <= 0 and "resist" or "damage")
         return
     end
@@ -59,20 +72,20 @@ function O:LiveResistances(unit)
 end
 
 function O:CombatMessage(message)
-    if XelAssistResistance and XelAssistResistance:NumericEventsEnabled() then return nil end
+    if XelAssist.Combat.Resistance and XelAssist.Combat.Resistance:NumericEventsEnabled() then return nil end
     local last = self.last
     if not message or not last or not last.target or GetTime() - last.at > 5 then return nil end
     if not string.find(message, last.name, 1, true) then return nil end
     local lower = string.lower(message)
     if string.find(lower, "miss") then
-        self.immunity[key(last.target, last.name)] = nil
+        setPairValue(self.immunity, last.target, last.name, nil)
         return "retry", last.target, last.name
     end
     if string.find(lower, "resist") then
-        self.immunity[key(last.target, last.name)] = nil
+        setPairValue(self.immunity, last.target, last.name, nil)
         local full = string.find(lower, "was resisted") or string.find(lower, "resisted by")
-        if XelAssistResistance then
-            if XelAssistResistance:ShouldTrainChat(last.target, last.spellId) then
+        if XelAssist.Combat.Resistance then
+            if XelAssist.Combat.Resistance:ShouldTrainChat(last.target, last.spellId) then
                 local _, _, resisted = string.find(lower, "%((%d+) resisted%)")
                 local _, _, damage = string.find(lower, "for (%d+)")
                 local delivered = 0
@@ -82,7 +95,7 @@ function O:CombatMessage(message)
                         delivered = damage / (damage + resisted)
                     else delivered = 0.75 end
                 end
-                XelAssistResistance:Observe(last.target, last.spellId, last.school,
+                XelAssist.Combat.Resistance:Observe(last.target, last.spellId, last.school,
                     delivered, full and "resist" or "damage", nil, 0.25,
                     full and false or nil)
             end
@@ -94,7 +107,7 @@ function O:CombatMessage(message)
     if string.find(lower, "immune") then
         -- This proves only the observed attempt. A short expiry prevents a tap
         -- loop without inventing a permanent creature or school immunity.
-        self.immunity[key(last.target, last.name)] = GetTime() + 8
+        setPairValue(self.immunity, last.target, last.name, GetTime() + 8)
         return "immune", last.target, last.name
     end
     return nil
@@ -109,16 +122,15 @@ function O:SpellMiss(spellId, guid, missInfo, casterGuid)
         local ok, value = pcall(GetSpellRecField, spellId, "school")
         if ok then school = value end
     end
-    if XelAssistResistance and missInfo and missInfo >= 1 and missInfo <= 11 then
-        XelAssistResistance:Miss(spellId, guid, missInfo, casterGuid)
+    if XelAssist.Combat.Resistance and missInfo and missInfo >= 1 and missInfo <= 11 then
+        XelAssist.Combat.Resistance:Miss(spellId, guid, missInfo, casterGuid)
     end
     if missInfo == 1 or missInfo == 2 then
-        if not XelAssistResistance and missInfo == 2 then self:AddResistance(guid, school, 1) end
+        if not XelAssist.Combat.Resistance and missInfo == 2 then self:AddResistance(guid, school, 1) end
         return "retry", guid, name
     end
     if missInfo == 7 or missInfo == 8 then
-        local immuneKey = key(guid, name)
-        if immuneKey then self.immunity[immuneKey] = GetTime() + 8 end
+        setPairValue(self.immunity, guid, name, GetTime() + 8)
         return "immune", guid, name
     end
     if missInfo == 3 or missInfo == 4 or missInfo == 5 or missInfo == 6
@@ -129,14 +141,14 @@ function O:SpellMiss(spellId, guid, missInfo, casterGuid)
 end
 
 function O:SpellDamage(targetGuid, casterGuid, spellId, amount, mitigation, hitInfo, school, effectAura)
-    if not XelAssistResistance then return nil end
-    return XelAssistResistance:DamageEvent(targetGuid, casterGuid, spellId, amount,
+    if not XelAssist.Combat.Resistance then return nil end
+    return XelAssist.Combat.Resistance:DamageEvent(targetGuid, casterGuid, spellId, amount,
         mitigation, hitInfo, school, effectAura)
 end
 
 function O:ResistanceMultiplier(action, target, tooltip, state)
-    if XelAssistResistance then
-        local estimate = XelAssistResistance:Estimate(action, target, tooltip, state)
+    if XelAssist.Combat.Resistance then
+        local estimate = XelAssist.Combat.Resistance:Estimate(action, target, tooltip, state)
         return estimate.multiplier, estimate.source, estimate
     end
     if target ~= "target" or not tooltip or not tooltip.school or tooltip.school == 0 then return 1 end
@@ -166,7 +178,8 @@ function O:ErrorMessage(message)
         or (ERR_LINE_OF_SIGHT and message == ERR_LINE_OF_SIGHT)
         or string.find(lower, "line of sight")
     if lineError then
-        self.lineOfSight[last.target .. ":" .. (last.actor or "player")] = GetTime() + 1.5
+        setPairValue(self.lineOfSight, last.target,
+            last.actor or "player", GetTime() + 1.5)
         return "line of sight"
     end
     return nil
@@ -176,17 +189,17 @@ function O:Blocker(action, target)
     if target ~= "target" then return nil end
     local guid, now = targetGUID(), GetTime()
     if not guid then return nil end
-    local immuneKey = key(guid, action and action.name)
-    local immuneUntil = immuneKey and self.immunity[immuneKey]
+    local name = action and action.name
+    local immuneUntil = pairValue(self.immunity, guid, name)
     if immuneUntil then
         if immuneUntil > now then return "observed immunity" end
-        self.immunity[immuneKey] = nil
+        setPairValue(self.immunity, guid, name, nil)
     end
-    local losKey = guid .. ":" .. ((action and action.actor) or "player")
-    local losUntil = self.lineOfSight[losKey]
+    local actor = (action and action.actor) or "player"
+    local losUntil = pairValue(self.lineOfSight, guid, actor)
     if losUntil then
         if losUntil > now then return "line of sight" end
-        self.lineOfSight[losKey] = nil
+        setPairValue(self.lineOfSight, guid, actor, nil)
     end
     return nil
 end

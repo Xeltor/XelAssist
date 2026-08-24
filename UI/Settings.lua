@@ -1,5 +1,5 @@
-XelAssistConfig = {}
-local Config = XelAssistConfig
+XelAssist.UI.Settings = {}
+local Config = XelAssist.UI.Settings
 
 local function label(parent, text, template)
     local fs = parent:CreateFontString(nil, "OVERLAY", template or "GameFontNormal")
@@ -28,14 +28,14 @@ local function makeCheck(parent, text, key, scope)
     check:SetScript("OnClick", function()
         local store = storeFor(scope)
         store[key] = this:GetChecked() and true or false
-        if key == "locked" and XelAssistUI.frame then
-            if store[key] then XelAssistUI.frame.move:Hide() else XelAssistUI.frame.move:Show() end
-        elseif key == "shown" and XelAssistUI.frame then
-            if store[key] then XelAssistUI.frame:Show() else XelAssistUI.frame:Hide() end
-        elseif key == "minimap" and XelAssistMinimap then
-            XelAssistMinimap:SetVisible(store[key])
+        if key == "locked" and XelAssist.UI.HUD.frame then
+            if store[key] then XelAssist.UI.HUD.frame.move:Hide() else XelAssist.UI.HUD.frame.move:Show() end
+        elseif key == "shown" and XelAssist.UI.HUD.frame then
+            if store[key] then XelAssist.UI.HUD.frame:Show() else XelAssist.UI.HUD.frame:Hide() end
+        elseif key == "minimap" and XelAssist.UI.Minimap then
+            XelAssist.UI.Minimap:SetVisible(store[key])
         end
-        XelAssistUI:Refresh(true)
+        XelAssist.UI.HUD:Refresh(true)
     end)
     check.Refresh = function()
         local store = storeFor(scope)
@@ -104,7 +104,7 @@ function Config:Build()
     for i = 1, table.getn(threatModes) do
         local entry = threatModes[i]
         local button = makeButton(f, entry[1], 96, function()
-            XelAssistCharDB.petThreat = this.petThreat; Config:Refresh(); XelAssistUI:Refresh(true)
+            XelAssistCharDB.petThreat = this.petThreat; Config:Refresh(); XelAssist.UI.HUD:Refresh(true)
         end)
         button:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + ((i - 1) * 101), -276)
         button.petThreat = entry[2]; f.petThreats[i] = button
@@ -117,7 +117,7 @@ function Config:Build()
     for i = 1, table.getn(roles) do
         local entry = roles[i]
         local button = makeButton(f, entry[1], 75, function()
-            XelAssistCharDB.role = this.role; Config:Refresh(); XelAssistUI:Refresh(true)
+            XelAssistCharDB.role = this.role; Config:Refresh(); XelAssist.UI.HUD:Refresh(true)
         end)
         button:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + ((i - 1) * 79), -334)
         button.role = entry[2]; f.roles[i] = button
@@ -138,7 +138,7 @@ function Config:Build()
     getglobal(slider:GetName() .. "Low"):SetText("70%")
     getglobal(slider:GetName() .. "High"):SetText("150%")
     getglobal(slider:GetName() .. "Text"):SetText("Recommendation size")
-    slider:SetScript("OnValueChanged", function() XelAssistUI:SetScale(this:GetValue()) end)
+    slider:SetScript("OnValueChanged", function() XelAssist.UI.HUD:SetScale(this:GetValue()) end)
     f.slider = slider
 
     local depth = CreateFrame("Slider", "XelAssistDepthSlider", f, "OptionsSliderTemplate")
@@ -149,7 +149,7 @@ function Config:Build()
     getglobal(depth:GetName() .. "Text"):SetText("Visible action steps")
     depth:SetScript("OnValueChanged", function()
         XelAssistCharDB.graphDepth = math.floor(this:GetValue() + 0.5)
-        XelAssistUI:Refresh(true)
+        XelAssist.UI.HUD:Refresh(true)
     end)
     f.depth = depth
 
@@ -162,7 +162,7 @@ function Config:Build()
     macro:SetScript("OnEditFocusGained", function() this:HighlightText() end)
     f.macro = macro
 
-    local reset = makeButton(f, "Reset position", 105, function() XelAssistUI:ResetPosition() end)
+    local reset = makeButton(f, "Reset position", 105, function() XelAssist.UI.HUD:ResetPosition() end)
     reset:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 20, 20)
     f:SetScript("OnShow", function() Config:Refresh() end)
     self.frame = f

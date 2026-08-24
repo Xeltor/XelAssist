@@ -1,18 +1,26 @@
+XelAssist = { Game = {}, Combat = {}, Graph = {}, UI = {} }
 table.getn = table.getn or function(value)
     local count = 0
     while value[count + 1] ~= nil do count = count + 1 end
     return count
 end
-dofile("XelAssist_Actions.lua")
-dofile("XelAssist_Capabilities.lua")
-dofile("XelAssist_Actors.lua")
-dofile("XelAssist_TargetModifiers.lua")
-dofile("XelAssist_Graph.lua")
+dofile("Combat/Knowledge.lua")
+dofile("Game/Capabilities.lua")
+dofile("Game/Actors.lua")
+dofile("Game/Friendlies.lua")
+dofile("Combat/TargetModifiers.lua")
+dofile("Graph/State.lua")
+dofile("Graph/Targets.lua")
+dofile("Graph/Effects.lua")
+dofile("Graph/Scoring.lua")
+dofile("Graph/OngoingEffects.lua")
+dofile("Graph/ActionEffects.lua")
+dofile("Graph/Transitions.lua")
+dofile("Graph/Engine.lua")
 
-XelAssist = {}
 local pendingAura
 XelAssist.IsAuraPending = function(_, name) return pendingAura == name end
-XelAssistObservations = {
+XelAssist.Combat.Observations = {
     Blocker = function() return nil end,
     ResistanceMultiplier = function(_, _, target, tooltip, s)
         local raw = target == "target" and s.targetResistances
@@ -25,9 +33,9 @@ XelAssistObservations = {
         return 1
     end
 }
-XelAssistResistance = nil
+XelAssist.Combat.Resistance = nil
 local scenarioItems = {}
-XelAssistInventory = {
+XelAssist.Game.Inventory = {
     Actions = function() return scenarioItems end,
     Blocker = function() return nil end,
     Cooldown = function() return 0 end
@@ -37,41 +45,103 @@ XelAssistCharDB = { toggles = { cooldowns = true, reagents = true, petActions = 
 GetTime = function() return 0 end
 
 local scenarioActions = {}
-XelAssistCapabilities.Actions = function() return scenarioActions end
-XelAssistActors.Actions = function() return scenarioActions end
-XelAssistCapabilities.Facts = function(_, action) return action.mock end
-XelAssistActors.Facts = function(_, action) return action.mock end
-XelAssistActors.PetCooldown = function() return 0 end
+XelAssist.Game.Capabilities.Actions = function() return scenarioActions end
+XelAssist.Game.Actors.Actions = function() return scenarioActions end
+XelAssist.Game.Capabilities.Facts = function(_, action) return action.mock end
+XelAssist.Game.Actors.Facts = function(_, action) return action.mock end
+XelAssist.Game.Actors.PetCooldown = function() return 0 end
 local reagentAvailable = true
-XelAssistActors.HasReagent = function() return reagentAvailable end
+XelAssist.Game.Actors.HasReagent = function() return reagentAvailable end
 local dispelTarget
-XelAssistActors.DispelTarget = function() return dispelTarget end
-XelAssistCapabilities.IsReady = function() return true end
-XelAssistCapabilities.InRange = function(_, _, unit)
-    if unit == "target" and XelAssistGraph.testRangeBlocked then return false end
-    if XelAssistGraph.testRangeUnknown then return nil end
+XelAssist.Game.Actors.DispelTarget = function() return dispelTarget end
+XelAssist.Game.Capabilities.IsReady = function() return true end
+local rangeQueries = {}
+XelAssist.Game.Capabilities.InRange = function(_, spell, unit)
+    rangeQueries[spell] = (rangeQueries[spell] or 0) + 1
+    if unit == "target" and XelAssist.Graph.testRangeBlocked then return false end
+    if XelAssist.Graph.testRangeUnknown then return nil end
     return true
 end
-XelAssistCapabilities.TargetHasDebuff = function() return false end
-XelAssistCapabilities.UnitHasBuff = function() return false end
-XelAssistCapabilities.WeaponDamage = function() return nil end
-XelAssistCapabilities.RangedDamage = function() return nil end
-XelAssistCapabilities.BonusDamage = function() return 0 end
+XelAssist.Game.Capabilities.TargetHasDebuff = function() return false end
+XelAssist.Game.Capabilities.UnitHasBuff = function() return false end
+XelAssist.Game.Capabilities.WeaponDamage = function() return nil end
+XelAssist.Game.Capabilities.RangedDamage = function() return nil end
+XelAssist.Game.Capabilities.BonusDamage = function() return 0 end
 
 local function state(mode)
+    local player = { key = "g:player-guid", unit = "player", guid = "player-guid",
+        relation = "self", source = "self", health = 1000, healthMax = 1000,
+        healthExact = true, distance = 0, distanceKind = "self", lineOfSight = true,
+        targetedByCurrentEnemy = false, priority = 2, auras = {}, absorbs = {},
+        targetRef = { unit = "player", guid = "player-guid", relation = "self",
+            source = "self", priority = 2 } }
+    local ally = { key = "g:ally-guid", unit = "party1", guid = "ally-guid",
+        relation = "ally", source = "party", health = 500, healthMax = 1000,
+        healthExact = true, distance = nil, distanceKind = nil, lineOfSight = nil,
+        targetedByCurrentEnemy = false, priority = 1, auras = {}, absorbs = {},
+        targetRef = { unit = "party1", guid = "ally-guid", relation = "ally",
+            source = "party", priority = 1 } }
     local actors = { player = { resource = 1000, resourceMax = 1000 } }
+    local friendlies = { order = { ally.key, player.key },
+        byKey = { [ally.key] = ally, [player.key] = player },
+        byUnit = { party1 = ally.key, player = player.key }, primaryKey = ally.key,
+        total = 2, capped = false }
     return { mode = mode or "smart", hostile = true, healUnit = "party1",
         health = 1000, healthMax = 1000, healHealth = 500, healMax = 1000,
         targetHealth = 1000, targetMax = 1000, targetHealthExact = true,
+        targetGUID = "target-guid",
+        targetRef = { unit = "target", guid = "target-guid",
+            relation = "hostile", source = "selected" },
         resource = 1000, resourceMax = 1000,
         combo = 5, moving = false, pet = true, targetCasting = false,
         playerCasting = false, castRemaining = 0, groupSize = 0, hasAggro = false,
-        tank = false, role = "auto", instantNext = false, distance = nil, actors = actors,
+        tank = false, role = "auto", instantNext = false, distance = nil,
+        actors = actors, friendlies = friendlies,
         auras = {}, readyAt = {}, time = 0 }
 end
 
+local function friendly(unit, guid, health, maximum, distance, extra)
+    local relation = unit == "player" and "self" or unit == "pet" and "pet" or "ally"
+    local value = { key = "g:" .. guid, unit = unit, guid = guid,
+        relation = relation, source = relation, health = health, healthMax = maximum,
+        healthExact = true, distance = distance, distanceKind = "test",
+        lineOfSight = true, targetedByCurrentEnemy = false, explicit = 0,
+        auras = {}, absorbs = {} }
+    local key, entry
+    for key, entry in pairs(extra or {}) do value[key] = entry end
+    value.targetRef = { unit = unit, guid = guid, relation = relation,
+        source = value.source, priority = value.priority }
+    return value
+end
+
+local function setFriendlies(s, list)
+    s.friendlies = { order = {}, byKey = {}, byUnit = {}, total = table.getn(list),
+        capped = false }
+    s.actors.allies = {}
+    local i
+    for i = 1, table.getn(list) do
+        local record = list[i]
+        record.priority = record.priority or i
+        record.targetRef.priority = record.priority
+        table.insert(s.friendlies.order, record.key)
+        s.friendlies.byKey[record.key] = record
+        s.friendlies.byUnit[record.unit] = record.key
+        if record.unit ~= "player" and record.unit ~= "pet" then
+            table.insert(s.actors.allies, record)
+        end
+    end
+    s.friendlies.primaryKey = s.friendlies.order[1]
+    local primary = s.friendlies.byKey[s.friendlies.primaryKey]
+    if primary then
+        s.healUnit, s.healHealth, s.healMax = primary.unit, primary.health, primary.healthMax
+    end
+    local player = s.friendlies.byKey[s.friendlies.byUnit.player]
+    if player then s.health, s.healthMax = player.health, player.healthMax end
+    s.groupSize = math.max(0, table.getn(list) - (player and 1 or 0))
+end
+
 local currentState
-XelAssistGraph.Snapshot = function() return currentState end
+XelAssist.Graph.Snapshot = function() return currentState end
 
 local function action(name, rank, kind, power, cost, extra)
     local facts = { kind = kind }
@@ -106,7 +176,7 @@ local function itemAction(name, kind, power, extra)
 end
 
 local function expect(name, wanted)
-    local plan, err = XelAssistGraph:Evaluate(currentState.mode, true)
+    local plan, err = XelAssist.Graph:Evaluate(currentState.mode, true)
     assert(plan, name .. ": " .. tostring(err))
     assert(plan.action.name == wanted, name .. ": got " .. plan.action.name .. ", wanted " .. wanted)
     return plan
@@ -125,14 +195,14 @@ local modifierEncounter = { targetHarmful = { list = {
     { name = "Sunder Armor", playerOrPet = true, stacks = 3, remaining = 20 },
 } } }
 local activeReduction, activeTaken, activeSource, activeEffects, activeAuras =
-    XelAssistGraph:ActiveTargetModifiers(
+    XelAssist.Graph:ActiveTargetModifiers(
     modifierEncounter, { live = nil })
 assert(activeReduction[2] == 45 and activeReduction[0] == 900
     and activeTaken[2] == 0.06 and string.find(activeSource, "Curse of Elements", 1, true)
     and activeEffects["Curse of Elements"].resistanceReduction[2] == 45
     and activeAuras["Sunder Armor"].remaining == 20,
     "active group resistance modifiers must seed the root graph state")
-local effectiveReduction, effectiveTaken = XelAssistGraph:ActiveTargetModifiers(
+local effectiveReduction, effectiveTaken = XelAssist.Graph:ActiveTargetModifiers(
     modifierEncounter, { live = { [0] = 1000, [2] = 50 } })
 assert(effectiveReduction[2] == 45 and effectiveReduction[0] == 900
     and effectiveTaken[2] == 0.06,
@@ -154,14 +224,86 @@ local stackingEncounter = { targetHarmful = { list = {
     { name = "Major Fire Exposure", remaining = 30 },
     { name = "Independent Fire Exposure", remaining = 30 },
 } } }
-local _, stackedTaken = XelAssistGraph:ActiveTargetModifiers(stackingEncounter, nil)
+local _, stackedTaken = XelAssist.Graph:ActiveTargetModifiers(stackingEncounter, nil)
 assert(math.abs(stackedTaken[2] - 0.265) < 0.0001,
     "damage-taken modifiers must keep the strongest shared-group effect and multiply independent groups")
 
 currentState = state("support"); currentState.healHealth = 880
+currentState.friendlies.byKey["g:ally-guid"].health = 880
 scenarioActions = { action("Heal", 1, "heal", 100, 20), action("Heal", 5, "heal", 500, 200) }
 local plan = expect("downranked heal", "Heal")
 assert(plan.action.rank == 1, "the efficient non-overhealing rank should win")
+assert(rangeQueries["Heal(Rank 1)"] and rangeQueries["Heal(Rank 5)"],
+    "legality must ask Nampower about each exact spell rank rather than the base name")
+
+currentState = state("support")
+setFriendlies(currentState, {
+    friendly("party1", "ally-a", 750, 1000, 20),
+    friendly("party2", "ally-b", 100, 1000, 20),
+    friendly("player", "player-guid", 1000, 1000, 0),
+})
+scenarioActions = {
+    action("Heal", 1, "heal", 220, 30, { cast = 1.5 }),
+    action("Heal", 5, "heal", 900, 400, { cast = 3 }),
+    action("Flash Heal", 3, "heal", 500, 220, { cast = 1.5 }),
+}
+plan = expect("action rank and recipient are co-optimized", "Flash Heal")
+assert(plan.action.rank == 3 and plan.target == "party2"
+    and plan.targetKey == "g:ally-b" and plan.targetGUID == "ally-b"
+    and plan.targetRelation == "ally" and plan.targetRef.guid == "ally-b",
+    "the chosen action, rank and immutable recipient must travel together")
+currentState.friendlies.byKey["g:ally-b"].health = 1000
+plan = expect("mild injury downranks independently", "Heal")
+assert(plan.action.rank == 1 and plan.target == "party1" and plan.targetGUID == "ally-a",
+    "a different ally must independently choose the efficient lower rank")
+
+currentState = state("support"); XelAssistCharDB.graphDepth = 2
+setFriendlies(currentState, {
+    friendly("party1", "ally-a", 100, 1000, 20),
+    friendly("party2", "ally-b", 400, 1000, 20),
+    friendly("player", "player-guid", 1000, 1000, 0),
+})
+scenarioActions = { action("Greater Heal", 1, "heal", 900, 200, { cast = 1.5 }) }
+plan = expect("future direct heal switches recipients", "Greater Heal")
+assert(plan.path[1].targetGUID == "ally-a" and plan.path[2]
+    and plan.path[2].targetGUID == "ally-b",
+    "future health must be target-local so the beam can switch allies")
+
+currentState = state("support")
+setFriendlies(currentState, {
+    friendly("party1", "ally-a", 450, 1000, 20),
+    friendly("party2", "ally-b", 600, 1000, 20),
+    friendly("player", "player-guid", 1000, 1000, 0),
+})
+scenarioActions = { action("Renew", 1, "hot", 600, 120, { testDuration = 12 }) }
+plan = expect("future hot switches recipients", "Renew")
+assert(plan.path[1].targetGUID == "ally-a" and plan.path[2]
+    and plan.path[2].targetGUID == "ally-b",
+    "one ally's projected HoT must neither overwrite nor block another ally's HoT")
+
+currentState = state("support")
+setFriendlies(currentState, {
+    friendly("party1", "ally-a", 700, 1000, 20,
+        { targetedByCurrentEnemy = true }),
+    friendly("party2", "ally-b", 700, 1000, 20),
+    friendly("player", "player-guid", 1000, 1000, 0),
+})
+scenarioActions = { action("Power Word: Shield", 1, "absorb", 500, 100,
+    { testDuration = 30 }) }
+plan = expect("future absorbs remain recipient local", "Power Word: Shield")
+assert(plan.path[1].targetGUID == "ally-a" and plan.path[2]
+    and plan.path[2].targetGUID == "ally-b",
+    "the current victim's shield must not globally block shielding another ally")
+
+currentState = state("support"); XelAssistCharDB.graphDepth = 1
+setFriendlies(currentState, {
+    friendly("party1", "ally-a", 700, 1000, 20),
+    friendly("player", "player-guid", 1000, 1000, 0),
+})
+scenarioActions = { action("Flash Heal", 1, "heal", 500, 100) }
+plan = expect("effective healing drives threat", "Flash Heal")
+assert(plan.path[1].rawPower == 500 and math.abs(plan.path[1].threat - 150) < 0.0001,
+    "healing threat must use the 300 effective healing, not 500 raw power")
 
 currentState = state("smart"); currentState.groupSize = 4; currentState.hasAggro = true
 scenarioActions = { action("Threat Slam", 1, "damage", 500, 0, { threat = 2 }),
@@ -215,21 +357,21 @@ assert(plan.reason ~= "finishes the target", "percentage-scaled hostile health m
 assert(plan.confidence == "partial data" and table.getn(plan.unknowns) > 0,
     "exact potency with unknown range/health must expose partial confidence")
 
-currentState = state("smart"); XelAssistGraph.testRangeBlocked = true
+currentState = state("smart"); XelAssist.Graph.testRangeBlocked = true
 scenarioActions = { action("Out There", 1, "damage", 900, 0) }
-local missing = XelAssistGraph:Evaluate("smart", true)
+local missing = XelAssist.Graph:Evaluate("smart", true)
 assert(missing == nil, "out-of-range action must not be recommended")
-XelAssistGraph.testRangeBlocked = false
+XelAssist.Graph.testRangeBlocked = false
 
-currentState = state("smart"); currentState.distance = 4; XelAssistGraph.testRangeUnknown = true
+currentState = state("smart"); currentState.distance = 4; XelAssist.Graph.testRangeUnknown = true
 scenarioActions = { action("Dead Zone Shot", 1, "damage", 900, 0,
     { testMinRange = 8, testMaxRange = 35 }) }
-local tooClose, tooCloseReason = XelAssistGraph:Evaluate("smart", true)
+local tooClose, tooCloseReason = XelAssist.Graph:Evaluate("smart", true)
 assert(tooClose == nil and tooCloseReason == "Move farther away", "minimum range must block too-close actions")
 currentState.distance = 40
-local tooFar, tooFarReason = XelAssistGraph:Evaluate("smart", true)
+local tooFar, tooFarReason = XelAssist.Graph:Evaluate("smart", true)
 assert(tooFar == nil and tooFarReason == "Move into range", "maximum range must block too-far actions")
-XelAssistGraph.testRangeUnknown = false
+XelAssist.Graph.testRangeUnknown = false
 
 currentState = state("smart"); XelAssistCharDB.toggles.cooldowns = false
 scenarioActions = { action("Unknown Long Cooldown", 1, "damage", 2000, 0, { testCooldown = 60 }),
@@ -270,7 +412,7 @@ assert(plan.reason == "preserves resources", "a dying target should favor the ze
 
 currentState = state("smart"); currentState.playerLevel = 60
 currentState.targetResistances = { 0, 0, 240, 0, 0, 0, 0 }
-XelAssistResistance = {
+XelAssist.Combat.Resistance = {
     Estimate = function(_, _, target, tooltip, s)
         local school = tooltip.school
         local raw = target == "target" and school and s.targetResistances[school + 1]
@@ -293,10 +435,10 @@ plan = expect("pre-cast school resistance", "Shadow Bolt")
 assert(plan.resistance and plan.resistance.school == 5
     and plan.reason == "uses Shadow against elevated Fire resistance",
     "the plan must expose why the better school won")
-XelAssistResistance = nil
+XelAssist.Combat.Resistance = nil
 
 currentState = state("smart")
-XelAssistResistance = {
+XelAssist.Combat.Resistance = {
     Estimate = function(_, candidate)
         if candidate.name == "Mystery Bolt" then
             return { school = nil, schoolName = "Unknown", multiplier = 1,
@@ -310,10 +452,10 @@ XelAssistResistance = {
 scenarioActions = { action("Mystery Bolt", 1, "damage", 100, 20),
     action("Known Bolt", 1, "damage", 95, 20, { testSchool = 5 }) }
 expect("unknown resistance reserve", "Known Bolt")
-XelAssistResistance = nil
+XelAssist.Combat.Resistance = nil
 
 currentState = state("smart")
-XelAssistResistance = {
+XelAssist.Combat.Resistance = {
     Estimate = function()
         return { school = 5, schoolName = "Shadow", multiplier = 0.8,
             source = "1 context outcome", confidence = "limited samples",
@@ -325,12 +467,13 @@ scenarioActions = { action("Thin Evidence Bolt", 1, "damage", 100, 0,
     { testSchool = 5 }) }
 plan = expect("limited resistance plan confidence", "Thin Evidence Bolt")
 assert(plan.confidence == "partial data"
-    and table.concat(plan.unknowns, ","):find("limited resistance evidence", 1, true),
+    and string.find(table.concat(plan.unknowns, ","),
+        "limited resistance evidence", 1, true),
     "limited learned resistance must not be labeled as complete client data")
-XelAssistResistance = nil
+XelAssist.Combat.Resistance = nil
 
 currentState = state("smart"); currentState.targetCasting = true
-XelAssistResistance = {
+XelAssist.Combat.Resistance = {
     Estimate = function(_, candidate)
         if candidate.name == "Unreliable Lock" then
             return { school = 5, schoolName = "Shadow", multiplier = 0.1,
@@ -347,7 +490,7 @@ expect("resistance-aware effect delivery", "Known Bolt")
 scenarioActions = { action("Earth Shock", 1, "damage", 100, 0,
         { testSchool = 5, interrupt = true }),
     action("Known Bolt", 1, "damage", 400, 20, { testSchool = 5 }) }
-XelAssistResistance.Estimate = function(_, candidate)
+XelAssist.Combat.Resistance.Estimate = function(_, candidate)
     if candidate.name == "Earth Shock" then
         return { school = 5, schoolName = "Shadow", multiplier = 0.1,
             landChance = 0.1, source = "learned delivery", unknown = false }
@@ -356,11 +499,11 @@ XelAssistResistance.Estimate = function(_, candidate)
         landChance = 1, source = "known target data", unknown = false }
 end
 expect("damage interrupt delivery", "Known Bolt")
-XelAssistResistance = nil
+XelAssist.Combat.Resistance = nil
 
 currentState = state("smart"); currentState.targetHealth = 10000; currentState.targetMax = 10000
 currentState.targetDamageTaken = { [3] = 1 }
-XelAssistResistance = {
+XelAssist.Combat.Resistance = {
     Estimate = function()
         return { school = nil, schoolName = "Mixed", multiplier = 0.75,
             source = "component test", unknown = false, mode = "mixed", components = {
@@ -374,7 +517,7 @@ scenarioActions = { action("Mixed Strike", 1, "damage", 100, 0) }
 plan = expect("component resistance vulnerability product", "Mixed Strike")
 assert(math.abs(plan.path[1].power - 125) < 0.0001,
     "mixed damage must sum each component's resistance times vulnerability")
-XelAssistResistance.Estimate = function()
+XelAssist.Combat.Resistance.Estimate = function()
     return { school = nil, schoolName = "Mixed", multiplier = 0.55,
         source = "partial component test", unknown = true, mode = "mixed", components = {
             { school = 0, multiplier = 0.5, componentWeight = 0.9, unknown = false },
@@ -385,7 +528,7 @@ currentState.targetDamageTaken = nil
 plan = expect("component-local uncertainty reserve", "Mixed Strike")
 assert(math.abs(plan.path[1].power - 54) < 0.0001,
     "unknown reserve must apply only to the unresolved mixed component")
-XelAssistResistance = nil
+XelAssist.Combat.Resistance = nil
 
 currentState = state("smart"); currentState.targetHealth = 300; currentState.targetMax = 300
 XelAssistCharDB.graphDepth = 3
@@ -399,7 +542,7 @@ assert(plan.follow[1] and plan.follow[1].name == "Filler"
 
 currentState = state("smart"); currentState.targetHealth = 60; currentState.targetMax = 100
 XelAssistCharDB.graphDepth = 2
-XelAssistResistance = {
+XelAssist.Combat.Resistance = {
     Estimate = function(_, candidate)
         if candidate.name == "Immolate" then
             return { school = 2, schoolName = "Fire", multiplier = 0.8275,
@@ -422,11 +565,11 @@ scenarioActions = { action("Immolate", 1, "dot", 100, 10,
 plan = expect("hybrid immediate direct transition", "Immolate")
 assert(plan.follow[1] and plan.follow[1].name == "Execute",
     "hybrid direct damage and first periodic window must advance separately")
-XelAssistResistance = nil; XelAssistCharDB.graphDepth = 1
+XelAssist.Combat.Resistance = nil; XelAssistCharDB.graphDepth = 1
 
 currentState = state("smart"); XelAssistCharDB.graphDepth = 2
 currentState.targetResistance = { projectedReduction = {} }
-XelAssistResistance = {
+XelAssist.Combat.Resistance = {
     Estimate = function(_, _, actionTarget, tooltip, s)
         local reduction = s.targetResistance and s.targetResistance.projectedReduction
             and s.targetResistance.projectedReduction[2] or 0
@@ -478,7 +621,7 @@ currentState.auras = { ["Curse of Elements"] = { remaining = 1,
     target = "target", targetModifier = true } }
 currentState.targetAuras = { ["Curse of Elements"] = { remaining = 1, mine = true } }
 XelAssistCharDB.graphDepth = 2
-XelAssistResistance.Estimate = function(_, _, _, tooltip, s)
+XelAssist.Combat.Resistance.Estimate = function(_, _, _, tooltip, s)
     local delta = s.targetResistance and s.targetResistance.projectedReduction
         and s.targetResistance.projectedReduction[2] or 0
     return { school = tooltip.school, schoolName = "Fire",
@@ -490,7 +633,7 @@ assert(plan.path[1].resistance.damageTakenMultiplier == 1.06
     and plan.path[2].resistance.multiplier == 0.5
     and plan.path[2].resistance.damageTakenMultiplier == 1,
     "an expiring active live modifier must restore resistance and remove vulnerability")
-XelAssistResistance = nil; XelAssistCharDB.graphDepth = 1
+XelAssist.Combat.Resistance = nil; XelAssistCharDB.graphDepth = 1
 
 currentState = state("smart"); currentState.targetHealth, currentState.targetMax = 10000, 10000
 currentState.targetDamageTaken, currentState.baseTargetDamageTaken = { [2] = 0.265 }, {}
@@ -507,7 +650,7 @@ currentState.auras = {
     ["Major Fire Exposure"] = { remaining = 1, targetModifier = true },
     ["Independent Fire Exposure"] = { remaining = 5, targetModifier = true },
 }
-XelAssistResistance = {
+XelAssist.Combat.Resistance = {
     Estimate = function()
         return { school = 2, schoolName = "Fire", multiplier = 1,
             source = "impact stacking test", unknown = false }
@@ -519,12 +662,12 @@ scenarioActions = { action("Slow Fireball", 1, "damage", 100, 0,
 plan = expect("damage modifier expiry at impact", "Slow Fireball")
 assert(math.abs(plan.path[1].resistance.damageTakenMultiplier - 1.219) < 0.0001,
     "impact state must drop an expired stronger shared-group modifier while preserving independent stacking")
-XelAssistResistance = nil
+XelAssist.Combat.Resistance = nil
 
 currentState = state("smart"); currentState.targetHealth, currentState.targetMax = 10000, 10000
 currentState.targetResistance = { projectedReduction = {} }
 XelAssistCharDB.graphDepth = 2
-XelAssistResistance = {
+XelAssist.Combat.Resistance = {
     Estimate = function(_, _, _, tooltip, s)
         local reduction = s.targetResistance and s.targetResistance.projectedReduction
             and s.targetResistance.projectedReduction[2] or 0
@@ -549,7 +692,7 @@ assert(plan.follow[1] and string.find(plan.follow[1].name, "Fire ", 1, true) == 
     "WIDTH pruning must retain a useful target-modifier branch long enough to exploit it")
 
 currentState = state("smart"); XelAssistCharDB.graphDepth = 2
-XelAssistResistance.Estimate = function()
+XelAssist.Combat.Resistance.Estimate = function()
     return { school = 5, schoolName = "Shadow", multiplier = 0.1,
         landChance = 0.1, source = "uncertain application test", unknown = false }
 end
@@ -572,7 +715,7 @@ currentState.auras = { ["Uncertain Exposure"] = { remaining = 4, duration = 20,
     mine = true, target = "target", targetModifier = true } }
 currentState.targetAuras = { ["Uncertain Exposure"] = {
     remaining = 4, duration = 20, mine = true } }
-XelAssistResistance.Estimate = function(_, _, _, tooltip)
+XelAssist.Combat.Resistance.Estimate = function(_, _, _, tooltip)
     if tooltip.targetDamageTaken then
         return { school = 2, schoolName = "Fire", multiplier = 1,
             landChance = 0.1, source = "uncertain refresh test", unknown = false }
@@ -598,7 +741,7 @@ currentState.targetModifierEffects = { ["Short Fire Exposure"] = {
 currentState.auras = { ["Short Fire Exposure"] = { remaining = 1,
     duration = 10, target = "target", targetModifier = true } }
 XelAssistCharDB.graphDepth = 3
-XelAssistResistance.Estimate = function(_, _, _, tooltip)
+XelAssist.Combat.Resistance.Estimate = function(_, _, _, tooltip)
     return { school = tooltip.school, schoolName = "Fire", multiplier = 1,
         landChance = 1, source = "periodic overlap test", unknown = false }
 end
@@ -646,7 +789,7 @@ assert(plan.follow[1] and plan.follow[1].name == "Filler"
     and plan.follow[2] and plan.follow[2].name == "Execute",
     "a newly applied modifier must affect subsequent damage from an already stored DoT")
 
-XelAssistResistance = nil
+XelAssist.Combat.Resistance = nil
 
 local function ambientState(unknownAmbient, health)
     local value = state("smart")
@@ -662,7 +805,7 @@ local function ambientState(unknownAmbient, health)
     return value
 end
 
-XelAssistResistance = {
+XelAssist.Combat.Resistance = {
     Estimate = function(_, candidate, _, tooltip)
         local unknown = candidate.unknownTest and true or false
         return { school = tooltip.school or 2, schoolName = "Fire", multiplier = 1,
@@ -721,9 +864,10 @@ scenarioActions = {
 plan = expect("exclusive own curse family", "Own Weakness Curse")
 assert(plan.follow[1] and plan.follow[1].name == "Pet Shadow",
     "a new own curse must replace the prior own curse without erasing a party member's curse")
-XelAssistResistance = nil
+XelAssist.Combat.Resistance = nil
 
 currentState = state("smart"); currentState.health = 150; currentState.healthMax = 1000
+currentState.friendlies.byKey["g:player-guid"].health = 150
 currentState.healHealth = 1000; currentState.healMax = 1000; currentState.inCombat = true
 currentState.inventory = { itemCounts = { [13446] = 1 } }
 XelAssistCharDB.toggles.consumables = true; XelAssistCharDB.graphDepth = 2
@@ -815,11 +959,14 @@ expect("pet resource isolation", "Shadow Bolt")
 currentState = state("smart"); currentState.pet = true
 currentState.actors.pet = { health = 1000, healthMax = 1000, resource = 300, resourceMax = 300,
     targetExists = false, targetsCurrent = false, hasAggro = false, distance = 5 }
+currentState.actorReadyAt = { player = 0, pet = 3 }
 scenarioActions = { { name = "Pet Attack", rank = 1, actor = "pet", executor = "petCommand",
         command = "attack", facts = { kind = "command", petCommand = true },
         mock = { cost = 0, cast = 0, gcd = 0 } },
     action("Shadow Bolt", 1, "damage", 100, 20) }
-expect("companion attack command", "Pet Attack")
+plan = expect("companion attack command", "Pet Attack")
+assert(plan.wait < 0.2,
+    "a companion command must execute now rather than inherit the pet cast clock")
 currentState.actors.pet.targetExists = true; currentState.actors.pet.targetsCurrent = true
 scenarioActions = { { name = "Pet Attack", rank = 1, actor = "pet", executor = "petCommand",
         command = "attack", facts = { kind = "command", petCommand = true },
@@ -889,7 +1036,7 @@ currentState.inCombat = false; XelAssistCharDB.graphDepth = 1
 reagentAvailable = false
 scenarioActions = { action("Summon Voidwalker", 1, "summon", 0, 200,
     { summonRole = "tank", summonFamily = "Voidwalker", reagent = true, reagentName = "Soul Shard" }) }
-local noShard = XelAssistGraph:Evaluate("smart", true)
+local noShard = XelAssist.Graph:Evaluate("smart", true)
 assert(noShard == nil, "a shard-costing demon must not be recommended without a Soul Shard")
 reagentAvailable = true
 expect("missing solo companion", "Summon Voidwalker")
@@ -915,5 +1062,27 @@ dispelTarget = "party1"
 scenarioActions = { petAction("Devour Magic", "dispel", 0, 60, { ranged = true }),
     action("Shadow Bolt", 1, "damage", 200, 20) }
 expect("pet friendly target safety", "Shadow Bolt")
+dispelTarget = "player"
+expect("pet owner target safety", "Shadow Bolt")
+
+currentState = state("smart")
+setFriendlies(currentState, {
+    friendly("player", "player-guid", 1000, 1000, 0),
+})
+scenarioActions = { petAction("Fire Shield", "buff", 0, 60, { ranged = true }),
+    action("Shadow Bolt", 1, "damage", 200, 20) }
+expect("pet off-target buff safety", "Shadow Bolt")
+
+currentState = state("buff")
+local nextBuffTarget = friendly("party4", "ally-next", 1000, 1000, 20)
+currentState.friendlies.byKey[nextBuffTarget.key] = nextBuffTarget
+currentState.friendlies.byUnit.party4 = nextBuffTarget.key
+currentState.friendlies.byAction = {
+    ["Arcane Intellect"] = { nextBuffTarget.key },
+}
+scenarioActions = { action("Arcane Intellect", 1, "buff", 0, 60) }
+plan = expect("action-specific group buff target", "Arcane Intellect")
+assert(plan.target == "party4",
+    "a missing buff outside the urgent-healing cap must remain reachable")
 
 print("ok: rank, aggro, interrupt, movement, range, aura, cooldown and beam scenarios")

@@ -1,3 +1,4 @@
+XelAssist = { Game = {}, Combat = {}, Graph = {}, UI = {} }
 table.getn = table.getn or function(value)
     local count = 0
     while value[count + 1] ~= nil do count = count + 1 end
@@ -7,9 +8,14 @@ BOOKTYPE_SPELL = "spell"
 BOOKTYPE_PET = "pet"
 NUM_PET_ACTION_SLOTS = 10
 local castSlot, attacked, followed, passive
+local petGuid = {}
+local playerGuid, targetGuid = {}, {}
 
 UnitExists = function(unit)
-    return unit == "player" or unit == "pet" or unit == "target" or unit == "pettarget"
+    if unit == "player" then return true, playerGuid end
+    if unit == "pet" then return true, petGuid end
+    if unit == "target" or unit == "pettarget" then return true, targetGuid end
+    return false, nil
 end
 UnitIsDead = function() return false end
 UnitIsUnit = function(a, b) return a == "pettarget" and b == "target" end
@@ -45,20 +51,29 @@ PetAttack = function() attacked = true end
 PetFollow = function() followed = true end
 PetPassiveMode = function() passive = true end
 
-XelAssistCapabilities = {
+XelAssist.Game.Capabilities = {
     Actions = function() return { { name = "Shadow Bolt", actor = "player", facts = { kind = "damage" } } } end,
     InferKnowledge = function() return nil end,
     Facts = function() return { cost = 0, cast = 0, gcd = 0 } end,
     Geometry = function() return { lineOfSight = true, behind = false, source = "test" } end,
+    UnitRef = function(_, unit, relation, source)
+        local exists, guid = UnitExists(unit)
+        if not exists or guid == nil then return nil end
+        return { unit = unit, guid = guid, relation = relation, source = source }
+    end,
+    SameUnitRef = function(_, ref)
+        local exists, guid = UnitExists(ref.unit)
+        return exists and guid == ref.guid
+    end,
 }
 
-dofile("XelAssist_Actors.lua")
+dofile("Game/Actors.lua")
 
-local pet = XelAssistActors:PetIdentity()
+local pet = XelAssist.Game.Actors:PetIdentity()
 assert(pet and pet.family == "Felhunter" and pet.creatureType == "Demon" and pet.stance == "defensive")
 assert(pet.resource == 220 and pet.resourceMax == 300 and pet.targetsCurrent)
 
-local actions = XelAssistActors:Actions()
+local actions = XelAssist.Game.Actors:Actions()
 assert(table.getn(actions) == 6, "player, two pet spells, and three commands should be graph nodes")
 local devour, lock
 local i
@@ -69,11 +84,25 @@ end
 assert(devour and devour.actor == "pet" and devour.actionSlot == 4)
 assert(devour.autocastAllowed and not devour.autocastEnabled and devour.facts.kind == "dispel")
 assert(lock and lock.actionSlot == 5 and lock.facts.kind == "interrupt")
-assert(XelAssistActors:PetCooldown(lock) == 2)
-assert(XelAssistActors:Execute(lock) and castSlot == 5)
-assert(XelAssistActors:Execute(actions[4]) and attacked)
-assert(XelAssistActors:Execute(actions[5]) and followed)
-assert(XelAssistActors:Execute(actions[6]) and passive)
-local actors = XelAssistActors:Snapshot()
+assert(lock.actorRef and lock.actorRef.guid == petGuid,
+    "pet actions must capture the opaque actor identity used for discovery")
+assert(XelAssist.Game.Actors:PetCooldown(lock) == 2)
+assert(XelAssist.Game.Actors:Execute(lock) and castSlot == 5)
+assert(XelAssist.Game.Actors:Execute(actions[4]) and attacked)
+assert(XelAssist.Game.Actors:Execute(actions[5]) and followed)
+assert(XelAssist.Game.Actors:Execute(actions[6]) and passive)
+local dispatchedSlot = castSlot
+petGuid = {}
+assert(not XelAssist.Game.Actors:Execute(lock) and castSlot == dispatchedSlot,
+    "a stale pet action must not dispatch after the pet identity changes")
+local replacementActions = XelAssist.Game.Actors:Actions()
+local replacementLock
+for i = 1, table.getn(replacementActions) do
+    if replacementActions[i].name == "Spell Lock" then replacementLock = replacementActions[i] end
+end
+assert(replacementLock and replacementLock.actorRef.guid == petGuid
+    and replacementLock.actorRef.guid ~= lock.actorRef.guid,
+    "pet replacement must rebuild actions against the replacement identity")
+local actors = XelAssist.Game.Actors:Snapshot()
 assert(actors.player and actors.pet and actors.pet.distance == 18)
 print("ok: controlled actor identity, pet spellbook, bar metadata, cooldowns, commands and execution")

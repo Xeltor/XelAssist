@@ -1,6 +1,6 @@
 -- Equipment and carried-resource evidence that can constrain combat actions.
-XelAssistInventory = {}
-local I = XelAssistInventory
+XelAssist.Game.Inventory = {}
+local I = XelAssist.Game.Inventory
 local scanTip
 local TIP_NAME = "XelAssistItemScanTooltip"
 
@@ -86,7 +86,7 @@ function I:Snapshot()
         local id = actions[i].itemId
         if id then itemCounts[id] = (itemCounts[id] or 0) + (actions[i].count or 1) end
     end
-    local spells = XelAssistCapabilities and XelAssistCapabilities:Actions() or {}
+    local spells = XelAssist.Game.Capabilities and XelAssist.Game.Capabilities:Actions() or {}
     for i = 1, table.getn(spells) do
         local reagent = spells[i].facts and spells[i].facts.reagentName
         if reagent and reagentCounts[reagent] == nil and GetItemCount then

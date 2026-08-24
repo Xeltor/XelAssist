@@ -1,14 +1,15 @@
+XelAssist = { Game = {}, Combat = {}, Graph = {}, UI = {} }
 table.getn = table.getn or function(value)
     local count = 0
     while value[count + 1] ~= nil do count = count + 1 end
     return count
 end
-dofile("XelAssist_Actions.lua")
+dofile("Combat/Knowledge.lua")
 
 local bleedNames = { "Rend", "Rupture", "Rip", "Lacerate" }
 local i
 for i = 1, table.getn(bleedNames) do
-    local facts = XelAssistKnowledge[bleedNames[i]]
+    local facts = XelAssist.Combat.Knowledge[bleedNames[i]]
     assert(facts and facts.bleed and facts.ignoresArmor,
         bleedNames[i] .. " must remain Physical-school damage that ignores Armor")
 end
@@ -22,24 +23,24 @@ local dynamic = {
 }
 local name, source
 for name, source in pairs(dynamic) do
-    local facts = XelAssistKnowledge[name]
+    local facts = XelAssist.Combat.Knowledge[name]
     assert(facts and facts.dynamicSchool == source,
         name .. " must defer school resolution to " .. source)
     assert(facts.school == nil, name .. " must not guess one scalar school")
 end
 
-assert(XelAssistKnowledge.Shoot.ranged and XelAssistKnowledge.Shoot.weaponRanged,
+assert(XelAssist.Combat.Knowledge.Shoot.ranged and XelAssist.Combat.Knowledge.Shoot.weaponRanged,
     "Shoot must identify the equipped ranged weapon as its damage source")
-assert(XelAssistKnowledge.Attack.whiteAttack
-    and XelAssistKnowledge.Attack.weaponHand == "main"
-    and not XelAssistKnowledge["Sinister Strike"].whiteAttack,
+assert(XelAssist.Combat.Knowledge.Attack.whiteAttack
+    and XelAssist.Combat.Knowledge.Attack.weaponHand == "main"
+    and not XelAssist.Combat.Knowledge["Sinister Strike"].whiteAttack,
     "only Attack may opt into the white-swing dual-wield miss penalty")
-assert(XelAssistKnowledge["Kill Command"].damageActor == "pet",
+assert(XelAssist.Combat.Knowledge["Kill Command"].damageActor == "pet",
     "Kill Command damage must be attributed to the pet actor")
-assert(XelAssistKnowledge["Noxious Assault"].mixedDamage,
+assert(XelAssist.Combat.Knowledge["Noxious Assault"].mixedDamage,
     "Noxious Assault combines weapon hits with dynamically equipped poisons")
 
-local lightning = XelAssistKnowledge["Lightning Strike"]
+local lightning = XelAssist.Combat.Knowledge["Lightning Strike"]
 assert(lightning.mixedDamage and table.getn(lightning.damageComponents) == 2,
     "Lightning Strike must retain both documented damage components")
 assert(lightning.damageComponents[1].school == 0

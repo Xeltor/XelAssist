@@ -4,18 +4,18 @@ from pathlib import Path
 import argparse
 import zipfile
 
+from addon_manifest import toc_entries
+
 ROOT = Path(__file__).resolve().parents[1]
 ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 
 
 def addon_files():
     files = [ROOT / "XelAssist.toc", ROOT / "Bindings.xml", ROOT / "README.md", ROOT / "CHANGELOG.md"]
-    for raw in (ROOT / "XelAssist.toc").read_text().splitlines():
-        entry = raw.strip()
-        if entry and not entry.startswith("##"):
-            path = ROOT / entry.replace("\\", "/")
-            if path not in files:
-                files.append(path)
+    for entry in toc_entries(ROOT):
+        path = ROOT / entry
+        if path not in files:
+            files.append(path)
     missing = [str(path.relative_to(ROOT)) for path in files if not path.is_file()]
     if missing:
         raise SystemExit("missing package files: " + ", ".join(missing))

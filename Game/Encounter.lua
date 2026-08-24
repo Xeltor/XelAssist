@@ -1,7 +1,7 @@
 -- Data-driven encounter and unit context. Creature IDs are join keys and
 -- evidence, never names that dispatch a hand-authored priority list.
-XelAssistEncounter = {}
-local E = XelAssistEncounter
+XelAssist.Game.Encounter = {}
+local E = XelAssist.Game.Encounter
 
 local function call(fn, value)
     if not fn then return nil end

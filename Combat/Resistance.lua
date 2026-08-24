@@ -1,11 +1,12 @@
 -- Target resistance knowledge is learned evidence, not a creature rotation table.
 -- Turtle's UnitResistance target values are preferred when their availability
 -- is proven. Exact Nampower outcomes provide the normal learned fallback.
-XelAssistResistance = { schema = 4, maxProfiles = 256, identities = {},
+XelAssist.Combat.Resistance = { schema = 4, maxProfiles = 256, identities = {},
     sessionProfiles = {}, spellSchools = {}, spellMetadata = {}, numericEvidence = {},
     submissions = {}, recentSubmissions = {}, ownedCasters = {},
     unitResistanceProven = false, nampowerResistanceProven = false }
-local R = XelAssistResistance
+local R = XelAssist.Combat.Resistance
+local submissionLedger = XelAssist.Combat.ResistanceSubmissions:New(R)
 
 local SCHOOL_NAMES = { [0] = "Physical", [1] = "Holy", [2] = "Fire", [3] = "Nature",
     [4] = "Frost", [5] = "Shadow", [6] = "Arcane" }
@@ -60,11 +61,11 @@ end
 -- outranks DBC; range-oriented `melee`/`ranged` catalogue hints are fallbacks
 -- when the row is unavailable.
 local function deliveryModelFor(facts, metadata)
-    return XelAssistDelivery:Model(facts, metadata)
+    return XelAssist.Combat.Delivery:Model(facts, metadata)
 end
 
 local function deliverySubtypeFor(facts, metadata, model)
-    return XelAssistDelivery:Subtype(facts, metadata, model)
+    return XelAssist.Combat.Delivery:Subtype(facts, metadata, model)
 end
 function R:SchoolName(school)
     return SCHOOL_NAMES[tonumber(school)] or "Unknown"
@@ -101,7 +102,7 @@ function R:Identity(unit, encounter)
     if not guid then return nil end
     local record
     if encounter and encounter.target and encounter.target.guid == guid then record = encounter.target end
-    if not record and XelAssistEncounter then record = XelAssistEncounter:Unit(unit, "enemy") end
+    if not record and XelAssist.Game.Encounter then record = XelAssist.Game.Encounter:Unit(unit, "enemy") end
     record = record or {}
     local creatureId = tonumber(record.creatureId or call(UnitCreatureID, unit))
     if creatureId == 0 then creatureId = nil end
@@ -195,8 +196,8 @@ end
 function R:Snapshot(unit, encounter)
     local identity = self:Identity(unit, encounter)
     if not identity then return nil end
-    local penetration = XelAssistCapabilities and XelAssistCapabilities.Penetration
-        and XelAssistCapabilities:Penetration() or { spell = nil, armor = nil, known = false }
+    local penetration = XelAssist.Game.Capabilities and XelAssist.Game.Capabilities.Penetration
+        and XelAssist.Game.Capabilities:Penetration() or { spell = nil, armor = nil, known = false }
     local live, details, source, trusted = self:LiveVector(unit, encounter)
     if live and identity.profileKey then
         local profile = self:Profile(identity, true)
@@ -273,11 +274,11 @@ local function updateRecord(record, delivered, weight, landEvidence)
 end
 
 local function deliveryKey(context)
-    return XelAssistDelivery:Key(context)
+    return XelAssist.Combat.Delivery:Key(context)
 end
 
 local function updateProfileDelivery(profile, spellId, context, evidence, weight)
-    return XelAssistDelivery:Record(profile, spellId, context, evidence, weight, epoch())
+    return XelAssist.Combat.Delivery:Record(profile, spellId, context, evidence, weight, epoch())
 end
 function R:CasterContext(casterGuid, school, state, action, targetGuid)
     local actor = action and action.facts and action.facts.damageActor or action and action.actor
@@ -297,8 +298,8 @@ function R:CasterContext(casterGuid, school, state, action, targetGuid)
     local penetration, known = nil, false
     if actor == "player" then
         local values = state and state.targetResistance and state.targetResistance.penetration
-        if not values and XelAssistCapabilities and XelAssistCapabilities.Penetration then
-            values = XelAssistCapabilities:Penetration()
+        if not values and XelAssist.Game.Capabilities and XelAssist.Game.Capabilities.Penetration then
+            values = XelAssist.Game.Capabilities:Penetration()
         end
         if values then
             penetration = school == 0 and values.armor or values.spell
@@ -314,11 +315,11 @@ function R:CasterContext(casterGuid, school, state, action, targetGuid)
         if type(behind) == "boolean" then positionSource = "state UnitXP geometry" end
     end
     if type(behind) ~= "boolean" and targetGuid
-        and targetGuid == guidFor("target") and XelAssistCapabilities
-        and XelAssistCapabilities.Geometry then
+        and targetGuid == guidFor("target") and XelAssist.Game.Capabilities
+        and XelAssist.Game.Capabilities.Geometry then
         local unit = actor == "pet" and "pet" or "player"
-        local ok, geometry = pcall(XelAssistCapabilities.Geometry,
-            XelAssistCapabilities, unit, "target")
+        local ok, geometry = pcall(XelAssist.Game.Capabilities.Geometry,
+            XelAssist.Game.Capabilities, unit, "target")
         if ok and type(geometry) == "table" and type(geometry.behind) == "boolean" then
             behind, positionSource = geometry.behind, geometry.source or "live geometry"
         end
@@ -372,14 +373,14 @@ function R:ModifierContext(context, reduction)
 end
 
 function R:ActiveResistanceReduction(targetGuid, school)
-    if not (targetGuid and school and XelAssistTargetModifiers
-        and XelAssistTargetModifiers.Active and XelAssistEncounter
-        and XelAssistEncounter.Snapshot) then return 0, false end
-    local encounter = XelAssistEncounter:Snapshot()
+    if not (targetGuid and school and XelAssist.Combat.TargetModifiers
+        and XelAssist.Combat.TargetModifiers.Active and XelAssist.Game.Encounter
+        and XelAssist.Game.Encounter.Snapshot) then return 0, false end
+    local encounter = XelAssist.Game.Encounter:Snapshot()
     if not (encounter and encounter.target and encounter.target.guid == targetGuid) then
         return 0, false
     end
-    local reductions = XelAssistTargetModifiers:Active(encounter, nil)
+    local reductions = XelAssist.Combat.TargetModifiers:Active(encounter, nil)
     return reductions and tonumber(reductions[school]) or 0, true
 end
 
@@ -405,30 +406,15 @@ function R:DynamicContext(source)
         end
         return nil
     elseif source == "petResult" then
-        local guid = guidFor("pet")
-        return guid and source .. ":" .. tostring(guid) or nil
+        -- The pet identity itself is a stable session-local context key. It may
+        -- be an opaque SuperWoW value and must not be converted for storage.
+        return guidFor("pet")
     end
     return nil
 end
 
-local function submissionKey(targetGuid, casterGuid, spellId)
-    if not targetGuid or not casterGuid or not spellId then return nil end
-    return targetGuid .. ":" .. casterGuid .. ":" .. tostring(spellId)
-end
-
 function R:SweepSubmissions()
-    local at, keys, key, record = now(), {}, nil, nil
-    for key, record in pairs(self.submissions) do
-        if at - (record.at or 0) > 30 then table.insert(keys, { table = self.submissions, key = key }) end
-    end
-    for key, record in pairs(self.recentSubmissions) do
-        local retention = math.max(4, math.min(60, (tonumber(record.duration) or 0) + 2))
-        if at - (record.consumedAt or record.at or 0) > retention then
-            table.insert(keys, { table = self.recentSubmissions, key = key })
-        end
-    end
-    local i
-    for i = 1, table.getn(keys) do keys[i].table[keys[i].key] = nil end
+    submissionLedger:Sweep()
 end
 
 function R:Submitted(action, targetGuid, tooltip, refresh)
@@ -436,8 +422,7 @@ function R:Submitted(action, targetGuid, tooltip, refresh)
     self:SweepSubmissions()
     local actor = action.facts and action.facts.damageActor or action.actor or "player"
     local casterGuid = guidFor(actor == "pet" and "pet" or "player")
-    local key = submissionKey(targetGuid, casterGuid, action.spellId)
-    if key then
+    if casterGuid then
         local submittedAt = now()
         local cast = tonumber(action.facts and action.facts.cast)
         if cast == nil then cast = tonumber(tooltip and tooltip.cast) or 0 end
@@ -463,8 +448,8 @@ function R:Submitted(action, targetGuid, tooltip, refresh)
                 self.identities[targetGuid])
         end
         self.ownedCasters[casterGuid] = { at = submittedAt, actor = actor, level = level }
-        self.submissions[key] = { at = submittedAt, targetGuid = targetGuid,
-            casterGuid = casterGuid, spellId = action.spellId,
+        submissionLedger:Put(targetGuid, casterGuid, action.spellId, {
+            at = submittedAt,
             readyAt = submittedAt + math.max(0, cast), refresh = refresh and true or false,
             resistanceSchool = resistanceSchool,
             resistanceReduction = resistanceReduction,
@@ -478,59 +463,27 @@ function R:Submitted(action, targetGuid, tooltip, refresh)
             duration = tonumber(tooltip and tooltip.duration),
             channel = action.facts and action.facts.channel and true or false,
             periodic = action.facts and (action.facts.kind == "dot" or action.facts.channel)
-                and true or false }
+                and true or false })
     end
 end
 
 function R:Submission(targetGuid, casterGuid, spellId)
-    self:SweepSubmissions()
-    local key = submissionKey(targetGuid, casterGuid, spellId)
-    local record = key and self.submissions[key]
-    if record and now() - (record.at or 0) <= 30 then
-        return record
-    end
-    if key then self.submissions[key] = nil end
-    return nil
+    return submissionLedger:Get(targetGuid, casterGuid, spellId)
 end
 
 function R:TakeSubmission(targetGuid, casterGuid, spellId, force)
-    local key = submissionKey(targetGuid, casterGuid, spellId)
-    local record = self:Submission(targetGuid, casterGuid, spellId)
-    if record and (force or now() >= (record.readyAt or record.at or 0)) then
-        self.submissions[key] = nil
-        record.consumedAt = now()
-        self.recentSubmissions[key] = record
-        return record
-    end
-    return nil
+    return submissionLedger:Take(targetGuid, casterGuid, spellId, force)
 end
 
 function R:RecentSubmission(targetGuid, casterGuid, spellId)
-    self:SweepSubmissions()
-    local key = submissionKey(targetGuid, casterGuid, spellId)
-    local record = key and self.recentSubmissions[key]
-    local retention = record and math.max(4, math.min(60,
-        (tonumber(record.duration) or 0) + 2)) or 4
-    if record and now() - (record.consumedAt or record.at or 0) <= retention then return record end
-    if key then self.recentSubmissions[key] = nil end
-    return nil
+    return submissionLedger:Recent(targetGuid, casterGuid, spellId)
 end
 
 -- Terminal cast failures must retire the graph's evidence reservation as well
 -- as the UI tap guard. Missing-target Nampower failure events are handled by
 -- matching the owned caster and spell id across the bounded submission table.
 function R:CancelSubmission(spellId, casterGuid, targetGuid)
-    local keys, key, record = {}, nil, nil
-    for key, record in pairs(self.submissions) do
-        if (not spellId or tonumber(record.spellId) == tonumber(spellId))
-            and (not casterGuid or record.casterGuid == casterGuid)
-            and (not targetGuid or record.targetGuid == targetGuid) then
-            table.insert(keys, key)
-        end
-    end
-    local i
-    for i = 1, table.getn(keys) do self.submissions[keys[i]] = nil end
-    return table.getn(keys)
+    return submissionLedger:Cancel(spellId, casterGuid, targetGuid)
 end
 
 function R:AuraLanded(targetGuid, spellId, exactCasterGuid)
@@ -702,7 +655,7 @@ function R:SpellFacts(spellId)
             end
         end
     end
-    local delivery = XelAssistDelivery:SpellTraits(dmgClass, attributesEx3Raw,
+    local delivery = XelAssist.Combat.Delivery:SpellTraits(dmgClass, attributesEx3Raw,
         rangeIndex, equippedItemClass)
     local facts = { school = school, binary = binary,
         periodic = periodic, directDamage = directDamage,
@@ -765,7 +718,10 @@ function R:IsOwnedCaster(guid)
     return false
 end
 function R:MarkNumeric(targetGuid, spellId)
-    if targetGuid and spellId then self.numericEvidence[targetGuid .. ":" .. tostring(spellId)] = now() end
+    if targetGuid == nil or spellId == nil then return end
+    local bySpell = self.numericEvidence[targetGuid]
+    if not bySpell then bySpell = {}; self.numericEvidence[targetGuid] = bySpell end
+    bySpell[spellId] = now()
 end
 function R:NumericEventsEnabled()
     -- Nampower 4.6 emits damage and miss events unconditionally. The old
@@ -774,7 +730,8 @@ function R:NumericEventsEnabled()
 end
 function R:ShouldTrainChat(targetGuid, spellId)
     if self:NumericEventsEnabled() then return false end
-    local at = targetGuid and spellId and self.numericEvidence[targetGuid .. ":" .. tostring(spellId)]
+    local bySpell = targetGuid ~= nil and self.numericEvidence[targetGuid] or nil
+    local at = bySpell and spellId ~= nil and bySpell[spellId] or nil
     return not at or now() - at > 1
 end
 
@@ -785,7 +742,7 @@ end
 -- the exact effective delivery outcome for the hand/skill/Defense/position
 -- fingerprint used by the graph.
 local function autoAttackDeliveryEvidence(totalDamage, hitInfo, victimState)
-    return XelAssistDelivery:AutoAttackEvidence(totalDamage, hitInfo, victimState)
+    return XelAssist.Combat.Delivery:AutoAttackEvidence(totalDamage, hitInfo, victimState)
 end
 function R:AutoAttack(attackerGuid, targetGuid, totalDamage, hitInfo, victimState,
     subDamageCount, blockedAmount, totalAbsorb, totalResist)
@@ -1063,8 +1020,7 @@ function R:Miss(spellId, targetGuid, missInfo, casterGuid)
     local learned = self.spellSchools[spellId]
     local school = learned and learned.lastSchool or metadata.school
     local submission = self:TakeSubmission(targetGuid, casterGuid, spellId, true)
-    local key = submissionKey(targetGuid, casterGuid, spellId)
-    if key then self.recentSubmissions[key] = nil end
+    submissionLedger:ForgetRecent(targetGuid, casterGuid, spellId)
     self:MarkNumeric(targetGuid, spellId)
     -- Every defined miss outcome is terminal for this evidence reservation.
     -- Code 1 is an ordinary delivery failure. vMaNGOS also emits code 2 for a
@@ -1309,22 +1265,22 @@ local function learnedValues(record)
 end
 
 local function baseSpellHit(attackerLevel, targetLevel, targetIsPlayer)
-    return XelAssistDelivery:BaseSpellHit(attackerLevel, targetLevel, targetIsPlayer)
+    return XelAssist.Combat.Delivery:BaseSpellHit(attackerLevel, targetLevel, targetIsPlayer)
 end
 
 function R:PhysicalDeliveryContext(action, metadata, context, identity)
-    return XelAssistDelivery:PhysicalContext(action, metadata, context, identity)
+    return XelAssist.Combat.Delivery:PhysicalContext(action, metadata, context, identity)
 end
 
 function R:ApplyPhysicalDeliveryContext(context, physical)
-    return XelAssistDelivery:ApplyPhysicalContext(context, physical)
+    return XelAssist.Combat.Delivery:ApplyPhysicalContext(context, physical)
 end
 
 local function basePhysicalHit(attackerLevel, targetLevel, targetIsPlayer)
-    return XelAssistDelivery:BasePhysicalHit(attackerLevel, targetLevel, targetIsPlayer)
+    return XelAssist.Combat.Delivery:BasePhysicalHit(attackerLevel, targetLevel, targetIsPlayer)
 end
 local function learnedDelivery(record, prior)
-    return XelAssistDelivery:Learned(record, prior, ageWeight, LAND_PRIOR)
+    return XelAssist.Combat.Delivery:Learned(record, prior, ageWeight, LAND_PRIOR)
 end
 
 function R:EstimateComponent(action, target, tooltip, state, component)

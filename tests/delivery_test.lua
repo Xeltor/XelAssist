@@ -1,3 +1,4 @@
+XelAssist = { Game = {}, Combat = {}, Graph = {}, UI = {} }
 table.getn = table.getn or function(value)
     local count = 0
     while value[count + 1] ~= nil do count = count + 1 end
@@ -16,10 +17,10 @@ local skills = {
     mainToken = "main-item", offToken = "off-item", rangedToken = "ranged-item",
     dualWield = true, dualWieldKnown = true, formWeaponUseKnown = true,
 }
-XelAssistCapabilities = { WeaponSkills = function() return skills end }
+XelAssist.Game.Capabilities = { WeaponSkills = function() return skills end }
 
-dofile("XelAssist_Delivery.lua")
-local D = XelAssistDelivery
+dofile("Combat/Delivery.lua")
+local D = XelAssist.Combat.Delivery
 
 local function close(actual, expected, message)
     assert(math.abs(actual - expected) < 0.0001,

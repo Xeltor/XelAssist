@@ -94,9 +94,18 @@ SpellInfo = function(id)
     if id == 1459 then return "Arcane Intellect" end
     return "Spell " .. tostring(id)
 end
-local queuedSpell, directlyCast, directUnit
-QueueSpellByName = function(name) queuedSpell = name end
-CastSpellByName = function(name, unit) directlyCast, directUnit = name, unit end
+local queuedSpell, directlyCast, directUnit, queueCount, directCastCount =
+    nil, nil, nil, 0, 0
+local petActionCount, petActionSlot = 0, nil
+QueueSpellByName = function(name)
+    queuedSpell, queueCount = name, queueCount + 1
+end
+CastSpellByName = function(name, unit)
+    directlyCast, directUnit, directCastCount = name, unit, directCastCount + 1
+end
+CastPetAction = function(slot)
+    petActionSlot, petActionCount = slot, petActionCount + 1
+end
 IsAddOnLoaded = function() return true end
 local mockTime = 0
 GetTime = function() return mockTime end
@@ -105,7 +114,9 @@ local cvars = {}
 GetCVar = function(name) return cvars[name] or "0" end
 SetCVar = function(name, value) cvars[name] = tostring(value) end
 UnitClass = function() return "Mage", "MAGE" end
+local unitNameCalls = {}
 UnitName = function(unit)
+    table.insert(unitNameCalls, unit)
     if unit == "target" then return "Target" end
     if unit == "party1" then return "Test Ally" end
     if unit == "party2" then return "An Extremely Long Friendly Target Name" end
@@ -114,12 +125,16 @@ UnitName = function(unit)
     return unit
 end
 local testTargetGUID, testPetGUID
+local testFriendlyGUIDs, testAssistUnits = {}, {}
 UnitExists = function(unit)
     if unit == "target" and testTargetGUID then return true, testTargetGUID end
     if unit == "pet" and testPetGUID then return true, testPetGUID end
+    if testFriendlyGUIDs[unit] then return true, testFriendlyGUIDs[unit] end
     return unit == "player", unit == "player" and "player-guid" or nil
 end
-UnitCanAssist = function() return false end
+UnitCanAssist = function(_, unit)
+    return unit == "player" or testAssistUnits[unit] and true or false
+end
 UnitCanAttack = function() return false end
 UnitIsDead = function() return false end
 UnitIsUnit = function(a, b) return a == b end
@@ -128,7 +143,12 @@ UnitHealthMax = function() return 1000 end
 UnitMana = function() return 1000 end
 UnitManaMax = function() return 1000 end
 UnitPowerType = function() return 0 end
-UnitBuff = function() return nil end
+local liveBuffSpellIds = {}
+UnitBuff = function(unit, index)
+    local spellId = liveBuffSpellIds[unit]
+    if spellId and index == 1 then return "buff-texture", 1, spellId end
+    return nil
+end
 UnitDebuff = function() return nil end
 GetNumRaidMembers = function() return 0 end
 GetNumPartyMembers = function() return 0 end
@@ -136,12 +156,14 @@ GetShapeshiftForm = function() return 0 end
 GetComboPoints = function() return 0 end
 GetInventoryItemLink = function() return nil end
 
-local files = { "XelAssist_Prelude.lua", "XelAssist_Capabilities.lua", "XelAssist_Delivery.lua",
-    "XelAssist_Actions.lua",
-    "XelAssist_Encounter.lua", "XelAssist_TargetModifiers.lua", "XelAssist_Resistance.lua",
-    "XelAssist_Actors.lua", "XelAssist_Observations.lua", "XelAssist_Inventory.lua",
-    "XelAssist_Graph.lua", "XelAssist_UI.lua", "XelAssist_Config.lua",
-    "XelAssist_Minimap.lua", "XelAssist_Core.lua" }
+local files = {}
+local raw
+for raw in io.lines("XelAssist.toc") do
+    local path = string.gsub(raw, "\\", "/")
+    if not string.find(path, "^#") and string.find(path, "%.lua%s*$") then
+        table.insert(files, path)
+    end
+end
 local i
 for i = 1, table.getn(files) do dofile(files[i]) end
 local eventFrame
@@ -160,21 +182,21 @@ local function fireEvent(name, a1, a2, a3, a4, a5, a6, a7, a8, a9)
 end
 
 XelAssist:Init()
-XelAssistConfig:Build()
-XelAssistUI:Refresh(true)
-assert(XelAssistUI.frame and XelAssistUI.frame.main, "recommendation frame did not build")
-assert(XelAssistUI.frame:GetWidth() == 372,
+XelAssist.UI.Settings:Build()
+XelAssist.UI.HUD:Refresh(true)
+assert(XelAssist.UI.HUD.frame and XelAssist.UI.HUD.frame.main, "recommendation frame did not build")
+assert(XelAssist.UI.HUD.frame:GetWidth() == 372,
     "recommendation runway must reserve enough width for readable action contracts")
-assert(table.getn(XelAssistUI.frame.follow) == 4, "future-action runway should expose four slots")
-assert(XelAssistConfig.frame and XelAssistConfig.frame.depth, "character graph controls did not build")
+assert(table.getn(XelAssist.UI.HUD.frame.follow) == 4, "future-action runway should expose four slots")
+assert(XelAssist.UI.Settings.frame and XelAssist.UI.Settings.frame.depth, "character graph controls did not build")
 assert(getglobal("XelAssistDepthSliderText"):GetText() == "Visible action steps",
     "graph-depth control must describe the visible runway rather than implementation depth")
-assert(XelAssistMinimap.button, "minimap entry did not build")
+assert(XelAssist.UI.Minimap.button, "minimap entry did not build")
 assert(XelAssistCharDB.graphDepth == 3 and XelAssistCharDB.role == "auto", "character defaults missing")
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.5.1" and runtime.nampower == "test-3.0", "runtime versions missing")
+assert(runtime.version == "0.6.0" and runtime.nampower == "test-3.0", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(runtime.evidenceEvents.damage and runtime.evidenceEvents.miss,
@@ -184,12 +206,12 @@ assert(runtime.evidenceEvents.autoAttack
     and eventFrame.registered.AUTO_ATTACK_OTHER,
     "exact Nampower white-swing evidence events were not registered and audited")
 local routedAutoAttack
-local originalAutoAttack = XelAssistResistance.AutoAttack
-function XelAssistResistance:AutoAttack(a1, a2, a3, a4, a5, a6, a7, a8, a9)
+local originalAutoAttack = XelAssist.Combat.Resistance.AutoAttack
+function XelAssist.Combat.Resistance:AutoAttack(a1, a2, a3, a4, a5, a6, a7, a8, a9)
     routedAutoAttack = { a1, a2, a3, a4, a5, a6, a7, a8, a9 }
 end
 fireEvent("AUTO_ATTACK_SELF", "player-guid", "target-guid", 42, 4, 1, 2, 3, 4, 5)
-XelAssistResistance.AutoAttack = originalAutoAttack
+XelAssist.Combat.Resistance.AutoAttack = originalAutoAttack
 assert(routedAutoAttack and routedAutoAttack[1] == "player-guid"
     and routedAutoAttack[2] == "target-guid" and routedAutoAttack[3] == 42
     and routedAutoAttack[4] == 4 and routedAutoAttack[9] == 5,
@@ -215,8 +237,8 @@ local displayPlan = { action = tooltipAction, target = "target", reason = "test 
         { action = estimatedFollowAction, target = "player", reason = "future setup",
             downtime = 3, estimated = true },
     } }
-gameTooltipLines = {}; XelAssistUI.lastPlan = displayPlan; XelAssistUI.lastReason = "test"
-this = XelAssistUI.frame.main; this.OnEnter()
+gameTooltipLines = {}; XelAssist.UI.HUD.lastPlan = displayPlan; XelAssist.UI.HUD.lastReason = "test"
+this = XelAssist.UI.HUD.frame.main; this.OnEnter()
 local tooltipText = table.concat(gameTooltipLines, "|")
 assert(string.find(tooltipText, "Graph-scored factor 120%", 1, true)
     and string.find(tooltipText, "Fire: 80% expected output", 1, true)
@@ -231,18 +253,41 @@ tooltipResistance.components = {
         multiplier = 0.8, decisionWeight = 0.28, unknown = true,
         penetrationUnknown = true },
 }
-gameTooltipLines = {}; this = XelAssistUI.frame.main; this.OnEnter()
+gameTooltipLines = {}; this = XelAssist.UI.HUD.frame.main; this.OnEnter()
 tooltipText = table.concat(gameTooltipLines, "|")
 assert(string.find(tooltipText, "Physical 50% · 60% share", 1, true)
     and string.find(tooltipText, "Nature 80% · 40% share", 1, true)
     and string.find(tooltipText, "uncertain", 1, true),
     "mixed resistance UI must expose each component's normalized share and uncertainty")
-local savedEvaluatorForTooltip = XelAssistGraph.Evaluate
-XelAssistGraph.Evaluate = function() return displayPlan, nil, false end
-XelAssistUI:Refresh(true)
-local actionFrame = XelAssistUI.frame
+local savedEvaluatorForTooltip = XelAssist.Graph.Evaluate
+XelAssist.Graph.Evaluate = function() return displayPlan, nil, false end
+XelAssist.UI.HUD:Refresh(true)
+local actionFrame = XelAssist.UI.HUD.frame
 assert(actionFrame.route:GetText() == "You -> Target",
     "current action must visibly identify its actor and target")
+local labelGuid, replacementLabelGuid = {}, {}
+testFriendlyGUIDs.party1, testAssistUnits.party1 = labelGuid, true
+local identityLabelPlan = { action = tooltipAction, target = labelGuid,
+    targetRef = { unit = "party1", guid = labelGuid, relation = "ally",
+        source = "party" },
+    reason = "identity label", confidence = "client data", value = 1,
+    threat = 1, downtime = 1.5, observed = {}, follow = {}, path = {} }
+XelAssist.Graph.Evaluate = function() return identityLabelPlan, nil, false end
+local labelCalls = table.getn(unitNameCalls)
+XelAssist.UI.HUD:Refresh(true)
+assert(actionFrame.route:GetText() == "You -> Test Ally"
+    and table.getn(unitNameCalls) == labelCalls + 1
+    and unitNameCalls[table.getn(unitNameCalls)] == "party1",
+    "HUD labels may resolve UnitName only through a matching captured target reference")
+testFriendlyGUIDs.party1 = replacementLabelGuid
+labelCalls = table.getn(unitNameCalls)
+XelAssist.UI.HUD:Refresh(true)
+assert(actionFrame.route:GetText() == "You -> Ally"
+    and table.getn(unitNameCalls) == labelCalls,
+    "a replaced target must use a role label without reading UnitName or rendering its opaque GUID")
+testFriendlyGUIDs.party1, testAssistUnits.party1 = nil, nil
+XelAssist.Graph.Evaluate = function() return displayPlan, nil, false end
+XelAssist.UI.HUD:Refresh(true)
 assert(string.find(actionFrame.status:GetText(), "NOW", 1, true)
     and string.find(actionFrame.status:GetText(), "OPEN", 1, true),
     "current partial-data action must expose immediate timing and open evidence")
@@ -283,7 +328,7 @@ assert(secondFollow:IsShown() and secondFollow:GetHeight() == 24
     "estimated future row must remain visibly distinct without relying on color")
 assert(rawget(firstFollow, "OnClick") == nil and rawget(secondFollow, "OnClick") == nil,
     "future action rows must remain read-only")
-gameTooltipLines = {}; this = XelAssistUI.frame.follow[1]; this.OnEnter()
+gameTooltipLines = {}; this = XelAssist.UI.HUD.frame.follow[1]; this.OnEnter()
 local futureTooltip = table.concat(gameTooltipLines, "|")
 assert(string.find(futureTooltip, "Graph-scored factor 120%", 1, true)
     and string.find(futureTooltip, "0.0s wait", 1, true)
@@ -301,7 +346,7 @@ XelAssist.Execute = savedExecute
 assert(executeCalls == 1, "one main-button click must request exactly one execution")
 
 XelAssistCharDB.graphDepth = 1
-XelAssistUI:Refresh(true)
+XelAssist.UI.HUD:Refresh(true)
 assert(actionFrame:GetHeight() == 76 and not actionFrame.follow[1]:IsShown(),
     "one visible step must collapse predictions without moving the current card")
 mainPoint, mainRelative, mainRelativePoint, mainX, mainY = actionFrame.main:GetPoint()
@@ -315,32 +360,37 @@ local groundAction = { name = "Blizzard", rank = 1, actor = "player",
 local groundPlan = { action = groundAction, target = "target", reason = "area control",
     confidence = "client data", value = 1, threat = 1, downtime = 1.5,
     observed = {}, follow = {}, path = { { action = groundAction, target = "target" } } }
-XelAssistGraph.Evaluate = function() return groundPlan, nil, false end
-XelAssistUI:Refresh(true)
+XelAssist.Graph.Evaluate = function() return groundPlan, nil, false end
+XelAssist.UI.HUD:Refresh(true)
 assert(actionFrame.route:GetText() == "You -> Ground placement",
     "ground actions must not pretend to execute on the selected unit")
 
 local longFollowAction = { name = "An Extraordinarily Long Spell Name", rank = 1,
     actor = "player", facts = { kind = "heal" } }
+local longTargetGuid = {}
+testFriendlyGUIDs.party2, testAssistUnits.party2 = longTargetGuid, true
 local longPlan = { action = tooltipAction, target = "target", reason = "test fit",
     confidence = "client data", value = 1, threat = 1, downtime = 1.5, observed = {},
     follow = { longFollowAction }, path = {
         { action = tooltipAction, target = "target" },
-        { action = longFollowAction, target = "party2", reason = "future fit",
-            downtime = 1.5 },
+        { action = longFollowAction, target = "party2",
+            targetRef = { unit = "party2", guid = longTargetGuid,
+                relation = "ally", source = "party" },
+            reason = "future fit", downtime = 1.5 },
     } }
-XelAssistGraph.Evaluate = function() return longPlan, nil, false end
-XelAssistUI:Refresh(true)
+XelAssist.Graph.Evaluate = function() return longPlan, nil, false end
+XelAssist.UI.HUD:Refresh(true)
 assert(actionFrame.follow[1].route:GetStringWidth() <= 112
     and actionFrame.follow[1].name:GetStringWidth() <= 112
     and string.find(actionFrame.follow[1].route:GetText(), "..", 1, true)
     and string.find(actionFrame.follow[1].name:GetText(), "..", 1, true)
     and actionFrame.follow[1].certainty:GetText() == "MODEL",
     "long future contracts must fit one row and unproven predictions must say MODEL")
+testFriendlyGUIDs.party2, testAssistUnits.party2 = nil, nil
 
-XelAssistGraph.Evaluate = function() return displayPlan, nil, false end
-XelAssistUI:Refresh(true)
-XelAssistGraph.Evaluate = savedEvaluatorForTooltip
+XelAssist.Graph.Evaluate = function() return displayPlan, nil, false end
+XelAssist.UI.HUD:Refresh(true)
+XelAssist.Graph.Evaluate = savedEvaluatorForTooltip
 tooltipResistance.school, tooltipResistance.schoolName = nil, nil
 XelAssistLog = {}
 XelAssist:RecordDecision(displayPlan, "smart")
@@ -359,15 +409,46 @@ assert(string.find(readableLog, "Mixed 120% scored", 1, true)
 
 local function resetCastState()
     XelAssist.pendingAuras = {}
+    XelAssist.pendingAuraKeys = {}
     XelAssist.currentPendingAuras = {}
     XelAssist.spellLifecycle = {}
+    XelAssist.lifecycleKeys = {}
     XelAssist:ClearPetCast()
-    XelAssistResistance.submissions = {}
-    XelAssistResistance.recentSubmissions = {}
+    XelAssist.Combat.Resistance.submissions = {}
+    XelAssist.Combat.Resistance.recentSubmissions = {}
 end
 
 local immolateAction = { name = "Immolate", spellId = 348, actor = "player",
     facts = { kind = "dot", cast = 0 } }
+
+resetCastState()
+mockTime = 0
+local opaqueTargetGuid, opaqueCasterGuid = {}, {}
+XelAssist:TouchPendingSpell(348, "queued", 2, opaqueCasterGuid, opaqueTargetGuid)
+XelAssist:MarkAuraPending("Immolate", 2, opaqueTargetGuid, 348, opaqueCasterGuid,
+    "debuff")
+local opaquePendingKey = XelAssist:PendingAuraKey("Immolate", opaqueTargetGuid,
+    opaqueCasterGuid)
+local opaqueLifecycleKey = XelAssist:LifecycleKey(348, opaqueCasterGuid,
+    opaqueTargetGuid)
+assert(type(opaquePendingKey) == "table"
+    and XelAssist.pendingAuras[opaquePendingKey].target == opaqueTargetGuid
+    and XelAssist.pendingAuras[opaquePendingKey].casterGuid == opaqueCasterGuid
+    and type(opaqueLifecycleKey) == "table"
+    and XelAssist.spellLifecycle[opaqueLifecycleKey].targetGuid == opaqueTargetGuid,
+    "pending aura and lifecycle keys must preserve opaque target and caster identities")
+local savedCancelSubmission = XelAssist.Combat.Resistance.CancelSubmission
+XelAssist.Combat.Resistance.CancelSubmission = function() end
+XelAssist:ClearAuraPending("Immolate", opaqueTargetGuid, opaqueCasterGuid)
+XelAssist.Combat.Resistance.CancelSubmission = savedCancelSubmission
+assert(not XelAssist.pendingAuras[opaquePendingKey]
+    and not XelAssist.pendingAuraKeys[opaqueTargetGuid],
+    "clearing an opaque reservation must release its bounded composite-key branch")
+mockTime = 61
+XelAssist:Lifecycle(999, {}, nil)
+assert(not XelAssist.spellLifecycle[opaqueLifecycleKey]
+    and not XelAssist.lifecycleKeys[opaqueCasterGuid],
+    "stale lifecycle cleanup must release opaque composite-key branches")
 
 resetCastState()
 testTargetGUID = "target-a"
@@ -382,7 +463,7 @@ assert(not XelAssist:IsAuraPending("Immolate"), "interrupted aura reservation wa
 
 resetCastState()
 mockTime = 1
-XelAssistResistance:Submitted(immolateAction, "target-a", { duration = 15 })
+XelAssist.Combat.Resistance:Submitted(immolateAction, "target-a", { duration = 15 })
 XelAssist:MarkAuraPending("Immolate", 2, nil, 348, "player-guid", "debuff")
 fireEvent("SPELL_FAILED_SELF", 348, 77, 1)
 assert(XelAssist:IsAuraPending("Immolate"),
@@ -393,11 +474,12 @@ assert(XelAssist:IsAuraPending("Immolate"),
     "a Nampower-retained retry must supersede the earlier failure")
 fireEvent("SPELLCAST_INTERRUPTED")
 assert(not XelAssist:IsAuraPending("Immolate")
-    and not XelAssistResistance.submissions["target-a:player-guid:348"],
+    and not XelAssist.Combat.Resistance:Submission(
+        "target-a", "player-guid", 348),
     "a terminal interruption must clear UI and resistance reservations together")
 
 resetCastState()
-XelAssistResistance:Submitted(immolateAction, "target-a", { duration = 15 })
+XelAssist.Combat.Resistance:Submitted(immolateAction, "target-a", { duration = 15 })
 XelAssist:MarkAuraPending("Immolate", 2, nil, 348, "player-guid")
 fireEvent("AURA_CAST_ON_OTHER", 348, "other-caster", "target-a", 6, 3, 0, 0, 15000, 0)
 assert(XelAssist:IsAuraPending("Immolate"),
@@ -406,23 +488,24 @@ fireEvent("DEBUFF_ADDED_OTHER", "target-a", 1, 348, 1)
 assert(XelAssist:IsAuraPending("Immolate"),
     "caster-less debuff events must not clear an owned reservation")
 fireEvent("AURA_CAST_ON_OTHER", 348, "player-guid", "target-a", 6, 3, 0, 0, 15000, 2)
-local cappedSubmission = XelAssistResistance:Submission("target-a", "player-guid", 348)
+local cappedSubmission = XelAssist.Combat.Resistance:Submission("target-a", "player-guid", 348)
 assert(XelAssist:IsAuraPending("Immolate")
     and cappedSubmission
     and cappedSubmission.applicationUncertain == "target debuff bar full",
     "a full debuff bar must mark the real application submission uncertain")
 fireEvent("AURA_CAST_ON_OTHER", 348, "player-guid", "target-a", 6, 3, 0, 0, 15000, 0)
-local landedSubmission = XelAssistResistance:RecentSubmission("target-a", "player-guid", 348)
+local landedSubmission = XelAssist.Combat.Resistance:RecentSubmission("target-a", "player-guid", 348)
 assert(not XelAssist:IsAuraPending("Immolate")
     and landedSubmission and landedSubmission.applicationConfirmed,
     "an uncapped exact owned aura event must confirm evidence and clear the tap guard")
 
 resetCastState()
-XelAssistResistance:Submitted(immolateAction, "target-a", { duration = 15 })
+XelAssist.Combat.Resistance:Submitted(immolateAction, "target-a", { duration = 15 })
 XelAssist:MarkAuraPending("Immolate", 0.15, nil, 348, "player-guid")
 mockTime = mockTime + 0.16
 assert(not XelAssist:IsAuraPending("Immolate")
-    and not XelAssistResistance.submissions["target-a:player-guid:348"],
+    and not XelAssist.Combat.Resistance:Submission(
+        "target-a", "player-guid", 348),
     "natural tap-guard expiry must cancel the matching resistance submission")
 
 resetCastState()
@@ -434,7 +517,7 @@ assert(not XelAssist:IsAuraPending("Immolate"),
 
 resetCastState()
 testPetGUID = "pet-guid"
-XelAssistResistance.ownedCasters[testPetGUID] = {
+XelAssist.Combat.Resistance.ownedCasters[testPetGUID] = {
     at = mockTime, actor = "pet", level = 60 }
 XelAssist:MarkAuraPending("Corruption", 2, "target-a", 172, "player-guid")
 XelAssist:MarkAuraPending("Immolate", 2, "target-a", 348, "player-guid")
@@ -510,11 +593,11 @@ assert(XelAssist.pendingAuras[
     "localized chat fallback must not mutate reservations when exact events are available")
 
 resetCastState()
-XelAssistResistance:Submitted(immolateAction, "target-a", { duration = 15 })
+XelAssist.Combat.Resistance:Submitted(immolateAction, "target-a", { duration = 15 })
 XelAssist:MarkAuraPending("Immolate", 3, "target-a", 348, "player-guid")
 fireEvent("AURA_CAST_ON_OTHER", 348, testPetGUID, "target-a", 6, 3, 0, 0, 15000, 0)
 assert(XelAssist:IsAuraPending("Immolate", "player", "target")
-    and XelAssistResistance:Submission("target-a", "player-guid", 348),
+    and XelAssist.Combat.Resistance:Submission("target-a", "player-guid", 348),
     "an owned pet aura without a pet submission must not clear the player's application")
 
 resetCastState()
@@ -547,10 +630,10 @@ assert(cappedBuff and cappedBuff.state == "buff-cap-uncertain",
     "a full friendly buff bar must keep an explicitly uncertain application guard")
 
 resetCastState()
-XelAssistResistance:Submitted(immolateAction, "target-a", { duration = 15 })
+XelAssist.Combat.Resistance:Submitted(immolateAction, "target-a", { duration = 15 })
 XelAssist:MarkAuraPending("Immolate", 3, "target-a", 348, "player-guid", "debuff")
 fireEvent("AURA_CAST_ON_OTHER", 348, "player-guid", "target-a", 6, 3, 0, 0, 15000, 1)
-local irrelevantBuffCap = XelAssistResistance:RecentSubmission(
+local irrelevantBuffCap = XelAssist.Combat.Resistance:RecentSubmission(
     "target-a", "player-guid", 348)
 assert(not XelAssist:IsAuraPending("Immolate")
     and irrelevantBuffCap and irrelevantBuffCap.applicationConfirmed,
@@ -578,7 +661,7 @@ assert(ambiguousPlayer and ambiguousPlayer.state == "submitted"
 resetCastState()
 local seductionAction = { name = "Seduction", spellId = 6358, actor = "pet",
     facts = { kind = "crowdControl", cast = 1.5, channel = true } }
-XelAssistResistance:Submitted(seductionAction, "target-a", { duration = 3 })
+XelAssist.Combat.Resistance:Submitted(seductionAction, "target-a", { duration = 3 })
 XelAssist:MarkAuraPending("Seduction", 6, "target-a", 6358, testPetGUID)
 fireEvent("SPELL_START_OTHER", 0, 6358, testPetGUID, "target-a", 0, 1500, 3000, 1)
 assert(XelAssist.petCastGuid == testPetGUID and XelAssist.petCastChannel
@@ -595,7 +678,8 @@ assert(XelAssist.petCastUntil == channelUntil
     "unrelated pet GO and failure events must not clear another spell's occupancy")
 fireEvent("SPELL_FAILED_OTHER", testPetGUID, 6358)
 assert(not XelAssist:IsAuraPending("Seduction", "pet") and not XelAssist.petCastUntil
-    and not XelAssistResistance.submissions["target-a:pet-guid:6358"],
+    and not XelAssist.Combat.Resistance:Submission(
+        "target-a", testPetGUID, 6358),
     "matching terminal pet failure must clear cast and application reservations")
 
 resetCastState()
@@ -631,55 +715,300 @@ fireEvent("UNIT_CASTEVENT", testPetGUID, "target-a", "CAST", 6358, 0)
 assert(XelAssistLog[2].status == "cast",
     "pet CHANNEL then CAST must update the pet decision status")
 testPetGUID = nil
-local evaluator = XelAssistGraph.Evaluate
-XelAssistGraph.Evaluate = function() error("synthetic graph failure") end
-XelAssistUI:Refresh(true)
-assert(string.find(XelAssistUI.lastReason, "Graph data could not be evaluated"), "preview failure did not hold safely")
+local evaluator = XelAssist.Graph.Evaluate
+XelAssist.Graph.Evaluate = function() error("synthetic graph failure") end
+XelAssist.UI.HUD:Refresh(true)
+assert(string.find(XelAssist.UI.HUD.lastReason, "Graph data could not be evaluated"), "preview failure did not hold safely")
 assert(XelAssistCharDB.runtime.lastError, "graph failure was not retained for diagnostics")
-assert(not XelAssistUI.frame.main:IsEnabled() and XelAssistUI.frame:GetHeight() == 76,
+assert(not XelAssist.UI.HUD.frame.main:IsEnabled() and XelAssist.UI.HUD.frame:GetHeight() == 76,
     "evaluation failure must disable execution and collapse the runway")
-for i = 1, table.getn(XelAssistUI.frame.follow) do
-    assert(not XelAssistUI.frame.follow[i]:IsShown()
-        and rawget(XelAssistUI.frame.follow[i], "action") == nil
-        and rawget(XelAssistUI.frame.follow[i], "candidate") == nil,
+for i = 1, table.getn(XelAssist.UI.HUD.frame.follow) do
+    assert(not XelAssist.UI.HUD.frame.follow[i]:IsShown()
+        and rawget(XelAssist.UI.HUD.frame.follow[i], "action") == nil
+        and rawget(XelAssist.UI.HUD.frame.follow[i], "candidate") == nil,
         "evaluation failure must clear every stale future row")
 end
-XelAssistGraph.Evaluate = evaluator
+XelAssist.Graph.Evaluate = evaluator
 XelAssist.executionEnabled = false; XelAssist.missing = { "Nampower" }
-XelAssistUI:Refresh(true)
-assert(string.find(XelAssistUI.lastReason, "Dependencies missing: Nampower"), "dependency state was not surfaced")
-assert(not XelAssistUI.frame.main:IsEnabled() and XelAssistUI.frame:GetHeight() == 76,
+XelAssist.UI.HUD:Refresh(true)
+assert(string.find(XelAssist.UI.HUD.lastReason, "Dependencies missing: Nampower"), "dependency state was not surfaced")
+assert(not XelAssist.UI.HUD.frame.main:IsEnabled() and XelAssist.UI.HUD.frame:GetHeight() == 76,
     "dependency hold must remain visibly non-executable")
 XelAssist.executionEnabled = true
-XelAssistGraph.Evaluate = function()
+XelAssist.Graph.Evaluate = function()
     return { action = { name = "Frostbolt", rank = 1, rankText = "Rank 1", facts = { kind = "damage" } },
         target = "target", reason = "test", confidence = "client data", value = 1,
         threat = 1, downtime = 1.5, observed = {}, follow = {}, path = {} }, nil, false
 end
-XelAssistUI:Refresh(true)
-assert(XelAssistUI.frame.main:IsEnabled() and XelAssistUI.frame:GetHeight() == 76,
+XelAssist.UI.HUD:Refresh(true)
+assert(XelAssist.UI.HUD.frame.main:IsEnabled() and XelAssist.UI.HUD.frame:GetHeight() == 76,
     "a later valid recommendation must restore execution without stale future rows")
 XelAssist:Execute()
 assert(queuedSpell == "Frostbolt(Rank 1)" and not directlyCast,
     "selected-target actions must use the Nampower queue")
 queuedSpell, directlyCast, directUnit = nil, nil, nil
-XelAssistGraph.Evaluate = function()
+testFriendlyGUIDs.party1, testAssistUnits.party1 = "ally-a", true
+XelAssist.Graph.Evaluate = function()
     return { action = { name = "Flash Heal", rank = 1, rankText = "Rank 1", facts = { kind = "heal" } },
-        target = "party1", reason = "test", confidence = "client data", value = 1,
+        target = "party1", targetRelation = "ally",
+        targetRef = { unit = "party1", guid = "ally-a", source = "party" },
+        reason = "test", confidence = "client data", value = 1,
+        threat = 1, downtime = 1.5, observed = {}, follow = {}, path = {} }, nil, false
+end
+local validFriendlyCastCount, validFriendlyQueueCount = directCastCount, queueCount
+XelAssist:Execute()
+assert(directCastCount == validFriendlyCastCount + 1
+    and queueCount == validFriendlyQueueCount
+    and directlyCast == "Flash Heal(Rank 1)" and directUnit == "ally-a"
+    and not queuedSpell,
+    "an exact friendly reference must bypass the hostile queue and cast to its captured GUID")
+
+resetCastState()
+local waitingFriendlyCasts, waitingFriendlyQueue = directCastCount, queueCount
+local waitingFriendlyLog = table.getn(XelAssistLog)
+XelAssist.Graph.Evaluate = function()
+    return { action = { name = "Flash Heal", rank = 1, rankText = "Rank 1",
+            facts = { kind = "heal" } },
+        target = "party1", targetRelation = "ally", wait = 2,
+        targetRef = { unit = "party1", guid = "ally-a", relation = "ally",
+            source = "party" },
+        reason = "test future ally", confidence = "client data", value = 1,
+        threat = 1, downtime = 3.5, observed = {}, follow = {}, path = {} }, nil, false
+end
+XelAssist:Execute()
+assert(directCastCount == waitingFriendlyCasts and queueCount == waitingFriendlyQueue
+    and table.getn(XelAssistLog) == waitingFriendlyLog
+    and not next(XelAssist.pendingAuras)
+    and string.find(XelAssist.lastReason, "ally action not ready", 1, true),
+    "an off-target friendly action outside the queue window must hold without side effects")
+
+local waitingGroundCasts, waitingGroundQueue = directCastCount, queueCount
+local waitingGroundLog = table.getn(XelAssistLog)
+XelAssist.Graph.Evaluate = function()
+    return { action = { name = "Blizzard", rank = 1, rankText = "Rank 1",
+            facts = { kind = "damage", ground = true } },
+        target = "target", targetRelation = "hostile", wait = 2,
+        reason = "test future ground", confidence = "client data", value = 1,
+        threat = 1, downtime = 3.5, observed = {}, follow = {}, path = {} }, nil, false
+end
+XelAssist:Execute()
+assert(directCastCount == waitingGroundCasts and queueCount == waitingGroundQueue
+    and table.getn(XelAssistLog) == waitingGroundLog
+    and string.find(XelAssist.lastReason, "action not ready", 1, true),
+    "a future ground action must hold because it cannot use the forced spell queue")
+
+local savedItemExecute, itemDispatches = XelAssist.Game.Inventory.Execute, 0
+XelAssist.Game.Inventory.Execute = function() itemDispatches = itemDispatches + 1; return true end
+XelAssist.Graph.Evaluate = function()
+    return { action = { name = "Healing Potion", executor = "item",
+            facts = { kind = "heal", consumable = true } },
+        target = "player", wait = 2, reason = "test future item",
+        confidence = "client data", value = 1, threat = 0, downtime = 2,
+        observed = {}, follow = {}, path = {} }, nil, false
+end
+local waitingItemLog = table.getn(XelAssistLog)
+XelAssist:Execute()
+XelAssist.Game.Inventory.Execute = savedItemExecute
+assert(itemDispatches == 0 and table.getn(XelAssistLog) == waitingItemLog
+    and string.find(XelAssist.lastReason, "item action not ready", 1, true),
+    "a future item action must hold without use or decision-log side effects")
+
+resetCastState()
+queuedSpell, directlyCast, directUnit = nil, nil, nil
+testFriendlyGUIDs.party1 = "ally-new"
+local staleObservation = { name = "unchanged" }
+XelAssist.Combat.Observations.last = staleObservation
+local staleCastCount, staleQueueCount = directCastCount, queueCount
+local staleLogCount = table.getn(XelAssistLog)
+XelAssist.Graph.Evaluate = function()
+    return { action = { name = "Renew", spellId = 139, rank = 1,
+            rankText = "Rank 1", facts = { kind = "hot" } },
+        target = "party1", targetRelation = "ally",
+        targetRef = { unit = "party1", guid = "ally-old", relation = "ally",
+            source = "party" },
+        reason = "test stale ally", confidence = "client data", value = 1,
+        threat = 1, downtime = 1.5, observed = {}, follow = {}, path = {},
+        tooltip = { duration = 15 } }, nil, false
+end
+XelAssist:Execute()
+assert(directCastCount == staleCastCount and queueCount == staleQueueCount
+    and not next(XelAssist.pendingAuras)
+    and table.getn(XelAssistLog) == staleLogCount
+    and XelAssist.Combat.Observations.last == staleObservation
+    and string.find(XelAssist.lastReason, "ally changed", 1, true),
+    "a recycled friendly token must hold without cast, queue, log, observation or aura side effects")
+
+resetCastState()
+queuedSpell, directlyCast, directUnit = nil, nil, nil
+testFriendlyGUIDs.party1 = "ally-race"
+local savedInRange = XelAssist.Game.Capabilities.InRange
+XelAssist.Game.Capabilities.InRange = function(_, castName, unit)
+    assert(castName == "Flash Heal(Rank 1)",
+        "runtime range checks must use the exact rank-qualified cast name")
+    assert(unit == "party1", "friendly validation must retain the captured unit token for range")
+    testFriendlyGUIDs.party1 = "ally-replacement"
+    return nil
+end
+local raceCastCount, raceQueueCount = directCastCount, queueCount
+local raceLogCount = table.getn(XelAssistLog)
+XelAssist.Graph.Evaluate = function()
+    return { action = { name = "Flash Heal", rank = 1, rankText = "Rank 1",
+            facts = { kind = "heal" } },
+        target = "party1", targetRelation = "ally",
+        targetRef = { unit = "party1", guid = "ally-race", relation = "ally",
+            source = "party" },
+        reason = "test dispatch race", confidence = "client data", value = 1,
         threat = 1, downtime = 1.5, observed = {}, follow = {}, path = {} }, nil, false
 end
 XelAssist:Execute()
-assert(directlyCast == "Flash Heal(Rank 1)" and directUnit == "party1" and not queuedSpell,
-    "explicit friendly-unit actions must preserve their target")
+XelAssist.Game.Capabilities.InRange = savedInRange
+assert(directCastCount == raceCastCount and queueCount == raceQueueCount
+    and not next(XelAssist.pendingAuras)
+    and table.getn(XelAssistLog) == raceLogCount
+    and string.find(XelAssist.lastReason, "ally changed", 1, true),
+    "a friendly identity change after range validation must be caught immediately before dispatch")
+
+queuedSpell, directlyCast, directUnit = nil, nil, nil
+testTargetGUID, testAssistUnits.target = "friendly-target-guid", true
+XelAssist.Graph.Evaluate = function()
+    return { action = { name = "Flash Heal", rank = 1, rankText = "Rank 1",
+            facts = { kind = "heal" } },
+        target = "target",
+        targetRef = { unit = "target", guid = "friendly-target-guid", relation = "ally",
+            source = "selected" },
+        reason = "test selected ally", confidence = "client data", value = 1,
+        threat = 1, downtime = 1.5, observed = {}, follow = {}, path = {} }, nil, false
+end
+local selectedAllyCastCount, selectedAllyQueueCount = directCastCount, queueCount
+XelAssist:Execute()
+assert(directCastCount == selectedAllyCastCount + 1
+    and queueCount == selectedAllyQueueCount
+    and directUnit == "friendly-target-guid" and not queuedSpell,
+    "a friendly selected-target reference must never enter the hostile Nampower queue")
+testTargetGUID, testAssistUnits.target = nil, nil
+
+queuedSpell, directlyCast, directUnit = nil, nil, nil
+testPetGUID, testAssistUnits.pet = "pet-guid", true
+XelAssist.Graph.Evaluate = function()
+    return { action = { name = "Mend Pet", rank = 1, rankText = "Rank 1",
+            facts = { kind = "heal" } },
+        target = "pet",
+        targetRef = { unit = "pet", guid = "pet-guid", relation = "pet",
+            source = "controlled" },
+        reason = "test pet target", confidence = "client data", value = 1,
+        threat = 1, downtime = 1.5, observed = {}, follow = {}, path = {} }, nil, false
+end
+local petTargetCastCount = directCastCount
+XelAssist:Execute()
+assert(directCastCount == petTargetCastCount + 1 and directUnit == "pet-guid"
+    and not queuedSpell,
+    "a player spell targeting the pet must validate and cast to the captured pet GUID")
+testPetGUID, testAssistUnits.pet = nil, nil
+
 resetCastState()
-XelAssistGraph.Evaluate = function()
+testTargetGUID = "pet-runtime-target"
+local evaluatedPetGuid, replacementPetGuid = {}, {}
+testPetGUID = evaluatedPetGuid
+local petRuntimeAction = { name = "Spell Lock", spellId = 6358, rank = 1,
+    rankText = "Rank 1", actor = "pet", executor = "petAbility", actionSlot = 5,
+    actorRef = { unit = "pet", guid = evaluatedPetGuid, relation = "controlled",
+        source = "pet" },
+    facts = { kind = "interrupt", ranged = true } }
+local petRuntimePlan = { action = petRuntimeAction, actor = "pet", target = "target",
+    targetGUID = "pet-runtime-target", targetRelation = "hostile",
+    targetRef = { unit = "target", guid = "pet-runtime-target", relation = "hostile",
+        source = "selected" },
+    reason = "test exact companion", confidence = "client data",
+    value = 1, threat = 0, downtime = 0, follow = {}, path = {},
+    observed = { actors = { pet = { unit = "pet", guid = evaluatedPetGuid,
+        actorRef = petRuntimeAction.actorRef } } } }
+XelAssist.Graph.Evaluate = function() return petRuntimePlan, nil, false end
+local validPetDispatches = petActionCount
+XelAssist:Execute()
+assert(petActionCount == validPetDispatches + 1 and petActionSlot == 5,
+    "an independently ready pet action must dispatch only for its captured actor identity")
+local staleTargetDispatches, staleTargetLog = petActionCount, table.getn(XelAssistLog)
+testTargetGUID = "replacement-runtime-target"
+XelAssist:Execute()
+assert(petActionCount == staleTargetDispatches
+    and table.getn(XelAssistLog) == staleTargetLog
+    and string.find(XelAssist.lastReason, "target changed", 1, true),
+    "a selected-target pet action must hold when that token changes before dispatch")
+testTargetGUID = "pet-runtime-target"
+local stalePetDispatches, stalePetLog = petActionCount, table.getn(XelAssistLog)
+local stalePetObservation = XelAssist.Combat.Observations.last
+testPetGUID = replacementPetGuid
+XelAssist:Execute()
+assert(petActionCount == stalePetDispatches
+    and table.getn(XelAssistLog) == stalePetLog
+    and XelAssist.Combat.Observations.last == stalePetObservation
+    and not next(XelAssist.pendingAuras)
+    and string.find(XelAssist.lastReason, "companion changed", 1, true),
+    "pet replacement must hold without dispatch, log, observation or pending-aura side effects")
+testPetGUID, testTargetGUID = nil, nil
+
+resetCastState()
+queuedSpell, directlyCast, directUnit = nil, nil, nil
+XelAssist.Graph.Evaluate = function()
     return { action = { name = "Arcane Intellect", spellId = 1459, rank = 1,
             rankText = "Rank 1", actor = "player", facts = { kind = "buff" } },
-        target = "player", reason = "test aura guard", confidence = "client data",
+        target = "player",
+        targetRef = { unit = "player", guid = "player-guid", relation = "self",
+            source = "self" },
+        reason = "test aura guard", confidence = "client data",
         value = 1, threat = 0, downtime = 1.5, observed = {}, follow = {}, path = {},
         tooltip = { duration = 1800 } }, nil, false
 end
+local selfCastCount = directCastCount
 XelAssist:Execute()
-assert(XelAssist:IsAuraPending("Arcane Intellect", "player", "player"),
-    "friendly aura execution must reserve its cast-to-application latency window")
+local selfPending = XelAssist.pendingAuras[
+    XelAssist:PendingAuraKey("Arcane Intellect", "player-guid", "player-guid")]
+assert(directCastCount == selfCastCount + 1 and directUnit == "player-guid"
+    and selfPending and selfPending.target == "player-guid"
+    and XelAssist:IsAuraPending("Arcane Intellect", "player", "player"),
+    "self execution and its aura guard must use the same captured player GUID")
+local pendingRepeatCasts, pendingRepeatLog = directCastCount, table.getn(XelAssistLog)
+XelAssist:Execute()
+assert(directCastCount == pendingRepeatCasts
+    and table.getn(XelAssistLog) == pendingRepeatLog
+    and XelAssist.pendingAuras[
+        XelAssist:PendingAuraKey("Arcane Intellect", "player-guid", "player-guid")]
+        == selfPending,
+    "the dispatch boundary must reject a positive aura whose exact application is pending")
+
+resetCastState()
+liveBuffSpellIds.player = 1459
+local liveRepeatCasts, liveRepeatLog = directCastCount, table.getn(XelAssistLog)
+XelAssist:Execute()
+assert(directCastCount == liveRepeatCasts
+    and table.getn(XelAssistLog) == liveRepeatLog
+    and not next(XelAssist.pendingAuras),
+    "the player dispatch boundary must recheck a live buff immediately before casting")
+liveBuffSpellIds.player = nil
+
+resetCastState()
+local buffPetGuid = {}
+testPetGUID, testAssistUnits.pet = buffPetGuid, true
+liveBuffSpellIds.pet = 1459
+local petBuffAction = { name = "Arcane Intellect", spellId = 1459, actor = "pet",
+    executor = "petAbility", actionSlot = 4,
+    actorRef = { unit = "pet", guid = buffPetGuid, relation = "controlled",
+        source = "pet" },
+    facts = { kind = "buff", self = true } }
+local petBuffPlan = { action = petBuffAction, actor = "pet", target = "pet",
+    targetGUID = buffPetGuid,
+    targetRef = { unit = "pet", guid = buffPetGuid, relation = "pet",
+        source = "controlled" },
+    reason = "test live pet buff", confidence = "client data", value = 1,
+    threat = 0, downtime = 0, follow = {}, path = {},
+    observed = { actors = { pet = { unit = "pet", guid = buffPetGuid,
+        actorRef = petBuffAction.actorRef } } } }
+XelAssist.Graph.Evaluate = function() return petBuffPlan, nil, false end
+local petBuffDispatches, petBuffLog = petActionCount, table.getn(XelAssistLog)
+XelAssist:Execute()
+assert(petActionCount == petBuffDispatches
+    and table.getn(XelAssistLog) == petBuffLog
+    and not next(XelAssist.pendingAuras),
+    "the pet dispatch boundary must recheck a live buff before issuing CastPetAction")
+liveBuffSpellIds.pet, testPetGUID, testAssistUnits.pet = nil, nil, nil
 print("ok: full TOC-order load, initialization, UI, config and minimap")

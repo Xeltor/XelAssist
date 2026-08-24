@@ -1,4 +1,4 @@
-# XelAssist 0.5.1
+# XelAssist 0.6.0
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -34,6 +34,10 @@ silently converted into a reason to cast.
 Create a clean install archive with `python3 scripts/package_xelassist.py`. It
 contains one `XelAssist` folder ready for `Interface\AddOns` and excludes tests,
 repository metadata, and developer files.
+
+Runtime Lua is grouped by responsibility under `Core/`, `Game/`, `Combat/`,
+`Graph/`, and `UI/`. See [docs/code-organization.md](docs/code-organization.md)
+for module ownership, Lua 5.0 constraints, review limits, and migration debt.
 
 ## Setup
 

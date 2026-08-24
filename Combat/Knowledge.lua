@@ -1,6 +1,6 @@
 -- Spell semantics, not rotations. The evaluator discovers known ranks from the
 -- live spellbook and applies the same utility model to every class.
-XelAssistKnowledge = {
+XelAssist.Combat.Knowledge = {
     -- Shared utility
     ["Shoot"] = { kind = "damage", recovery = true, cast = 0, gcd = 0,
         ranged = true, weaponRanged = true, dynamicSchool = "equippedWand" },

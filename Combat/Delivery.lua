@@ -2,8 +2,8 @@
 -- identity/profile storage and resistance mitigation remain owned by
 -- the resistance subsystem; this module classifies hit tables and builds the exact
 -- physical evidence fingerprint shared by estimates and resolved outcomes.
-XelAssistDelivery = {}
-local D = XelAssistDelivery
+XelAssist.Combat.Delivery = {}
+local D = XelAssist.Combat.Delivery
 
 local function clamp(value, low, high)
     value = tonumber(value) or low
@@ -273,8 +273,8 @@ function D:PhysicalContext(action, metadata, context, identity)
     end
     local actor = context and context.actor or action and action.actor or "player"
     local level = context and tonumber(context.level)
-    local skills = actor == "player" and XelAssistCapabilities
-        and XelAssistCapabilities.WeaponSkills and XelAssistCapabilities:WeaponSkills() or nil
+    local skills = actor == "player" and XelAssist.Game.Capabilities
+        and XelAssist.Game.Capabilities.WeaponSkills and XelAssist.Game.Capabilities:WeaponSkills() or nil
     local record, attackerSkill, skillKnown, skillSource, weaponToken
     if actor ~= "player" then
         attackerSkill, skillKnown = level and level > 0 and level * 5 or nil,

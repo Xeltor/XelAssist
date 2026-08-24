@@ -1,5 +1,5 @@
-XelAssistMinimap = {}
-local MinimapButton = XelAssistMinimap
+XelAssist.UI.Minimap = {}
+local MinimapButton = XelAssist.UI.Minimap
 
 function MinimapButton:Build()
     if self.button or not Minimap then return end
@@ -19,10 +19,10 @@ function MinimapButton:Build()
     button.icon = icon
 
     button:SetScript("OnClick", function()
-        if arg1 == "RightButton" then XelAssistConfig:Toggle()
-        elseif XelAssistUI.frame:IsShown() then
-            XelAssistUI.frame:Hide(); XelAssistDB.ui.shown = false
-        else XelAssistUI.frame:Show(); XelAssistDB.ui.shown = true end
+        if arg1 == "RightButton" then XelAssist.UI.Settings:Toggle()
+        elseif XelAssist.UI.HUD.frame:IsShown() then
+            XelAssist.UI.HUD.frame:Hide(); XelAssistDB.ui.shown = false
+        else XelAssist.UI.HUD.frame:Show(); XelAssistDB.ui.shown = true end
     end)
     button:SetScript("OnEnter", function()
         GameTooltip:SetOwner(this, "ANCHOR_LEFT")

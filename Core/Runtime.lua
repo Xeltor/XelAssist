@@ -1,4 +1,3 @@
-XelAssist = { version = "0.5.1", mode = "smart" }
 local XA = XelAssist
 
 local function msg(text, r, g, b)
@@ -56,8 +55,8 @@ function XA:Init()
     self:EnableEvidenceEvents()
     local petExists, petGuid = UnitExists("pet")
     self.lastPetGuid = petExists and petGuid or nil
-    XelAssistUI:Build()
-    XelAssistMinimap:Build()
+    XelAssist.UI.HUD:Build()
+    XelAssist.UI.Minimap:Build()
 end
 
 function XA:RecordDecision(plan, mode)
@@ -158,9 +157,9 @@ function XA:RuntimeAudit()
         autoAttack = evidence.autoAttack,
         aura = evidence.aura, start = evidence.start, go = evidence.go }
     local ok, actions = pcall(function()
-        local found = XelAssistActors and XelAssistActors:Actions() or XelAssistCapabilities:Actions()
-        if XelAssistInventory then
-            local items, i = XelAssistInventory:Actions(), nil
+        local found = XelAssist.Game.Actors and XelAssist.Game.Actors:Actions() or XelAssist.Game.Capabilities:Actions()
+        if XelAssist.Game.Inventory then
+            local items, i = XelAssist.Game.Inventory:Actions(), nil
             for i = 1, table.getn(items) do table.insert(found, items[i]) end
         end
         return found
@@ -192,382 +191,10 @@ function XA:RecordError(detail)
     XelAssistCharDB.runtime.lastErrorAt = time and time() or 0
 end
 
-function XA:TargetGUID()
-    local exists, guid = UnitExists("target")
-    if exists then return guid end
-    return nil
-end
-
-function XA:PendingAuraKey(name, guid, casterGuid)
-    if not name or not guid then return nil end
-    return guid .. ":" .. tostring(casterGuid or self:PlayerGUID()) .. ":" .. name
-end
-
-local function usableGuid(guid)
-    if not guid or guid == "" or guid == "0x000000000"
-        or guid == "0x0000000000000000" then return nil end
-    return guid
-end
-
-function XA:PlayerGUID()
-    local exists, guid = UnitExists("player")
-    return exists and guid or "player"
-end
-
-function XA:LifecycleKey(spellId, casterGuid, targetGuid)
-    if not spellId then return nil end
-    return tostring(casterGuid or self:PlayerGUID()) .. ":"
-        .. tostring(usableGuid(targetGuid) or "*") .. ":" .. tostring(spellId)
-end
-
-function XA:Lifecycle(spellId, casterGuid, targetGuid, create)
-    if not spellId then return nil end
-    if type(self.spellLifecycle) ~= "table" then self.spellLifecycle = {} end
-    local at, stale, existingKey, existing = GetTime(), {}, nil, nil
-    for existingKey, existing in pairs(self.spellLifecycle) do
-        if at - (existing.lastAt or 0) > 60 then table.insert(stale, existingKey) end
-    end
-    local staleIndex
-    for staleIndex = 1, table.getn(stale) do self.spellLifecycle[stale[staleIndex]] = nil end
-    local key = self:LifecycleKey(spellId, casterGuid, targetGuid)
-    local record = self.spellLifecycle[key]
-    if not record and create ~= false then
-        record = { spellId = spellId, casterGuid = casterGuid or self:PlayerGUID(),
-            targetGuid = usableGuid(targetGuid) }
-        self.spellLifecycle[key] = record
-    end
-    return record
-end
-
-function XA:MarkAuraPending(name, seconds, guid, spellId, casterGuid, auraBar)
-    if not name then return end
-    if type(self.pendingAuras) ~= "table" then self.pendingAuras = {} end
-    guid = guid or self:TargetGUID()
-    casterGuid = casterGuid or self:PlayerGUID()
-    local key = self:PendingAuraKey(name, guid, casterGuid)
-    if not key then return end
-    local lifecycle = self:Lifecycle(spellId, casterGuid, guid, false)
-        or self:Lifecycle(spellId, casterGuid, nil, false)
-    if lifecycle and GetTime() - (lifecycle.lastAt or 0) > 0.25 then lifecycle = nil end
-    local positiveAt = lifecycle and math.max(lifecycle.queuedAt or 0,
-        lifecycle.acceptedAt or 0, lifecycle.startedAt or 0, lifecycle.goAt or 0) or 0
-    local failureAt = lifecycle and lifecycle.failureAt
-    local record = { name = name, target = guid, spellId = spellId,
-        casterGuid = casterGuid, submittedAt = GetTime(),
-        untilAt = GetTime() + (seconds or 2),
-        state = lifecycle and lifecycle.state or "submitted", auraBar = auraBar }
-    if failureAt and failureAt > positiveAt then record.failureAt = failureAt end
-    self.pendingAuras[key] = record
-    if type(self.currentPendingAuras) ~= "table" then self.currentPendingAuras = {} end
-    self.currentPendingAuras[casterGuid] = { key = key, name = name, target = guid,
-        spellId = spellId, casterGuid = casterGuid, auraBar = auraBar }
-end
-
-function XA:ClearAuraPending(name, guid, casterGuid)
-    local key = self:PendingAuraKey(name, guid or self:TargetGUID(), casterGuid)
-    local record = key and self.pendingAuras and self.pendingAuras[key]
-    if record and XelAssistResistance and XelAssistResistance.CancelSubmission then
-        XelAssistResistance:CancelSubmission(record.spellId, record.casterGuid, record.target)
-    end
-    if key and self.pendingAuras then self.pendingAuras[key] = nil end
-    local caster, current
-    for caster, current in pairs(self.currentPendingAuras or {}) do
-        if current.key == key then self.currentPendingAuras[caster] = nil end
-    end
-end
-
-function XA:ClearPendingBySpell(spellId, casterGuid, targetGuid)
-    local matches, key, record = {}, nil, nil
-    for key, record in pairs(self.pendingAuras or {}) do
-        if tonumber(record.spellId) == tonumber(spellId)
-            and (not casterGuid or record.casterGuid == casterGuid)
-            and (not targetGuid or record.target == targetGuid) then
-            table.insert(matches, { name = record.name, target = record.target,
-                casterGuid = record.casterGuid })
-        end
-    end
-    local i
-    for i = 1, table.getn(matches) do
-        self:ClearAuraPending(matches[i].name, matches[i].target, matches[i].casterGuid)
-    end
-    if XelAssistResistance and XelAssistResistance.CancelSubmission then
-        XelAssistResistance:CancelSubmission(spellId, casterGuid, targetGuid)
-    end
-end
-
-function XA:TouchPendingSpell(spellId, state, seconds, casterGuid, targetGuid)
-    casterGuid = casterGuid or self:PlayerGUID()
-    targetGuid = usableGuid(targetGuid)
-    if not targetGuid then
-        local current = self.currentPendingAuras and self.currentPendingAuras[casterGuid]
-        if current and tonumber(current.spellId) == tonumber(spellId) then
-            targetGuid = current.target
-        else
-            local uniqueTarget, matches, _, candidate = nil, 0, nil, nil
-            for _, candidate in pairs(self.pendingAuras or {}) do
-                if tonumber(candidate.spellId) == tonumber(spellId)
-                    and candidate.casterGuid == casterGuid then
-                    matches, uniqueTarget = matches + 1, candidate.target
-                end
-            end
-            if matches == 1 then targetGuid = uniqueTarget end
-        end
-    end
-    local lifecycle = self:Lifecycle(spellId, casterGuid, targetGuid)
-    if lifecycle then
-        local at = GetTime()
-        lifecycle.state, lifecycle.lastAt = state, at
-        if state == "queued" then lifecycle.queuedAt = at
-        elseif state == "accepted" then lifecycle.acceptedAt = at
-        elseif state == "started" then lifecycle.startedAt = at
-        elseif state == "go" then lifecycle.goAt = at end
-        lifecycle.failureAt = nil
-    end
-    local _, record
-    for _, record in pairs(self.pendingAuras or {}) do
-        if tonumber(record.spellId) == tonumber(spellId)
-            and record.casterGuid == casterGuid
-            and targetGuid and record.target == targetGuid then
-            record.state, record.failureAt = state, nil
-            record.untilAt = math.max(record.untilAt or 0, GetTime() + (seconds or 2))
-        end
-    end
-end
-
-function XA:MarkPendingFailure(spellId, casterGuid, targetGuid)
-    casterGuid = casterGuid or self:PlayerGUID()
-    targetGuid = usableGuid(targetGuid)
-    local at = GetTime()
-    local current = self.currentPendingAuras and self.currentPendingAuras[casterGuid]
-    if not targetGuid and current
-        and (not spellId or tonumber(current.spellId) == tonumber(spellId)) then
-        targetGuid = current.target
-    end
-    if not targetGuid then
-        local uniqueTarget, matches, _, candidate = nil, 0, nil, nil
-        for _, candidate in pairs(self.pendingAuras or {}) do
-            if (not spellId or tonumber(candidate.spellId) == tonumber(spellId))
-                and candidate.casterGuid == casterGuid then
-                matches, uniqueTarget = matches + 1, candidate.target
-            end
-        end
-        if matches == 1 then targetGuid = uniqueTarget end
-    end
-    local lifecycle = spellId and self:Lifecycle(spellId, casterGuid, targetGuid) or nil
-    if lifecycle then
-        lifecycle.state, lifecycle.failureAt, lifecycle.lastAt = "failed-tentative", at, at
-    end
-    local onlyKey = current and current.target == targetGuid
-        and (not spellId or tonumber(current.spellId) == tonumber(spellId))
-        and current.key or nil
-    if targetGuid and not onlyKey then
-        local _, candidate
-        for _, candidate in pairs(self.pendingAuras or {}) do
-            if candidate.target == targetGuid and candidate.casterGuid == casterGuid
-                and (not spellId or tonumber(candidate.spellId) == tonumber(spellId)) then
-                onlyKey = self:PendingAuraKey(candidate.name, candidate.target, casterGuid)
-                break
-            end
-        end
-    end
-    if not onlyKey then return end
-    local _, record
-    for _, record in pairs(self.pendingAuras or {}) do
-        if (not spellId or tonumber(record.spellId) == tonumber(spellId))
-            and record.casterGuid == casterGuid
-            and self:PendingAuraKey(record.name, record.target, record.casterGuid) == onlyKey then
-            record.state, record.failureAt = "failed-tentative", at
-            record.untilAt = math.max(record.untilAt or 0, at + 0.30)
-        end
-    end
-end
-
-function XA:ClearCurrentPendingAura(casterGuid, expectedName, expectedSpellId)
-    casterGuid = casterGuid or self:PlayerGUID()
-    local current = self.currentPendingAuras and self.currentPendingAuras[casterGuid]
-    if not current then return false end
-    if expectedName and current.name ~= expectedName then return false end
-    if expectedSpellId and tonumber(current.spellId) ~= tonumber(expectedSpellId) then
-        return false
-    end
-    self:ClearAuraPending(current.name, current.target, casterGuid)
-    return true
-end
-
-function XA:PendingCasterForSpell(spellId, targetGuid)
-    targetGuid = usableGuid(targetGuid)
-    local found
-    local _, record
-    for _, record in pairs(self.pendingAuras or {}) do
-        if tonumber(record.spellId) == tonumber(spellId)
-            and (not targetGuid or record.target == targetGuid) then
-            -- SPELL_CAST_EVENT has no caster GUID and can describe either the
-            -- player or some pet casts. Never guess when both actors own the
-            -- same spell/target reservation; later caster-bearing events will
-            -- resolve each lifecycle exactly.
-            if found and found ~= record.casterGuid then return nil, true end
-            found = record.casterGuid
-        end
-    end
-    return found, false
-end
-
-function XA:ClearPetCast(spellId, casterGuid)
-    if casterGuid and self.petCastGuid ~= casterGuid then return false end
-    if spellId and tonumber(self.petCastSpellId) ~= tonumber(spellId) then return false end
-    self.petCastUntil, self.petCastGuid, self.petCastSpellId, self.petCastChannel =
-        nil, nil, nil, nil
-    return true
-end
-
-function XA:HandlePetIdentityChange()
-    local petExists, petGuid = UnitExists("pet")
-    petGuid = petExists and petGuid or nil
-    local playerGuid = self:PlayerGUID()
-    local stale, _, record = {}, nil, nil
-    for _, record in pairs(self.pendingAuras or {}) do
-        if record.casterGuid ~= playerGuid and record.casterGuid ~= petGuid then
-            table.insert(stale, { name = record.name, target = record.target,
-                casterGuid = record.casterGuid })
-        end
-    end
-    local i
-    for i = 1, table.getn(stale) do
-        self:ClearAuraPending(stale[i].name, stale[i].target, stale[i].casterGuid)
-    end
-    if self.petCastGuid and self.petCastGuid ~= petGuid then
-        self:ClearPetCast(nil, self.petCastGuid)
-    end
-    self.lastPetGuid = petGuid
-end
-
-function XA:SweepPendingAuras()
-    local expired, key, rec = {}, nil, nil
-    local at = GetTime()
-    for key, rec in pairs(self.pendingAuras or {}) do
-        if rec.failureAt and at - rec.failureAt >= 0.20
-            or not rec.untilAt or rec.untilAt <= at then
-            table.insert(expired, { name = rec.name, target = rec.target,
-                casterGuid = rec.casterGuid })
-        end
-    end
-    local i
-    for i = 1, table.getn(expired) do
-        self:ClearAuraPending(expired[i].name, expired[i].target, expired[i].casterGuid)
-    end
-end
-
-function XA:IsAuraPending(name, actor, target)
-    self:SweepPendingAuras()
-    local casterGuid
-    if actor == "pet" then
-        local exists, guid = UnitExists("pet")
-        casterGuid = exists and guid or nil
-    elseif actor and actor ~= "player" then casterGuid = actor
-    else casterGuid = self:PlayerGUID() end
-    local targetGuid
-    if target then
-        local exists, guid = UnitExists(target)
-        targetGuid = exists and guid or target
-    else targetGuid = self:TargetGUID() end
-    local key = self:PendingAuraKey(name, targetGuid, casterGuid)
-    local rec = key and self.pendingAuras and self.pendingAuras[key]
-    if not rec then return false end
-    return true
-end
-
-local function applicationGuarded(facts, tooltip)
-    local kind = facts and facts.kind
-    if kind == "dot" or kind == "debuff" or kind == "crowdControl"
-        or kind == "buff" or kind == "hot" or kind == "absorb" then return true end
-    return kind == "resource" and (facts.channel
-        or tooltip and (tonumber(tooltip.duration) or 0) > 0) and true or false
-end
-
-local function auraBarForFacts(facts)
-    local kind = facts and facts.kind
-    if kind == "dot" or kind == "debuff" or kind == "crowdControl" then
-        return "debuff"
-    end
-    if kind == "buff" or kind == "hot" or kind == "absorb" then return "buff" end
-    if kind == "resource" then return facts.self and "buff" or "debuff" end
-    return nil
-end
-
-function XA:Fallback(reason)
-    self.lastReason = "Conservative hold — " .. reason
-    msg(self.lastReason .. ".", 1, 0.65, 0.2)
-end
-
-function XA:Execute(mode)
-    if not self.executionEnabled then self:CheckDependencies(); if not self.executionEnabled then return end end
-    local selected = mode or self.mode
-    local ok, plan, err, fallback = pcall(function()
-        local p, e, f = XelAssistGraph:Evaluate(selected, false)
-        return p, e, f
-    end)
-    if not ok then self:RecordError(plan); self:Fallback("evaluation error"); return end
-    if fallback then self:Fallback(err or "incomplete data"); return end
-    if not plan then msg(err or "no legal action"); return end
-    local a = plan.action
-    local facts = a.facts
-    if a.executor == "item" then
-        if not XelAssistInventory:Execute(a) then self:Fallback("item unavailable"); return end
-        self:RecordDecision(plan, selected)
-        self.lastReason = a.name .. " — " .. plan.reason
-        XelAssistUI:Refresh(true)
-        return
-    end
-    if a.actor == "pet" then
-        if not XelAssistActors:Execute(a) then self:Fallback("pet action unavailable"); return end
-        self:RecordDecision(plan, selected)
-        if XelAssistObservations then XelAssistObservations:Submitted(a, plan.target, plan.tooltip) end
-        if applicationGuarded(facts, plan.tooltip) then
-            local _, petGuid = UnitExists("pet")
-            local _, pendingTarget = UnitExists(plan.target or "target")
-            self:MarkAuraPending(a.name,
-                math.max(2, (plan.wait or 0) + (plan.cast or 0) + 2),
-                pendingTarget, a.spellId, petGuid, auraBarForFacts(facts))
-        end
-        self.lastReason = a.name .. " — " .. plan.reason
-        XelAssistUI:Refresh(true)
-        return
-    end
-    local castName = XelAssistCapabilities:CastName(a)
-    local unit = plan.target or ((not facts.ground) and "target" or nil)
-    if XelAssistCapabilities:InRange(a.name, unit) == false then
-        self.lastReason = "Move into range — " .. a.name
-        XelAssistUI:Refresh(true)
-        return
-    end
-    if facts.ground then
-        CastSpellByName(castName, "CLICK")
-    elseif plan.target == "target" and QueueSpellByName then
-        QueueSpellByName(castName)
-    elseif plan.target then
-        CastSpellByName(castName, plan.target)
-    elseif QueueSpellByName then
-        QueueSpellByName(castName)
-    else
-        CastSpellByName(castName)
-    end
-    self:RecordDecision(plan, selected)
-    if XelAssistObservations then XelAssistObservations:Submitted(a, plan.target, plan.tooltip) end
-    if applicationGuarded(facts, plan.tooltip) then
-        local _, playerGuid = UnitExists("player")
-        local _, pendingTarget = UnitExists(plan.target or "target")
-        self:MarkAuraPending(a.name,
-            math.max(2, (plan.wait or 0) + (plan.cast or 0) + 2),
-            pendingTarget, a.spellId, playerGuid, auraBarForFacts(facts))
-    end
-    self.lastReason = a.name .. " — " .. plan.reason
-    XelAssistUI:Refresh(true)
-end
-
 function XA:SetMode(mode)
     self.mode = mode; XelAssistCharDB.mode = mode
     msg("mode set to " .. mode .. ".")
-    XelAssistUI:Refresh(true)
+    XelAssist.UI.HUD:Refresh(true)
 end
 
 function XA:Command(text)
@@ -576,7 +203,7 @@ function XA:Command(text)
     local p = string.find(text or "", "%s")
     if p then arg = string.gsub(string.sub(text, p + 1), "^%s*(.-)%s*$", "%1") end
     if cmd == "" or cmd == "execute" then self:Execute(); return end
-    if cmd == "why" then msg(self.lastReason or XelAssistUI.lastReason or "no decision yet."); return end
+    if cmd == "why" then msg(self.lastReason or XelAssist.UI.HUD.lastReason or "no decision yet."); return end
     if cmd == "smart" or cmd == "single" or cmd == "aoe" or cmd == "support" then self:SetMode(cmd); return end
     if cmd == "cooldowns" or cmd == "reagents" or cmd == "consumables" then
         local current = XelAssistCharDB.toggles[cmd]
@@ -604,11 +231,11 @@ function XA:Command(text)
         return
     end
     if cmd == "resistance" or cmd == "resistances" then
-        local state = XelAssistGraph:Snapshot(self.mode)
-        if not state.hostile or not XelAssistResistance then
+        local state = XelAssist.Graph:Snapshot(self.mode)
+        if not state.hostile or not XelAssist.Combat.Resistance then
             msg("select a hostile target to inspect resistance evidence."); return
         end
-        local rows = XelAssistResistance:CurrentSummary(state)
+        local rows = XelAssist.Combat.Resistance:CurrentSummary(state)
         local parts, i = {}, nil
         for i = 1, table.getn(rows) do
             local row = rows[i]
@@ -636,8 +263,8 @@ function XA:Command(text)
             local resistance = ""
             if row.resistanceDecisionMultiplier then
                 local school = row.resistanceSchoolName
-                    or row.resistanceSchool ~= nil and XelAssistResistance
-                        and XelAssistResistance:SchoolName(row.resistanceSchool)
+                    or row.resistanceSchool ~= nil and XelAssist.Combat.Resistance
+                        and XelAssist.Combat.Resistance:SchoolName(row.resistanceSchool)
                     or row.resistanceMode == "mixed" and "Mixed" or "effect"
                 resistance = " · " .. school .. " "
                     .. math.floor(row.resistanceDecisionMultiplier * 100 + 0.5) .. "% scored"
@@ -653,8 +280,8 @@ function XA:Command(text)
                     for componentIndex = 1, table.getn(row.resistanceComponents) do
                         local component = row.resistanceComponents[componentIndex]
                         local label = component.phase or component.schoolName
-                            or component.school ~= nil and XelAssistResistance
-                                and XelAssistResistance:SchoolName(component.school) or "part"
+                            or component.school ~= nil and XelAssist.Combat.Resistance
+                                and XelAssist.Combat.Resistance:SchoolName(component.school) or "part"
                         local share = componentTotal > 0
                             and math.floor((component.weight or 0) * 100 / componentTotal + 0.5)
                             or 0
@@ -692,9 +319,9 @@ function XA:Command(text)
     end
     if cmd == "clearlog" then XelAssistLog = {}; msg("decision log cleared."); return end
     if cmd == "buff" or cmd == "buffs" then self:Execute("buff"); return end
-    if cmd == "config" or cmd == "ui" then XelAssistConfig:Toggle(); return end
-    if cmd == "show" then XelAssistUI.frame:Show(); XelAssistDB.ui.shown = true; return end
-    if cmd == "hide" then XelAssistUI.frame:Hide(); XelAssistDB.ui.shown = false; return end
+    if cmd == "config" or cmd == "ui" then XelAssist.UI.Settings:Toggle(); return end
+    if cmd == "show" then XelAssist.UI.HUD.frame:Show(); XelAssistDB.ui.shown = true; return end
+    if cmd == "hide" then XelAssist.UI.HUD.frame:Hide(); XelAssistDB.ui.shown = false; return end
     msg("commands: execute, why, smart, single, aoe, support, buffs, cooldowns, reagents, consumables, resistance, diagnostics, log, clearlog, config, show, hide")
 end
 
@@ -744,27 +371,27 @@ ev:SetScript("OnEvent", function()
             .. (runtime.inferred or 0) .. " inferred). Bind Smart Execute or click the action button.")
     end
     if event == "SPELLS_CHANGED" or event == "CHARACTER_POINTS_CHANGED" then
-        XelAssistCapabilities:Invalidate()
-        if XelAssistActors then XelAssistActors:Invalidate() end
+        XelAssist.Game.Capabilities:Invalidate()
+        if XelAssist.Game.Actors then XelAssist.Game.Actors:Invalidate() end
     end
     if event == "PET_BAR_UPDATE" or event == "PET_UI_UPDATE" or event == "UNIT_PET" then
         if event == "UNIT_PET" then XA:HandlePetIdentityChange() end
-        if XelAssistActors then XelAssistActors:Invalidate() end
+        if XelAssist.Game.Actors then XelAssist.Game.Actors:Invalidate() end
     end
     if event == "BAG_UPDATE" or event == "UNIT_INVENTORY_CHANGED" then
-        if XelAssistInventory then XelAssistInventory:Invalidate() end
-        if event == "UNIT_INVENTORY_CHANGED" and XelAssistCapabilities then
-            XelAssistCapabilities:InvalidateEquipment()
+        if XelAssist.Game.Inventory then XelAssist.Game.Inventory:Invalidate() end
+        if event == "UNIT_INVENTORY_CHANGED" and XelAssist.Game.Capabilities then
+            XelAssist.Game.Capabilities:InvalidateEquipment()
         end
     end
-    if event == "CHAT_MSG_SPELL_SELF_DAMAGE" and XelAssistObservations then
-        local outcome, outcomeTarget, outcomeSpell = XelAssistObservations:CombatMessage(arg1)
+    if event == "CHAT_MSG_SPELL_SELF_DAMAGE" and XelAssist.Combat.Observations then
+        local outcome, outcomeTarget, outcomeSpell = XelAssist.Combat.Observations:CombatMessage(arg1)
         if outcome == "retry" or outcome == "immune" then
             XA:ClearAuraPending(outcomeSpell, outcomeTarget, XA:PlayerGUID())
         end
     end
-    if event == "UI_ERROR_MESSAGE" and XelAssistObservations then
-        XelAssistObservations:ErrorMessage(arg1)
+    if event == "UI_ERROR_MESSAGE" and XelAssist.Combat.Observations then
+        XelAssist.Combat.Observations:ErrorMessage(arg1)
     end
     if event == "SPELLCAST_FAILED" then
         XA:MarkPendingFailure(nil, XA:PlayerGUID())
@@ -780,8 +407,8 @@ ev:SetScript("OnEvent", function()
         local _, playerGuid = UnitExists("player")
         XA:MarkPendingFailure(arg1, playerGuid)
     end
-    if event == "SPELL_FAILED_OTHER" and XelAssistResistance
-        and XelAssistResistance:IsOwnedCaster(arg1) then
+    if event == "SPELL_FAILED_OTHER" and XelAssist.Combat.Resistance
+        and XelAssist.Combat.Resistance:IsOwnedCaster(arg1) then
         local current = XA.currentPendingAuras and XA.currentPendingAuras[arg1]
         if current and tonumber(current.spellId) == tonumber(arg2) then
             XA:ClearAuraPending(current.name, current.target, arg1)
@@ -809,7 +436,7 @@ ev:SetScript("OnEvent", function()
         end
     end
     if (event == "SPELL_START_SELF" or event == "SPELL_START_OTHER")
-        and XelAssistResistance and XelAssistResistance:IsOwnedCaster(arg3) then
+        and XelAssist.Combat.Resistance and XelAssist.Combat.Resistance:IsOwnedCaster(arg3) then
         local castSeconds = math.max(0, tonumber(arg6) or 0) / 1000
         local channelSeconds = math.max(0, tonumber(arg7) or 0) / 1000
         local duration = castSeconds + channelSeconds
@@ -822,7 +449,7 @@ ev:SetScript("OnEvent", function()
         end
     end
     if (event == "SPELL_GO_SELF" or event == "SPELL_GO_OTHER")
-        and XelAssistResistance and XelAssistResistance:IsOwnedCaster(arg3) then
+        and XelAssist.Combat.Resistance and XelAssist.Combat.Resistance:IsOwnedCaster(arg3) then
         XA:TouchPendingSpell(arg2, "go", 2, arg3, arg4)
         if XA.petCastGuid == arg3 and tonumber(XA.petCastSpellId) == tonumber(arg2)
             and not XA.petCastChannel then
@@ -830,25 +457,25 @@ ev:SetScript("OnEvent", function()
         end
     end
     if (event == "SPELL_MISS_SELF" or event == "SPELL_MISS_OTHER")
-        and XelAssistObservations and XelAssistResistance
-        and XelAssistResistance:IsOwnedCaster(arg1) then
-        local outcome, outcomeTarget, outcomeSpell = XelAssistObservations:SpellMiss(
+        and XelAssist.Combat.Observations and XelAssist.Combat.Resistance
+        and XelAssist.Combat.Resistance:IsOwnedCaster(arg1) then
+        local outcome, outcomeTarget, outcomeSpell = XelAssist.Combat.Observations:SpellMiss(
             arg3, arg2, arg4, arg1)
         if outcome == "retry" or outcome == "immune" then
             XA:ClearAuraPending(outcomeSpell, outcomeTarget, arg1)
         end
     end
     if (event == "SPELL_DAMAGE_EVENT_SELF" or event == "SPELL_DAMAGE_EVENT_OTHER")
-        and XelAssistObservations then
-        XelAssistObservations:SpellDamage(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
+        and XelAssist.Combat.Observations then
+        XelAssist.Combat.Observations:SpellDamage(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
     end
     if (event == "AUTO_ATTACK_SELF" or event == "AUTO_ATTACK_OTHER")
-        and XelAssistResistance then
-        XelAssistResistance:AutoAttack(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9)
+        and XelAssist.Combat.Resistance then
+        XelAssist.Combat.Resistance:AutoAttack(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9)
     end
     if event == "AURA_CAST_ON_SELF" or event == "AURA_CAST_ON_OTHER" then
         local spellName = SpellInfo and SpellInfo(arg1) or nil
-        local owned = XelAssistResistance and XelAssistResistance:IsOwnedCaster(arg2)
+        local owned = XelAssist.Combat.Resistance and XelAssist.Combat.Resistance:IsOwnedCaster(arg2)
         local pendingKey = XA:PendingAuraKey(spellName, arg3, arg2)
         local pending = pendingKey and XA.pendingAuras and XA.pendingAuras[pendingKey]
         local buffCapped, debuffCapped = flagSet(arg9, 1), flagSet(arg9, 2)
@@ -861,7 +488,7 @@ ev:SetScript("OnEvent", function()
             or expectedBar == "debuff" and "target debuff bar full"
             or buffCapped and "target buff bar full" or "target debuff bar full"
         if owned and not auraCapped then
-            local landed, confirmed = XelAssistResistance:AuraLanded(arg3, arg1, arg2)
+            local landed, confirmed = XelAssist.Combat.Resistance:AuraLanded(arg3, arg1, arg2)
             -- Hostile applications have a resistance evidence submission;
             -- friendly/self auras do not, but the exact caster+target+spell
             -- pending record is itself sufficient to end their tap guard.
@@ -873,8 +500,8 @@ ev:SetScript("OnEvent", function()
                 or expectedBar == "debuff" and "debuff-cap-uncertain"
                 or buffCapped and "buff-cap-uncertain" or "debuff-cap-uncertain"
             pending.untilAt = math.max(pending.untilAt or 0, GetTime() + 0.75)
-            if XelAssistResistance.MarkApplicationUncertain then
-                XelAssistResistance:MarkApplicationUncertain(arg3, arg1, arg2,
+            if XelAssist.Combat.Resistance.MarkApplicationUncertain then
+                XelAssist.Combat.Resistance:MarkApplicationUncertain(arg3, arg1, arg2,
                     capReason)
             end
         end
