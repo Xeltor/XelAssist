@@ -26,6 +26,10 @@ end
 UnitCanAttack = function(_, unit)
     return units[unit] and units[unit].hostile and true or false
 end
+UnitCanAssist = function(_, unit)
+    return units[unit] and not units[unit].hostile
+        and not units[unit].unassistable and true or false
+end
 UnitIsDead = function(unit) return units[unit] and units[unit].dead and true or false end
 UnitIsUnit = function(first, second)
     return units[first] and units[second]
@@ -82,11 +86,23 @@ assert(legacy and legacy.unit == "target" and legacy.guid == selectedGuid
     "legacy states must retain a canonical selected-target fallback")
 
 local effects, hooks = {}, {}
+local playerDistance, playerDistanceKind = 3, "hitbox"
+local petDistance, petDistanceKind = 3, "hitbox"
+local geometryLineOfSight = true
+local playerLineOfSight, petLineOfSight = nil, nil
+local playerBehind, petBehind = nil, nil
+local spellRangeVerdict = true
 local function resetEffects()
     effects = { direct = 0, queue = 0, petAbility = 0, petAttack = 0,
         petFollow = 0, petPassive = 0, log = 0, observation = 0,
         pending = 0, auto = 0, playerAttack = 0, petEffect = 0, item = 0 }
     hooks = {}
+    playerDistance, playerDistanceKind = 3, "hitbox"
+    petDistance, petDistanceKind = 3, "hitbox"
+    geometryLineOfSight = true
+    playerLineOfSight, petLineOfSight = nil, nil
+    playerBehind, petBehind = nil, nil
+    spellRangeVerdict = true
     resetUnits()
     XelAssist.pendingAuras = {}
     if XelAssist.Core.PlayerNormalQueue then
@@ -134,6 +150,10 @@ XelAssist.Game.Capabilities = {
             or ref.relation == "pet") then return nil, "ally required" end
         local exists, guid = UnitExists(ref.unit)
         if not exists or guid ~= ref.guid then return nil, "ally changed" end
+        if not UnitCanAssist("player", ref.unit) then
+            return nil, "ally no longer friendly"
+        end
+        if UnitIsDead(ref.unit) then return nil, "ally defeated" end
         return ref.unit
     end,
     InRange = function(_, name, unit)
@@ -143,9 +163,18 @@ XelAssist.Game.Capabilities = {
     Usable = function() return true end,
     Distance = function()
         if hooks.distance then hooks.distance() end
-        return 20
+        return playerDistance, playerDistanceKind
     end,
-    Geometry = function() return { lineOfSight = true } end,
+    Geometry = function(_, actor)
+        local lineOfSight, behind
+        if actor == "pet" then
+            lineOfSight, behind = petLineOfSight, petBehind
+        elseif actor == "player" then
+            lineOfSight, behind = playerLineOfSight, playerBehind
+        end
+        if lineOfSight == nil then lineOfSight = geometryLineOfSight end
+        return { lineOfSight = lineOfSight, behind = behind }
+    end,
     CurrentCast = function() return nil, 0, false, 0, false end,
 }
 XelAssist.Game.Actors = {
@@ -159,7 +188,7 @@ XelAssist.Game.Actors = {
     end,
     Distance = function()
         if hooks.actorDistance then hooks.actorDistance() end
-        return 3
+        return petDistance, petDistanceKind
     end,
 }
 XelAssist.Game.Pets = { EffectRuntime = { Submitted = function()
@@ -202,8 +231,15 @@ end
 XelAssist.MarkAuraPending = function()
     effects.pending = effects.pending + 1
 end
+C_Spell = { IsSpellInRange = function(name, unit)
+    if hooks.inRange then hooks.inRange(name, unit) end
+    return spellRangeVerdict
+end }
 dofile("Core/TargetGuard.lua")
 dofile("Game/SpellClassification.lua")
+dofile("Game/Range.lua")
+dofile("Game/Pets/Actions.lua")
+dofile("Core/ExecutionReach.lua")
 dofile("Core/PlayerNormalQueue.lua")
 dofile("Core/Executor.lua")
 
@@ -514,7 +550,8 @@ assertNoExecution("a selected-target GUID race reached the queue")
 
 resetEffects()
 currentPlan = hostilePlan(playerAction("Attack", { kind = "command",
-    playerAttack = true, ambient = true, startOnly = true }))
+    playerAttack = true, ambient = true, startOnly = true,
+    effectMinRange = 0, effectMaxRange = 5, effectRangeHitbox = true }))
 XelAssist:Execute()
 assert(effects.playerAttack == 1 and effects.queue == 0 and effects.direct == 0
     and effects.log == 1 and effects.observation == 0,
@@ -522,10 +559,53 @@ assert(effects.playerAttack == 1 and effects.queue == 0 and effects.direct == 0
 
 resetEffects()
 currentPlan = hostilePlan(playerAction("Attack", { kind = "command",
-    playerAttack = true, ambient = true, startOnly = true }))
-hooks.inRange = function() units.target.guid = otherGuid end
+    playerAttack = true, ambient = true, startOnly = true,
+    effectMinRange = 0, effectMaxRange = 5, effectRangeHitbox = true }))
+hooks.distance = function() units.target.guid = otherGuid end
 XelAssist:Execute()
 assertNoExecution("a selected-target GUID race reached AttackTarget")
+
+resetEffects()
+playerDistance = 12
+currentPlan = hostilePlan(playerAction("Attack", { kind = "command",
+    playerAttack = true, ambient = true, startOnly = true,
+    effectMinRange = 0, effectMaxRange = 5, effectRangeHitbox = true }))
+XelAssist:Execute()
+assertNoExecution("Attack outside proven melee effect reach reached AttackTarget")
+
+resetEffects()
+playerDistance, playerDistanceKind = 4, "center"
+currentPlan = hostilePlan(playerAction("Attack", { kind = "command",
+    playerAttack = true, ambient = true, startOnly = true,
+    effectMinRange = 0, effectMaxRange = 5, effectRangeHitbox = true }))
+XelAssist:Execute()
+assertNoExecution("center-only Attack geometry was treated as hitbox reach")
+
+resetEffects()
+playerDistance = 12
+currentPlan = hostilePlan(playerAction("Soft Reach", { kind = "damage",
+    ranged = true, effectMinRange = 0, effectMaxRange = 5,
+    effectRangeHitbox = true }))
+currentPlan.tooltip = { minRange = 0, maxRange = 30 }
+XelAssist:Execute()
+assertNoExecution("a command-range success bypassed the effect reach boundary")
+
+resetEffects()
+playerDistance = 4
+currentPlan = hostilePlan(playerAction("Dead Zone", { kind = "damage",
+    ranged = true, effectMinRange = 8, effectMaxRange = 30 }))
+currentPlan.tooltip = { minRange = 8, maxRange = 30 }
+XelAssist:Execute()
+assertNoExecution("an explicit minimum-range violation reached the cast API")
+
+resetEffects()
+spellRangeVerdict = false
+currentPlan = hostilePlan(playerAction("Raptor Strike",
+    { kind = "damage", melee = true }))
+currentPlan.tooltip = { gcd = 1.5, attributes = 4,
+    onNextSwing = true, startRecoveryCategory = 0, normalGcd = false }
+XelAssist:Execute()
+assertNoExecution("an out-of-range on-swing action reached the queue API")
 
 resetEffects()
 currentPlan = hostilePlan(playerAction("Racing Dot", { kind = "dot" }))
@@ -551,12 +631,41 @@ XelAssist:Execute()
 assert(effects.direct == 1 and effects.directUnit == "CLICK" and effects.log == 1,
     "a valid selected-hostile ground action must preserve direct targeting")
 
+-- Fixed-pet player spells are implicit recipients, not range exemptions. A pet
+-- that moved after planning must not receive a recorded ghost submission.
+local function fixedPetPlan(name, kind, extra)
+    local facts = { kind = kind, pet = true, fixedTarget = "pet" }
+    local key, value
+    for key, value in pairs(extra or {}) do facts[key] = value end
+    return { action = playerAction(name, facts), actor = "player",
+        target = "pet", targetGUID = petGuid, targetRelation = "pet",
+        targetRef = { unit = "pet", guid = petGuid,
+            relation = "pet", source = "controlled" },
+        reason = "fixed pet boundary", confidence = "client data", value = 1,
+        threat = 0, wait = 0, cast = 0, downtime = 0,
+        observed = {}, follow = {}, path = {},
+        tooltip = { minRange = 0, maxRange = 30 } }
+end
+
+resetEffects()
+spellRangeVerdict = false
+currentPlan = fixedPetPlan("Mend Pet", "petHeal", { channel = true })
+XelAssist:Execute()
+assertNoExecution("Mend Pet bypassed a fresh fixed-recipient range failure")
+
+resetEffects()
+spellRangeVerdict = false
+currentPlan = fixedPetPlan("Bestial Wrath", "buff",
+    { combatBuff = true, petCombatBuff = true })
+XelAssist:Execute()
+assertNoExecution("Bestial Wrath bypassed a fresh fixed-recipient range failure")
+
 -- Dual-target Hunter buttons may cast on the captured pet, while their hostile
 -- effect remains pinned to the selected target.
 resetEffects()
 local kill = playerAction("Kill Command", { kind = "damage", fixedTarget = "pet",
     effectTarget = "target", effectActor = "pet", requiresPetMelee = true,
-    effectMinRange = 0, effectMaxRange = 5 })
+    effectMinRange = 0, effectMaxRange = 5, commandMaxRange = 45 })
 currentPlan = hostilePlan(kill)
 currentPlan.castTarget, currentPlan.castTargetGUID = "pet", petGuid
 currentPlan.castTargetRelation = "pet"
@@ -568,12 +677,39 @@ assert(effects.direct == 1 and effects.directUnit == petGuid
     "a valid dual-target Hunter action must retain its captured pet recipient")
 
 resetEffects()
+playerLineOfSight, playerBehind = false, false
+petLineOfSight, petBehind = true, true
+local positionedKill = playerAction("Positioned Kill Command", {
+    kind = "damage", fixedTarget = "pet", effectTarget = "target",
+    effectActor = "pet", requiresPetMelee = true, behind = true,
+    effectMinRange = 0, effectMaxRange = 5, commandMaxRange = 45 })
+currentPlan = hostilePlan(positionedKill)
+currentPlan.castTarget, currentPlan.castTargetGUID = "pet", petGuid
+currentPlan.castTargetRelation = "pet"
+currentPlan.castTargetRef = { unit = "pet", guid = petGuid,
+    relation = "pet", source = "controlled" }
+XelAssist:Execute()
+assert(effects.direct == 1 and effects.directUnit == petGuid
+    and effects.log == 1,
+    "a pet-owned effect must use pet line-of-sight and behind geometry")
+
+resetEffects()
+playerLineOfSight, petLineOfSight = true, false
+currentPlan = hostilePlan(positionedKill)
+currentPlan.castTarget, currentPlan.castTargetGUID = "pet", petGuid
+currentPlan.castTargetRelation = "pet"
+currentPlan.castTargetRef = { unit = "pet", guid = petGuid,
+    relation = "pet", source = "controlled" }
+XelAssist:Execute()
+assertNoExecution("player line-of-sight incorrectly authorized a pet-owned effect")
+
+resetEffects()
 currentPlan = hostilePlan(kill)
 currentPlan.castTarget, currentPlan.castTargetGUID = "pet", petGuid
 currentPlan.castTargetRelation = "pet"
 currentPlan.castTargetRef = { unit = "pet", guid = petGuid,
     relation = "pet", source = "controlled" }
-hooks.inRange = function() units.target.guid = otherGuid end
+hooks.distance = function() units.target.guid = otherGuid end
 XelAssist:Execute()
 assertNoExecution("a dual-target hostile race reached CastSpellByName")
 
@@ -592,9 +728,10 @@ local petAction = { name = "Bite", spellId = 2, rank = 1, actor = "pet",
     executor = "petAbility", actionSlot = 4,
     actorRef = { unit = "pet", guid = petGuid,
         relation = "controlled", source = "pet" },
-    facts = { kind = "damage" } }
+    facts = { kind = "damage", melee = true } }
 local function petPlan(action)
     local out = hostilePlan(action)
+    out.tooltip = action.tooltip or { minRange = 0, maxRange = 5 }
     out.observed = { actors = { pet = { unit = "pet", guid = petGuid,
         actorRef = action.actorRef } } }
     return out
@@ -604,6 +741,22 @@ currentPlan = petPlan(petAction)
 XelAssist:Execute()
 assert(effects.petAbility == 1 and effects.petSlot == 4 and effects.log == 1,
     "a valid selected-target pet ability must retain execution")
+
+resetEffects()
+petDistance = 12
+currentPlan = petPlan(petAction)
+XelAssist:Execute()
+assertNoExecution("an out-of-range companion melee ability reached CastPetAction")
+
+resetEffects()
+petDistance = 35
+local firebolt = { name = "Firebolt", spellId = 3, rank = 1, actor = "pet",
+    executor = "petAbility", actionSlot = 5, actorRef = petAction.actorRef,
+    facts = { kind = "damage", ranged = true },
+    tooltip = { minRange = 0, maxRange = 30 } }
+currentPlan = petPlan(firebolt)
+XelAssist:Execute()
+assertNoExecution("an out-of-range companion ranged ability reached CastPetAction")
 
 resetEffects()
 currentPlan = petPlan(petAction)
@@ -619,12 +772,66 @@ resetEffects()
 local attack = { name = "Pet Attack", actor = "pet", executor = "petCommand",
     command = "attack", actorRef = petAction.actorRef,
     facts = { kind = "command" } }
+petDistance = 40
+geometryLineOfSight = false
+currentPlan = petPlan(attack)
+XelAssist:Execute()
+assert(effects.petAttack == 1 and effects.petAbility == 0 and effects.log == 1,
+    "Pet Attack must remain a legal engagement command outside effect reach")
+
+resetEffects()
 currentPlan = petPlan(attack)
 currentPlan.target, currentPlan.targetGUID = "pettarget", selectedGuid
 currentPlan.targetRef = { unit = "pettarget", guid = selectedGuid,
     relation = "hostile", source = "companion" }
 XelAssist:Execute()
 assertNoExecution("a crafted pettarget attack command reached PetAttack")
+
+resetEffects()
+local friendlyPetAction = { name = "Companion Aid", spellId = 4, rank = 1,
+    actor = "pet", executor = "petAbility", actionSlot = 6,
+    actorRef = petAction.actorRef, facts = { kind = "buff" },
+    tooltip = { minRange = 0, maxRange = 30 } }
+currentPlan = petPlan(friendlyPetAction)
+currentPlan.target, currentPlan.targetGUID = "party1", allyGuid
+currentPlan.targetRelation = "ally"
+currentPlan.targetRef = { unit = "party1", guid = allyGuid,
+    relation = "ally", source = "party" }
+XelAssist:Execute()
+assertNoExecution("an unpinnable arbitrary companion recipient reached CastPetAction")
+
+resetEffects()
+units.target = { guid = allyGuid }
+petDistance = 20
+currentPlan = petPlan(friendlyPetAction)
+currentPlan.target, currentPlan.targetGUID = "target", allyGuid
+currentPlan.targetRelation = "ally"
+currentPlan.targetRef = { unit = "target", guid = allyGuid,
+    relation = "ally", source = "selected" }
+XelAssist:Execute()
+assert(effects.petAbility == 1 and effects.petSlot == 6
+    and effects.log == 1 and effects.pending == 1,
+    "a selected friendly recipient must remain valid for stock CastPetAction")
+
+resetEffects()
+units.target = { guid = allyGuid, dead = true }
+currentPlan = petPlan(friendlyPetAction)
+currentPlan.target, currentPlan.targetGUID = "target", allyGuid
+currentPlan.targetRelation = "ally"
+currentPlan.targetRef = { unit = "target", guid = allyGuid,
+    relation = "ally", source = "selected" }
+XelAssist:Execute()
+assertNoExecution("a defeated selected friendly reached CastPetAction")
+
+resetEffects()
+units.target = { guid = allyGuid, unassistable = true }
+currentPlan = petPlan(friendlyPetAction)
+currentPlan.target, currentPlan.targetGUID = "target", allyGuid
+currentPlan.targetRelation = "ally"
+currentPlan.targetRef = { unit = "target", guid = allyGuid,
+    relation = "ally", source = "selected" }
+XelAssist:Execute()
+assertNoExecution("an unassistable selected friendly reached CastPetAction")
 
 -- Friendly and pet-self dispatch are deliberately unaffected.
 resetEffects()

@@ -72,6 +72,10 @@ end
 
 local function certaintyCopy(plan, candidate)
     local resistance = candidate and candidate.resistance or plan and plan.resistance
+    if candidate and candidate.spatialConditions
+        and table.getn(candidate.spatialConditions) > 0 then
+        return "IF", 0.78, 0.72, 0.92
+    end
     if (plan and plan.confidence == "partial data")
         or (candidate and candidate.confidence == "partial data")
         or (candidate and candidate.unknowns and table.getn(candidate.unknowns) > 0)
@@ -205,6 +209,13 @@ local function showPredictionTooltip()
             GameTooltip:AddLine(string.format(
                 "Predicted step %d · %.1fs wait · %.1fs occupied",
                 pip.stepIndex, wait, occupied), 0.55, 0.58, 0.64)
+            local i
+            for i = 1, table.getn(candidate.spatialConditions or {}) do
+                local condition = candidate.spatialConditions[i]
+                GameTooltip:AddLine("If " .. (condition.detail
+                    or condition.kind or "spatial condition remains true"),
+                    0.78, 0.72, 0.92)
+            end
             addResistanceLines(candidate, true)
         end
     end

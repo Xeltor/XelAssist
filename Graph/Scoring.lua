@@ -424,9 +424,9 @@ local function candidate(context)
         playerSwingUnknowns = context.playerSwingUnknowns,
         startsPlayerAttack = context.startsPlayerAttack,
         confidence = descriptor and descriptor.projectionOpen and "partial data" or nil,
+        spatialConditions = descriptor and descriptor.spatialConditions, spatialConditionFingerprint = descriptor and descriptor.spatialConditionFingerprint, spatialConditionalOnly = descriptor and descriptor.spatialConditionalOnly,
     }
 end
-
 function Scoring:Evaluate(action, state, descriptor)
     local context, blocker = legalityAndTiming(action, state, descriptor)
     if not context then return nil, blocker end

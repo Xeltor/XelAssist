@@ -162,7 +162,7 @@ UnitXP = function(operation, from, unit)
     assert(operation == "distanceBetween" and from == "player" and unit == "target")
     return 6.5
 end
-UnitDistanceSquared = function() return 400 end
+UnitDistanceSquared = function() return 400, true end
 IsSpellUsable = function() return 1, 0 end
 local passiveSpell = false
 IsPassiveSpell = function() return passiveSpell end
@@ -176,6 +176,7 @@ end
 dofile("Combat/Knowledge.lua")
 dofile("Game/SpellTiming.lua")
 dofile("Game/SpellClassification.lua")
+dofile("Game/Range.lua")
 dofile("Game/Capabilities.lua")
 
 local savedGetCastInfo, savedGetCurrentCastingInfo = GetCastInfo,
@@ -232,6 +233,17 @@ assert(health == 4321 and maximum == 9876 and exact == true)
 assert(XelAssist.Game.Capabilities:Usable(actions[1]) == true)
 local distance, distanceKind = XelAssist.Game.Capabilities:Distance("target")
 assert(distance == 6.5 and distanceKind == "hitbox", "NPC-capable UnitXP distance must have priority")
+local savedUnitXP = UnitXP
+UnitXP = nil
+UnitDistanceSquared = function() return 0, false end
+distance, distanceKind = XelAssist.Game.Capabilities:Distance("target")
+assert(distance == nil and distanceKind == nil,
+    "an unchecked ClassicAPI position must not become a real zero-yard distance")
+UnitDistanceSquared = function() return 400, true end
+distance, distanceKind = XelAssist.Game.Capabilities:Distance("target")
+assert(distance == 20 and distanceKind == "center",
+    "a checked center-distance fallback must remain available")
+UnitXP = savedUnitXP
 
 local savedUnitExists, savedUnitCanAssist, savedUnitIsDead = UnitExists, UnitCanAssist, UnitIsDead
 local opaqueA, opaqueB = {}, {}

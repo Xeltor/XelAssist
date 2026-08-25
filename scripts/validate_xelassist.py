@@ -174,6 +174,7 @@ for path in production_lua_files(root):
 subprocess.run([sys.executable, str(root / "tests/evaluator_test.py")], check=True)
 subprocess.run(["lua", str(root / "tests/spell_topology_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/capabilities_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/range_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/action_resistance_semantics_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/actors_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/hunter_pet_state_test.lua")], cwd=root, check=True)

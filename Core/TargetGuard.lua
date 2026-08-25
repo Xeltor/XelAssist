@@ -190,9 +190,10 @@ function G:ValidatePetTarget(plan)
     if not plan.targetRef or plan.targetRef.guid == nil then
         return false, "target identity unavailable"
     end
-    if not XelAssist.Game.Capabilities:SameUnitRef(plan.targetRef) then
-        return false, "target changed"
-    end
+    local friendlyUnit
+    friendlyUnit, reason = XelAssist.Game.Capabilities:ValidateFriendlyRef(
+        plan.targetRef)
+    if not friendlyUnit then return false, reason or "target changed" end
     return true, nil
 end
 

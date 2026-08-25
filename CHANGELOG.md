@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.9
+
+- Centralized numeric/name spell-range queries and explicit command/effect
+  bands. Attack and other hitbox-limited effects now require proven effect
+  reach instead of accepting a soft command range or center-only distance, and
+  invalid `UnitDistanceSquared` results no longer become zero-yard evidence.
+- Made future geometry causal. Projected actions use only captured state, carry
+  stable visible conditions for range, line of sight, behind position, and
+  stationary casts, and cannot become legal merely because graph time passed.
+  Unproven future reach contributes no guaranteed path value.
+- Added one final live reach and identity boundary immediately before every
+  player or companion dispatch. It independently validates the cast recipient
+  and effect recipient, including dual-target pet effects, minimum range, soft
+  effects, and actor/target races. Pet Attack remains usable as an approach
+  command outside pet melee range. Authenticated in-world validation remains
+  pending and is not claimed.
+
 ## 0.8.8
 
 - Split the player's cast clock from the shared GCD clock. Normal actions own

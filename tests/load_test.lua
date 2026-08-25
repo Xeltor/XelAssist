@@ -169,6 +169,21 @@ UnitExists = function(unit)
     if testFriendlyGUIDs[unit] then return true, testFriendlyGUIDs[unit] end
     return unit == "player", unit == "player" and "player-guid" or nil
 end
+IsSpellInRange = function(_, unit)
+    return UnitExists(unit) and 1 or nil
+end
+UnitXP = function(operation, from, to)
+    if operation == "distanceBetween" and UnitExists(from) and UnitExists(to) then
+        return 3
+    end
+    if operation == "inSight" and UnitExists(from) and UnitExists(to) then
+        return true
+    end
+    if operation == "behind" and UnitExists(from) and UnitExists(to) then
+        return false
+    end
+    return nil
+end
 UnitCanAssist = function(_, unit)
     return unit == "player" or testAssistUnits[unit] and true or false
 end
@@ -328,7 +343,7 @@ assert(XelAssistCharDB.visibleSteps == 3 and XelAssistCharDB.graphDepth == nil
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.8" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.9" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(runtime.evidenceEvents.damage and runtime.evidenceEvents.miss,
@@ -448,7 +463,10 @@ local displayPlan = { action = tooltipAction, target = "target", reason = "test 
     resistance = tooltipResistance, follow = { followAction, estimatedFollowAction }, path = {
         { action = tooltipAction, target = "target", resistance = tooltipResistance },
         { action = followAction, target = "target", reason = "future exploit", downtime = 1.5,
-            resistance = tooltipResistance },
+            resistance = tooltipResistance,
+            spatialConditionFingerprint = "range:effect:pet:target:remain::30",
+            spatialConditions = { { kind = "range",
+                detail = "effect remains within 30 yd" } } },
         { action = estimatedFollowAction, target = "player", reason = "future setup",
             downtime = 3, estimated = true },
     } }
@@ -568,7 +586,7 @@ assert(firstFollow:IsShown() and firstFollow:GetHeight() == 24
     and firstFollow.name:GetText() == "Fireball"
     and string.find(firstFollow.time:GetText(), "+", 1, true)
     and string.find(firstFollow.time:GetText(), "s", 1, true)
-    and firstFollow.certainty:GetText() == "OPEN"
+    and firstFollow.certainty:GetText() == "IF"
     and firstFollow.action == followAction and firstFollow.candidate == displayPlan.path[2],
     "first future row must expose actor, target, action, timing, open evidence, and source candidate")
 assert(secondFollow:IsShown() and secondFollow:GetHeight() == 24
@@ -587,8 +605,9 @@ gameTooltipLines = {}; this = XelAssist.UI.HUD.frame.follow[1]; this.OnEnter()
 local futureTooltip = table.concat(gameTooltipLines, "|")
 assert(string.find(futureTooltip, "Graph-scored factor 120%", 1, true)
     and string.find(futureTooltip, "0.0s wait", 1, true)
-    and string.find(futureTooltip, "1.5s occupied", 1, true),
-    "predicted tooltip must retain resistance and separate wait from occupancy")
+    and string.find(futureTooltip, "1.5s occupied", 1, true)
+    and string.find(futureTooltip, "If effect remains within 30 yd", 1, true),
+    "predicted tooltip must expose conditions, resistance, wait and occupancy")
 gameTooltipLines = {}; this = actionFrame.main; this.OnEnter()
 tooltipText = string.lower(table.concat(gameTooltipLines, "|"))
 assert(string.find(tooltipText, "re-evaluates now", 1, true)
@@ -1343,13 +1362,13 @@ assert(directCastCount == staleCastCount and queueCount == staleQueueCount
 resetCastState()
 queuedSpell, directlyCast, directUnit = nil, nil, nil
 testFriendlyGUIDs.party1 = "ally-race"
-local savedInRange = XelAssist.Game.Capabilities.InRange
-XelAssist.Game.Capabilities.InRange = function(_, castName, unit)
+local savedRangeVerdict = XelAssist.Game.Range.SpellVerdict
+XelAssist.Game.Range.SpellVerdict = function(_, _, castName, unit)
     assert(castName == "Flash Heal(Rank 1)",
         "runtime range checks must use the exact rank-qualified cast name")
     assert(unit == "party1", "friendly validation must retain the captured unit token for range")
     testFriendlyGUIDs.party1 = "ally-replacement"
-    return nil
+    return true
 end
 local raceCastCount, raceQueueCount = directCastCount, queueCount
 local raceLogCount = table.getn(XelAssistLog)
@@ -1363,12 +1382,15 @@ XelAssist.Graph.Evaluate = function()
         threat = 1, downtime = 1.5, observed = {}, follow = {}, path = {} }, nil, false
 end
 XelAssist:Execute()
-XelAssist.Game.Capabilities.InRange = savedInRange
+XelAssist.Game.Range.SpellVerdict = savedRangeVerdict
 assert(directCastCount == raceCastCount and queueCount == raceQueueCount
     and not next(XelAssist.pendingAuras)
     and table.getn(XelAssistLog) == raceLogCount
     and string.find(XelAssist.lastReason, "ally changed", 1, true),
-    "a friendly identity change after range validation must be caught immediately before dispatch")
+    "a friendly identity change after range validation must be caught immediately before dispatch: "
+        .. tostring(XelAssist.lastReason) .. " casts="
+        .. tostring(directCastCount - raceCastCount) .. " queues="
+        .. tostring(queueCount - raceQueueCount))
 
 queuedSpell, directlyCast, directUnit = nil, nil, nil
 testTargetGUID, testAssistUnits.target = "friendly-target-guid", true
@@ -1457,7 +1479,8 @@ XelAssistTestPlayerAttackPlan = { action = { name = "Attack", spellId = 6603,
         rank = 1, rankText = "", actor = "player", executor = "playerSpell",
         facts = { kind = "command", playerAttack = true, ambient = true,
             startOnly = true, melee = true, whiteAttack = true,
-            cast = 0, gcd = 0 } },
+            cast = 0, gcd = 0, effectMinRange = 0, effectMaxRange = 5,
+            effectRangeHitbox = true } },
     target = "target", targetGUID = "hunter-auto-target",
     targetRelation = "hostile",
     targetRef = { unit = "target", guid = "hunter-auto-target",
@@ -1613,22 +1636,22 @@ resetCastState()
 hunterPetTargetMatches = true
 hunterUsable = true
 testTargetGUID = hunterTargetGuid
-local savedHunterInRange = XelAssist.Game.Capabilities.InRange
+local savedHunterDistance = XelAssist.Game.Actors.Distance
 local raceRangeChecks = 0
-XelAssist.Game.Capabilities.InRange = function(_, name, unit)
-    assert(name == "Kill Command" and unit == "pet",
-        "dual-target range validation must inspect the pet cast recipient")
+XelAssist.Game.Actors.Distance = function(_, actor, unit)
+    assert(actor == "pet" and unit == "target",
+        "dual-target reach validation must inspect pet-to-hostile geometry")
     raceRangeChecks = raceRangeChecks + 1
     testTargetGUID = {}
-    return true
+    return 3, "hitbox"
 end
 local hunterRaceCasts, hunterRaceQueues = directCastCount, queueCount
 local hunterRaceLog = table.getn(XelAssistLog)
 local hunterRaceObservation = { name = "hostile race sentinel" }
 XelAssist.Combat.Observations.last = hunterRaceObservation
 XelAssist:Execute()
-XelAssist.Game.Capabilities.InRange = savedHunterInRange
-assert(raceRangeChecks == 1 and directCastCount == hunterRaceCasts
+XelAssist.Game.Actors.Distance = savedHunterDistance
+assert(raceRangeChecks >= 1 and directCastCount == hunterRaceCasts
     and queueCount == hunterRaceQueues and table.getn(XelAssistLog) == hunterRaceLog
     and XelAssist.Combat.Observations.last == hunterRaceObservation
     and not next(XelAssist.Combat.Resistance.submissions)
@@ -1700,6 +1723,7 @@ local petRuntimePlan = { action = petRuntimeAction, actor = "pet", target = "tar
         source = "selected" },
     reason = "test exact companion", confidence = "client data",
     value = 1, threat = 0, downtime = 0, follow = {}, path = {},
+    tooltip = { minRange = 0, maxRange = 30 },
     observed = { actors = { pet = { unit = "pet", guid = evaluatedPetGuid,
         actorRef = petRuntimeAction.actorRef } } } }
 XelAssist.Graph.Evaluate = function() return petRuntimePlan, nil, false end

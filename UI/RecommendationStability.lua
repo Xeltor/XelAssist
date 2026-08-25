@@ -22,6 +22,8 @@ end
 local function sameCandidate(left, right)
     return left and right and sameAction(left.action, right.action)
         and sameTarget(left, right)
+        and left.spatialConditionFingerprint
+            == right.spatialConditionFingerprint
 end
 
 function S:SameRoot(left, right)

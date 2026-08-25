@@ -2,6 +2,7 @@
 -- exact actor/target identities and live application state used by the plan.
 local XA = XelAssist
 local Guard = XelAssist.Core.TargetGuard
+local ExecutionReach = XelAssist.Core.ExecutionReach
 local PlayerNormalQueue = XelAssist.Core.PlayerNormalQueue
 local PlayerOnSwing = XelAssist.Game.Player
     and XelAssist.Game.Player.OnSwing
@@ -106,6 +107,9 @@ function XA:ExecutePetPlan(plan, selected)
     local duplicate = duplicateApplication(self, action, plan.tooltip, unit,
         exactTarget, actorRef.guid)
     if duplicate then self:Fallback(duplicate); return end
+    local reachable
+    reachable, reason = ExecutionReach:Validate(plan, unit)
+    if not reachable then self:Fallback(reason); return end
     local executed, executionReason = Guard:DispatchPet(plan, action, actorRef)
     if not executed then self:Fallback(executionReason or "pet action unavailable"); return end
     self:RecordDecision(plan, selected)
@@ -233,10 +237,6 @@ local function validatePlayerContext(owner, plan, context)
     if facts.effectTarget and not context.effectGuid then
         return rejectPlayer(owner, reason)
     end
-    if not facts.petLifecycle and XelAssist.Game.Capabilities:InRange(
-        context.castName, context.unit) == false then
-        return rejectPlayer(owner, nil, "Move into range — " .. action.name)
-    end
     if context.friendly
         and not XelAssist.Game.Capabilities:SameUnitRef(context.castRef) then
         return rejectPlayer(owner, "ally changed")
@@ -291,6 +291,9 @@ local function dispatchPlayerContext(owner, plan, context)
         context.applicationGuid, reason = validateAutoShot(plan)
         if not context.applicationGuid then return rejectPlayer(owner, reason) end
     end
+    local reachable
+    reachable, reason = ExecutionReach:Validate(plan, context.unit)
+    if not reachable then return rejectPlayer(owner, reason) end
     local queueRecord, swingRecord
     if context.normalQueue and (facts.petLifecycle
         or context.usesHostileQueue or context.queueTargetGuid ~= nil) then

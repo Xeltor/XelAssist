@@ -150,15 +150,38 @@ local function copySteps(steps, candidate)
     return out
 end
 
+local function inheritSpatial(candidate, path)
+    if not path.spatialConditions then return end
+    if not candidate.spatialConditions then
+        candidate.spatialConditions = path.spatialConditions
+        candidate.spatialConditionFingerprint = path.spatialConditionFingerprint
+    else
+        local merged, i = {}, nil
+        for i = 1, table.getn(path.spatialConditions) do
+            table.insert(merged, path.spatialConditions[i])
+        end
+        for i = 1, table.getn(candidate.spatialConditions) do
+            table.insert(merged, candidate.spatialConditions[i])
+        end
+        candidate.spatialConditions = merged
+        candidate.spatialConditionFingerprint = path.spatialConditionFingerprint
+            .. "|" .. candidate.spatialConditionFingerprint
+    end
+    if path.spatialConditionalOnly then candidate.spatialConditionalOnly = true end
+end
+
 local function pathBefore(a, b)
     if a.total ~= b.total then return a.total > b.total end
+    if a.conditionalTotal ~= b.conditionalTotal then
+        return a.conditionalTotal > b.conditionalTotal
+    end
     return (a.graphOrder or 0) < (b.graphOrder or 0)
 end
 
 local function bestSearchPath(state, started, counter, depth, actions)
     local rootTime = tonumber(state.time) or 0
     local frontier = { { state = state, steps = {}, total = 0,
-        graphOrder = 1 } }
+        conditionalTotal = 0, graphOrder = 1 } }
     local terminal, pathOrder, level = {}, 1, nil
     for level = 1, depth do
         if level > 2 and Policy:BudgetReached(started, counter) then
@@ -175,13 +198,22 @@ local function bestSearchPath(state, started, counter, depth, actions)
             for candidateIndex = 1, table.getn(candidates) do
                 local candidate = candidates[candidateIndex]
                 if candidate.value > 0 then
+                    inheritSpatial(candidate, path)
                     pathOrder = pathOrder + 1
                     local advanced = Transitions:Advance(path.state, candidate)
+                    local weighted = candidate.value
+                        * Policy:Weight(rootTime, candidate)
+                    local conditional = candidate.spatialConditionalOnly == true
                     table.insert(expanded, {
                         state = advanced,
                         steps = copySteps(path.steps, candidate),
-                        total = path.total + candidate.value
-                            * Policy:Weight(rootTime, candidate),
+                        total = path.total + (conditional and 0 or weighted),
+                        conditionalTotal = path.conditionalTotal
+                            + (conditional and weighted or 0),
+                        spatialConditions = candidate.spatialConditions,
+                        spatialConditionFingerprint =
+                            candidate.spatialConditionFingerprint,
+                        spatialConditionalOnly = conditional,
                         graphOrder = pathOrder,
                     })
                 end

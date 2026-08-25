@@ -14,8 +14,9 @@ local function action(name)
         actor = "player", executor = "playerSpell" }
 end
 
-local function candidate(name, target)
-    return { action = action(name), target = "target", targetGUID = target }
+local function candidate(name, target, condition)
+    return { action = action(name), target = "target", targetGUID = target,
+        spatialConditionFingerprint = condition }
 end
 
 local function plan(names, target, limited)
@@ -65,6 +66,13 @@ retargeted, _, changed = Stability:Select(owner,
     plan({ "Finisher", "Builder" }, "enemy-b", false), nil, false)
 assert(changed and retargeted.targetGUID == "enemy-b",
     "opaque target identity changes must invalidate the prior preview")
+
+local conditioned = plan({ "Finisher", "Builder" }, "enemy-b", false)
+conditioned.path[2].spatialConditionFingerprint = "range:remain:5"
+conditioned, _, changed = Stability:Select(owner, conditioned, nil, false)
+assert(changed and conditioned.path[2].spatialConditionFingerprint
+        == "range:remain:5",
+    "a changed future spatial contract must invalidate the displayed runway")
 
 local empty, reason
 empty, reason, changed = Stability:Select(owner, nil, "No worthwhile action", false)

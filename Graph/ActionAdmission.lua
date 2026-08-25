@@ -35,8 +35,7 @@ end
 function A:Start(action, state, tooltip)
     local facts, kind = action.facts, action.facts.kind
     local cast = castTime(action, state, tooltip)
-    if action.actor ~= "pet" and (state.time or 0) <= 0
-        and state.moving and cast and cast > 0 then
+    if action.actor ~= "pet" and state.moving and cast and cast > 0 then
         return nil, "moving"
     end
     local actor = action.actor or "player"

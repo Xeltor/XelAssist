@@ -35,7 +35,8 @@ end
 
 local function centerDistance()
     if type(UnitDistanceSquared) ~= "function" then return nil end
-    local ok, squared = pcall(UnitDistanceSquared, "target")
+    local ok, squared, checked = pcall(UnitDistanceSquared, "target")
+    if not ok or checked ~= true then return nil end
     squared = ok and tonumber(squared) or nil
     if not squared or squared < 0 then return nil end
     return math.sqrt(squared)

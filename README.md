@@ -1,4 +1,4 @@
-# XelAssist 0.8.8
+# XelAssist 0.8.9
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -99,14 +99,15 @@ identity.
 
 The evaluator automatically explores up to eight actions or twelve modeled
 seconds, four branches, and 128 expanded path states under a 6 ms soft budget.
-The HUD refreshes at 5 Hz and independently shows one to five requested steps.
+The graph samples at 5 Hz and independently shows one to five requested steps.
 The first two decisions are completed before the soft limit can shorten the
 runway; an otherwise usable current action never becomes a budget HOLD. It accounts for:
 
 - separate current-cast and shared-GCD clocks, predicted action cast time,
   independent-action weaving, and own cooldowns;
-- explicit live command-range verdicts, independently enforced effect reach,
-  minimum/maximum DBC ranges, and movement;
+- normalized live command-range verdicts and independently enforced effect
+  reach, including minimum/maximum DBC bands, hitbox-only melee effects, and
+  movement;
 - hitbox-aware actor-to-target distance, line of sight, and behind-position
   evidence when UnitXP exposes it;
 - current resources, per-rank cost, effective healing, overheal, and damage needed
@@ -157,7 +158,10 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
   or area recipients holds the action instead of inventing a melee outcome;
 - equipped weapon durability and ammunition, plus opt-in immediate-use healing
   and mana consumables discovered conservatively from live bag tooltips;
-- future resource, health, target-health, aura, threat-drop, and cooldown state.
+- future resource, health, target-health, aura, threat-drop, and cooldown state;
+- captured future spatial contracts that never call live APIs or invent
+  movement. Predicted rows disclose the range, line-of-sight, behind, and
+  stationary facts that must remain true or be proven at execution time;
 - root movement/range/line-of-sight/behind failures with immediate blocking and
   short settled recovery, plus atomic recommendation/cooldown publication so
   equivalent 5 Hz recomputations do not visually blink;
@@ -199,8 +203,11 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
   retain the opaque hostile GUID captured at launch/scheduling across a later
   selected-target change instead of damaging the new selected-target mirror;
 - a final selected-hostile dispatch guard that rechecks identity, relation,
-  hostility, death state, and companion dual-target requirements before any
-  hostile queue, Auto Shot, pet ability, or attack command can execute.
+  hostility, death state, player/pet command and effect reach, line of sight,
+  behind state, movement, and companion dual-target requirements before any
+  hostile queue, Auto Shot, pet ability, or attack command can execute. Pet
+  Attack remains an approach command and therefore does not pretend the pet is
+  already in effect range.
 
 See [docs/graph-model.md](docs/graph-model.md) for evidence boundaries and current
 limitations.

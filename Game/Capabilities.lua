@@ -856,8 +856,9 @@ function C:Distance(unit)
         if ok and type(distance) == "number" and distance >= 0 then return distance, "hitbox" end
     end
     if UnitDistanceSquared then
-        local ok, squared = pcall(UnitDistanceSquared, unit)
-        if ok and type(squared) == "number" and squared >= 0 then return math.sqrt(squared), "center" end
+        local ok, squared, checked = pcall(UnitDistanceSquared, unit)
+        if ok and checked == true and type(squared) == "number"
+            and squared >= 0 then return math.sqrt(squared), "center" end
     end
     return nil, nil
 end
@@ -941,18 +942,7 @@ end
 -- explicit unit token, allowing the same authoritative query for selected and
 -- off-target friendly units. Invalid or unsupported queries remain unknown.
 function C:InRange(name, unit)
-    if not unit then return nil end
-    if C_Spell and C_Spell.IsSpellInRange then
-        local ok, result = pcall(C_Spell.IsSpellInRange, name, unit)
-        if ok and (result == false or result == 0) then return false end
-        if ok and (result == true or result == 1) then return true end
-    end
-    if not IsSpellInRange then return nil end
-    local ok, result = pcall(IsSpellInRange, name, unit)
-    if not ok then return nil end
-    if result == 0 then return false end
-    if result == 1 then return true end
-    return nil
+    return XelAssist.Game.Range:SpellVerdict(nil, name, unit)
 end
 local function auraName(unit, index, helpful)
     local texture, stacks, d3, d4, d5

@@ -21,7 +21,7 @@ UnitExists = function(unit)
     return false, nil
 end
 UnitRangedDamage = function() return 2.5 end
-UnitDistanceSquared = function() return centerSquared end
+UnitDistanceSquared = function() return centerSquared, true end
 GetSpellRecField = function(_, field)
     if field == "speed" then return 40 end
 end
@@ -353,14 +353,22 @@ local stableTarget, swappedTarget = {}, {}
 targetGuid = stableTarget
 UnitDistanceSquared = function()
     targetGuid = swappedTarget
-    return centerSquared
+    return centerSquared, true
 end
 local raced = A:Snapshot({ hostile = true, lineOfSight = true })
 assert(not raced.rangeIdentityVerified and not raced.projectable
     and raced.eligibilityReason == "Auto Shot target evidence changed",
     "a target swap during range evidence must invalidate the whole observation")
 targetGuid, UnitDistanceSquared = stableTarget,
-    function() return centerSquared end
+    function() return centerSquared, true end
+
+UnitDistanceSquared = function() return 0, false end
+local uncheckedCenter = XelAssist.Combat.AutoShotRange:Evidence(
+    { hostile = true, lineOfSight = true }, stableTarget, 75)
+assert(uncheckedCenter.rangeIdentityVerified
+    and uncheckedCenter.projectileDistance == nil,
+    "an unchecked center position must not become a zero-yard projectile flight")
+UnitDistanceSquared = function() return centerSquared, true end
 
 clock = 60
 local i

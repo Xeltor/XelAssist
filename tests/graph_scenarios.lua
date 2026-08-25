@@ -13,6 +13,7 @@ dofile("Combat/AutoShotProjection.lua")
 dofile("Combat/PetKnowledge.lua")
 dofile("Game/SpellTiming.lua")
 dofile("Game/SpellClassification.lua")
+dofile("Game/Range.lua")
 dofile("Game/Capabilities.lua")
 dofile("Game/PlayerAttack.lua")
 dofile("Game/Player/Engagement.lua")
@@ -30,6 +31,7 @@ dofile("Graph/TargetSelection.lua")
 dofile("Graph/CompanionThreat.lua")
 dofile("Graph/CompanionEventThreat.lua")
 dofile("Graph/ActionAdmission.lua")
+dofile("Graph/SpatialRequirements.lua")
 dofile("Graph/Targets.lua")
 dofile("Graph/Effects.lua")
 dofile("Graph/AreaRecipients.lua")
@@ -105,6 +107,9 @@ XelAssist.Game.Capabilities.InRange = function(_, spell, unit)
     if XelAssist.Graph.testRangeUnknown then return nil end
     return true
 end
+XelAssist.Game.Range.SpellVerdict = function(_, spellId, spell, unit)
+    return XelAssist.Game.Capabilities:InRange(spell, unit)
+end
 XelAssist.Game.Capabilities.TargetHasDebuff = function() return false end
 XelAssist.Game.Capabilities.UnitHasBuff = function() return false end
 XelAssist.Game.Capabilities.WeaponDamage = function() return nil end
@@ -139,6 +144,7 @@ local function state(mode)
         combo = 5, moving = false, pet = true, targetCasting = false,
         playerCasting = false, castRemaining = 0, groupSize = 0, hasAggro = false,
         tank = false, role = "auto", instantNext = false, distance = nil,
+        targetLineOfSight = true, playerBehindTarget = true,
         actors = actors, friendlies = friendlies,
         auras = {}, readyAt = {}, playerGcdReadyAt = 0,
         actorReadyAt = { player = 0, pet = 0 }, time = 0 }
@@ -225,6 +231,11 @@ local function petAction(name, kind, power, cost, extra)
     local value = action(name, 1, kind, power, cost, extra)
     value.actor = "pet"; value.executor = "petAbility"; value.actionSlot = 4
     value.facts.petAbility = true
+    if value.mock.maxRange == nil and value.facts.melee then
+        value.mock.minRange, value.mock.maxRange = 0, 5
+    elseif value.mock.maxRange == nil and value.facts.ranged then
+        value.mock.minRange, value.mock.maxRange = 0, 30
+    end
     return value
 end
 
@@ -414,7 +425,9 @@ scenarioActions = { action("Power Word: Shield", 1, "absorb", 500, 100,
 plan = expect("future absorbs remain recipient local", "Power Word: Shield")
 assert(plan.path[1].targetGUID == "ally-a" and plan.path[2]
     and plan.path[2].targetGUID == "ally-b",
-    "the current victim's shield must not globally block shielding another ally")
+    "the current victim's shield must not globally block shielding another ally: "
+        .. tostring(table.getn(plan.path or {})) .. " / "
+        .. tostring(plan.path[2] and plan.path[2].targetGUID))
 
 currentState = state("support"); XelAssistCharDB.graphDepth = 1
 setFriendlies(currentState, {
@@ -474,10 +487,9 @@ XelAssistCharDB.graphDepth = 2
 scenarioActions = { action("Future Cast", 1, "damage", 900, 0, { cast = 3 }),
     action("Current Instant", 1, "damage", 250, 0,
         { cast = 0, testCooldown = 10 }) }
-plan = expect("future movement becomes open", "Current Instant")
-assert(plan.path[2] and plan.path[2].action.name == "Future Cast"
-    and plan.path[2].confidence == "partial data",
-    "current movement must block now-casts without freezing every future state")
+plan = expect("future movement remains causal", "Current Instant")
+assert(not plan.path[2],
+    "modeled time must not invent that the player stopped moving")
 
 currentState = state("smart")
 scenarioActions = { action("Mind Flay", 1, "damage", 900, 100,
@@ -510,10 +522,12 @@ currentState = state("smart"); currentState.distance = 4; XelAssist.Graph.testRa
 scenarioActions = { action("Dead Zone Shot", 1, "damage", 900, 0,
     { testMinRange = 8, testMaxRange = 35 }) }
 local tooClose, tooCloseReason = XelAssist.Graph:Evaluate("smart", true)
-assert(tooClose == nil and tooCloseReason == "Move farther away", "minimum range must block too-close actions")
+assert(tooClose == nil and tooCloseReason == "Move farther away",
+    "minimum range must block too-close actions: " .. tostring(tooCloseReason))
 currentState.distance = 40
 local tooFar, tooFarReason = XelAssist.Graph:Evaluate("smart", true)
-assert(tooFar == nil and tooFarReason == "Move into range", "maximum range must block too-far actions")
+assert(tooFar == nil and tooFarReason == "Move into range",
+    "maximum range must block too-far actions: " .. tostring(tooFarReason))
 XelAssist.Graph.testRangeUnknown = false
 
 currentState = state("smart"); XelAssistCharDB.toggles.cooldowns = false
@@ -1094,6 +1108,40 @@ do
         "soft commands must not be valued when their payload has zero effect")
     currentState.targetDistance, currentState.distance = 4, 4
     expect("soft effect proven melee reach", "Soft Trigger")
+
+    local futureReach = action("Future Reach", 1, "damage", 100, 0,
+        { ranged = true, testMaxRange = 30,
+            effectMaxRange = 5, effectRangeHitbox = true })
+    currentState.time = 1
+    local futureDescriptor = XelAssist.Graph.Targets:Targets(
+        futureReach, currentState)[1]
+    local priorFutureQueries = rangeQueries["Future Reach(Rank 1)"] or 0
+    local futureLegal, futureReason, _, _, _, projectedDescriptor =
+        XelAssist.Graph.Targets:Legal(
+            futureReach, currentState, futureDescriptor)
+    assert(futureLegal and futureReason == nil
+        and projectedDescriptor.spatialConditionFingerprint
+        and table.getn(projectedDescriptor.spatialConditions) >= 2
+        and not projectedDescriptor.spatialConditionalOnly
+        and (rangeQueries["Future Reach(Rank 1)"] or 0) == priorFutureQueries,
+        "future spatial projection must use captured facts and explicit conditions, never live APIs")
+    local repeatLegal, _, _, _, _, repeatDescriptor =
+        XelAssist.Graph.Targets:Legal(
+            futureReach, currentState, futureDescriptor)
+    assert(repeatLegal and repeatDescriptor.spatialConditionFingerprint
+            == projectedDescriptor.spatialConditionFingerprint,
+        "equivalent future spatial conditions must have a stable fingerprint")
+    currentState.targetDistance, currentState.distance = nil, nil
+    futureLegal, futureReason, _, _, _, projectedDescriptor =
+        XelAssist.Graph.Targets:Legal(
+            futureReach, currentState, futureDescriptor)
+    assert(futureLegal and futureReason == nil
+        and projectedDescriptor.spatialConditionalOnly
+        and projectedDescriptor.spatialConditionFingerprint,
+        "unknown future reach must remain an explicit proof condition")
+    currentState.time = 0
+    currentState.targetDistance, currentState.distance = 4, 4
+    currentState.targetDistanceKind, currentState.distanceKind = "hitbox", "hitbox"
 end
 scenarioActions = { meleeStart, meleeFiller }
 XelAssistCharDB.graphDepth = 2
@@ -1113,6 +1161,24 @@ XelAssistCharDB.graphDepth = 1
 plan = expect("player Attack active repeat guard", "Melee Filler")
 assert(plan.action.name ~= "Attack",
     "an active player Attack must never re-enter the graph as a toggle press")
+
+currentState.playerAttack.active = false
+currentState.targetDistance, currentState.distance = 12, 12
+currentState.targetDistanceKind, currentState.distanceKind = "hitbox", "hitbox"
+do
+    local rangedSetup = action("Ranged Setup", 1, "damage", 900, 0,
+        { ranged = true, testMaxRange = 30, testCooldown = 10 })
+    scenarioActions, XelAssistCharDB.graphDepth = { rangedSetup, meleeStart }, 2
+    plan = expect("future melee cannot invent approach", "Ranged Setup")
+    assert(not plan.path[2],
+        "elapsed graph time must not turn an out-of-range melee edge into a legal follow-up")
+    currentState.targetDistance, currentState.distance = 4, 4
+    plan = expect("future melee carries spatial condition", "Ranged Setup")
+    assert(plan.path[2] and plan.path[2].action.name == "Attack"
+        and plan.path[2].spatialConditionFingerprint
+        and table.getn(plan.path[2].spatialConditions or {}) > 0,
+        "a reachable future melee step must disclose the spatial facts it assumes")
+end
 
 do
 currentState = state("smart")
@@ -1255,7 +1321,7 @@ UnitExists = function(unit)
     return false, nil
 end
 UnitRangedDamage = function() return 2 end
-UnitDistanceSquared = function() return 400 end
+UnitDistanceSquared = function() return 400, true end
 GetSpellRecField = function(_, field)
     if field == "speed" then return 40 end
 end
@@ -2249,7 +2315,8 @@ expect("pet focus-normalized damage value", "Focus Efficient Claw")
 
 currentState = state("smart"); currentState.pet = true
 currentState.actors.pet = { health = 1000, healthMax = 1000, resource = 300, resourceMax = 300,
-    targetExists = false, targetsCurrent = false, hasAggro = false, distance = 5 }
+    targetExists = false, targetsCurrent = false, hasAggro = false, distance = 50,
+    lineOfSight = false }
 currentState.actorReadyAt = { player = 0, pet = 3 }
 scenarioActions = { { name = "Pet Attack", rank = 1, actor = "pet", executor = "petCommand",
         command = "attack", facts = { kind = "command", petCommand = true },
@@ -2257,7 +2324,7 @@ scenarioActions = { { name = "Pet Attack", rank = 1, actor = "pet", executor = "
     action("Shadow Bolt", 1, "damage", 100, 20) }
 plan = expect("companion attack command", "Pet Attack")
 assert(plan.wait < 0.2,
-    "a companion command must execute now rather than inherit the pet cast clock")
+    "a companion command must execute now without inheriting cast or effect geometry")
 currentState.actors.pet.targetExists = true; currentState.actors.pet.targetsCurrent = true
 currentState.actors.pet.attackActiveKnown = true
 currentState.actors.pet.attackActive = false
@@ -2410,6 +2477,24 @@ setFriendlies(currentState, {
 scenarioActions = { petAction("Fire Shield", "buff", 0, 60, { ranged = true }),
     action("Shadow Bolt", 1, "damage", 200, 20) }
 expect("pet off-target buff safety", "Shadow Bolt")
+
+currentState = state("smart"); currentState.hostile = false
+currentState.targetGUID = "selected-ally"
+currentState.targetRef = { unit = "target", guid = "selected-ally",
+    relation = "ally", source = "selected" }
+currentState.actors.pet = { health = 1000, healthMax = 1000,
+    resource = 300, resourceMax = 300, targetExists = false,
+    targetsCurrent = false, hasAggro = false, distance = 20,
+    distanceKind = "hitbox", lineOfSight = true }
+setFriendlies(currentState, {
+    friendly("target", "selected-ally", 1000, 1000, 20),
+    friendly("player", "player-guid", 1000, 1000, 0),
+})
+scenarioActions = { petAction("Fire Shield", "buff", 0, 60,
+    { ranged = true }) }
+plan = expect("pet selected-friendly recipient", "Fire Shield")
+assert(plan.target == "target" and plan.targetGUID == "selected-ally",
+    "stock CastPetAction may serve only the captured selected friendly")
 
 currentState = state("buff")
 local nextBuffTarget = friendly("party4", "ally-next", 1000, 1000, 20)

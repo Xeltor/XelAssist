@@ -231,119 +231,15 @@ local function usabilityBlocker(action, state, descriptor, target, tooltip)
     return nil
 end
 
-local function positionBlocker(action, state, descriptor)
+local function contextBlocker(action, state)
     local facts, kind = action.facts, action.facts.kind
-    local future = (state.time or 0) > 0
     if facts.autoRepeat and state.playerCasting
         and not state.playerChanneling then return "casting" end
-    local actorLineOfSight
-    if descriptor.relation == "hostile" then actorLineOfSight = state.targetLineOfSight end
-    if descriptor.relation == "hostile" and (action.actor == "pet"
-        or facts.effectActor == "pet" or facts.damageActor == "pet")
-        and state.actors and state.actors.pet then
-        actorLineOfSight = state.actors.pet.lineOfSight
-    end
-    local stableSelected = descriptor.relation == "hostile"
-        and state.spatialTargetGUID ~= nil
-        and descriptor.guid == state.spatialTargetGUID
-    if not stableSelected and descriptor.record
-        and descriptor.record.lineOfSight ~= nil then
-        actorLineOfSight = descriptor.record.lineOfSight
-    end
-    if not future and actorLineOfSight == false then return "line of sight" end
-    local actorBehind
-    if descriptor.relation == "hostile" then actorBehind = state.playerBehindTarget end
-    if descriptor.relation == "hostile" and action.actor == "pet"
-        and state.actors and state.actors.pet then
-        actorBehind = state.actors.pet.behind
-    end
-    if not future and facts.behind
-        and actorBehind == false then return "must be behind target" end
     if facts.outOfCombat and state.inCombat then return "combat state" end
     if facts.combatOnly and not state.inCombat then return "combat state" end
     if kind == "summon" and not facts.petLifecycle then
         if state.pet then return "companion already active" end
         if state.inCombat then return "unsafe summon" end
-    end
-    return nil
-end
-local function rangeBlocker(action, state, descriptor, target, tooltip)
-    local facts = action.facts
-    if (state.time or 0) > 0 then return nil end
-    if facts.autoRepeat then
-        local auto = state.autoShot
-        local expected = descriptor.guid or state.targetGUID
-        if not auto or auto.rangeChecked ~= true
-            or auto.rangeIdentityVerified ~= true
-            or expected == nil or auto.rangeTargetGuid ~= expected
-            or auto.rangeSpellId
-                ~= XelAssist.Combat.AutoShotRange:CanonicalSpellId(
-                    action.spellId) then
-            return "Auto Shot target evidence changed"
-        end
-        if auto.rangeVerdict == false then return "range" end
-        if auto.rangeVerdict ~= true then return "Auto Shot range unknown" end
-        return nil
-    end
-    local liveRange
-    local implicitPetTarget = XelAssist.Game.Pets and XelAssist.Game.Pets.Actions
-        and XelAssist.Game.Pets.Actions:ImplicitTarget(action)
-    if action.actor ~= "pet" and action.executor ~= "item" and not implicitPetTarget then
-        liveRange = XelAssist.Game.Capabilities:InRange(
-            XelAssist.Game.Capabilities:CastName(action), target)
-        if XelAssist.Game.SpatialEvidence then
-            liveRange = XelAssist.Game.SpatialEvidence:Range(
-                action, descriptor.guid or state.targetGUID, liveRange)
-        end
-    end
-    if liveRange == false then return "range" end
-    -- Unknown direct range remains unknown; only then use discovered geometry.
-    local rangeDistance = descriptor.record and descriptor.record.distance or state.distance
-    local rangeKind = descriptor.record and descriptor.record.distanceKind
-        or state.distanceKind
-    if (action.actor == "pet" or action.facts.effectActor == "pet"
-        or action.facts.damageActor == "pet") and descriptor.relation == "hostile"
-        and state.actors and state.actors.pet then
-        rangeDistance, rangeKind = state.actors.pet.distance,
-            state.actors.pet.distanceKind
-    elseif descriptor.relation == "hostile" and state.targetDistance ~= nil then
-        rangeDistance, rangeKind = state.targetDistance, state.targetDistanceKind
-    elseif target == "player" or target == "pet" and descriptor.relation ~= "hostile" then
-        rangeDistance, rangeKind = 0, "self"
-    end
-    local minRange, maxRange = tooltip.minRange, tooltip.maxRange
-    local effectRange = descriptor.relation == "hostile"
-        and (facts.effectMinRange ~= nil or facts.effectMaxRange ~= nil)
-    if effectRange then
-        minRange = facts.effectMinRange or minRange
-        maxRange = facts.effectMaxRange or maxRange
-    end
-    if effectRange and facts.effectRangeHitbox
-        and rangeKind ~= "hitbox" and rangeKind ~= "combat reach" then
-        return "effect range unknown"
-    end
-    if rangeDistance and (liveRange == nil or effectRange) then
-        local rangeReason
-        if minRange and rangeDistance < minRange then
-            rangeReason = "minimum range"
-        elseif maxRange and maxRange > 0 and rangeDistance > maxRange then
-            rangeReason = "range"
-        elseif facts.commandMaxRange and state.targetDistance
-            and state.targetDistance > facts.commandMaxRange then
-            rangeReason = "command range"
-        end
-        local geometryRange = rangeReason == nil
-        if XelAssist.Game.SpatialEvidence then
-            geometryRange = XelAssist.Game.SpatialEvidence:Range(
-                action, descriptor.guid or state.targetGUID, geometryRange)
-        end
-        if geometryRange == false then return rangeReason or "range" end
-    elseif facts.commandMaxRange and state.targetDistance
-        and state.targetDistance > facts.commandMaxRange then
-        return "command range"
-    end
-    if facts.requiresPetMelee and rangeDistance == nil then
-        return "companion melee range unknown"
     end
     return nil
 end
@@ -434,14 +330,15 @@ function T:Legal(action, state, descriptor)
     if blocker then return false, blocker end
     blocker = usabilityBlocker(action, state, descriptor, target, tooltip)
     if blocker then return false, blocker end
-    blocker = positionBlocker(action, state, descriptor)
+    blocker = contextBlocker(action, state)
     if blocker then return false, blocker end
     local actionStart
     actionStart, blocker = Admission:Start(action, state, tooltip)
     if blocker then return false, blocker end
     blocker = Admission:Readiness(action, state, tooltip, actionStart)
     if blocker then return false, blocker end
-    blocker = rangeBlocker(action, state, descriptor, target, tooltip)
+    blocker = XelAssist.Graph.SpatialRequirements:Blocker(
+        action, state, descriptor, target, tooltip)
     if blocker then return false, blocker end
     blocker = effectBlocker(self, action, state, descriptor, target,
         actionStart, tooltip)
