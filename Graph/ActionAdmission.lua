@@ -2,14 +2,39 @@
 XelAssist.Graph.ActionAdmission = {}
 local A = XelAssist.Graph.ActionAdmission
 
+local function castTime(action, state, tooltip)
+    local facts = action.facts
+    local cast = facts.cast
+    if cast == nil then cast = tooltip.cast or (facts.channel and 3 or 0) end
+    cast = math.max(0, tonumber(cast) or 0)
+    if facts.channel and cast <= 0 then
+        cast = math.max(0, tonumber(tooltip.duration) or 3)
+    end
+    if state.instantNext and cast > 0 then cast = 0 end
+    return cast
+end
+
+function A:Timing(action, state, tooltip)
+    local cast = castTime(action, state, tooltip)
+    local swings = XelAssist.Graph.PlayerSwings
+    local nextSwing = swings and swings:Is(action, tooltip)
+    if nextSwing then cast = 0 end
+    local defaultGCD = action.actor == "pet" and 0.1 or 1.5
+    local gcd = tonumber(action.facts.gcd)
+    if gcd == nil then gcd = tonumber(tooltip.gcd) end
+    gcd = math.max(0, gcd == nil and defaultGCD or gcd)
+    local normalGcd = action.actor ~= "pet"
+        and XelAssist.Game.SpellClassification:NormalGcd(action, tooltip)
+    local cycle = math.max(0.05, gcd, cast)
+    local occupancy = nextSwing and swings:Occupancy()
+        or action.actor == "pet" and cycle or math.max(0.05, cast)
+    return cast, nextSwing, gcd, normalGcd and true or false,
+        cycle, occupancy
+end
+
 function A:Start(action, state, tooltip)
     local facts, kind = action.facts, action.facts.kind
-    local cast = facts.cast
-    if cast == nil then cast = tooltip.cast end
-    if facts.channel and (not cast or cast <= 0) then
-        cast = tooltip.duration or 3
-    end
-    if state.instantNext and cast and cast > 0 then cast = 0 end
+    local cast = castTime(action, state, tooltip)
     if action.actor ~= "pet" and (state.time or 0) <= 0
         and state.moving and cast and cast > 0 then
         return nil, "moving"
@@ -26,7 +51,12 @@ function A:Start(action, state, tooltip)
     end
     local at = immediate and (state.time or 0) or math.max(state.time or 0,
         (state.actorReadyAt and state.actorReadyAt[actor]) or 0)
-    if actor == "pet" and kind ~= "command" and at > (state.time or 0) then
+    if actor == "player" and not immediate
+        and XelAssist.Game.SpellClassification:NormalGcd(action, tooltip) then
+        at = math.max(at, tonumber(state.playerGcdReadyAt) or 0)
+    end
+    if actor == "pet" and kind ~= "command" and at > (state.time or 0)
+        and (state.time or 0) <= 0 then
         return nil, "companion casting"
     end
     local playerResources = XelAssist.Game.Player

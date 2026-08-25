@@ -897,7 +897,6 @@ function C:IsReady(name, projectedSeconds)
     local remaining = start + duration - GetTime()
     return remaining <= (projectedSeconds or 0)
 end
-
 -- Nampower's detailed cast record is the authority while it is available.
 -- UNIT_CASTEVENT remains only a compatibility fallback in the core; its end
 -- timing can arrive a frame early and must not drive the live recommendation.
@@ -923,7 +922,6 @@ function C:CurrentCast()
     end
     return nil, 0, false, 0
 end
-
 function C:GCDRemaining()
     if GetSpellIdCooldown then
         local actions = self:Actions()
@@ -939,19 +937,23 @@ function C:GCDRemaining()
     end
     return 0
 end
-
 -- Only an explicit out-of-range result blocks an action. Nampower accepts an
 -- explicit unit token, allowing the same authoritative query for selected and
 -- off-target friendly units. Invalid or unsupported queries remain unknown.
 function C:InRange(name, unit)
-    if not unit or not IsSpellInRange then return nil end
+    if not unit then return nil end
+    if C_Spell and C_Spell.IsSpellInRange then
+        local ok, result = pcall(C_Spell.IsSpellInRange, name, unit)
+        if ok and (result == false or result == 0) then return false end
+        if ok and (result == true or result == 1) then return true end
+    end
+    if not IsSpellInRange then return nil end
     local ok, result = pcall(IsSpellInRange, name, unit)
     if not ok then return nil end
     if result == 0 then return false end
     if result == 1 then return true end
     return nil
 end
-
 local function auraName(unit, index, helpful)
     local texture, stacks, d3, d4, d5
     if helpful then texture, stacks, d3, d4, d5 = UnitBuff(unit, index)
@@ -964,7 +966,6 @@ local function auraName(unit, index, helpful)
     if id and id < -1 then id = id + 65536 end
     return id and SpellInfo and SpellInfo(id) or nil
 end
-
 function C:UnitHasBuff(unit, name)
     if unit == "player" and GetPlayerBuff and GetPlayerBuffID then
         local i
@@ -986,7 +987,6 @@ function C:UnitHasBuff(unit, name)
     end
     return false
 end
-
 function C:TargetHasDebuff(name)
     local i
     for i = 1, 40 do

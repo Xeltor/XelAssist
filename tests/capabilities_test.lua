@@ -300,6 +300,22 @@ assert(XelAssist.Game.Capabilities:InRange("Flash Heal(Rank 1)", "mouseover") ==
 rangeResult = -1
 assert(XelAssist.Game.Capabilities:InRange("Flash Heal(Rank 1)", "party1") == nil,
     "unsupported range verdicts must remain unknown")
+local classicResult = false
+C_Spell = { IsSpellInRange = function(name, unit)
+    assert(name == "Attack" and unit == "target")
+    return classicResult
+end }
+rangeResult = 1
+assert(XelAssist.Game.Capabilities:InRange("Attack", "target") == false,
+    "ClassicAPI geometric range must override a permissive global verdict")
+classicResult, rangeResult = nil, 0
+assert(XelAssist.Game.Capabilities:InRange("Attack", "target") == false,
+    "an unsupported ClassicAPI verdict must fall back to the global API")
+C_Spell.IsSpellInRange = function() error("unavailable") end
+rangeResult = 1
+assert(XelAssist.Game.Capabilities:InRange("Attack", "target") == true,
+    "a failed ClassicAPI query must fall back to the global API")
+C_Spell = nil
 IsSpellInRange = nil
 assert(XelAssist.Game.Capabilities:InRange("Flash Heal(Rank 1)", "party1") == nil,
     "a missing range API must remain unknown")

@@ -152,6 +152,15 @@ function L:BeforeAction(source, candidate)
         autoImpacts = out.autoShot and out.autoShot.impacts or 0 }
 end
 
+-- Scoring keeps intrinsic action value separate from the causal window that
+-- reaches a future start. Timeline probes must still see that full window.
+function L:BeforeScoredAction(source, candidate)
+    local probe, key, value = {}, nil, nil
+    for key, value in pairs(candidate) do probe[key] = value end
+    probe.downtime = candidate.advanceDowntime or candidate.downtime
+    return self:BeforeAction(source, probe)
+end
+
 function L:BeforePlayerSwing(source, candidate, impactDelay)
     local delay = tonumber(impactDelay)
     if not delay then return self:BeforeAction(source, candidate) end

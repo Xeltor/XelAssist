@@ -231,7 +231,7 @@ function UI:SetVisiblePredictions(count)
 end
 
 function UI:MarkTargetDirty()
-    Stability:Reset(self)
+    if Stability then Stability:Reset(self) end
     self.targetDirty = true
     self.elapsed = 0
 end
@@ -458,7 +458,9 @@ function UI:Refresh(force)
         end
     end
     local changed
-    plan, err, changed = Stability:Select(self, plan, err, force)
+    if Stability then
+        plan, err, changed = Stability:Select(self, plan, err, force)
+    else changed = true end
     if not changed then self.lastPlan = plan; return end
     local f = self.frame
     if plan then
@@ -480,7 +482,7 @@ function UI:Refresh(force)
         f.main:SetAlpha(1); f.main:Enable()
         setFittedText(f.name, actionName(action), 286)
         setFittedText(f.reason, plan.reason .. " · " .. plan.confidence, 225)
-        HUDCooldown:Update(f.main, action)
+        if HUDCooldown then HUDCooldown:Update(f.main, action) end
         f.main.count:SetText(action.executor == "item" and tostring(action.count or "") or "")
         self.lastReason = actionName(action) .. " — " .. plan.reason
         local i, visible, placeholderShown = nil, 0, false
@@ -551,7 +553,7 @@ function UI:Refresh(force)
         if f.main.icon.SetDesaturated then f.main.icon:SetDesaturated(true) end
         f.main:SetAlpha(0.52); f.main:Disable()
         f.main.count:SetText("")
-        HUDCooldown:Update(f.main, nil)
+        if HUDCooldown then HUDCooldown:Update(f.main, nil) end
         setFittedText(f.name, title, 286); setFittedText(f.reason, detail, 225)
         local i
         for i = 1, 4 do

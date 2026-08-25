@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.8
+
+- Split the player's cast clock from the shared GCD clock. Normal actions own
+  that GCD, while Attack, auto-repeat, on-next-swing, and proven independent
+  actions can be evaluated inside it without consuming or resetting it. Future
+  pet actions use their exact projected readiness instead of a layer-wide wait.
+- Separated intrinsic action value from causal timeline advancement. Delayed
+  actions now see ambient attacks, periodic effects, and target health at their
+  scheduled impact, while readiness-aware pruning retains useful immediate
+  independent actions. Partial UI module loads now fail closed instead of
+  repeatedly faulting the HUD.
+- Separated command acceptance from effect reach. ClassicAPI geometric range is
+  preferred when available, explicit effect limits remain enforced even when a
+  command is accepted, and Attack requires proven five-yard hitbox reach. Added
+  deterministic timing, weaving, future-state, and soft-range regressions.
+  Authenticated in-world validation remains pending and is not claimed.
+
 ## 0.8.7
 
 - Separated graph search from presentation depth. Planning now explores up to

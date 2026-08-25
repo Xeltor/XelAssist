@@ -14,6 +14,10 @@ function R:Apply(out, candidate, context)
         out.actorReadyAt[actor] = math.max(
             tonumber(out.actorReadyAt[actor]) or 0, tonumber(out.time) or 0)
     end
+    if (action.actor or "player") == "player" and candidate.normalGcd then
+        out.playerGcdReadyAt = math.max(tonumber(out.playerGcdReadyAt) or 0,
+            actionStart + math.max(0, tonumber(candidate.gcd) or 0))
+    end
     if candidate.tooltip.cooldown and candidate.tooltip.cooldown > 0 then
         out.readyAt[(action.actor or "player") .. ":" .. action.name]
             = applicationAt + candidate.tooltip.cooldown

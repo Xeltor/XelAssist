@@ -28,7 +28,6 @@ local function friendlyAuraActive(action, state, descriptor)
     end
     return false
 end
-
 function T:AuraActive(action, state, descriptor)
     if descriptor and descriptor.relation ~= "hostile" then return
         friendlyAuraActive(action, state, descriptor) end
@@ -176,13 +175,8 @@ local function policyBlocker(action, state, tooltip)
     end
     if (facts.combo or tooltip and tooltip.comboSpendAll)
         and state.combo <= 0 then return "combo points" end
-    if facts.execute and state.targetMax > 0
-        and state.targetHealth * 100 / state.targetMax > facts.execute then
-        return "execute range"
-    end
     return nil
 end
-
 local function targetBlocker(action, state, descriptor, target)
     if action.actor == "pet" and action.executor == "petAbility"
         and descriptor.relation == "hostile" then
@@ -273,7 +267,6 @@ local function positionBlocker(action, state, descriptor)
     end
     return nil
 end
-
 local function rangeBlocker(action, state, descriptor, target, tooltip)
     local facts = action.facts
     if (state.time or 0) > 0 then return nil end
@@ -306,21 +299,30 @@ local function rangeBlocker(action, state, descriptor, target, tooltip)
     if liveRange == false then return "range" end
     -- Unknown direct range remains unknown; only then use discovered geometry.
     local rangeDistance = descriptor.record and descriptor.record.distance or state.distance
+    local rangeKind = descriptor.record and descriptor.record.distanceKind
+        or state.distanceKind
     if (action.actor == "pet" or action.facts.effectActor == "pet"
         or action.facts.damageActor == "pet") and descriptor.relation == "hostile"
         and state.actors and state.actors.pet then
-        rangeDistance = state.actors.pet.distance
+        rangeDistance, rangeKind = state.actors.pet.distance,
+            state.actors.pet.distanceKind
     elseif descriptor.relation == "hostile" and state.targetDistance ~= nil then
-        rangeDistance = state.targetDistance
+        rangeDistance, rangeKind = state.targetDistance, state.targetDistanceKind
     elseif target == "player" or target == "pet" and descriptor.relation ~= "hostile" then
-        rangeDistance = 0
+        rangeDistance, rangeKind = 0, "self"
     end
     local minRange, maxRange = tooltip.minRange, tooltip.maxRange
-    if descriptor.relation == "hostile" and facts.effectActor == "pet" then
+    local effectRange = descriptor.relation == "hostile"
+        and (facts.effectMinRange ~= nil or facts.effectMaxRange ~= nil)
+    if effectRange then
         minRange = facts.effectMinRange or minRange
         maxRange = facts.effectMaxRange or maxRange
     end
-    if liveRange == nil and rangeDistance then
+    if effectRange and facts.effectRangeHitbox
+        and rangeKind ~= "hitbox" and rangeKind ~= "combat reach" then
+        return "effect range unknown"
+    end
+    if rangeDistance and (liveRange == nil or effectRange) then
         local rangeReason
         if minRange and rangeDistance < minRange then
             rangeReason = "minimum range"
@@ -345,7 +347,6 @@ local function rangeBlocker(action, state, descriptor, target, tooltip)
     end
     return nil
 end
-
 local function effectBlocker(owner, action, state, descriptor, target,
     actionStart, tooltip)
     local facts, kind = action.facts, action.facts.kind

@@ -9,6 +9,21 @@ local function flagSet(value, flag)
         - math.floor(value / (flag * 2)) * 2 == 1
 end
 
+-- The installed DBC's start-recovery category is the authoritative shared-GCD
+-- lane. Missing records stay conservative; ambient and on-swing actions own
+-- independent client lanes even when their record has a recovery duration.
+function S:NormalGcd(action, tooltip)
+    local facts = action and action.facts or {}
+    if facts.playerAttack or facts.autoRepeat or facts.onNextSwing or facts.onSwing
+        or tooltip and (tooltip.onNextSwing or tooltip.onSwing) then return false end
+    if tooltip and tooltip.normalGcd ~= nil then
+        return tooltip.normalGcd and true or false
+    end
+    local gcd = facts.gcd
+    if gcd == nil and tooltip then gcd = tooltip.gcd end
+    return gcd == nil or (tonumber(gcd) or 0) > 0
+end
+
 function S:Apply(action, out, dbc, dbcArray)
     out.attributes = dbc("attributes")
     if out.attributes ~= nil then

@@ -1,8 +1,9 @@
-XelAssist = { Core = {} }
+XelAssist = { Core = {}, Game = {} }
 
 local clock = 10
 GetTime = function() return clock end
 
+dofile("Game/SpellClassification.lua")
 dofile("Core/PlayerNormalQueue.lua")
 local Q = XelAssist.Core.PlayerNormalQueue
 local targetGuid, otherGuid = {}, {}

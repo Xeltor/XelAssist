@@ -13,6 +13,7 @@ local PlayerSwings = XelAssist.Graph.PlayerSwings
 local PlayerSwingScoring = XelAssist.Graph.PlayerSwingScoring
 local Triggered = XelAssist.Combat.TriggeredActions
 local ComboScoring = XelAssist.Graph.ComboScoring
+local Admission = XelAssist.Graph.ActionAdmission
 local function potency(action, tooltip, state)
     local combo = (action.facts.combo or tooltip.comboSpendAll)
         and (tooltip.comboBonus or 0) * state.combo or 0
@@ -69,7 +70,6 @@ local function potency(action, tooltip, state)
     end
     return base, estimated
 end
-
 local function legalityAndTiming(action, state, descriptor)
     local allowed, blocker, tooltip, target, actionStart, resolved =
         Targets:Legal(action, state, descriptor)
@@ -79,15 +79,8 @@ local function legalityAndTiming(action, state, descriptor)
     local effectAction = Triggered and Triggered:ResultAction(action) or action
     local effectTooltip = Triggered and Triggered:EffectFacts(action, tooltip) or tooltip
     power, estimated = potency(effectAction, effectTooltip, state)
-    local cast = facts.cast
-    if cast == nil then cast = tooltip.cast or (facts.channel and 3 or 0) end
-    if facts.channel and cast <= 0 then cast = tooltip.duration or 3 end
-    if state.instantNext and cast > 0 then cast = 0 end
-    local nextSwing = PlayerSwings and PlayerSwings:Is(action, tooltip)
-    if nextSwing then cast = 0 end
-    local defaultGCD = action.actor == "pet" and 0.1 or 1.5
-    local occupancy = nextSwing and PlayerSwings:Occupancy() or math.max(0.05,
-        facts.gcd or tooltip.gcd or defaultGCD, cast)
+    local cast, nextSwing, gcd, normalGcd, cycle, occupancy =
+        Admission:Timing(action, state, tooltip)
     local wait = math.max(0, (actionStart or state.time) - state.time)
     local impactDelay = nextSwing and PlayerSwings:ImpactDelay(state) or nil
     local kind = facts.kind
@@ -98,7 +91,9 @@ local function legalityAndTiming(action, state, descriptor)
         facts = facts, kind = kind, tooltip = tooltip, target = target,
         effectTooltip = effectTooltip,
         actionStart = actionStart, cast = cast, occupancy = occupancy,
-        wait = wait, downtime = wait + occupancy, cost = tooltip.cost or 0,
+        wait = wait, downtime = cycle,
+        advanceDowntime = wait + occupancy, cost = tooltip.cost or 0,
+        gcd = gcd, normalGcd = normalGcd and true or false,
         onNextSwing = nextSwing and true or false,
         impactDelay = impactDelay,
         costKnown = tooltip.cost ~= nil,
@@ -110,7 +105,6 @@ local function legalityAndTiming(action, state, descriptor)
         effectDelivery = 1,
     }
 end
-
 local function resolveTargetNeed(context)
     local descriptor, state = context.descriptor, context.state
     context.friendly = descriptor and descriptor.relation ~= "hostile"
@@ -208,7 +202,7 @@ local function projectAmbientTargetHealth(context)
     context.targetGUID = descriptor.guid
     local probe = context.onNextSwing
         and Timeline:BeforePlayerSwing(state, context, context.impactDelay)
-        or Timeline:BeforeAction(state, context)
+        or Timeline:BeforeScoredAction(state, context)
     context.targetHealthAtImpact = probe.targetHealth
     context.autoShotLaunchesBeforeImpact = probe.autoLaunches
     context.autoShotImpactsBeforeImpact = probe.autoImpacts
@@ -366,7 +360,8 @@ local function applyActionAdjustments(context)
     end
     if facts.execute and (not context.areaDirectResolved
         or context.areaSelectedIncluded) and state.targetMax > 0
-        and state.targetHealth * 100 / state.targetMax <= facts.execute then
+        and (context.targetHealthAtImpact or state.targetHealth) * 100
+            / state.targetMax <= facts.execute then
         context.value = context.value + 900
     end
     if facts.leech and state.healthMax > 0 then
@@ -398,7 +393,8 @@ local function candidate(context)
         targetPriority = descriptor and descriptor.record
             and descriptor.record.priority,
         cost = context.cost, costKnown = context.costKnown,
-        cast = context.cast, downtime = context.downtime,
+        cast = context.cast, downtime = context.advanceDowntime,
+        valueDowntime = context.downtime,
         threat = context.threat, estimated = context.estimated,
         tooltip = context.tooltip, power = context.expectedPower,
         effectivePower = context.effectivePower, rawPower = context.power,
@@ -408,6 +404,7 @@ local function candidate(context)
         dotRawPeriodicPower = context.dotRawPeriodicPower,
         dotPeriodicExpectedPower = context.dotPeriodicExpectedPower,
         wait = context.wait, occupancy = context.occupancy,
+        gcd = context.gcd, normalGcd = context.normalGcd,
         actionStart = context.actionStart,
         recipientEffects = context.recipientEffects,
         areaRecipientGroups = context.areaRecipientGroups,
@@ -437,6 +434,9 @@ function Scoring:Evaluate(action, state, descriptor)
     projectDamageAndResistance(context)
     PlayerSwingScoring:Project(context)
     projectAmbientTargetHealth(context)
+    if action.facts.execute and state.targetMax > 0
+        and (context.targetHealthAtImpact or state.targetHealth) * 100
+            / state.targetMax > action.facts.execute then return nil, "execute range" end
     if context.ambientDefeatsTarget then
         context.value, context.reason = -100000,
             "ambient attack resolves first"

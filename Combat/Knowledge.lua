@@ -8,7 +8,8 @@ XelAssist.Combat.Knowledge = {
     -- arrive independently through Nampower and are never damage from this press.
     ["Attack"] = { kind = "command", playerAttack = true, ambient = true,
         startOnly = true, recovery = true, melee = true, whiteAttack = true,
-        weaponHand = "main", cast = 0, gcd = 0 },
+        weaponHand = "main", cast = 0, gcd = 0,
+        effectMaxRange = 5, effectRangeHitbox = true },
 
     -- Warrior
     ["Execute"] = { kind = "damage", execute = 20, melee = true, threat = 1.0 },

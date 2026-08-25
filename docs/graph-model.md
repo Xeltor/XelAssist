@@ -219,7 +219,12 @@ recipients resolve. Unknown target relation, unknown radius, cones, chain
 secondaries, and ground/dynamic-object placement do not manufacture recipients.
 
 The bounded beam compares elapsed-time-discounted paths, so a future cooldown, aura,
-resource shortage, or downtime can change which current action wins. It returns
+resource shortage, or downtime can change which current action wins. Player cast
+occupancy and the shared GCD are separate clocks: normal actions advance the GCD,
+while proven independent actions may occupy otherwise idle time without resetting
+it. Intrinsic action value excludes time spent waiting, while the causal transition
+still advances ambient attacks, periodic effects, and target state through that
+wait. It returns
 one current action contract plus up to four simulated future actions. A current
 action with positive wait is submitted only through Nampower's forced selected-
 target queue; exact-friendly, ground, and item paths hold until they are ready.
@@ -330,9 +335,12 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   penalty steepens, allowing lower-rank/lower-threat actions or a threat drop to
   win from the same utility equation.
 - Interrupts preempt throughput only during a detected cast. Cast-time actions
-  are excluded while moving. Direct range verdicts are authoritative; discovered
-  minimum/maximum bands cover units where no direct verdict exists. Reactive
-  abilities require an explicit usable result.
+  are excluded while moving. ClassicAPI's geometric range verdict is preferred
+  when available, with the legacy direct verdict as fallback. Command acceptance
+  and effect reach are distinct: an explicit effect limit is still enforced when
+  the client accepts a zero-effect command, and Attack requires proven five-yard
+  hitbox reach. Discovered minimum/maximum bands cover units where no direct
+  verdict exists. Reactive abilities require an explicit usable result.
 - Major cooldowns, including unknown actions whose client record reports at
   least 30 seconds, reagents, and incidental area damage remain character opt-ins.
 - Hostile dispatch remains selected-target-only. `Core/TargetGuard.lua`

@@ -68,16 +68,7 @@ function Q:Sweep(resolveFailure)
 end
 
 function Q:MayOccupy(action, tooltip)
-    local facts = action and action.facts or {}
-    if facts.playerAttack or facts.autoRepeat
-        or facts.onNextSwing or facts.onSwing
-        or tooltip and (tooltip.onNextSwing or tooltip.onSwing) then return false end
-    if tooltip and tooltip.normalGcd ~= nil then
-        return tooltip.normalGcd and true or false
-    end
-    local gcd = facts.gcd
-    if gcd == nil and tooltip then gcd = tooltip.gcd end
-    return gcd == nil or (tonumber(gcd) or 0) > 0
+    return XelAssist.Game.SpellClassification:NormalGcd(action, tooltip)
 end
 
 function Q:Blocker(action, tooltip)

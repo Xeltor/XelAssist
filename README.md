@@ -1,4 +1,4 @@
-# XelAssist 0.8.7
+# XelAssist 0.8.8
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -25,7 +25,8 @@ timeout. With Nampower 4.7.1+, on-next-swing abilities use a separate exact
 attempt-owned lane; 4.7.0 retains a conservative single-owner fallback. Native
 replacement buffering is disabled so repeated input cannot overwrite the armed
 action. Their resource, cooldown, damage, and threat occur at the verified
-main-hand round rather than when the button is pressed. Non-GCD actions remain independent.
+main-hand round rather than when the button is pressed. Non-GCD actions remain
+independent and can be evaluated inside the shared-GCD window without resetting it.
 Explicit party, mouseover, self, and ground targets retain SuperWoW's unit-targeted cast path.
 Hostile recommendations remain pinned to the captured selected-target GUID at
 dispatch; observing another enemy never gives XelAssist permission to target or
@@ -102,8 +103,10 @@ The HUD refreshes at 5 Hz and independently shows one to five requested steps.
 The first two decisions are completed before the soft limit can shorten the
 runway; an otherwise usable current action never becomes a budget HOLD. It accounts for:
 
-- current cast and GCD downtime, predicted action cast time, and own cooldowns;
-- explicit live range verdicts, minimum/maximum DBC ranges, and movement;
+- separate current-cast and shared-GCD clocks, predicted action cast time,
+  independent-action weaving, and own cooldowns;
+- explicit live command-range verdicts, independently enforced effect reach,
+  minimum/maximum DBC ranges, and movement;
 - hitbox-aware actor-to-target distance, line of sight, and behind-position
   evidence when UnitXP exposes it;
 - current resources, per-rank cost, effective healing, overheal, and damage needed

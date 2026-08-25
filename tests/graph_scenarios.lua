@@ -140,7 +140,8 @@ local function state(mode)
         playerCasting = false, castRemaining = 0, groupSize = 0, hasAggro = false,
         tank = false, role = "auto", instantNext = false, distance = nil,
         actors = actors, friendlies = friendlies,
-        auras = {}, readyAt = {}, time = 0 }
+        auras = {}, readyAt = {}, playerGcdReadyAt = 0,
+        actorReadyAt = { player = 0, pet = 0 }, time = 0 }
 end
 
 local function friendly(unit, guid, health, maximum, distance, extra)
@@ -241,6 +242,62 @@ local function expect(name, wanted)
     assert(plan, name .. ": " .. tostring(err))
     assert(plan.action.name == wanted, name .. ": got " .. plan.action.name .. ", wanted " .. wanted)
     return plan
+end
+
+do
+local function scored(value, source)
+    local targets = XelAssist.Graph.Targets:Targets(value, source)
+    local candidate, blocker = XelAssist.Graph.Scoring:Evaluate(
+        value, source, targets[1])
+    assert(candidate, value.name .. ": " .. tostring(blocker))
+    return candidate
+end
+
+-- A normal instant advances only through its application boundary so an
+-- independent action can be woven before the shared GCD is ready again.
+currentState = state("smart")
+local clockNormal = action("Clock Normal", 1, "damage", 300, 0, { gcd = 1.5 })
+local clockIndependent = action(
+    "Clock Independent", 1, "damage", 100, 0, { gcd = 0 })
+local firstNormal = scored(clockNormal, currentState)
+assert(firstNormal.normalGcd and firstNormal.gcd == 1.5
+    and math.abs(firstNormal.downtime - 0.05) < 0.0001
+    and math.abs(firstNormal.valueDowntime - 1.5) < 0.0001,
+    "normal action valuation and causal advancement must use separate clocks")
+local afterNormal = XelAssist.Graph.Transitions:Advance(
+    currentState, firstNormal)
+local woven = scored(clockIndependent, afterNormal)
+local delayedNormal = scored(clockNormal, afterNormal)
+assert(math.abs(afterNormal.time - 0.05) < 0.0001
+    and math.abs(afterNormal.playerGcdReadyAt - 1.5) < 0.0001
+    and not woven.normalGcd and math.abs(woven.actionStart - 0.05) < 0.0001
+    and math.abs(delayedNormal.actionStart - 1.5) < 0.0001,
+    "an independent player action must remain usable inside a normal GCD")
+local afterWoven = XelAssist.Graph.Transitions:Advance(afterNormal, woven)
+assert(math.abs(afterWoven.time - 0.1) < 0.0001
+    and math.abs(afterWoven.playerGcdReadyAt - 1.5) < 0.0001,
+    "an independent action must not consume or reset the shared GCD")
+end
+
+do
+    currentState = state("smart")
+    currentState.playerGcdReadyAt = 1.5
+    XelAssistCharDB.graphDepth = 2
+    scenarioActions = {}
+    local i
+    for i = 1, 5 do
+        table.insert(scenarioActions,
+            action("Delayed Normal " .. i, 1, "damage", 500, 0))
+    end
+    table.insert(scenarioActions, action("Immediate Weave", 1,
+        "damage", 150, 0, { gcd = 0, testCooldown = 30 }))
+    local weavePlan = expect("beam retains immediate independent action",
+        "Immediate Weave")
+    assert(weavePlan.follow[1]
+        and string.find(weavePlan.follow[1].name,
+            "Delayed Normal ", 1, true) == 1
+        and math.abs(weavePlan.path[2].actionStart - 1.5) < 0.0001,
+        "WIDTH pruning must retain an executable oGCD before delayed normal actions")
 end
 
 scenarioActions = {
@@ -632,7 +689,9 @@ scenarioActions = { action("Burn", 1, "dot", 300, 20, { testDuration = 6 }),
 plan = expect("future periodic transitions", "Burn")
 assert(plan.follow[1] and plan.follow[1].name == "Filler"
     and plan.follow[2] and plan.follow[2].name == "Execute",
-    "active periodic damage must change later health-gated graph actions")
+    "active periodic damage must change later health-gated graph actions: "
+        .. tostring(plan.follow[1] and plan.follow[1].name) .. " -> "
+        .. tostring(plan.follow[2] and plan.follow[2].name))
 
 currentState = state("smart"); currentState.targetHealth = 1000
 currentState.targetMax = 1000; XelAssistCharDB.graphDepth = 1
@@ -643,18 +702,18 @@ local cadenced = XelAssist.Graph.Transitions:Advance(
     currentState, plan.path[1])
 assert(cadenced.targetHealth == 1000
     and cadenced.auras["Cadenced Burn"].periodicInterval == 2
-    and math.abs(cadenced.auras["Cadenced Burn"].periodicNextIn - 0.5) < 0.0001,
-    "a projected DoT must retain cadence without inventing a partial tick")
+    and math.abs(cadenced.auras["Cadenced Burn"].periodicNextIn - 1.95) < 0.0001,
+    "a projected DoT must retain cadence across its application boundary")
 local cadenceWaitAction = action("Cadence Wait", 1, "buff", 0, 0)
 local cadenceWait = { action = cadenceWaitAction, target = "target",
     targetGUID = currentState.targetGUID, targetRelation = "hostile",
-    cost = 0, cast = 0, occupancy = 1, wait = 0, downtime = 1,
+    cost = 0, cast = 0, occupancy = 2, wait = 0, downtime = 2,
     actionStart = cadenced.time, tooltip = cadenceWaitAction.mock,
     power = 0, effectDelivery = 1 }
 local afterCadenceTick = XelAssist.Graph.Transitions:Advance(
     cadenced, cadenceWait)
 assert(afterCadenceTick.targetHealth == 960
-    and math.abs(afterCadenceTick.auras["Cadenced Burn"].periodicNextIn - 1.5)
+    and math.abs(afterCadenceTick.auras["Cadenced Burn"].periodicNextIn - 1.95)
         < 0.0001,
     "the first exact DoT tick must land once and preserve its future phase")
 
@@ -953,10 +1012,22 @@ local afterAutoStart = XelAssist.Graph.Transitions:Advance(currentState, plan.pa
 assert(afterAutoStart.autoShot.active and afterAutoStart.targetHealth == 1000,
     "starting Auto Shot must enable ambient state without inventing an immediate hit")
 local afterAutoFiller = XelAssist.Graph.Transitions:Advance(afterAutoStart, plan.path[2])
-assert(afterAutoFiller.autoShot.ammoCount == 8
-    and afterAutoFiller.targetHealth == 899
-    and table.getn(afterAutoFiller.autoShot.inFlight) == 1,
-    "launches must spend arrows immediately while projectile damage lands on its own timeline")
+assert(afterAutoFiller.autoShot.ammoCount == 10
+    and afterAutoFiller.targetHealth == 999
+    and table.getn(afterAutoFiller.autoShot.inFlight) == 0,
+    "an instant normal action must stop at its application boundary for weaving")
+do
+    local targets = XelAssist.Graph.Targets:Targets(autoFiller, afterAutoFiller)
+    local nextFiller = XelAssist.Graph.Scoring:Evaluate(
+        autoFiller, afterAutoFiller, targets[1])
+    local afterNextFiller = XelAssist.Graph.Transitions:Advance(
+        afterAutoFiller, nextFiller)
+    assert(math.abs(nextFiller.actionStart - 2.55) < 0.0001
+        and afterNextFiller.autoShot.ammoCount == 9
+        and afterNextFiller.targetHealth == 898
+        and table.getn(afterNextFiller.autoShot.inFlight) == 0,
+        "the next normal decision must carry ambient launch and impact timing across the GCD")
+end
 
 currentState.playerCasting, currentState.playerChanneling = true, true
 currentState.castRemaining, currentState.actorReadyAt.player = 3, 3
@@ -1004,10 +1075,26 @@ currentState.playerAttack = { supported = true, active = false,
     source = "Nampower current casting info" }
 local meleeStart = action("Attack", 1, "command", 400, 0,
     { playerAttack = true, ambient = true, startOnly = true,
-        melee = true, whiteAttack = true, cast = 0 })
+        melee = true, whiteAttack = true, cast = 0,
+        effectMaxRange = 5, effectRangeHitbox = true })
 meleeStart.mock.gcd = 0
 local meleeFiller = action("Melee Filler", 1, "damage", 1, 0)
 meleeFiller.mock.gcd = 2.5
+do
+    currentState.targetDistance, currentState.distance = 12, 12
+    currentState.targetDistanceKind, currentState.distanceKind = "hitbox", "hitbox"
+    scenarioActions, XelAssistCharDB.graphDepth = { meleeStart }, 1
+    local rangedAttack, rangedReason = XelAssist.Graph:Evaluate("smart", true)
+    assert(rangedAttack == nil and rangedReason == "Move into range",
+        "Attack must require proven melee effect reach even when its command is accepted")
+    scenarioActions = { action("Soft Trigger", 1, "damage", 100, 0,
+        { effectMaxRange = 5, effectRangeHitbox = true }) }
+    local softEffect, softReason = XelAssist.Graph:Evaluate("smart", true)
+    assert(softEffect == nil and softReason == "Move into range",
+        "soft commands must not be valued when their payload has zero effect")
+    currentState.targetDistance, currentState.distance = 4, 4
+    expect("soft effect proven melee reach", "Soft Trigger")
+end
 scenarioActions = { meleeStart, meleeFiller }
 XelAssistCharDB.graphDepth = 2
 plan = expect("player Attack ambient start", "Attack")
@@ -1030,6 +1117,8 @@ assert(plan.action.name ~= "Attack",
 do
 currentState = state("smart")
 currentState.actorReadyAt = { player = 0, pet = 0 }
+currentState.targetDistance, currentState.distance = 4, 4
+currentState.targetDistanceKind, currentState.distanceKind = "hitbox", "hitbox"
 currentState.resource, currentState.resourceMax = 100, 100
 currentState.combo = 0
 currentState.playerAttack = { supported = true, active = false,
@@ -2130,7 +2219,11 @@ currentState.actors.pet = { health = 1000, healthMax = 1000,
 scenarioActions = { petAction("Moving Firebolt", "damage", 800, 50,
         { ranged = true, cast = 2 }),
     action("Moving Wand", 1, "damage", 100, 0) }
-expect("player movement does not block pet cast", "Moving Firebolt")
+plan = expect("player movement does not block pet cast", "Moving Wand")
+assert(plan.follow[1] and plan.follow[1].name == "Moving Firebolt"
+    and plan.path[2].action.actor == "pet"
+    and plan.path[2].actionStart < 0.2,
+    "the independent companion cast must remain available after the instant player action")
 
 local unknownCostPet = petAction(
     "Unreadable Bite", "damage", 1000, 0, { melee = true })

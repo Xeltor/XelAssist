@@ -241,8 +241,9 @@ local function newState(mode, context)
         instantNext = XelAssist.Game.Capabilities:UnitHasBuff("player", "Nature's Swiftness")
             or XelAssist.Game.Capabilities:UnitHasBuff("player", "Presence of Mind"),
         auras = target.projectedAuras, absorbs = {}, readyAt = {}, time = 0,
-        actorReadyAt = { player = math.max(context.castRemaining or 0,
-            context.gcdRemaining or 0, XelAssist.Game.Capabilities:GCDRemaining()),
+        playerGcdReadyAt = math.max(context.gcdRemaining or 0,
+            XelAssist.Game.Capabilities:GCDRemaining()),
+        actorReadyAt = { player = math.max(context.castRemaining or 0, 0),
             pet = actors.pet and (actors.pet.castRemaining or 0) or 0 },
     }
     return state

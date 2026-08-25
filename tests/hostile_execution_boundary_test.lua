@@ -203,6 +203,7 @@ XelAssist.MarkAuraPending = function()
     effects.pending = effects.pending + 1
 end
 dofile("Core/TargetGuard.lua")
+dofile("Game/SpellClassification.lua")
 dofile("Core/PlayerNormalQueue.lua")
 dofile("Core/Executor.lua")
 

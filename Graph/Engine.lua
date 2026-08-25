@@ -22,8 +22,15 @@ local function stringField(value)
     return ""
 end
 
+local function candidatePriority(candidate)
+    local delay = math.max(0, tonumber(candidate.wait) or 0)
+        + math.max(0, tonumber(candidate.cast) or 0)
+    return (tonumber(candidate.value) or 0)
+        / (1 + delay / Policy.DISCOUNT_SECONDS)
+end
+
 local function candidateBefore(a, b)
-    local aValue, bValue = tonumber(a.value) or 0, tonumber(b.value) or 0
+    local aValue, bValue = candidatePriority(a), candidatePriority(b)
     if aValue ~= bValue then return aValue > bValue end
     local aRank = tonumber(a.action and a.action.rank) or 0
     local bRank = tonumber(b.action and b.action.rank) or 0

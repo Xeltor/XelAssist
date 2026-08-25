@@ -48,6 +48,7 @@ XelAssist.Graph.AutoShotUncertainty = {
 dofile("Graph/CompanionTargets.lua")
 dofile("Graph/PlayerSwings.lua")
 dofile("Graph/PlayerSwingScoring.lua")
+dofile("Game/SpellClassification.lua")
 dofile("Graph/ActionAdmission.lua")
 dofile("Graph/ActionConsumption.lua")
 dofile("Graph/OngoingEffects.lua")
