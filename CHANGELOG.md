@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.8.0
+
+- Added a deterministic hostile snapshot that deduplicates exact opaque GUIDs
+  from selected, mouseover, pet-target, and party/raid-target tokens and keeps at
+  most five target-local records. Health, aura, resistance/modifier, geometry,
+  victim, aggro, and available cast evidence now stay attached to the hostile
+  that produced them instead of leaking through the selected-target mirror.
+- Added installed-client DBC topology for each spell effect, including implicit
+  recipient relation, shape, center, chain count, and exact mapped SpellRadius
+  values. Target- and caster-centered circles resolve geometry only from the
+  bounded hostile snapshot. Because stock unit tokens are not exhaustive,
+  secondary benefit is withheld; cones, chain secondaries, ground/dynamic
+  objects, unknown radii, and unknown target relations remain explicit unknowns.
+- Supported direct damage/builders with exactly one resolved hostile DBC area
+  effect now apply health-capped damage and threat to each known physical
+  recipient while charging the action's resource and cooldown cost once. Known
+  unengaged recipients remain collateral risk, and incomplete discovery
+  withholds secondary benefit without erasing known physical consequences.
+  Mixed/multiple effects and area modifiers remain explicit unknowns.
+- Kept launched Auto Shot projectiles attached to their captured hostile GUID
+  across later selected-target changes. Fixed launch outcomes remain immutable;
+  known living or unknown-health targets retain their arrows, while proven dead
+  or missing targets are pruned conservatively.
+- Added exact generic `pettarget` identity to the shared actor snapshot for both
+  Hunter pets and Warlock demons. Scheduled companion autocasts retain that
+  target identity and apply damage, periodic effects, threat, and
+  taunt state to the matching hostile-local projection. Event-created periodic
+  effects keep independent GUID-keyed tick and expiry clocks, including when
+  two enemies carry an effect with the same name.
+- Put enabled companion autocasts on one shared pet cast/GCD clock with
+  target-local range and line-of-sight checks. Unknown simultaneous order,
+  geometry, cast completion, or area recipients now reserves focus/cooldown
+  conservatively and remains visible as uncertainty instead of inventing hits.
+- Added an isolated hostile-state copy/commit boundary so projected auras,
+  debuffs, expiry, resistance modifiers, and damage cannot cross GUIDs or source
+  ownership when the selected target changes during lookahead.
+- Added a final hostile dispatch guard. Every hostile queue, Auto Shot, pet
+  ability, and attack command revalidates the captured selected-target GUID,
+  hostility, relation, and death state; Hunter dual-recipient actions also
+  revalidate the exact companion and its current hostile target.
+- Added deterministic locality, area-recipient, DBC-topology, hostile-state, and
+  execution-boundary regression scenarios. This release checkpoint has local
+  model/load evidence; it does not yet claim authenticated in-world Hunter
+  validation or complete nameplate discovery.
+
 ## 0.7.0
 
 - Added first-class Hunter companion state: alive/dead/dismissed/unknown

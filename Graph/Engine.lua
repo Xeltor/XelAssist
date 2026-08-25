@@ -289,6 +289,27 @@ local function recommendationUnknowns(state, best)
     if best.supportAoeUnknown then
         table.insert(out, "additional healing recipients")
     end
+    if state.actors and state.actors.pet
+        and state.actors.pet.areaAutocastUnknown then
+        table.insert(out, "companion area recipients")
+    end
+    local i
+    for i = 1, table.getn(best.areaUnknowns or {}) do
+        local reason = best.areaUnknowns[i]
+        local found, j = false, nil
+        for j = 1, table.getn(out) do
+            if out[j] == reason then found = true; break end
+        end
+        if not found then table.insert(out, reason) end
+    end
+    for i = 1, table.getn(best.companionUnknowns or {}) do
+        local reason = best.companionUnknowns[i]
+        local found, j = false, nil
+        for j = 1, table.getn(out) do
+            if out[j] == reason then found = true; break end
+        end
+        if not found then table.insert(out, reason) end
+    end
     if (kind == "damage" or kind == "dot" or kind == "builder")
         and not state.targetHealthExact then
         table.insert(out, "exact target health")
@@ -336,6 +357,17 @@ local function buildPlan(state, observed, path, counter, started)
         elapsed = (GetTime() - started) * 1000, value = best.value,
         threat = best.threat, downtime = best.downtime, observed = observed,
         resistance = best.resistance, tooltip = best.tooltip,
+        recipientEffects = best.recipientEffects,
+        areaRecipientGroups = best.areaRecipientGroups,
+        areaUnknowns = best.areaUnknowns,
+        areaRecipientsUnknown = best.areaRecipientsUnknown,
+        areaDirectResolved = best.areaDirectResolved,
+        areaSelectedIncluded = best.areaSelectedIncluded,
+        totalExpectedPower = best.totalExpectedPower,
+        totalEffectivePower = best.totalEffectivePower,
+        collateralExpectedPower = best.collateralExpectedPower,
+        power = best.power, effectDelivery = best.effectDelivery,
+        cost = best.cost, occupancy = best.occupancy,
         wait = best.wait, cast = best.cast, blockers = counter.blockers,
         path = path.steps }
 end

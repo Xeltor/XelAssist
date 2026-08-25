@@ -16,12 +16,21 @@ dofile("Game/Pets/Effects.lua")
 dofile("Game/Actors.lua")
 dofile("Game/Friendlies.lua")
 dofile("Combat/TargetModifiers.lua")
+dofile("Graph/HostileState.lua")
 dofile("Graph/State.lua")
 dofile("Graph/TargetSelection.lua")
 dofile("Graph/CompanionThreat.lua")
+dofile("Graph/CompanionEventThreat.lua")
 dofile("Graph/Targets.lua")
 dofile("Graph/Effects.lua")
+dofile("Graph/AreaRecipients.lua")
+dofile("Graph/HostileEffects.lua")
 dofile("Graph/AutoShotEffects.lua")
+dofile("Graph/CompanionTieScheduler.lua")
+dofile("Graph/CompanionScheduler.lua")
+dofile("Graph/CompanionEvents.lua")
+dofile("Graph/EventAuras.lua")
+dofile("Graph/ReadinessEffects.lua")
 dofile("Graph/ActorScoring.lua")
 dofile("Graph/ThreatScoring.lua")
 dofile("Graph/OngoingEffects.lua")
@@ -153,6 +162,20 @@ local function setFriendlies(s, list)
     s.groupSize = math.max(0, table.getn(list) - (player and 1 or 0))
 end
 
+local function setHostiles(s, list, selectedKey)
+    s.hostiles = { order = {}, byKey = {}, byUnit = {},
+        selectedKey = selectedKey, total = table.getn(list), capped = false,
+        discoveryComplete = true }
+    local i
+    for i = 1, table.getn(list) do
+        local record = list[i]
+        table.insert(s.hostiles.order, record.key)
+        s.hostiles.byKey[record.key] = record
+        s.hostiles.byUnit[record.unit] = record.key
+    end
+    XelAssist.Graph.State:SyncSelectedHostile(s)
+end
+
 local currentState
 XelAssist.Graph.Snapshot = function() return currentState end
 
@@ -169,7 +192,8 @@ local function action(name, rank, kind, power, cost, extra)
             targetArmorReduction = facts.testArmorReduction,
             targetArmorPerCombo = facts.testArmorPerCombo,
             targetResistanceReduction = facts.testResistanceReduction,
-            targetDamageTaken = facts.testDamageTaken } }
+            targetDamageTaken = facts.testDamageTaken,
+            topology = facts.testTopology } }
 end
 
 local function petAction(name, kind, power, cost, extra)
@@ -448,6 +472,14 @@ plan = expect("pre-cast school resistance", "Shadow Bolt")
 assert(plan.resistance and plan.resistance.school == 5
     and plan.reason == "uses Shadow against elevated Fire resistance",
     "the plan must expose why the better school won")
+scenarioActions = { action("Fireball", 1, "damage", 600, 100,
+    { testSchool = 2 }) }
+plan = expect("selected damage uses expected resistance", "Fireball")
+local resistedAfter = XelAssist.Graph.Transitions:Advance(currentState, plan)
+assert(plan.path[1].rawPower == 600
+    and math.abs(plan.path[1].power - 255) < 0.0001
+    and math.abs(resistedAfter.targetHealth - 745) < 0.0001,
+    "selected-hostile projection must subtract resistance-adjusted expected damage")
 XelAssist.Combat.Resistance = nil
 
 currentState = state("smart")
@@ -1057,11 +1089,292 @@ local function causalCandidate(subject, wait, occupancy, cast, power, cost)
         tooltip = subject.mock, power = power or 0, effectDelivery = 1 }
 end
 
+local function pinCombatHostile(s, health, exact)
+    local record = { key = "target-guid", guid = "target-guid",
+        unit = "target", source = "selected", selected = true,
+        executable = true, engaged = true, dead = false,
+        health = health, healthMax = health, healthExact = exact ~= false,
+        geometry = { player = { distance = 3, lineOfSight = true },
+            pet = { distance = 3, lineOfSight = true, behind = true } },
+        targetRef = { unit = "target", guid = "target-guid",
+            relation = "hostile", source = "selected" },
+        targetAuras = {}, projectedAuras = {}, modifierEffects = {},
+        damageTaken = {}, baseDamageTaken = {}, casting = false,
+        castProbability = 0, threat = { playerHasAggro = true,
+            petHasAggro = false, playerDelta = 0, petDelta = 0 } }
+    setHostiles(s, { record }, record.key)
+    return record
+end
+
+local castCooldownState = state("smart")
+pinCombatHostile(castCooldownState, 1000)
+local castCooldown = action("Cast Cooldown", 1, "damage", 1, 0,
+    { cast = 2, testCooldown = 10 })
+local castCooldownCandidate = causalCandidate(castCooldown, 3, 2, 2, 1, 0)
+castCooldownCandidate.targetKey = "target-guid"
+local afterCastCooldown = XelAssist.Graph.Transitions:Advance(
+    castCooldownState, castCooldownCandidate)
+assert(afterCastCooldown.readyAt["player:Cast Cooldown"] == 15,
+    "a cast cooldown must start at successful application, not cast start")
+local reactiveState = state("smart")
+pinCombatHostile(reactiveState, 1000)
+local reactive = action("Reactive Lock", 1, "damage", 1, 0,
+    { reactive = true })
+local reactiveCandidate = causalCandidate(reactive, 0, 1.5, 0, 1, 0)
+reactiveCandidate.targetKey = "target-guid"
+local afterReactive = XelAssist.Graph.Transitions:Advance(
+    reactiveState, reactiveCandidate)
+assert(afterReactive.readyAt["player:Reactive Lock"] == 60,
+    "a reactive lockout must share the successful-application timestamp")
+
+local chosenPetState = state("smart")
+local chosenPetRecord = pinCombatHostile(chosenPetState, 100)
+chosenPetState.actors.pet = { guid = "pet-guid", level = 60,
+    health = 100, healthMax = 100, resource = 100, resourceMax = 100,
+    targetExists = true, targetGuid = "target-guid", targetsCurrent = true,
+    hasAggro = false, distance = 3, lineOfSight = true,
+    happinessDamageMultiplier = 1, autocasts = {} }
+local chosenBite = petAction("Chosen Bite", "damage", 40, 10,
+    { melee = true, damageActor = "pet", testCooldown = 10 })
+chosenBite.spellId = 17253
+chosenPetState.actors.pet.autocasts = { { name = chosenBite.name,
+    actor = "pet", kind = "damage", spellId = chosenBite.spellId,
+    facts = chosenBite.facts, power = 40, cost = 10, cooldown = 10,
+    readyIn = 0, tooltip = { school = 0, cooldown = 10 } } }
+local chosenBiteCandidate = causalCandidate(chosenBite, 0, 0.1, 0, 40, 10)
+chosenBiteCandidate.targetKey, chosenBiteCandidate.threat =
+    "target-guid", 36
+local afterChosenBite = XelAssist.Graph.Transitions:Advance(
+    chosenPetState, chosenBiteCandidate)
+local afterChosenRecord = afterChosenBite.hostiles.byKey["target-guid"]
+assert(afterChosenRecord.health == 60
+    and afterChosenBite.actors.pet.resource == 90
+    and afterChosenRecord.projectedThreat.pet == 36
+    and afterChosenRecord.threat.petDelta == 36
+    and math.abs(afterChosenBite.actors.pet.actionReadyIn - 1.4) < 0.001
+    and afterChosenBite.actorReadyAt.pet == 1.5
+    and math.abs(afterChosenBite.actors.pet.autocasts[1].readyIn - 9.9) < 0.001,
+    "a chosen autocast ability must spend, damage, threaten, and cool down once")
+
+local deferredState = XelAssist.Graph.State:Copy(chosenPetState)
+deferredState.actors.pet.pendingMeleeEffects = { Intimidation = {
+    remaining = 15, targetGuid = "target-guid", threatBase = 100,
+    threatLevel = 60, threatPerLevel = 0, stunDuration = 3 } }
+local afterDeferred = XelAssist.Graph.Transitions:Advance(
+    deferredState, chosenBiteCandidate)
+local deferredRecord = afterDeferred.hostiles.byKey["target-guid"]
+assert(deferredRecord.projectedThreat.pet == 136
+    and deferredRecord.threat.petDelta == 136
+    and not afterDeferred.actors.pet.pendingMeleeEffects.Intimidation,
+    "chosen pet melee must retain deferred-proc threat like ambient melee")
+
+local tauntState = state("smart")
+local tauntRecord = pinCombatHostile(tauntState, 100)
+tauntState.hasAggro = true
+tauntState.actors.pet = { guid = "pet-guid", health = 100, healthMax = 100,
+    resource = 100, resourceMax = 100, targetExists = true,
+    targetGuid = "target-guid", targetsCurrent = true, hasAggro = false,
+    distance = 3, lineOfSight = true, autocasts = {} }
+local uncertainTaunt = petAction("Uncertain Torment", "taunt", 0, 5,
+    { melee = true })
+local tauntCandidate = causalCandidate(uncertainTaunt, 0, 0.1, 0, 0, 5)
+tauntCandidate.targetKey, tauntCandidate.effectDelivery = "target-guid", 0.5
+local afterTaunt = XelAssist.Graph.Transitions:Advance(tauntState, tauntCandidate)
+tauntRecord = afterTaunt.hostiles.byKey["target-guid"]
+assert(afterTaunt.hasAggro and not afterTaunt.actors.pet.hasAggro
+    and tauntRecord.threat.tauntDelivery == 0.5
+    and tauntRecord.threat.projectedTauntUncertain
+    and tauntRecord.threat.petHasAggro == false,
+    "a probabilistic pet taunt must preserve live victim evidence")
+
+local chosenDotState = state("smart")
+local chosenDotRecord = pinCombatHostile(chosenDotState, 100)
+local chosenDot = action("Chosen Poison", 1, "dot", 100, 20,
+    { testDuration = 10, testPeriodicInterval = 2 })
+local chosenDotCandidate = causalCandidate(chosenDot, 0, 1.5, 0, 100, 20)
+chosenDotCandidate.targetKey = "target-guid"
+chosenDotCandidate.threat = 100
+chosenDotCandidate.dotRawPeriodicPower = 100
+chosenDotCandidate.dotPeriodicExpectedPower = 100
+local afterChosenDot = XelAssist.Graph.Transitions:Advance(
+    chosenDotState, chosenDotCandidate)
+chosenDotRecord = afterChosenDot.hostiles.byKey["target-guid"]
+assert(chosenDotRecord.health == 100
+    and (not chosenDotRecord.projectedThreat
+        or not chosenDotRecord.projectedThreat.player),
+    "a chosen DoT must not front-load threat before its first tick")
+local waitAction = action("Threat Clock Wait", 1, "buff", 0, 0,
+    { self = true })
+local waitCandidate = { action = waitAction, target = "player",
+    targetRelation = "self", targetKey = "g:player-guid", cost = 0,
+    cast = 0, occupancy = 0.5, wait = 0, downtime = 0.5,
+    actionStart = afterChosenDot.time, tooltip = waitAction.mock,
+    power = 0, effectDelivery = 1 }
+local afterChosenTick = XelAssist.Graph.Transitions:Advance(
+    afterChosenDot, waitCandidate)
+chosenDotRecord = afterChosenTick.hostiles.byKey["target-guid"]
+assert(chosenDotRecord.health == 80
+    and chosenDotRecord.projectedThreat.player == 20
+    and chosenDotRecord.threat.playerDelta == 20,
+    "chosen DoT threat must accrue from actual health-capped ticks")
+
+local exclusiveClockState = state("smart")
+local exclusiveClockRecord = pinCombatHostile(exclusiveClockState, 100)
+exclusiveClockRecord.projectedAuras["Own Agony"] = {
+    remaining = 10, duration = 10, mine = true, target = "target",
+    exclusiveFamily = "warlockCurse", periodicRate = 10,
+    periodicInterval = 2, periodicNextIn = 2, applicationProbability = 1 }
+exclusiveClockRecord.targetAuras["Own Agony"] = {
+    remaining = 10, duration = 10, mine = true,
+    exclusiveFamily = "warlockCurse" }
+local replacementCurse = action("Own Weakness", 1, "debuff", 0, 0,
+    { testDuration = 20, exclusiveFamily = "warlockCurse" })
+local replacementCurseCandidate = causalCandidate(
+    replacementCurse, 0, 3, 0, 0, 0)
+replacementCurseCandidate.targetKey = "target-guid"
+local afterExclusiveReplacement = XelAssist.Graph.Transitions:Advance(
+    exclusiveClockState, replacementCurseCandidate)
+exclusiveClockRecord = afterExclusiveReplacement.hostiles.byKey["target-guid"]
+assert(exclusiveClockRecord.health == 100
+    and not exclusiveClockRecord.projectedAuras["Own Agony"]
+    and exclusiveClockRecord.projectedAuras["Own Weakness"],
+    "an exact exclusive-family replacement must invalidate the old periodic clock")
+
+local uncertainClockState = state("smart")
+local uncertainClockRecord = pinCombatHostile(uncertainClockState, 100)
+uncertainClockRecord.projectedAuras["Own Agony"] = {
+    remaining = 10, duration = 10, mine = true, target = "target",
+    exclusiveFamily = "warlockCurse", periodicRate = 10,
+    periodicInterval = 2, periodicNextIn = 2, applicationProbability = 1 }
+local uncertainCurseCandidate = causalCandidate(
+    replacementCurse, 0, 3, 0, 0, 0)
+uncertainCurseCandidate.targetKey = "target-guid"
+uncertainCurseCandidate.effectDelivery = 0.5
+local afterUncertainReplacement = XelAssist.Graph.Transitions:Advance(
+    uncertainClockState, uncertainCurseCandidate)
+uncertainClockRecord = afterUncertainReplacement.hostiles.byKey["target-guid"]
+assert(uncertainClockRecord.health == 90
+    and uncertainClockRecord.projectedAuras["Own Agony"]
+    and uncertainClockRecord.projectedAuras["Own Agony"].applicationProbability == 0.5,
+    "an uncertain exclusive-family replacement must retain only the old clock's failure branch")
+local uncertainClockWait = { action = waitAction, target = "player",
+    targetRelation = "self", targetKey = "g:player-guid", cost = 0,
+    cast = 0, occupancy = 2, wait = 0, downtime = 2,
+    actionStart = afterUncertainReplacement.time, tooltip = waitAction.mock,
+    power = 0, effectDelivery = 1 }
+local afterUncertainWait = XelAssist.Graph.Transitions:Advance(
+    afterUncertainReplacement, uncertainClockWait)
+assert(afterUncertainWait.hostiles.byKey["target-guid"].health == 80,
+    "an uncertain exclusive replacement must stay scaled on the next Timeline")
+
+local sameClockState = state("smart")
+local sameClockRecord = pinCombatHostile(sameClockState, 100)
+sameClockRecord.projectedAuras["Shared Agony"] = {
+    remaining = 10, duration = 10, mine = true, target = "target",
+    periodicRate = 10, periodicInterval = 2, periodicNextIn = 2,
+    periodicThreatActor = "player", periodicThreatMultiplier = 1,
+    applicationProbability = 1 }
+local sameClockDot = action("Shared Agony", 1, "dot", 100, 0,
+    { testDuration = 10, testPeriodicInterval = 2 })
+local sameClockCandidate = causalCandidate(sameClockDot, 0, 3, 0, 50, 0)
+sameClockCandidate.targetKey, sameClockCandidate.effectDelivery =
+    "target-guid", 0.5
+sameClockCandidate.dotRawPeriodicPower = 100
+sameClockCandidate.dotPeriodicExpectedPower = 50
+local afterSameClock = XelAssist.Graph.Transitions:Advance(
+    sameClockState, sameClockCandidate)
+sameClockRecord = afterSameClock.hostiles.byKey["target-guid"]
+assert(sameClockRecord.health == 80
+    and sameClockRecord.projectedThreat.player == 20
+    and sameClockRecord.threat.playerDelta == 20
+    and sameClockRecord.projectedAuras["Shared Agony"]
+    and sameClockRecord.projectedAuras["Shared Agony"].applicationProbability == 0.5
+    and table.getn(sameClockRecord.projectedAuras["Shared Agony"].periodicBranches) == 1,
+    "a resisted same-name refresh must retain the old failure clock beside the new success clock")
+local sameClockWait = { action = waitAction, target = "player",
+    targetRelation = "self", targetKey = "g:player-guid", cost = 0,
+    cast = 0, occupancy = 2, wait = 0, downtime = 2,
+    actionStart = afterSameClock.time, tooltip = waitAction.mock,
+    power = 0, effectDelivery = 1 }
+local carriedFailure = sameClockRecord.projectedAuras["Shared Agony"]
+    .periodicBranches[1]
+local afterSameClockWait = XelAssist.Graph.Transitions:Advance(
+    afterSameClock, sameClockWait)
+sameClockRecord = afterSameClockWait.hostiles.byKey["target-guid"]
+assert(sameClockRecord.health == 60
+    and sameClockRecord.projectedThreat.player == 40
+    and sameClockRecord.threat.playerDelta == 40
+    and carriedFailure.remaining == 7
+    and sameClockRecord.projectedAuras["Shared Agony"]
+        .periodicBranches[1].remaining == 5,
+    "same-name success and failure clocks must both survive the next Timeline")
+
+local exactSameClockCandidate = causalCandidate(
+    sameClockDot, 0, 3, 0, 100, 0)
+exactSameClockCandidate.targetKey = "target-guid"
+exactSameClockCandidate.dotRawPeriodicPower = 100
+exactSameClockCandidate.dotPeriodicExpectedPower = 100
+local afterExactSameClock = XelAssist.Graph.Transitions:Advance(
+    sameClockState, exactSameClockCandidate)
+sameClockRecord = afterExactSameClock.hostiles.byKey["target-guid"]
+assert(sameClockRecord.health == 80
+    and sameClockRecord.projectedThreat.player == 20
+    and sameClockRecord.threat.playerDelta == 20
+    and not sameClockRecord.projectedAuras["Shared Agony"].periodicBranches,
+    "an exact same-name refresh must cancel the old clock without double ticks")
+
+local shorterRankState = state("smart")
+local shorterRankRecord = pinCombatHostile(shorterRankState, 100)
+shorterRankRecord.projectedAuras["Ranked Agony"] = {
+    remaining = 1, duration = 1, mine = true, target = "target",
+    periodicRate = 0, periodicInterval = 2, periodicNextIn = 1,
+    applicationProbability = 0.5, periodicBranches = { {
+        remaining = 4, duration = 4, mine = true, target = "target",
+        periodicRate = 0, periodicInterval = 2, periodicNextIn = 1,
+        applicationProbability = 0.5 } } }
+local afterShorterRank = XelAssist.Graph.Transitions:Advance(
+    shorterRankState, sameClockWait)
+shorterRankRecord = afterShorterRank.hostiles.byKey["target-guid"]
+assert(shorterRankRecord.projectedAuras["Ranked Agony"].remaining == 2
+    and shorterRankRecord.projectedAuras["Ranked Agony"].duration == 4
+    and shorterRankState.hostiles.byKey["target-guid"]
+        .projectedAuras["Ranked Agony"].remaining == 1,
+    "a longer old failure clock must survive a shorter-rank success expiry")
+
+local expiredStackState = state("smart")
+local expiredStackRecord = pinCombatHostile(expiredStackState, 100)
+expiredStackRecord.targetAuras["Cast Poison"] = {
+    remaining = 1, duration = 10, mine = true, stacks = 3 }
+local castPoison = action("Cast Poison", 1, "dot", 100, 0,
+    { cast = 2, stackable = 5, testDuration = 10,
+        testPeriodicInterval = 2 })
+local castPoisonCandidate = causalCandidate(castPoison, 0, 2, 2, 100, 0)
+castPoisonCandidate.targetKey = "target-guid"
+castPoisonCandidate.dotRawPeriodicPower = 100
+castPoisonCandidate.dotPeriodicExpectedPower = 100
+local afterCastPoison = XelAssist.Graph.Transitions:Advance(
+    expiredStackState, castPoisonCandidate)
+expiredStackRecord = afterCastPoison.hostiles.byKey["target-guid"]
+assert(expiredStackRecord.projectedAuras["Cast Poison"].stacks == 1
+    and expiredStackRecord.projectedAuras["Cast Poison"].expectedStacks == 1
+    and expiredStackState.hostiles.byKey["target-guid"]
+        .targetAuras["Cast Poison"].stacks == 3,
+    "a chosen stack refresh must not carry live stacks that expired before impact")
+
+local unknownDotState = state("smart")
+local unknownDotRecord = pinCombatHostile(unknownDotState, 50, false)
+local afterUnknownDot = XelAssist.Graph.Transitions:Advance(
+    unknownDotState, chosenDotCandidate)
+unknownDotRecord = afterUnknownDot.hostiles.byKey["target-guid"]
+assert(unknownDotRecord.projectedThreat.player == 100
+    and unknownDotRecord.projectedThreatTimingUnknown,
+    "unknown hostile health must preserve uncertain expected DoT threat")
+
 currentState = state("smart")
 currentState.targetHealth, currentState.targetMax = 1000, 1000
 currentState.actors.pet = { health = 1000, healthMax = 1000,
     resource = 100, resourceMax = 100, targetExists = true,
-    targetsCurrent = true, hasAggro = false, distance = 3,
+    targetsCurrent = true, hasAggro = false, distance = 3, lineOfSight = true,
     happinessDamageMultiplier = 1,
     autocasts = { { name = "Scorpid Poison", actor = "pet", kind = "dot",
         facts = { kind = "dot", damageActor = "pet", melee = true,
@@ -1087,7 +1400,7 @@ local repeatedPetState = state("smart")
 repeatedPetState.targetHealth, repeatedPetState.targetMax = 1000, 1000
 repeatedPetState.actors.pet = { health = 1000, healthMax = 1000,
     resource = 100, resourceMax = 100, targetExists = true,
-    targetsCurrent = true, hasAggro = false, distance = 3,
+    targetsCurrent = true, hasAggro = false, distance = 3, lineOfSight = true,
     autocasts = { { name = "Repeated Bite", actor = "pet", kind = "damage",
         facts = { kind = "damage", damageActor = "pet", melee = true },
         power = 10, cost = 10, cooldown = 1.5, readyIn = 0,
@@ -1103,7 +1416,7 @@ local observedGrowlState = state("smart")
 observedGrowlState.groupSize = 4
 observedGrowlState.actors.pet = { health = 1000, healthMax = 1000,
     resource = 100, resourceMax = 100, targetExists = true,
-    targetsCurrent = true, hasAggro = false, distance = 3,
+    targetsCurrent = true, hasAggro = false, distance = 3, lineOfSight = true,
     autocasts = { { name = "Observed Growl", actor = "pet", kind = "petThreat",
         facts = { kind = "petThreat", petThreatGain = 415 },
         power = 0, cost = 15, cooldown = 5, readyIn = 0,
@@ -1137,7 +1450,7 @@ assert(petDotProbe.defeated and petDotProbe.damageEvents == 1
 currentState = hunterAutoState(30, 0.1, 35)
 currentState.actors.pet = { health = 1000, healthMax = 1000,
     resource = 300, resourceMax = 300, targetExists = true,
-    targetsCurrent = true, hasAggro = false, distance = 3,
+    targetsCurrent = true, hasAggro = false, distance = 3, lineOfSight = true,
     autocasts = { { name = "Causal Bite", actor = "pet", kind = "damage",
         facts = { kind = "damage", damageActor = "pet", melee = true },
         power = 30, cost = 0, cooldown = 10, readyIn = 0.5,
@@ -1170,7 +1483,7 @@ currentState.actorReadyAt = { player = 0, pet = 0 }
 currentState.targetHealth, currentState.targetMax = 100, 100
 currentState.actors.pet = { health = 1000, healthMax = 1000,
     resource = 300, resourceMax = 300, targetExists = true,
-    targetsCurrent = true, hasAggro = false, distance = 3,
+    targetsCurrent = true, hasAggro = false, distance = 3, lineOfSight = true,
     autocasts = { { name = "Triggered Bite", actor = "pet", kind = "damage",
         facts = { kind = "damage", damageActor = "pet", melee = true },
         power = 1, cost = 0, cooldown = 10, readyIn = 0.5,
@@ -1190,7 +1503,7 @@ currentState.actorReadyAt = { player = 0, pet = 0 }
 currentState.targetHealth, currentState.targetMax = 100, 100
 currentState.actors.pet = { health = 1000, healthMax = 1000,
     resource = 300, resourceMax = 300, targetExists = true,
-    targetsCurrent = true, hasAggro = false, distance = 3,
+    targetsCurrent = true, hasAggro = false, distance = 3, lineOfSight = true,
     pendingMeleeEffects = {},
     autocasts = { { name = "Missing Bite", actor = "pet", kind = "damage",
         facts = { kind = "damage", damageActor = "pet", melee = true },
@@ -1216,7 +1529,7 @@ currentState.actorReadyAt = { player = 0, pet = 0 }
 currentState.targetHealth, currentState.targetMax = 100, 100
 currentState.actors.pet = { health = 1000, healthMax = 1000,
     resource = 300, resourceMax = 300, targetExists = true,
-    targetsCurrent = true, hasAggro = false, distance = 3,
+    targetsCurrent = true, hasAggro = false, distance = 3, lineOfSight = true,
     happinessDamageMultiplier = 1,
     autocasts = { { name = "Enraged Bite", actor = "pet", kind = "damage",
         facts = { kind = "damage", damageActor = "pet", melee = true },
@@ -1235,7 +1548,7 @@ currentState.actorReadyAt = { player = 0, pet = 0 }
 currentState.targetHealth, currentState.targetMax = 100, 100
 currentState.actors.pet = { health = 1000, healthMax = 1000,
     resource = 300, resourceMax = 300, targetExists = true,
-    targetsCurrent = true, hasAggro = false, distance = 3,
+    targetsCurrent = true, hasAggro = false, distance = 3, lineOfSight = true,
     happinessDamageMultiplier = 1,
     combatEffects = { short = { remaining = 1, damageMultiplier = 2 } },
     autocasts = { { name = "Early Buffed Bite", actor = "pet", kind = "damage",
@@ -1254,7 +1567,7 @@ currentState.actorReadyAt = { player = 0, pet = 0 }
 currentState.targetHealth, currentState.targetMax = 100, 100
 currentState.actors.pet = { health = 1000, healthMax = 1000,
     resource = 300, resourceMax = 300, targetExists = true,
-    targetsCurrent = true, hasAggro = false, distance = 3,
+    targetsCurrent = true, hasAggro = false, distance = 3, lineOfSight = true,
     happinessDamageMultiplier = 1,
     autocasts = { { name = "Short Enraged Bite", actor = "pet", kind = "damage",
         facts = { kind = "damage", damageActor = "pet", melee = true },
@@ -1307,9 +1620,10 @@ local function ambientState(unknownAmbient, health)
     value.actors.pet = { health = 1000, healthMax = 1000,
         resource = 300, resourceMax = 300, targetExists = true,
         targetsCurrent = true, hasAggro = false, distance = 20,
+        lineOfSight = true,
         autocasts = { { name = "Ambient Firebolt", actor = "pet", kind = "damage",
             facts = { kind = "damage" }, power = 30, cost = 0,
-            cooldown = 10, readyIn = 0.5, tooltip = { school = 2 },
+            cooldown = 10, readyIn = 0.5, tooltip = { school = 2, gcd = 0.1 },
             unknownTest = unknownAmbient } } }
     return value
 end
@@ -1520,6 +1834,63 @@ currentState = state("smart"); XelAssistCharDB.allowAoe = false
 scenarioActions = { action("Blizzard", 1, "damage", 1200, 300, { aoe = true }),
     action("Frostbolt", 1, "damage", 300, 100) }
 expect("mage smart area safety", "Frostbolt")
+
+local areaTopology = { available = true, area = true, effects = {
+    { index = 1, effect = 2, relation = "hostile", shape = "area",
+        center = "caster", radius = 10, radiusKnown = true },
+} }
+local areaSelected = { key = "target-guid", guid = "target-guid",
+    unit = "target", source = "selected", selected = true, executable = true,
+    engaged = true, dead = false, health = 1000, healthMax = 1000,
+    healthExact = true,
+    distance = 3, distanceKind = "test", lineOfSight = true, behind = false,
+    geometry = { player = { distance = 3 } }, encounter = { inCombat = true },
+    targetRef = { unit = "target", guid = "target-guid",
+        relation = "hostile", source = "selected" }, targetAuras = {},
+    projectedAuras = {}, modifierEffects = {}, damageTaken = {},
+    baseDamageTaken = {}, casting = false, castProbability = 0,
+    threat = { playerHasAggro = false, petHasAggro = false } }
+local areaOther = { key = "area-other", guid = "area-other",
+    unit = "pettarget", source = "companion", selected = false,
+    executable = false, engaged = true, dead = false,
+    health = 160, healthMax = 500,
+    healthExact = true, distance = 5, distanceKind = "test",
+    lineOfSight = true, behind = nil,
+    geometry = { player = { distance = 5 } }, encounter = { inCombat = true },
+    targetRef = { unit = "pettarget", guid = "area-other",
+        relation = "hostile", source = "companion" }, targetAuras = {},
+    projectedAuras = {}, modifierEffects = {}, damageTaken = {},
+    baseDamageTaken = {}, casting = nil, castProbability = nil,
+    threat = { playerHasAggro = false, petHasAggro = true } }
+currentState = state("aoe")
+setHostiles(currentState, { areaSelected, areaOther }, areaSelected.key)
+XelAssistCharDB.allowAoe = true
+scenarioActions = { action("Arcane Burst", 1, "damage", 100, 50,
+    { aoe = true, testTopology = areaTopology }) }
+plan = expect("proven multi-hostile area scoring", "Arcane Burst")
+assert(plan.totalExpectedPower == 200 and plan.totalEffectivePower == 200
+    and table.getn(plan.recipientEffects.order) == 2
+    and plan.reason == "hits 2 proven engaged enemies",
+    "area value must come from actual recipient-local effects: expected="
+        .. tostring(plan.totalExpectedPower) .. " effective="
+        .. tostring(plan.totalEffectivePower) .. " recipients="
+        .. tostring(plan.recipientEffects and table.getn(
+            plan.recipientEffects.order or {}) or 0) .. " reason="
+        .. tostring(plan.reason))
+local areaAfter = XelAssist.Graph.Transitions:Advance(currentState, plan)
+assert(areaAfter.resource == 950
+    and areaAfter.hostiles.byKey[areaSelected.key].health == 900
+    and areaAfter.hostiles.byKey[areaOther.key].health == 60,
+    "one area action must spend resources once and damage each proven recipient: resource="
+        .. tostring(areaAfter.resource) .. " selected="
+        .. tostring(areaAfter.hostiles.byKey[areaSelected.key].health)
+        .. " other=" .. tostring(areaAfter.hostiles.byKey[areaOther.key].health)
+        .. " before=" .. tostring(currentState.hostiles.byKey[
+            areaSelected.key].health) .. " power=" .. tostring(plan.power)
+        .. " recipient=" .. tostring(plan.recipientEffects.byKey[
+            areaSelected.key].expectedPower) .. " path="
+        .. tostring(table.getn(plan.path or {})))
+XelAssistCharDB.allowAoe = false
 
 currentState = state("smart"); currentState.pet = true; currentState.targetCasting = true
 currentState.actorReadyAt = { player = 3, pet = 0 }

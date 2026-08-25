@@ -1,4 +1,4 @@
-# XelAssist 0.7.0
+# XelAssist 0.8.0
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -19,6 +19,9 @@ interrupting a cast, or preserving resources.
 
 Actions on the selected target use Nampower's one-spell queue. Explicit party,
 mouseover, self, and ground targets retain SuperWoW's unit-targeted cast path.
+Hostile recommendations remain pinned to the captured selected-target GUID at
+dispatch; observing another enemy never gives XelAssist permission to target or
+attack it.
 
 ## Requirements
 
@@ -95,7 +98,9 @@ a 3 ms hot-path budget. It accounts for:
   area policy, cooldown policy, and reagents;
 - independent player and companion clocks; live pet identity, health, resource,
   target, action bar, spellbook ranks, cooldowns, autocast state, range, threat,
-  commands, dispels, interrupts, crowd control, self-healing, sacrifice, and summons;
+  commands, dispels, interrupts, crowd control, self-healing, sacrifice, and
+  summons; enabled autocasts share one pet cast/GCD clock, and unresolved order,
+  geometry, cast completion, or area recipients reserve cost without fake hits;
 - Hunter pet lifecycle, happiness, focus, family abilities, Growl/Cower policy,
   Bestial Wrath's separate damage/immunity windows, Intimidation's deferred
   successful-melee proc, Kill Command's pet-owned result, and five-second Mend Pet;
@@ -107,6 +112,16 @@ a 3 ms hot-path budget. It accounts for:
 - future resource, health, target-health, aura, threat-drop, and cooldown state.
 - target/ally/controlled-actor identity plus instance, zone, creature ID,
   classification, raid marker, combat state, and owned timed aura evidence.
+- a deterministic, GUID-deduplicated snapshot of at most five hostiles visible
+  through selected, mouseover, pet-target, and party/raid-target unit tokens,
+  with target-local health, aura, resistance, modifier, geometry, victim, and
+  threat projections; this is not full nameplate or encounter-roster discovery;
+- DBC-derived per-effect recipient topology and installed-client radius data.
+  Proven target- and caster-centered circles retain geometry for multiple
+  observed hostiles, but the stock unit-token snapshot is not exhaustive, so
+  secondary benefit is withheld while known collateral pull risk still counts.
+  Cones, chain secondaries, ground/dynamic-object placement, and unknown radii
+  remain explicit unknowns rather than invented extra damage;
 - Turtle target Armor/Holy/Fire/Nature/Frost/Shadow/Arcane values, equipped
   spell/armor penetration, DBC binary/always-hit/ignore-resistance semantics, and
   target-school outcome learning separated into landing and landed-hit mitigation;
@@ -129,6 +144,12 @@ a 3 ms hot-path budget. It accounts for:
 - probabilistic debuff applications and refreshes, generic own-caster exclusive
   aura families, impact-time pet autocast modifiers, and a retained setup branch
   so bounded lookahead can discover resistance-debuff-then-damage cycles.
+- target-local in-flight events: Auto Shot projectiles and companion autocasts
+  retain the opaque hostile GUID captured at launch/scheduling across a later
+  selected-target change instead of damaging the new selected-target mirror;
+- a final selected-hostile dispatch guard that rechecks identity, relation,
+  hostility, death state, and companion dual-target requirements before any
+  hostile queue, Auto Shot, pet ability, or attack command can execute.
 
 See [docs/graph-model.md](docs/graph-model.md) for evidence boundaries and current
 limitations.
@@ -142,4 +163,5 @@ python3 scripts/validate_xelassist.py
 This validates the TOC and XML, Lua 5.0 policy, absence of typed rotations,
 execution boundaries, real Lua graph scenarios, a clean installable archive, and
 a mocked full TOC-order load through initialization, recommendation UI, settings,
-and minimap construction.
+and minimap construction. These checks prove local model and load behavior, not
+authenticated in-world combat behavior on an Octowow character.

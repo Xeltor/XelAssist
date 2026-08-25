@@ -10,7 +10,42 @@ local function friendlyDescriptor(state, record)
         record.source, record.guid, record.key, record)
 end
 
+local function hostileDescriptor(state)
+    local snapshot = state and state.hostiles
+    local record
+    if snapshot and snapshot.byKey then
+        local key = snapshot.selectedKey
+            or snapshot.byUnit and snapshot.byUnit.target
+        record = key ~= nil and snapshot.byKey[key] or nil
+        if not record then
+            local i, candidate
+            for i = 1, table.getn(snapshot.order or {}) do
+                candidate = snapshot.byKey[snapshot.order[i]]
+                if candidate and candidate.selected then
+                    record = candidate
+                    break
+                end
+            end
+        end
+    end
+    if not record and snapshot and type(snapshot.selected) == "table" then
+        record = snapshot.selected
+    end
+    local legacy = state and state.targetRef
+    local recordRef = record and record.targetRef
+    local guid = record and (record.guid or recordRef and recordRef.guid)
+        or legacy and legacy.guid or state and state.targetGUID
+    local priority = record and (record.priority
+        or recordRef and recordRef.priority) or legacy and legacy.priority
+    local key = record and (record.key or guid) or guid or "target"
+    local ref = guid ~= nil and { key = key, unit = "target", guid = guid,
+        relation = "hostile", source = "selected", priority = priority } or nil
+    return { unit = "target", relation = "hostile", source = "selected",
+        guid = guid, key = key, record = record, targetRef = ref }
+end
+
 local function unitDescriptor(state, unit, relation, source)
+    if relation == "hostile" then return hostileDescriptor(state) end
     local record = S:FriendlyByUnit(state, unit)
     if record then return friendlyDescriptor(state, record) end
     if unit == "pet" and state.actors and state.actors.pet then
@@ -20,13 +55,6 @@ local function unitDescriptor(state, unit, relation, source)
         return { unit = unit, relation = relation, source = source,
             guid = ref and ref.guid, key = ref and ref.guid or "pet",
             record = pet, targetRef = ref }
-    end
-    if relation == "hostile" then
-        local ref = state.targetRef
-        return { unit = unit, relation = relation, source = source,
-            guid = ref and ref.guid or state.targetGUID,
-            key = ref and ref.guid or state.targetGUID or "target",
-            targetRef = ref }
     end
     return S:Descriptor(unit, relation, source, nil, nil, nil)
 end

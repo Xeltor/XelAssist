@@ -32,6 +32,9 @@ function A:Invalidate()
     self.petActions = nil
     self.petActionsGuid = nil
     self.petIdentity = nil
+    if XelAssist.Game.SpellTopology then
+        XelAssist.Game.SpellTopology:Invalidate()
+    end
 end
 
 function A:PetRef()
@@ -83,6 +86,7 @@ function A:PetIdentity(ref)
             attackPowerKnown = true
         end
     end
+    local petTargetExists, petTargetGuid = UnitExists("pettarget")
     return { id = "pet", unit = "pet", actorType = "controlled", guid = petGuid,
         actorRef = ref,
         family = family, familyId = familyKnowledge and familyKnowledge.id,
@@ -96,8 +100,10 @@ function A:PetIdentity(ref)
         casting = castRemaining > 0, castRemaining = castRemaining,
         castSpellId = castRemaining > 0 and XelAssist.petCastSpellId or nil,
         channeling = castRemaining > 0 and XelAssist.petCastChannel or false,
-        targetExists = UnitExists("pettarget") and true or false,
-        targetsCurrent = UnitExists("pettarget") and UnitExists("target")
+        targetExists = petTargetExists and true or false,
+        targetGuid = petTargetExists and petTargetGuid or nil,
+        targetGuidKnown = petTargetExists and petTargetGuid ~= nil or false,
+        targetsCurrent = petTargetExists and UnitExists("target")
             and UnitIsUnit("pettarget", "target") and true or false,
         hasAggro = UnitExists("targettarget") and UnitIsUnit("targettarget", "pet") and true or false }
 end
@@ -193,7 +199,11 @@ function A:Facts(action)
     if action.actor == "pet" and action.executor == "petCommand" then
         return { cost = 0, cast = 0, gcd = 0, source = "pet command" }
     end
-    return XelAssist.Game.Capabilities:Facts(action)
+    local facts = XelAssist.Game.Capabilities:Facts(action)
+    if XelAssist.Game.SpellTopology then
+        facts.topology = XelAssist.Game.SpellTopology:Facts(action.spellId)
+    end
+    return facts
 end
 
 function A:PetCooldown(action)
@@ -259,6 +269,10 @@ function A:Snapshot()
         for i = 1, table.getn(actions) do
             if actions[i].autocastEnabled then
                 local tooltip = self:Facts(actions[i])
+                if actions[i].facts.aoe or tooltip.topology
+                    and tooltip.topology.area then
+                    pet.areaAutocastUnknown = true
+                end
                 table.insert(pet.autocasts, { name = actions[i].name,
                     kind = actions[i].facts.kind, threat = actions[i].facts.threat,
                     actor = "pet", spellId = actions[i].spellId, facts = actions[i].facts,

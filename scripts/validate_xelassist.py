@@ -122,6 +122,19 @@ def dotted_createframe_names(text: str):
 
 
 toc = root / "XelAssist.toc"
+toc_text = toc.read_text()
+toc_version = re.search(r"^## Version:\s*(\S+)\s*$", toc_text, re.MULTILINE)
+bootstrap_version = re.search(
+    r'^XelAssist\.version\s*=\s*"([^"]+)"\s*$',
+    (root / "Core/Bootstrap.lua").read_text(), re.MULTILINE)
+readme_version = re.search(
+    r"^# XelAssist\s+(\S+)\s*$", (root / "README.md").read_text(), re.MULTILINE)
+versions = [match.group(1) if match else None
+    for match in (toc_version, bootstrap_version, readme_version)]
+if None in versions or len(set(versions)) != 1:
+    raise SystemExit(
+        "release version mismatch across TOC, Bootstrap, and README: "
+        + ", ".join(str(version) for version in versions))
 for entry in toc_entries(root):
     path = root / entry
     if not path.exists(): raise SystemExit(f"missing TOC entry: {entry.as_posix()}")
@@ -160,6 +173,7 @@ for path in production_lua_files(root):
     if lines > ceiling:
         raise SystemExit(f"{relative}: {lines} lines exceeds architecture ceiling {ceiling}")
 subprocess.run([sys.executable, str(root / "tests/evaluator_test.py")], check=True)
+subprocess.run(["lua", str(root / "tests/spell_topology_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/capabilities_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/action_resistance_semantics_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/actors_test.lua")], cwd=root, check=True)
@@ -167,8 +181,15 @@ subprocess.run(["lua", str(root / "tests/hunter_pet_state_test.lua")], cwd=root,
 subprocess.run(["lua", str(root / "tests/hunter_pet_actions_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/hunter_combat_semantics_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/auto_shot_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/auto_shot_hostile_locality_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/companion_threat_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/companion_events_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/friendlies_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/hostiles_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/hostile_state_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/area_recipients_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/hostile_effects_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/hostile_execution_boundary_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/resistance_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/delivery_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/observations_test.lua")], cwd=root, check=True)

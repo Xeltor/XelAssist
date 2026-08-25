@@ -34,6 +34,7 @@ end
 dofile("Game/Pets/Actions.lua")
 dofile("Game/Pets/Effects.lua")
 dofile("Game/Pets/EffectRuntime.lua")
+dofile("Graph/HostileState.lua")
 dofile("Graph/State.lua")
 dofile("Graph/TargetSelection.lua")
 dofile("Combat/TriggeredActions.lua")

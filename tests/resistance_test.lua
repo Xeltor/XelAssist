@@ -208,6 +208,15 @@ close(fire.multiplier, 0.6064,
     "150 Fire resistance plus equal-level spell delivery at level 60")
 assert(fire.schoolMask == 4 and fire.source == "Turtle UnitResistance target data",
     "school mask or live provenance missing")
+local volatile = XelAssist.Combat.Resistance:Estimate(action, "target",
+    { school = 2 }, { targetContextKey = "off-target",
+        playerLevel = 60, actors = { pet = { level = 60 } },
+        encounter = { instanceType = "none",
+            target = { level = 60, isPlayer = false } } })
+assert(volatile.targetIdentityUnknown and volatile.unknown
+    and volatile.raw == nil
+    and volatile.source ~= "Turtle UnitResistance target data",
+    "a vanished off-target token must not borrow the live selected profile")
 local dotFire = XelAssist.Combat.Resistance:Estimate(dotAction, "target", { school = 2 }, state)
 close(dotFire.multiplier, 0.9243,
     "periodic resistance should scale chance before the Vanilla outcome table")

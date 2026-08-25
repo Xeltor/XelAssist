@@ -4,6 +4,10 @@ XelAssist.Graph.ActionEffects = {}
 local A = XelAssist.Graph.ActionEffects
 local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
+local HostileEffects = XelAssist.Graph.HostileEffects
+local Readiness = XelAssist.Graph.ReadinessEffects
+local CompanionEventThreat = XelAssist.Graph.CompanionEventThreat
+local EventAuras = XelAssist.Graph.EventAuras
 local function dotPowerSplit(candidate)
     local resistance = candidate.resistance
     if not (resistance and resistance.mode == "hybrid"
@@ -139,28 +143,6 @@ local function applyModifierProjection(out, source, context)
     end
 end
 
-local function applyReadiness(out, candidate, context)
-    local action, facts = context.action, context.facts
-    if not facts.autoRepeat then out.actorReadyAt[action.actor or "player"] = out.time end
-    if candidate.tooltip.cooldown and candidate.tooltip.cooldown > 0 then
-        out.readyAt[(action.actor or "player") .. ":" .. action.name]
-            = candidate.actionStart + candidate.tooltip.cooldown
-    end
-    if facts.reactive then
-        out.readyAt[(action.actor or "player") .. ":" .. action.name]
-            = out.time + 60
-    end
-    if facts.nextInstant then out.instantNext = true
-    elseif facts.kind ~= "modifier" and out.instantNext then
-        out.instantNext = false
-    end
-    local group = facts.cooldownGroup or candidate.tooltip.cooldownGroup
-    local category = candidate.tooltip.categoryCooldown
-    if group and category and category > 0 then
-        out.readyAt["group:" .. group] = candidate.actionStart + category
-    end
-end
-
 local function dotProjection(candidate)
     local direct, periodic, duration, elapsed = 0, 0, nil, 0
     if candidate.action.facts.kind ~= "dot" then
@@ -229,11 +211,14 @@ local function applyDamageOrSupport(out, source, candidate, context,
     local facts = context.facts
     if facts.kind == "autoRepeat" then
         return false
-    elseif (facts.kind == "damage" or facts.kind == "builder")
-        and out.targetHealthExact then
-        out.targetHealth = math.max(0, out.targetHealth - candidate.power)
-        return true
-    elseif facts.kind == "dot" and out.targetHealthExact then
+    elseif facts.kind == "damage" or facts.kind == "builder" then
+        if candidate.areaDirectResolved
+            and not candidate.areaSelectedIncluded then return true end
+        local applied, dealt = HostileEffects:ApplySelectedDamage(
+            out, candidate.power)
+        context.appliedHostileDamage = dealt
+        return applied
+    elseif facts.kind == "dot" then
         local immediate = XelAssist.Game.SpellTiming:AppliedPower(
             dotPeriodic, dotDuration, dotElapsed, candidate.tooltip.periodicInterval)
         if candidate.dotRawPeriodicPower and XelAssist.Combat.Resistance
@@ -248,9 +233,10 @@ local function applyDamageOrSupport(out, source, candidate, context,
                     candidate.tooltip.periodicInterval)
             end
         end
-        out.targetHealth = math.max(0,
-            out.targetHealth - dotDirect - immediate)
-        return true
+        local applied, dealt = HostileEffects:ApplySelectedDamage(
+            out, dotDirect + immediate)
+        context.appliedHostileDamage = dealt
+        return applied
     elseif facts.kind == "heal" and not targetLocal then
         if candidate.target == "player" then
             out.health = math.min(out.healthMax, out.health + candidate.power)
@@ -277,8 +263,15 @@ local function applyDamageOrSupport(out, source, candidate, context,
             out.actors.pet.health + candidate.power)
         return true
     elseif facts.kind == "taunt" and out.actors and out.actors.pet then
-        out.hasAggro = false
-        out.actors.pet.hasAggro = true
+        local delivery = math.max(0, math.min(1,
+            tonumber(candidate.effectDelivery) or 1))
+        if delivery >= 0.999 then
+            out.hasAggro = false
+            out.actors.pet.hasAggro = true
+        end
+        if HostileEffects and HostileEffects.ProjectPetTaunt then
+            HostileEffects:ProjectPetTaunt(out, candidate, context.action)
+        end
         return true
     end
     return false
@@ -338,41 +331,32 @@ end
 
 local function applyCombatState(out, candidate, context)
     local facts = context.facts
-    if (facts.kind == "interrupt" or facts.interrupt)
-        and out.targetCasting then
-        local prior = out.targetCastProbability
-        if prior == nil then prior = 1 end
-        out.targetCastProbability = prior
-            * (1 - math.max(0, math.min(1,
-                candidate.effectDelivery or 1)))
-        out.targetCasting = out.targetCastProbability > 0.05
-    end
-    if out.targetCasting and out.targetCastRemaining
-        and out.time >= out.targetCastRemaining then
-        out.targetCasting, out.targetCastProbability = false, 0
-    end
+    HostileEffects:FinalizeSelected(out, candidate, facts)
     if facts.kind == "builder" then
         out.combo = math.min(5, (out.combo or 0) + 1)
     elseif facts.combo then out.combo = 0 end
-    if out.targetHealthExact and out.targetHealth <= 0 then
-        out.hostile = false
-        if out.autoShot then out.autoShot.active = false end
-    end
 end
 
 local function applyAura(out, source, candidate, context,
     targetLocal, dotPeriodic, dotDuration, dotElapsed)
     local facts, action = context.facts, context.action
+    local threatActor = facts.damageActor or facts.effectActor
+        or action.actor or "player"
+    local periodicThreatMultiplier = facts.threat or 1
+    if threatActor == "pet" and CompanionEventThreat then
+        periodicThreatMultiplier = CompanionEventThreat:DamageMultiplier(
+            action, out.actors and out.actors.pet)
+    end
     if facts.petCombatBuff or facts.deferredUntilPetMelee then return end
     if not ((facts.kind == "dot" or facts.kind == "debuff"
         or facts.kind == "buff" or facts.kind == "hot"
         or facts.kind == "absorb" or facts.kind == "resource"
         or context.hasTargetModifier) and not targetLocal) then return end
     local priorAura = out.auras[action.name]
-    local stacks = type(priorAura) == "table"
-        and (priorAura.stacks or 0) or 0
-    local liveAura = source.targetAuras and source.targetAuras[action.name]
-    stacks = math.max(stacks, liveAura and (liveAura.stacks or 1) or 0)
+    local branches = facts.kind == "dot" and EventAuras:ReplaceStateAura(
+        out, action.name, context.projectedDelivery, priorAura) or nil
+    local stacks = EventAuras:PriorStacks(
+        priorAura, source, action.name, context.applicationOffset)
     local duration = facts.kind == "dot"
         and dotDuration or candidate.tooltip.duration
     local remaining = duration
@@ -401,6 +385,10 @@ local function applyAura(out, source, candidate, context,
             periodicInterval = facts.kind == "dot" and candidate.tooltip.periodicInterval or nil,
             periodicNextIn = facts.kind == "dot" and XelAssist.Game.SpellTiming:Next(
                 candidate.tooltip.periodicInterval, dotElapsed) or nil,
+            periodicThreatActor = facts.kind == "dot" and threatActor or nil,
+            periodicThreatMultiplier = facts.kind == "dot"
+                and periodicThreatMultiplier or nil,
+            periodicBranches = branches,
             applicationProbability = context.projectedDelivery,
             targetModifier = context.hasTargetModifier
                 and context.targetModifierRemaining
@@ -428,7 +416,7 @@ end
 
 function A:Apply(out, source, candidate, context)
     applyModifierProjection(out, source, context)
-    applyReadiness(out, candidate, context)
+    Readiness:Apply(out, candidate, context)
     local dotDirect, dotPeriodic, dotDuration, dotElapsed =
         dotProjection(candidate)
     local targetLocal = applyFriendlyTarget(out, candidate, context)
@@ -438,13 +426,22 @@ function A:Apply(out, source, candidate, context)
     if not primaryHandled then
         applyActorOrInventory(out, candidate, context)
     end
-    if XelAssist.Game.Pets and XelAssist.Game.Pets.Effects then
-        XelAssist.Game.Pets.Effects:ConsumeMelee(
-            out, context.action, candidate.targetGUID,
-            candidate.effectDelivery)
+    if CompanionEventThreat then
+        local record = candidate.targetRelation == "hostile"
+            and State.SelectedHostile and State:SelectedHostile(out) or nil
+        CompanionEventThreat:ConsumeMelee(out, out, context.action,
+            candidate.targetGUID, candidate.effectDelivery, record, true)
+    elseif XelAssist.Game.Pets and XelAssist.Game.Pets.Effects then
+        XelAssist.Game.Pets.Effects:ConsumeMelee(out, context.action,
+            candidate.targetGUID, candidate.effectDelivery)
+    end
+    if HostileEffects then HostileEffects:Apply(out, candidate) end
+    if HostileEffects and HostileEffects.ApplyPrimaryThreat then
+        HostileEffects:ApplyPrimaryThreat(out, candidate, context)
     end
     applyCombatState(out, candidate, context)
     applyAura(out, source, candidate, context, targetLocal,
         dotPeriodic, dotDuration, dotElapsed)
     syncFriendlyCompatibility(out)
+    if State.CommitActiveHostile then State:CommitActiveHostile(out) end
 end

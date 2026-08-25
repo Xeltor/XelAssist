@@ -205,7 +205,7 @@ assert(XelAssistCharDB.graphDepth == 3 and XelAssistCharDB.role == "auto", "char
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.7.0" and runtime.nampower == "test-3.0", "runtime versions missing")
+assert(runtime.version == "0.8.0" and runtime.nampower == "test-3.0", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(runtime.evidenceEvents.damage and runtime.evidenceEvents.miss,
@@ -746,15 +746,25 @@ assert(not XelAssist.UI.HUD.frame.main:IsEnabled() and XelAssist.UI.HUD.frame:Ge
 XelAssist.executionEnabled = true
 XelAssist.Graph.Evaluate = function()
     return { action = { name = "Frostbolt", rank = 1, rankText = "Rank 1", facts = { kind = "damage" } },
-        target = "target", reason = "test", confidence = "client data", value = 1,
+        target = "target", targetGUID = testTargetGUID,
+        targetRelation = "hostile",
+        targetRef = { unit = "target", guid = testTargetGUID,
+            relation = "hostile", source = "selected" },
+        reason = "test", confidence = "client data", value = 1,
         threat = 1, downtime = 1.5, observed = {}, follow = {}, path = {} }, nil, false
 end
 XelAssist.UI.HUD:Refresh(true)
 assert(XelAssist.UI.HUD.frame.main:IsEnabled() and XelAssist.UI.HUD.frame:GetHeight() == 76,
     "a later valid recommendation must restore execution without stale future rows")
+local priorExecutionCanAttack = UnitCanAttack
+UnitCanAttack = function(_, unit) return unit == "target" end
 XelAssist:Execute()
+UnitCanAttack = priorExecutionCanAttack
 assert(queuedSpell == "Frostbolt(Rank 1)" and not directlyCast,
-    "selected-target actions must use the Nampower queue")
+    "selected-target actions must use the Nampower queue: reason="
+        .. tostring(XelAssist.lastReason) .. " guid="
+        .. tostring(testTargetGUID) .. " queued=" .. tostring(queuedSpell)
+        .. " direct=" .. tostring(directlyCast))
 queuedSpell, directlyCast, directUnit = nil, nil, nil
 testFriendlyGUIDs.party1, testAssistUnits.party1 = "ally-a", true
 XelAssist.Graph.Evaluate = function()
@@ -796,11 +806,17 @@ local waitingGroundLog = table.getn(XelAssistLog)
 XelAssist.Graph.Evaluate = function()
     return { action = { name = "Blizzard", rank = 1, rankText = "Rank 1",
             facts = { kind = "damage", ground = true } },
-        target = "target", targetRelation = "hostile", wait = 2,
+        target = "target", targetGUID = testTargetGUID,
+        targetRelation = "hostile", wait = 2,
+        targetRef = { unit = "target", guid = testTargetGUID,
+            relation = "hostile", source = "selected" },
         reason = "test future ground", confidence = "client data", value = 1,
         threat = 1, downtime = 3.5, observed = {}, follow = {}, path = {} }, nil, false
 end
+local priorGroundCanAttack = UnitCanAttack
+UnitCanAttack = function(_, unit) return unit == "target" end
 XelAssist:Execute()
+UnitCanAttack = priorGroundCanAttack
 assert(directCastCount == waitingGroundCasts and queueCount == waitingGroundQueue
     and table.getn(XelAssistLog) == waitingGroundLog
     and string.find(XelAssist.lastReason, "action not ready", 1, true),
@@ -1084,8 +1100,10 @@ assert(raceRangeChecks == 1 and directCastCount == hunterRaceCasts
     and queueCount == hunterRaceQueues and table.getn(XelAssistLog) == hunterRaceLog
     and XelAssist.Combat.Observations.last == hunterRaceObservation
     and not next(XelAssist.Combat.Resistance.submissions)
-    and string.find(XelAssist.lastReason, "effect target changed", 1, true),
-    "Kill Command must catch a hostile identity race immediately before dispatch")
+    and (string.find(XelAssist.lastReason, "effect target changed", 1, true)
+        or string.find(XelAssist.lastReason, "selected hostile changed", 1, true)),
+    "Kill Command must catch a hostile identity race immediately before dispatch: "
+        .. tostring(XelAssist.lastReason))
 
 resetCastState()
 testTargetGUID = hunterTargetGuid
@@ -1127,6 +1145,7 @@ testTargetGUID = "pet-runtime-target"
 local evaluatedPetGuid, replacementPetGuid = {}, {}
 testPetGUID = evaluatedPetGuid
 local savedPetActionUnitExists, savedPetActionUnitIsUnit = UnitExists, UnitIsUnit
+local savedPetActionUnitCanAttack = UnitCanAttack
 local petActionTargetMatches = true
 UnitExists = function(unit)
     if unit == "pettarget" then return true, petActionTargetMatches
@@ -1137,6 +1156,7 @@ UnitIsUnit = function(a, b)
     if a == "pettarget" and b == "target" then return petActionTargetMatches end
     return savedPetActionUnitIsUnit(a, b)
 end
+UnitCanAttack = function(_, unit) return unit == "target" end
 local petRuntimeAction = { name = "Spell Lock", spellId = 6358, rank = 1,
     rankText = "Rank 1", actor = "pet", executor = "petAbility", actionSlot = 5,
     actorRef = { unit = "pet", guid = evaluatedPetGuid, relation = "controlled",
@@ -1172,8 +1192,10 @@ testTargetGUID = "replacement-runtime-target"
 XelAssist:Execute()
 assert(petActionCount == staleTargetDispatches
     and table.getn(XelAssistLog) == staleTargetLog
-    and string.find(XelAssist.lastReason, "target changed", 1, true),
-    "a selected-target pet action must hold when that token changes before dispatch")
+    and (string.find(XelAssist.lastReason, "target changed", 1, true)
+        or string.find(XelAssist.lastReason, "selected hostile changed", 1, true)),
+    "a selected-target pet action must hold when that token changes before dispatch: "
+        .. tostring(XelAssist.lastReason))
 testTargetGUID = "pet-runtime-target"
 local stalePetDispatches, stalePetLog = petActionCount, table.getn(XelAssistLog)
 local stalePetObservation = XelAssist.Combat.Observations.last
@@ -1185,7 +1207,8 @@ assert(petActionCount == stalePetDispatches
     and not next(XelAssist.pendingAuras)
     and string.find(XelAssist.lastReason, "companion changed", 1, true),
     "pet replacement must hold without dispatch, log, observation or pending-aura side effects")
-UnitExists, UnitIsUnit = savedPetActionUnitExists, savedPetActionUnitIsUnit
+UnitExists, UnitIsUnit, UnitCanAttack = savedPetActionUnitExists,
+    savedPetActionUnitIsUnit, savedPetActionUnitCanAttack
 testPetGUID, testTargetGUID = nil, nil
 
 resetCastState()

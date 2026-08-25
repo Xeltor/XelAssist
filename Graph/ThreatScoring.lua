@@ -26,7 +26,7 @@ function T:Apply(context)
     end
     local healing = kind == "heal" or kind == "hot" or kind == "petHeal"
     local threatPower = (kind == "damage" or kind == "dot" or kind == "builder")
-        and context.expectedPower or (healing
+        and (context.effectivePower or context.expectedPower) or (healing
             and (context.effectivePower or 0) or context.power)
     local threat = threatPower * (facts.threat or (healing and 0.5 or 1))
     if facts.deferredFlatThreat then

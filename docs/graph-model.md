@@ -30,10 +30,22 @@ state without depending back on graph search.
 attribution, and landed-hit mitigation. `Combat/ResistanceSubmissions.lua` owns
 the bounded, session-only correlation ledger for pending and recently consumed
 casts; it indexes opaque target and caster identities directly. Resistance uses
-Delivery through a stable facade. `Graph/State.lua`, `Graph/Targets.lua`,
-`Graph/Effects.lua`, `Graph/Scoring.lua`, `Graph/OngoingEffects.lua`,
-`Graph/ActionEffects.lua`, `Graph/Timeline.lua`, and `Graph/Transitions.lua` own
-one planning stage each; `Graph/Engine.lua` is the bounded-search facade.
+Delivery through a stable facade. `Game/Hostiles.lua` owns bounded exact-identity
+observation and `Game/SpellTopology.lua` decodes per-effect DBC recipient shape,
+center, relation, chain count, and radius. `Graph/HostileState.lua` owns isolated
+hostile-local planning contexts; `Graph/AreaRecipients.lua` resolves conservative
+per-effect sets, and `Graph/HostileEffects.lua` applies the supported
+single-effect direct-damage subset while charging one action once. Mixed
+effects and area modifiers remain unknown. `Graph/AutoShotEffects.lua` and
+`Graph/CompanionEvents.lua` own target-pinned ambient events;
+`Graph/CompanionScheduler.lua` arbitrates one pet cast/GCD clock and
+`Graph/CompanionEventThreat.lua` owns companion threat consequences.
+`Graph/EventAuras.lua` advances event-created aura clocks by opaque hostile key,
+while `Graph/ReadinessEffects.lua` owns chosen-action cooldown clocks.
+`Graph/State.lua`, `Graph/Targets.lua`, `Graph/Effects.lua`,
+`Graph/Scoring.lua`, `Graph/OngoingEffects.lua`, `Graph/ActionEffects.lua`,
+`Graph/Timeline.lua`, and `Graph/Transitions.lua` own one planning stage each;
+`Graph/Engine.lua` is the bounded-search facade.
 Architecture tests prevent the old monolith or a dependency cycle from returning.
 
 ## Evidence order
@@ -84,6 +96,15 @@ Encounter context records instance type, zone/subzone, target GUID and creature
 ID, level, classification, creature type, reaction, raid marker, ownership and
 controlled-unit classification. These are data join keys and constraints, never
 NPC-name dispatch into a scripted priority list.
+
+The hostile root is a deterministic, GUID-deduplicated collection of at most
+five live identities exposed through `target`, `mouseover`, `pettarget`, and
+party/raid target tokens. Each record retains its aliases and target-local
+health, aura, resistance/modifier, player/pet geometry, victim/aggro, and
+available cast evidence. Projected damage, aura, resistance, threat, and death
+state commit back to that record before another hostile becomes the active
+planning context. The collection is an observation boundary, not a claim that
+every nearby or nameplate-visible enemy has been discovered.
 
 When ClassicAPI aura data is available, target auras retain spell ID, stacks,
 duration, remaining time, source unit/GUID, player ownership, dispel type,
@@ -161,6 +182,16 @@ Finite consumables default disabled. Before execution the exact item ID is
 re-resolved in bags, checked for lock/count/cooldown, and refused if it moved or
 disappeared; equippable on-use gear is excluded from consumable inference.
 
+Installed-client Spell DBC effect targets and SpellRadius values describe each
+effect independently. A proven target- or caster-centered circle can resolve
+selected and engaged secondary recipients only when its hostile provider marks
+discovery complete; the current stock unit-token snapshot never makes that
+claim. An observed unengaged unit still becomes collateral risk rather than
+rewarded damage.
+The action's resource and cooldown state advance once even when several
+recipients resolve. Unknown target relation, unknown radius, cones, chain
+secondaries, and ground/dynamic-object placement do not manufacture recipients.
+
 The bounded beam compares complete discounted paths, so a future cooldown, aura,
 resource shortage, or downtime can change which current action wins. It returns
 one current action contract plus up to four simulated future actions. A current
@@ -225,7 +256,10 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   the multiplier that existed when they were first stored. Auto Shot launches
   and impacts, pet autocasts, stored periodic ticks, and the chosen action share
   one offset-sorted causal timeline, so only effects that really resolve first
-  can suppress resource spending or consume a same-window pet trigger.
+  can suppress resource spending or consume a same-window pet trigger. Launched
+  arrows and scheduled companion effects retain the opaque hostile GUID captured
+  at launch/scheduling, so a later selected-target change cannot redirect them
+  into the selected-target compatibility mirror.
 - Mutually exclusive effects use generic family metadata. Applying one of the
   player's Warlock curses replaces only that player's prior curse in projected
   state; an attributable curse from another Warlock is preserved. Ambient pet
@@ -250,10 +284,19 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   abilities require an explicit usable result.
 - Major cooldowns, including unknown actions whose client record reports at
   least 30 seconds, reagents, and incidental area damage remain character opt-ins.
+- Hostile dispatch remains selected-target-only. `Core/TargetGuard.lua`
+  rechecks the captured GUID, relation, hostility, and death state immediately
+  before dispatch and again around mutable actor/range evidence. Pet abilities,
+  attack commands, Auto Shot, and Hunter dual-recipient effects cannot use an
+  observed off-target hostile as implicit authority to change targets.
 - Pet nodes come from the live pet spellbook plus executable action-bar slots.
   Autocast-enabled abilities become actor-owned timed future transitions and are
   not redundantly recommended for manual execution. Each simulated path copies
   actor/autocast state so one branch cannot spend another branch's pet resource.
+  Enabled autocasts share one pet cast/GCD clock and recheck target-local range
+  and line of sight. Simultaneous order, missing geometry, unfinished casts, and
+  area recipients reserve conservative focus/cooldown state while remaining
+  explicit recommendation unknowns instead of inventing damage.
   Warlock demon semantics include threat, interrupts, dispels, crowd control,
   Consume Shadows, Sacrifice, and shard-aware summoning without keying decisions
   to localized demon family names. Hunter pets use the same actor path. Their
@@ -275,12 +318,27 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
 - Future movement, target swaps, incoming damage, other players' casts, proc
   arrivals, and shared cooldown categories cannot be predicted. Re-evaluation on
   every physical press is the correctness boundary.
+- Hostile discovery is not a nameplate scan or a complete encounter roster. It
+  sees only the selected, mouseover, pet-target, and group-target unit tokens,
+  deduplicates them by exact GUID, and caps the planning collection at five.
+  Secondary area credit therefore applies only inside that bounded evidence and
+  is withheld when the snapshot reports capping or incomplete discovery.
+- DBC topology identifies a spell effect's intended recipient relation and
+  geometry, but current recipient resolution is limited to single targets and
+  proven target- or caster-centered circles. Cone membership, chain jumps after
+  the selected origin, ground/dynamic-object placement, and missing radius or
+  relation data remain explicit unknowns.
 - No external addon is a runtime dependency. Installed addons are used only as
   read-only API/mechanics references; XelAssist calls capability-checked DLL and
   stock client globals itself.
 - Pet line of sight, pathing, exact numeric threat lead, and encounter hazards
   remain unknown unless the client exposes them; they are not silently treated
   as safe.
+- Hunter pet focus is observed exactly at each live snapshot and known pet costs
+  are reserved across the shared autocast clock. Passive focus-regeneration tick
+  phase and server/talent rate modifiers are not yet projected, so long waits can
+  undervalue a later pet action but cannot manufacture focus the pet does not
+  currently have.
 - The stock API exposes a localized Hunter family name but not its numeric
   CreatureFamily ID. XelAssist records an English-name family match for
   diagnostics only and never uses it to admit an action; the live spell ID/bar

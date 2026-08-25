@@ -144,6 +144,23 @@ assert(mouseover.health == 950 and mouseover.targetRef.unit == "party4")
 assert(mouseover.auras.Renew.remaining == 8 and mouseover.absorbs.Shield == nil)
 assert(mouseover.aliases.mouseover, "Copy must not retain nested aliases to the source snapshot")
 
+local stringRecord = { key = "g:ally-guid", guid = "ally-guid",
+    unit = "party1", health = 400, healthMax = 500,
+    auras = { Renew = { remaining = 8 } }, absorbs = {},
+    targetRef = { unit = "party1", guid = "ally-guid",
+        relation = "ally", source = "party" } }
+local stringSnapshot = { order = { "g:ally-guid" },
+    byKey = { ["g:ally-guid"] = stringRecord },
+    byUnit = { party1 = "g:ally-guid" }, primaryKey = "g:ally-guid" }
+local stringCopy = XelAssist.Game.Friendlies:Copy(stringSnapshot)
+local stringCopiedRecord = stringCopy.byKey["g:ally-guid"]
+stringCopiedRecord.health = 1
+stringCopiedRecord.auras.Renew.remaining = 1
+assert(stringCopiedRecord ~= stringRecord
+    and stringCopiedRecord.auras ~= stringRecord.auras
+    and stringRecord.health == 400 and stringRecord.auras.Renew.remaining == 8,
+    "a byKey string ending in guid must not make its mutable record atomic")
+
 units = {
     player = unit("player-guid", 1000, 1000, true, { distance = 0 }),
     pet = unit("pet-guid", 700, 1000, true),
@@ -202,6 +219,14 @@ assert(opaqueCopy.order[1] == opaquePlayer
     and opaqueCopy.byKey[opaquePlayer].guid == opaquePlayer
     and opaqueCopy.byKey[opaquePlayer].targetRef.guid == opaquePlayer,
     "Copy must preserve opaque GUID identity across every canonical index")
+local opaqueSourceRecord = opaque.byKey[opaquePlayer]
+local opaqueCopiedRecord = opaqueCopy.byKey[opaquePlayer]
+opaqueCopiedRecord.health = 1
+opaqueCopiedRecord.targetRef.unit = "changed"
+assert(opaqueCopiedRecord ~= opaqueSourceRecord
+    and opaqueSourceRecord.health == 200
+    and opaqueSourceRecord.targetRef.unit == "player",
+    "opaque table identities must remain atomic while their records stay isolated")
 
 UnitBuff = function(unitName, index)
     if unitName == "party1" and index == 1 then

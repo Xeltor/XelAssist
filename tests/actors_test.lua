@@ -49,7 +49,7 @@ GetPetActionInfo = function(slot)
         if slot == 4 then return "Bite", "Rank 8", "bite-icon", false, false, true, false end
         if slot == 5 then return "Growl", "Rank 7", "growl-icon", false, false, true, false end
         if slot == 6 then return "Prowl", "Rank 3", "prowl-icon", false, false, true, false end
-        if slot == 7 then return "Thunderstomp", "Rank 4", "stomp-icon", false, false, true, false end
+        if slot == 7 then return "Thunderstomp", "Rank 4", "stomp-icon", false, false, true, true end
         return nil
     end
     if slot == 4 then return "Devour Magic", "Rank 2", "devour-icon", false, false, true, false end
@@ -124,7 +124,9 @@ assert(not XelAssist.Combat.PetKnowledge:Facts(2649, "Growl", "WARLOCK"),
 
 local pet = XelAssist.Game.Actors:PetIdentity()
 assert(pet and pet.family == "Felhunter" and pet.creatureType == "Demon" and pet.stance == "defensive")
-assert(pet.resource == 220 and pet.resourceMax == 300 and pet.targetsCurrent)
+assert(pet.resource == 220 and pet.resourceMax == 300 and pet.targetsCurrent
+    and pet.targetGuid == targetGuid and pet.targetGuidKnown,
+    "every controlled companion must retain its exact hostile target identity")
 assert(pet.attackPowerKnown and pet.attackPower == 425,
     "controlled actor snapshots must expose exact live pet attack power")
 
@@ -199,4 +201,8 @@ local reconstructed = XelAssist.Game.Actors:Snapshot().pet
 assert(reconstructed.combatEffects["Bestial Wrath:damage-enrage"].remaining == 8
     and reconstructed.combatEffects["Bestial Wrath:control-immunity"].remaining == 18,
     "every fresh actor/graph snapshot must reconstruct confirmed pet effects")
+assert(reconstructed.areaAutocastUnknown
+    and table.getn(reconstructed.autocasts) == 1
+    and reconstructed.autocasts[1].name == "Thunderstomp",
+    "enabled pet area autocasts must surface unresolved recipients explicitly")
 print("ok: controlled identity plus ID-first Warlock and Hunter pet semantics")

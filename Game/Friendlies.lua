@@ -11,6 +11,12 @@ local function identityField(field)
     return lower == "key" or string.sub(lower, -4) == "guid"
 end
 
+local function identityMap(field)
+    if type(field) ~= "string" then return false end
+    local lower = string.lower(field)
+    return lower == "bykey" or string.sub(lower, -5) == "bykey"
+end
+
 local function deepCopy(value, atomic, seen, field)
     if type(value) ~= "table" then return value end
     if identityField(field) or atomic and atomic[value] then return value end
@@ -19,7 +25,10 @@ local function deepCopy(value, atomic, seen, field)
     local out, key, entry = {}, nil, nil
     seen[value] = out
     for key, entry in pairs(value) do
-        out[deepCopy(key, atomic, seen)] = deepCopy(entry, atomic, seen, key)
+        local childField = key
+        if identityMap(field) then childField = nil end
+        out[deepCopy(key, atomic, seen)] =
+            deepCopy(entry, atomic, seen, childField)
     end
     return out
 end

@@ -8,6 +8,7 @@ local Effects = XelAssist.Graph.Effects
 local ActorScoring = XelAssist.Graph.ActorScoring
 local ThreatScoring = XelAssist.Graph.ThreatScoring
 local Timeline = XelAssist.Graph.Timeline
+local HostileEffects = XelAssist.Graph.HostileEffects
 local Triggered = XelAssist.Combat.TriggeredActions
 
 local function potency(action, tooltip, state)
@@ -49,7 +50,9 @@ local function potency(action, tooltip, state)
                 coefficient = math.min(1,
                     math.max(1.5, tooltip.cast or 0) / 3.5)
             end
-            if action.facts.aoe then coefficient = coefficient * 0.5 end
+            local area = action.facts.aoe or tooltip.topology
+                and tooltip.topology.area
+            if area then coefficient = coefficient * 0.5 end
             base, estimated = base + bonus * coefficient, true
         end
     end
@@ -208,8 +211,10 @@ local function scoreDamageAndHealing(context)
     local power, expected = context.power, context.expectedPower
     local targetHealth = context.targetHealthAtImpact or state.targetHealth
     if kind == "damage" or kind == "builder" then
+        if HostileEffects and HostileEffects:Score(context) then return true end
         local effective = state.targetHealthExact and targetHealth > 0
             and math.min(expected, targetHealth) or expected
+        context.effectivePower = effective
         context.value = 250 + effective * 4 / math.max(0.5, context.downtime)
         if state.targetHealthExact and targetHealth > 0
             and expected >= targetHealth then
@@ -228,6 +233,7 @@ local function scoreDamageAndHealing(context)
             effective = math.min(expected, targetHealth)
             fraction = math.min(1, targetHealth / math.max(1, expected))
         end
+        context.effectivePower = effective
         context.value = effective * 4 / math.max(1, context.downtime)
             + effective / math.max(1, context.cost) * 45
         if fraction < 1 then
@@ -338,16 +344,14 @@ local function applyActionAdjustments(context)
         and context.descriptor.relation ~= "hostile"
         and (kind == "heal" or kind == "hot"
             or kind == "absorb" or kind == "buff")
-    if facts.aoe and not context.friendlySupport then
-        context.value = context.value * (state.mode == "aoe" and 1.8 or 0.55)
-    end
     if facts.interrupt and state.targetCasting then
         local probability = state.targetCastProbability
         if probability == nil then probability = 1 end
         context.value, context.reason = context.value
             + 4500 * probability * context.effectDelivery, "stops the current cast"
     end
-    if facts.execute and state.targetMax > 0
+    if facts.execute and (not context.areaDirectResolved
+        or context.areaSelectedIncluded) and state.targetMax > 0
         and state.targetHealth * 100 / state.targetMax <= facts.execute then
         context.value = context.value + 900
     end
@@ -387,6 +391,16 @@ local function candidate(context)
         dotPeriodicExpectedPower = context.dotPeriodicExpectedPower,
         wait = context.wait, occupancy = context.occupancy,
         actionStart = context.actionStart,
+        recipientEffects = context.recipientEffects,
+        areaRecipientGroups = context.areaRecipientGroups,
+        areaUnknowns = context.areaUnknowns,
+        areaRecipientsUnknown = context.areaRecipientsUnknown,
+        areaDirectResolved = context.areaDirectResolved,
+        areaSelectedIncluded = context.areaSelectedIncluded,
+        totalExpectedPower = context.totalExpectedPower,
+        totalEffectivePower = context.totalEffectivePower,
+        collateralExpectedPower = context.collateralExpectedPower,
+        companionUnknowns = context.companionUnknowns,
     }
 end
 

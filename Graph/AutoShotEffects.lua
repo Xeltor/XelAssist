@@ -5,9 +5,70 @@ local A = XelAssist.Graph.AutoShotEffects
 local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
 
+local MAX_HOSTILES = 5
+
 local function hasInFlight(observed)
     return observed and observed.inFlight
         and table.getn(observed.inFlight) > 0
+end
+
+local function hostileCollection(state)
+    local hostiles = state and state.hostiles
+    if type(hostiles) ~= "table" or type(hostiles.order) ~= "table"
+        or type(hostiles.byKey) ~= "table" then return nil end
+    return hostiles
+end
+
+-- Hostile keys and GUIDs are opaque. Resolve them only by exact equality and
+-- only inside the bounded observation order; never fall back to the selected
+-- compatibility mirror for a projectile launched at another target.
+local function hostileForGuid(state, guid)
+    local hostiles = hostileCollection(state)
+    if not hostiles then return nil, nil, false end
+    if guid == nil then return nil, nil, true end
+    local direct = hostiles.byKey[guid]
+    if direct and (direct.guid == nil or direct.guid == guid) then
+        return guid, direct, true
+    end
+    local count = math.min(table.getn(hostiles.order), MAX_HOSTILES)
+    local i
+    for i = 1, count do
+        local key = hostiles.order[i]
+        local record = hostiles.byKey[key]
+        if record and record.guid == guid then return key, record, true end
+    end
+    return nil, nil, true
+end
+
+local function selectedHostile(state)
+    local hostiles = hostileCollection(state)
+    if not hostiles then return nil, nil, nil, false end
+    local count = math.min(table.getn(hostiles.order), MAX_HOSTILES)
+    local fallbackKey, fallback
+    local i
+    for i = 1, count do
+        local key = hostiles.order[i]
+        local record = hostiles.byKey[key]
+        if record then
+            if key == hostiles.selectedKey then
+                return record.guid or key, key, record, true
+            end
+            if not fallback and record.selected == true then
+                fallbackKey, fallback = key, record
+            end
+        end
+    end
+    if fallback then
+        return fallback.guid or fallbackKey, fallbackKey, fallback, true
+    end
+    return nil, nil, nil, true
+end
+
+local function provenDead(record)
+    if not record then return true end
+    if record.dead == true or record.projectedDefeated == true then return true end
+    return record.healthExact == true and tonumber(record.health) ~= nil
+        and tonumber(record.health) <= 0
 end
 
 local function hasCurrentInFlight(state, observed)
@@ -23,11 +84,16 @@ end
 
 local function sameLiveTarget(state, observed)
     if not (state and observed) then return false end
-    if state.targetHealthExact and (tonumber(state.targetHealth) or 0) <= 0 then
-        return false
+    local guid, _, record, localState = selectedHostile(state)
+    if localState then
+        if provenDead(record) then return false end
+    else
+        guid = state.targetGUID
+        if state.targetHealthExact
+            and (tonumber(state.targetHealth) or 0) <= 0 then return false end
     end
-    if observed.targetGuid == nil or state.targetGUID == nil
-        or observed.targetGuid ~= state.targetGUID then return false end
+    if observed.targetGuid == nil or guid == nil
+        or observed.targetGuid ~= guid then return false end
     return true
 end
 
@@ -42,10 +108,13 @@ local function launchEligible(state, observed)
 end
 
 local function eligible(state, observed)
-    return launchEligible(state, observed)
-        or state and observed and hasInFlight(observed)
-            and (not state.targetHealthExact or state.targetHealth > 0)
-            and hasCurrentInFlight(state, observed)
+    if launchEligible(state, observed) then return true end
+    if not (state and observed and hasInFlight(observed)) then return false end
+    -- A target-local state must open a timeline even when every carried target
+    -- is dead or missing, so FinishTimeline can conservatively prune it.
+    if hostileCollection(state) then return true end
+    return (not state.targetHealthExact or state.targetHealth > 0)
+        and hasCurrentInFlight(state, observed)
 end
 
 local function actionFor(observed)
@@ -99,6 +168,16 @@ local function syncAmmo(out)
     end
 end
 
+local function addImpactThreat(record, amount)
+    if not record or amount <= 0 then return end
+    record.projectedThreat = record.projectedThreat or {}
+    record.projectedThreat.player =
+        (tonumber(record.projectedThreat.player) or 0) + amount
+    record.threat = record.threat or {}
+    record.threat.playerDelta =
+        (tonumber(record.threat.playerDelta) or 0) + amount
+end
+
 local function applyLaunch(out, launchState, observed, shot)
     local auto = out.autoShot
     if not auto or not auto.active then return false end
@@ -106,9 +185,19 @@ local function applyLaunch(out, launchState, observed, shot)
         auto.active = false
         return false
     end
-    if out.targetHealthExact and (tonumber(out.targetHealth) or 0) <= 0 then
-        auto.active = false
-        return false
+    local selectedGuid, _, selected, localState = selectedHostile(out)
+    if localState then
+        if shot.targetGuid == nil or shot.targetGuid ~= selectedGuid
+            or provenDead(selected) then return false end
+    else
+        if shot.targetGuid == nil or shot.targetGuid ~= out.targetGUID then
+            return false
+        end
+        if out.targetHealthExact
+            and (tonumber(out.targetHealth) or 0) <= 0 then
+            auto.active = false
+            return false
+        end
     end
     if auto.ammoKnown then auto.ammoCount = math.max(0, auto.ammoCount - 1) end
     shot.launched, shot.power, shot.delivery =
@@ -123,6 +212,27 @@ end
 local function applyImpact(out, shot)
     if not shot.launched or shot.impacted then return false end
     shot.impacted = true
+    local key, record, localState = hostileForGuid(out, shot.targetGuid)
+    if localState then
+        if provenDead(record) or not record.healthExact
+            or tonumber(record.health) == nil then return true end
+        local priorHealth = tonumber(record.health)
+        record.health = math.max(0, priorHealth
+            - math.max(0, tonumber(shot.power) or 0))
+        addImpactThreat(record, priorHealth - record.health)
+        out.autoShot.impacts = (out.autoShot.impacts or 0) + 1
+        table.insert(out.autoShot.impactOffsets, shot.impactOffset)
+        if record.health <= 0 then
+            record.dead, record.projectedDefeated = true, true
+        end
+        local _, selectedKey, selected = selectedHostile(out)
+        if record.health ~= priorHealth
+            and (key == selectedKey or record == selected) then
+            if State.SyncSelectedHostile then State:SyncSelectedHostile(out) end
+            if record.health <= 0 then out.autoShot.active = false end
+        end
+        return true
+    end
     if shot.targetGuid ~= out.targetGUID then return true end
     if not out.targetHealthExact or (tonumber(out.targetHealth) or 0) <= 0 then
         return true
@@ -191,11 +301,21 @@ end
 
 local function storeInFlight(out, shots, windowEnd)
     out.autoShot.inFlight = {}
-    if out.targetHealthExact and out.targetHealth <= 0 then return end
+    local localState = hostileCollection(out) ~= nil
+    if not localState and out.targetHealthExact and out.targetHealth <= 0 then
+        return
+    end
     local i, shot
     for i = 1, table.getn(shots or {}) do
         shot = shots[i]
-        if shot.launched and not shot.impacted and shot.targetGuid == out.targetGUID then
+        local keep
+        if shot.launched and not shot.impacted then
+            if localState then
+                local _, record = hostileForGuid(out, shot.targetGuid)
+                keep = record ~= nil and not provenDead(record)
+            else keep = shot.targetGuid == out.targetGUID end
+        end
+        if keep then
             table.insert(out.autoShot.inFlight, { power = shot.power,
                 delivery = shot.delivery, rawPower = shot.rawPower,
                 spellId = shot.spellId, targetGuid = shot.targetGuid,

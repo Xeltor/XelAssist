@@ -1442,13 +1442,12 @@ function R:Estimate(action, target, tooltip, state, componentCall)
     end
     local pen = context.penetrationKnown and (context.penetration or 0) or 0
     result.penetration, result.penetrationUnknown = pen, not context.penetrationKnown
-    local raw = live and tonumber(live[school])
-
-    local identity = snapshot and snapshot.identity
-    if not identity then
+    local raw, identity = live and tonumber(live[school]), snapshot and snapshot.identity
+    if not identity and not (state and state.targetContextKey ~= nil) then
         local currentGuid = guidFor("target")
         identity = currentGuid and self.identities[currentGuid] or self:Identity("target")
     end
+    if not identity then result.targetIdentityUnknown = true end
     local profile = self:Profile(identity, false)
     local rawSource = live and (snapshot.liveSource or "live target resistance") or nil
     local cached = profile and profile.raw and profile.raw[school]
@@ -1743,6 +1742,7 @@ function R:Estimate(action, target, tooltip, state, componentCall)
         result.deliveryPriorUnknown = classificationUnknown or deliveryUnknown and true
             or physicalContext and physicalContext.unknown or false
         result.unknown = not mitigationKnown or classificationUnknown
+            or result.targetIdentityUnknown
             or deliveryUnknown and true or false
         if not mitigationKnown then
             result.source = (physicalDelivery and "physical delivery prior" or "spell delivery prior")

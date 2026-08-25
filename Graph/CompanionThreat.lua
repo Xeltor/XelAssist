@@ -173,6 +173,11 @@ function T:Apply(state, subject, requested, delivery)
     if estimate.lower ~= nil then estimate.lower = estimate.lower + change end
     if estimate.upper ~= nil then estimate.upper = estimate.upper + change end
     estimate.delta = (tonumber(estimate.delta) or 0) + change
+    -- Keep the latest action's signed contribution separate from the
+    -- cumulative estimate. A projected taunt can legitimately rebase the
+    -- live aggro bound without erasing threat actions already applied on this
+    -- graph path.
+    estimate.stepDelta = change
     estimate.known = false
     estimate.projected = true
     estimate.lastDirection = direction

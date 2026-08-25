@@ -351,7 +351,8 @@ local function rangeBlocker(action, state, descriptor, target, tooltip)
     return nil
 end
 
-local function effectBlocker(owner, action, state, descriptor, target, actionStart)
+local function effectBlocker(owner, action, state, descriptor, target,
+    actionStart, tooltip)
     local facts, kind = action.facts, action.facts.kind
     if (kind == "dot" or kind == "debuff")
         and owner:AuraActive(action, state, descriptor) then
@@ -405,7 +406,9 @@ local function effectBlocker(owner, action, state, descriptor, target, actionSta
     end
     local friendlySupport = descriptor.relation ~= "hostile"
         and (kind == "heal" or kind == "hot" or kind == "absorb" or kind == "buff")
-    if facts.aoe and not friendlySupport and state.mode ~= "aoe"
+    local area = facts.aoe or tooltip and tooltip.topology
+        and tooltip.topology.area
+    if area and not friendlySupport and state.mode ~= "aoe"
         and not XelAssistCharDB.allowAoe then
         return "area policy"
     end
@@ -431,7 +434,8 @@ function T:Legal(action, state, descriptor)
     if blocker then return false, blocker end
     blocker = rangeBlocker(action, state, descriptor, target, tooltip)
     if blocker then return false, blocker end
-    blocker = effectBlocker(self, action, state, descriptor, target, actionStart)
+    blocker = effectBlocker(self, action, state, descriptor, target,
+        actionStart, tooltip)
     if blocker then return false, blocker end
     return true, nil, tooltip, target, actionStart, descriptor
 end

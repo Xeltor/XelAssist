@@ -3,6 +3,8 @@ XelAssistCharDB = { petThreat = "auto" }
 
 dofile("Graph/CompanionThreat.lua")
 local T = XelAssist.Graph.CompanionThreat
+dofile("Graph/CompanionEventThreat.lua")
+local EventThreat = XelAssist.Graph.CompanionEventThreat
 
 local growl = { name = "Growl", facts = { kind = "petThreat",
     petThreatGain = 415 } }
@@ -33,6 +35,23 @@ T:Apply(solo, growl, "tank", 0.5)
 assert(solo.actors.pet.threatEstimate.delta == 622.5
     and solo.actors.pet.threatEstimate.upper == 622.5,
     "successive threat gains should add to the uncertain relative estimate")
+
+local tauntPath = { groupSize = 0, hasAggro = true,
+    actors = { pet = { guid = "pet-guid", hasAggro = false } } }
+local tauntRecord = { threat = { playerHasAggro = true,
+    petHasAggro = false, playerDelta = 0, petDelta = 0 } }
+assert(EventThreat:ApplyRelative(tauntPath, tauntPath, growl,
+        tauntRecord, true, 1)
+    and tauntRecord.threat.petDelta == 415)
+assert(EventThreat:ApplyTaunt(tauntPath, tauntPath,
+        { name = "Torment" }, tauntRecord, true, 1)
+    and tauntRecord.threat.projectedPetHasAggro)
+assert(EventThreat:ApplyRelative(tauntPath, tauntPath, growl,
+        tauntRecord, true, 1)
+    and tauntRecord.threat.petDelta == 830
+    and tauntRecord.companionThreatEstimate.delta == 830
+    and tauntRecord.projectedThreat.petThreatAction == 830,
+    "a projected taunt must not erase earlier additive companion threat")
 
 local group = { groupSize = 4, hasAggro = false, tank = false,
     actors = { pet = { hasAggro = false } } }

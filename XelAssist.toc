@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.7.0
+## Version: 0.8.0
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -10,6 +10,7 @@
 # Foundation and live game state
 Core\Bootstrap.lua
 Game\SpellTiming.lua
+Game\SpellTopology.lua
 Game\Capabilities.lua
 Game\Pets\State.lua
 Game\Pets\Actions.lua
@@ -27,16 +28,26 @@ Combat\ResistanceSubmissions.lua
 Combat\Resistance.lua
 Game\Actors.lua
 Game\Friendlies.lua
+Game\Hostiles.lua
 Combat\Observations.lua
 Game\Inventory.lua
 
 # Graph pipeline
+Graph\HostileState.lua
 Graph\State.lua
 Graph\TargetSelection.lua
 Graph\CompanionThreat.lua
+Graph\CompanionEventThreat.lua
 Graph\Targets.lua
 Graph\Effects.lua
+Graph\AreaRecipients.lua
+Graph\HostileEffects.lua
 Graph\AutoShotEffects.lua
+Graph\CompanionTieScheduler.lua
+Graph\CompanionScheduler.lua
+Graph\CompanionEvents.lua
+Graph\EventAuras.lua
+Graph\ReadinessEffects.lua
 Graph\ActorScoring.lua
 Graph\ThreatScoring.lua
 Graph\OngoingEffects.lua
@@ -51,6 +62,7 @@ UI\HUD.lua
 UI\Settings.lua
 UI\Minimap.lua
 Core\Reservations.lua
+Core\TargetGuard.lua
 Core\Executor.lua
 Core\Runtime.lua
 Bindings.xml

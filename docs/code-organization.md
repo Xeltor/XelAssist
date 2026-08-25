@@ -7,8 +7,8 @@ reason to change, and the TOC is the only runtime dependency manifest.
 ## Runtime tree
 
 ```text
-Core/       bootstrap, lifecycle, commands, events, and execution boundary
-Game/       client API discovery and live actor, ally, encounter, and item state
+Core/       bootstrap, lifecycle, commands, events, and guarded execution boundary
+Game/       client API discovery and live actor, ally, hostile, topology, and item state
 Combat/     player/pet semantics, delivery mechanics, observations, and learned evidence
 Graph/      snapshot, targets, effects, scoring, transitions, and bounded search
 UI/         recommendation HUD, character settings, and minimap entry
@@ -43,7 +43,10 @@ never class rotations or ordered priority lists.
 ## Ownership boundaries
 
 - `Game` reads the client and produces structured live facts. It does not cast,
-  score recommendations, or persist learned combat outcomes. The session-only
+  score recommendations, or persist learned combat outcomes.
+  `Game/Hostiles.lua` owns bounded GUID-deduplicated hostile observation, while
+  `Game/SpellTopology.lua` translates installed-client DBC effect-target and
+  radius fields without deciding which action is useful. The session-only
   `Game/Pets/EffectRuntime.lua` ledger correlates confirmed casts, observable
   pet auras, and exact melee outcomes so fresh snapshots retain pet effects
   without writing opaque identities or inferred state to saved variables.
@@ -51,7 +54,17 @@ never class rotations or ordered priority lists.
   delivery rules, transient observations, and target evidence. Pet knowledge is
   ID-first metadata over live-discovered actions, never a family priority list.
   It does not depend on graph search.
-- `Graph/State.lua` is the live observation boundary for planning.
+- `Graph/State.lua` is the live observation boundary for planning, and
+  `Graph/HostileState.lua` owns target-local copies, context switching, and
+  commits back to the canonical bounded hostile collection.
+  `Graph/AreaRecipients.lua` resolves conservative per-effect recipient sets;
+  `Graph/HostileEffects.lua` applies eligible hostile-local effects without
+  spending one action more than once. `Graph/AutoShotEffects.lua` and
+  `Graph/CompanionEvents.lua` own target-pinned ambient events.
+  `Graph/CompanionScheduler.lua` arbitrates one pet cast/GCD clock,
+  `Graph/CompanionEventThreat.lua` owns companion threat consequences,
+  `Graph/EventAuras.lua` owns GUID-keyed clocks for auras those events create,
+  and `Graph/ReadinessEffects.lua` owns chosen-action cooldown clocks.
   `Graph/Timeline.lua` orders projected combat events without owning their
   mechanics. `Graph/ActorScoring.lua` and `Graph/ThreatScoring.lua` keep
   controlled-actor utility and actor-owned threat out of core potency scoring.
@@ -59,7 +72,9 @@ never class rotations or ordered priority lists.
   mutate live game state.
 - `UI` renders plans and settings. It does not score actions or execute cached
   previews.
-- `Core` owns startup and the one-input execution boundary. Cast, queue, item,
+- `Core` owns startup and the one-input execution boundary.
+  `Core/TargetGuard.lua` pins hostile dispatch to the captured selected-target
+  identity and revalidates it around actor/range checks. Cast, queue, item,
   pet-command, and any future target-changing APIs must remain on that boundary.
 
 Dependencies must follow TOC order and remain acyclic. A lower-level mechanics

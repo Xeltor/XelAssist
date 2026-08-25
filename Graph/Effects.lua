@@ -2,6 +2,14 @@
 -- from action scoring and beam search so resistance mechanics have one owner.
 XelAssist.Graph.Effects = {}
 local C = XelAssist.Graph.Effects
+local State = XelAssist.Graph.State
+
+local function commitHostile(state)
+    if State and State.CommitActiveHostile then
+        State:CommitActiveHostile(state)
+    end
+    return state
+end
 
 local function modifierReductions(effects)
     return XelAssist.Combat.TargetModifiers:AggregateReductions(effects)
@@ -158,6 +166,7 @@ function C:RemoveTargetModifier(state, name)
     effects[name] = nil
     rebuildDamageTaken(state)
     rebuildProjectedResistance(state)
+    commitHostile(state)
 end
 
 local function blendModifierValues(success, failure, probability)
@@ -204,6 +213,7 @@ function C:AdvanceModifierFallbacks(state, elapsed)
         rebuildDamageTaken(state)
         rebuildProjectedResistance(state)
     end
+    commitHostile(state)
 end
 
 function C:StateAtImpact(state, elapsed)
@@ -222,7 +232,7 @@ function C:StateAtImpact(state, elapsed)
         out.auras[expired[i]] = nil
     end
     self:AdvanceModifierFallbacks(out, elapsed)
-    return out
+    return commitHostile(out)
 end
 
 function C:ApplyTargetModifier(state, action, targetFacts, sourceState, delivery,
@@ -272,6 +282,7 @@ function C:ApplyTargetModifier(state, action, targetFacts, sourceState, delivery
     state.targetModifierEffects[action.name] = effect
     rebuildDamageTaken(state)
     rebuildProjectedResistance(state)
+    commitHostile(state)
 end
 
 local function scaleModifierBranch(effect, probability)
@@ -315,14 +326,23 @@ function C:ApplyExclusiveFamily(state, action, delivery)
         local liveAura = state.targetAuras and state.targetAuras[name]
         local oldEffect = state.targetModifierEffects and state.targetModifierEffects[name]
         if delivery >= 1 then
+            if XelAssist.Graph.EventAuras
+                and XelAssist.Graph.EventAuras.InvalidateStateAura then
+                XelAssist.Graph.EventAuras:InvalidateStateAura(state, name)
+            end
             if oldEffect then self:RemoveTargetModifier(state, name) end
             if state.auras then state.auras[name] = nil end
             if liveAura and liveAura.mine == true then state.targetAuras[name] = nil end
         else
             local failureProbability = 1 - delivery
+            if XelAssist.Graph.EventAuras
+                and XelAssist.Graph.EventAuras.ScaleStateAura then
+                XelAssist.Graph.EventAuras:ScaleStateAura(
+                    state, name, failureProbability)
+            end
             if oldAura then
-                oldAura.applicationProbability = (tonumber(
-                    oldAura.applicationProbability) or 1) * failureProbability
+                XelAssist.Graph.EventAuras:ScaleAuraTree(
+                    oldAura, failureProbability)
             end
             if liveAura and liveAura.mine == true then
                 liveAura.applicationProbability = (tonumber(
@@ -338,6 +358,7 @@ function C:ApplyExclusiveFamily(state, action, delivery)
         rebuildDamageTaken(state)
         rebuildProjectedResistance(state)
     end
+    commitHostile(state)
 end
 
 local function phaseAction(action, phase)

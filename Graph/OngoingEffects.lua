@@ -5,6 +5,64 @@ XelAssist.Graph.OngoingEffects = {}
 local O = XelAssist.Graph.OngoingEffects
 local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
+local Companion = XelAssist.Graph.CompanionEvents
+local EventAuras = XelAssist.Graph.EventAuras
+local MAX_HOSTILES = 5
+
+local function hostilesOf(state)
+    local hostiles = state and state.hostiles
+    if type(hostiles) ~= "table" or type(hostiles.order) ~= "table"
+        or type(hostiles.byKey) ~= "table" then return nil end
+    return hostiles
+end
+
+local function localRecord(state, key, guid)
+    local hostiles = hostilesOf(state)
+    local record = hostiles and key ~= nil and hostiles.byKey[key]
+    if not record or guid ~= nil and (record.guid or key) ~= guid then
+        return nil
+    end
+    return record
+end
+
+local function isSelected(state, key, record)
+    local hostiles = hostilesOf(state)
+    if not hostiles then return false end
+    if hostiles.selectedKey ~= nil then return hostiles.selectedKey == key end
+    return record and record.selected == true
+end
+
+local function syncLocal(state, key, record, changed)
+    if not changed or not isSelected(state, key, record) then return end
+    if State.SyncSelectedHostile then State:SyncSelectedHostile(state) end
+    local threat = record and record.threat
+    if threat and threat.projectedPlayerHasAggro ~= nil then
+        state.hasAggro = threat.projectedPlayerHasAggro
+    end
+    if threat and threat.projectedPetHasAggro ~= nil
+        and state.actors and state.actors.pet then
+        state.actors.pet.hasAggro = threat.projectedPetHasAggro
+    end
+    if record.dead == true and state.autoShot then state.autoShot.active = false end
+end
+
+local function candidateTargets(candidate, key, guid)
+    if key == nil then return true end
+    local descriptor = candidate and candidate.descriptor or {}
+    local candidateKey = candidate and candidate.targetKey or descriptor.key
+    if candidateKey ~= nil then return candidateKey == key end
+    local candidateGuid = candidate and candidate.targetGUID or descriptor.guid
+    return candidateGuid ~= nil and candidateGuid == guid
+end
+
+local function eventSource(source, entry)
+    if entry.targetKey == nil then
+        return hostilesOf(source) and nil or source
+    end
+    if not localRecord(source, entry.targetKey, entry.targetGuid) then return nil end
+    return State.HostileContext and State:HostileContext(
+        source, entry.targetKey) or nil
+end
 
 local function advanceFriendlies(state, elapsed)
     if not state.friendlies or elapsed <= 0 then return end
@@ -48,9 +106,12 @@ local function advancePlayerCast(state, elapsed)
     end
 end
 
-local function projectedEventState(source, context, offset)
-    local state = Effects:StateAtImpact(source, offset)
-    if offset >= context.applicationOffset
+local function projectedEventState(source, candidate, context, entry, offset)
+    local base = eventSource(source, entry)
+    if not base then return nil end
+    local state = Effects:StateAtImpact(base, offset)
+    if state and candidateTargets(candidate, entry.targetKey, entry.targetGuid)
+        and offset >= context.applicationOffset
         and context:ChangesHostileTarget() then
         state = State:Copy(state)
         context:ProjectCurrentApplication(state,
@@ -59,159 +120,26 @@ local function projectedEventState(source, context, offset)
     return state
 end
 
-local function ambientSupported(ambient)
-    if ambient.kind == "damage" or ambient.kind == "taunt"
-        or ambient.kind == "petThreat" then return true end
-    local duration = ambient.tooltip and tonumber(ambient.tooltip.duration)
-        or ambient.facts and tonumber(ambient.facts.duration)
-    return ambient.kind == "dot" and duration and duration > 0
-        and (tonumber(ambient.power) or 0) > 0
-end
-
-local function ambientPetEvents(out, candidate)
-    local events = {}
-    local pet = out.actors and out.actors.pet
-    if not (pet and pet.autocasts and pet.targetExists
-        and pet.targetsCurrent) then return events end
-    local i
-    for i = 1, table.getn(pet.autocasts) do
-        local ambient = pet.autocasts[i]
-        if ambientSupported(ambient) then
-            local ready = math.max(0, tonumber(ambient.readyIn) or 0)
-            local cooldown = math.max(0.1,
-                tonumber(ambient.cooldown) or 1.5)
-            ambient.readyIn = math.max(0, ready - candidate.downtime)
-            while ready <= candidate.downtime do
-                table.insert(events, { owner = "ongoing", kind = "petAutocast",
-                    offset = ready, priority = 50, autocastIndex = i,
-                    windowEnd = candidate.downtime })
-                ready = ready + cooldown
-            end
-        end
-    end
-    return events
-end
-
 local function markTargetDeath(out)
     if not (out.targetHealthExact and out.targetHealth <= 0) then return end
     out.hostile = false
     if out.autoShot then out.autoShot.active = false end
 end
 
-local function applyAmbientDot(out, source, context, entry, ambient, pet)
-    local tooltip, facts = ambient.tooltip or {}, ambient.facts or {}
-    local duration = tonumber(tooltip.duration) or tonumber(facts.duration)
-    if not duration or duration <= 0 then return false end
-    local power = math.max(0, tonumber(ambient.power) or 0)
-    if XelAssist.Game.Pets and XelAssist.Game.Pets.Effects then
-        power = power * XelAssist.Game.Pets.Effects:DamageMultiplier(pet)
-    end
-    local eventState = projectedEventState(source, context, entry.offset)
-    local delivery, conditional = 1, 1
-    if XelAssist.Combat.Resistance then
-        local estimate = XelAssist.Combat.Resistance:Estimate(
-            ambient, "target", tooltip, eventState)
-        local ignored
-        ignored, delivery = Effects:Decision(estimate, eventState, true)
-        conditional = Effects:OverWindow(ambient, "target", tooltip,
-            eventState, 0, duration, "periodic", true) or 1
-    end
-    local prior = out.auras and out.auras[ambient.name]
-    local stacks = type(prior) == "table" and (prior.expectedStacks
-        or prior.stacks or 0) or 0
-    local maximum = tonumber(facts.stackable)
-    local expectedStacks = maximum
-        and math.min(maximum, stacks + delivery) or nil
-    local scale = expectedStacks or 1
-    out.auras = out.auras or {}
-    out.auras[ambient.name] = { remaining = duration, duration = duration,
-        mine = true, target = "target", sourceActor = "pet",
-        periodicRate = power * scale * (maximum and 1 or delivery)
-            * conditional / duration,
-        periodicRawRate = not maximum and power / duration or nil,
-        periodicAction = ambient,
-        periodicTooltip = { school = tooltip.school },
-        periodicInterval = tooltip.periodicInterval,
-        periodicNextIn = XelAssist.Game.SpellTiming:Next(
-            tooltip.periodicInterval, 0),
-        applicationProbability = delivery,
-        stacks = maximum and math.min(maximum, (prior and prior.stacks or 0) + 1)
-            or nil,
-        expectedStacks = expectedStacks }
-    if XelAssist.Game.Pets and XelAssist.Game.Pets.Effects then
-        XelAssist.Game.Pets.Effects:ConsumeMelee(
-            out, ambient, out.targetGUID, delivery)
-    end
-    return true
-end
-
-local function applyAmbientPet(out, source, context, entry)
-    local pet = out.actors and out.actors.pet
-    local ambient = pet and pet.autocasts
-        and pet.autocasts[entry.autocastIndex]
-    if not (ambient and pet.targetExists and pet.targetsCurrent) then return end
-    if out.targetHealthExact and out.targetHealth <= 0 then return end
-    if pet.resource < (ambient.cost or 0) then return end
-    pet.resource = pet.resource - (ambient.cost or 0)
-    ambient.readyIn = math.max(0.1, (ambient.cooldown or 1.5)
-        - math.max(0, entry.windowEnd - entry.offset))
-    if ambient.kind == "dot" then
-        applyAmbientDot(out, source, context, entry, ambient, pet)
-    elseif ambient.kind == "damage" then
-        local power, delivery = ambient.power or 0, 1
-        if XelAssist.Game.Pets and XelAssist.Game.Pets.Effects then
-            power = power * XelAssist.Game.Pets.Effects:DamageMultiplier(pet)
-        end
-        if XelAssist.Combat.Resistance then
-            local eventState = projectedEventState(
-                source, context, entry.offset)
-            local estimate = XelAssist.Combat.Resistance:Estimate(
-                ambient, "target", ambient.tooltip or {}, eventState)
-            local decision
-            decision, delivery = Effects:Decision(estimate, eventState, true)
-            power = power * decision
-        end
-        if out.targetHealthExact then
-            out.targetHealth = math.max(0, out.targetHealth - power)
-        end
-        if XelAssist.Game.Pets and XelAssist.Game.Pets.Effects then
-            XelAssist.Game.Pets.Effects:ConsumeMelee(
-                out, ambient, out.targetGUID, delivery)
-        end
-        markTargetDeath(out)
-    elseif XelAssist.Graph.CompanionThreat
-        and XelAssist.Graph.CompanionThreat:Apply(
-            out, ambient, nil, 1) then
-        -- Relative threat changed; victim booleans remain live facts.
-    elseif ambient.kind == "taunt" then
-        local petTank = XelAssistCharDB.petThreat == "tank"
-            or (XelAssistCharDB.petThreat ~= "avoid" and out.groupSize == 0)
-        if petTank then out.hasAggro, pet.hasAggro = false, true end
-    end
-end
-
 local function periodicSegment(aura, state, span)
-    if span <= 0 then return 0 end
-    if not (aura.periodicRawRate and aura.periodicAction
-        and XelAssist.Combat.Resistance) then
-        return math.max(0, aura.periodicRate or 0) * span
-    end
-    local conditional = Effects:OverWindow(aura.periodicAction, "target",
-        aura.periodicTooltip or {}, state, 0, span, "periodic", true)
-    if not conditional then
-        return math.max(0, aura.periodicRate or 0) * span
-    end
-    return math.max(0, aura.periodicRawRate) * span
-        * (tonumber(aura.applicationProbability) or 1) * conditional
+    return EventAuras:Damage(aura, state, span)
 end
 
-local function periodicDamage(source, context, aura, elapsed, baseState)
+local function periodicDamage(source, candidate, context, entry, elapsed,
+    baseState)
+    local aura = entry.aura
     local fallback = math.max(0, aura.periodicRate or 0) * elapsed
     if not (aura.periodicRawRate and aura.periodicAction
         and XelAssist.Combat.Resistance and elapsed > 0) then
         return fallback
     end
-    if context:ChangesHostileTarget()
+    if candidateTargets(candidate, entry.targetKey, entry.targetGuid)
+        and context:ChangesHostileTarget()
         and context.applicationOffset < elapsed then
         local before = math.max(0, context.applicationOffset)
         local afterState = State:Copy(
@@ -225,50 +153,98 @@ local function periodicDamage(source, context, aura, elapsed, baseState)
 end
 
 local function addPeriodicEvent(events, kind, name, aura, offset,
-    priority, left, right, span)
+    priority, left, right, span, key, guid, scheduleToken)
     table.insert(events, { owner = "ongoing", kind = kind, auraName = name,
         aura = aura, offset = offset, priority = priority,
-        left = left, right = right, tickSpan = span })
+        left = left, right = right, tickSpan = span,
+        targetKey = key, targetGuid = guid, scheduleToken = scheduleToken })
 end
 
-local function periodicEvents(source, candidate, context)
-    local events, name, aura = {}, nil, nil
-    for name, aura in pairs(source.auras or {}) do
-        if type(aura) == "table" and aura.remaining
-            and aura.periodicRate and aura.target == "target" then
-            local active = math.min(aura.remaining, candidate.downtime)
-            local interval = tonumber(aura.periodicInterval)
-            local nextTick = tonumber(aura.periodicNextIn)
-            if interval and interval > 0 and nextTick then
-                nextTick = math.max(0, nextTick)
-                while nextTick <= active do
-                    local priority = nextTick < context.applicationOffset
-                        and 10 or 60
-                    addPeriodicEvent(events, "periodicTick", name, aura,
-                        nextTick, priority, nil, nil, interval)
-                    nextTick = nextTick + interval
-                end
-            elseif active > 0 then
-                local cut = context.applicationOffset
-                if cut > 0 and cut < active then
-                    addPeriodicEvent(events, "periodicSegment", name, aura,
-                        cut, 10, 0, cut)
-                    addPeriodicEvent(events, "periodicSegment", name, aura,
-                        active, 60, cut, active)
-                else
-                    local priority = active <= cut and 10 or 60
-                    addPeriodicEvent(events, "periodicSegment", name, aura,
-                        active, priority, 0, active)
-                end
-            end
+local function appendClock(events, out, name, aura, outAura, key, guid,
+    candidate, context)
+    if not (type(aura) == "table" and aura.remaining
+        and aura.periodicRate and aura.target == "target") then return end
+    local token = EventAuras:ScheduledToken(out, key, guid, name, outAura)
+    local active = math.min(aura.remaining, candidate.downtime)
+    local interval = tonumber(aura.periodicInterval)
+    local nextTick = tonumber(aura.periodicNextIn)
+    if interval and interval > 0 and nextTick then
+        nextTick = math.max(0, nextTick)
+        while nextTick <= active do
+            local priority = nextTick < context.applicationOffset and 10 or 60
+            addPeriodicEvent(events, "periodicTick", name, aura,
+                nextTick, priority, nil, nil, interval, key, guid, token)
+            nextTick = nextTick + interval
         end
+    elseif active > 0 then
+        local cut = candidateTargets(candidate, key, guid)
+            and context.applicationOffset or nil
+        if cut and cut > 0 and cut < active then
+            addPeriodicEvent(events, "periodicSegment", name, aura,
+                cut, 10, 0, cut, nil, key, guid, token)
+            addPeriodicEvent(events, "periodicSegment", name, aura,
+                active, 60, cut, active, nil, key, guid, token)
+        else
+            local priority = cut and active <= cut and 10 or 60
+            addPeriodicEvent(events, "periodicSegment", name, aura,
+                active, priority, 0, active, nil, key, guid, token)
+        end
+    end
+end
+
+local function appendPeriodic(events, out, auras, outAuras, key, guid,
+    candidate, context)
+    local name, aura, i
+    for name, aura in pairs(auras or {}) do
+        local outAura = outAuras and outAuras[name]
+        appendClock(events, out, name, aura, outAura, key, guid,
+            candidate, context)
+        local branches = type(aura) == "table" and aura.periodicBranches
+        for i = 1, table.getn(branches or {}) do
+            appendClock(events, out, name, branches[i],
+                outAura and outAura.periodicBranches
+                    and outAura.periodicBranches[i], key, guid,
+                candidate, context)
+        end
+    end
+end
+
+local function periodicEvents(out, source, candidate, context)
+    local events, hostiles = {}, hostilesOf(source)
+    if not hostiles then
+        appendPeriodic(events, out, source.auras, out.auras,
+            nil, source.targetGUID, candidate, context)
+        return events
+    end
+    local i, count = nil, math.min(table.getn(hostiles.order), MAX_HOSTILES)
+    for i = 1, count do
+        local key = hostiles.order[i]
+        local record = hostiles.byKey[key]
+        local outRecord = localRecord(out, key, record and record.guid or key)
+        if record then appendPeriodic(events, out, record.projectedAuras,
+            outRecord and outRecord.projectedAuras, key, record.guid or key,
+            candidate, context) end
     end
     return events
 end
 
-local function advanceAuraDurations(out, candidate)
-    local name, aura
-    for name, aura in pairs(out.auras) do
+local function hasFallback(view)
+    local _, effect
+    for _, effect in pairs(view.targetModifierEffects or {}) do
+        if effect.fallbackRemaining then return true end
+    end
+    return false
+end
+
+local function ageAuraSet(out, candidate, key, record)
+    local view = key ~= nil and State.HostileContext
+        and State:HostileContext(out, key) or out
+    if not view then return false end
+    local auras
+    if record then auras = record.projectedAuras or {}
+    else auras = out.auras or {} end
+    local changed, name, aura = false, nil, nil
+    for name, aura in pairs(auras) do
         if type(aura) == "table" and aura.remaining then
             local elapsed = math.min(aura.remaining, candidate.downtime)
             local interval = tonumber(aura.periodicInterval)
@@ -279,55 +255,111 @@ local function advanceAuraDurations(out, candidate)
                 end
                 aura.periodicNextIn = math.max(0, nextTick - elapsed)
             end
+            EventAuras:AgeBranches(aura, candidate.downtime)
             aura.remaining = math.max(0, aura.remaining - elapsed)
-            if aura.remaining <= 0 then
+            if aura.remaining <= 0 and not EventAuras:PromoteBranch(aura) then
                 if aura.targetModifier then
-                    Effects:RemoveTargetModifier(out, name)
+                    Effects:RemoveTargetModifier(view, name)
                 end
-                out.auras[name] = nil
+                auras[name] = nil
             end
+            changed = elapsed > 0 or changed
         end
     end
-    Effects:AdvanceModifierFallbacks(out, candidate.downtime)
+    local fallback = hasFallback(view)
+    Effects:AdvanceModifierFallbacks(view, candidate.downtime)
+    return changed or fallback
 end
 
-local function periodicEventDamage(source, context, entry)
+local function advanceAuraDurations(out, candidate)
+    local hostiles = hostilesOf(out)
+    if not hostiles then ageAuraSet(out, candidate) return end
+    local i, count = nil, math.min(table.getn(hostiles.order), MAX_HOSTILES)
+    for i = 1, count do
+        local key, record = hostiles.order[i]
+        record = hostiles.byKey[key]
+        if record then
+            syncLocal(out, key, record,
+                ageAuraSet(out, candidate, key, record))
+        end
+    end
+end
+
+local function periodicEventDamage(source, candidate, context, entry)
+    local base = eventSource(source, entry)
+    if not base then return 0 end
     if entry.kind == "periodicTick" then
-        local eventState = projectedEventState(source, context, entry.offset)
+        local eventState = projectedEventState(
+            source, candidate, context, entry, entry.offset)
+        if not eventState then return 0 end
         return periodicSegment(entry.aura, eventState, entry.tickSpan)
     end
-    local baseState = State:Copy(source)
+    local baseState = State:Copy(base)
     local right = periodicDamage(
-        source, context, entry.aura, entry.right, baseState)
+        base, candidate, context, entry, entry.right, baseState)
     local left = periodicDamage(
-        source, context, entry.aura, entry.left, baseState)
+        base, candidate, context, entry, entry.left, baseState)
     return math.max(0, right - left)
 end
 
 local function applyPeriodic(out, source, candidate, context, entry)
-    if not out.targetHealthExact or out.targetHealth <= 0 then return end
-    local action = candidate.action
-    if entry.offset >= context.applicationOffset
-        and action and action.name == entry.auraName
-        and action.facts and action.facts.kind == "dot" then return end
-    out.targetHealth = math.max(0, out.targetHealth
-        - periodicEventDamage(source, context, entry))
+    if entry.scheduleToken and not EventAuras:ScheduledCurrent(out,
+        entry.targetKey, entry.targetGuid, entry.auraName,
+        entry.scheduleToken) then return end
+    local damage = periodicEventDamage(source, candidate, context, entry)
+        * EventAuras:ScheduledScale(entry.scheduleToken)
+    if entry.targetKey ~= nil then
+        local record = localRecord(out, entry.targetKey, entry.targetGuid)
+        if not record or not record.healthExact or (tonumber(record.health) or 0) <= 0 then
+            return
+        end
+        local beforeHealth = tonumber(record.health)
+        record.health = math.max(0, beforeHealth - damage)
+        if EventAuras and EventAuras.ApplyPeriodicThreat then
+            EventAuras:ApplyPeriodicThreat(
+                record, entry.aura, beforeHealth - record.health)
+        end
+        if record.health <= 0 then
+            record.dead, record.projectedDefeated = true, true
+        end
+        syncLocal(out, entry.targetKey, record, damage > 0)
+        return
+    end
+    if hostilesOf(out) or not out.targetHealthExact or out.targetHealth <= 0 then
+        return
+    end
+    out.targetHealth = math.max(0, out.targetHealth - damage)
     markTargetDeath(out)
 end
 
 local function advanceObservedTargetAuras(state, elapsed)
-    local name, aura
-    for name, aura in pairs(state.targetAuras or {}) do
-        if type(aura) == "table" and aura.remaining then
-            aura.remaining = math.max(0, aura.remaining - elapsed)
-            if aura.remaining <= 0 then state.targetAuras[name] = nil end
+    local function age(auras)
+        local changed, name, aura = false, nil, nil
+        for name, aura in pairs(auras or {}) do
+            if type(aura) == "table" and aura.remaining then
+                aura.remaining = math.max(0, aura.remaining - elapsed)
+                if aura.remaining <= 0 then auras[name] = nil end
+                changed = elapsed > 0 or changed
+            end
+        end
+        return changed
+    end
+    local hostiles = hostilesOf(state)
+    if not hostiles then age(state.targetAuras) return end
+    local i, count = nil, math.min(table.getn(hostiles.order), MAX_HOSTILES)
+    for i = 1, count do
+        local key = hostiles.order[i]
+        local record = hostiles.byKey[key]
+        if record then
+            syncLocal(state, key, record, age(record.targetAuras))
         end
     end
 end
 
 function O:Events(out, source, candidate, context)
-    local events = ambientPetEvents(out, candidate)
-    local periodic = periodicEvents(source, candidate, context)
+    EventAuras:BeginScheduled(out)
+    local events = Companion and Companion:Events(out, candidate) or {}
+    local periodic = periodicEvents(out, source, candidate, context)
     local i
     for i = 1, table.getn(periodic) do table.insert(events, periodic[i]) end
     return events
@@ -344,8 +376,10 @@ function O:Prepare(out, source, candidate, context)
 end
 
 function O:ApplyEvent(out, source, candidate, context, entry)
-    if entry.kind == "petAutocast" then
-        applyAmbientPet(out, source, context, entry)
+    if entry.kind == "petAutocast" or entry.kind == "petAutocastUnknown" then
+        if Companion then
+            Companion:Apply(out, source, candidate, context, entry)
+        end
     elseif entry.kind == "periodicTick"
         or entry.kind == "periodicSegment" then
         applyPeriodic(out, source, candidate, context, entry)
@@ -357,57 +391,15 @@ end
 -- by later ambient events, so those records can advance causally without
 -- aging the pre-existing records twice.
 function O:AuraSnapshot(state)
-    local snapshot, name, aura = {}, nil, nil
-    for name, aura in pairs(state.auras or {}) do snapshot[name] = aura end
-    return snapshot
+    return EventAuras:Snapshot(state)
 end
 
 function O:TrackEventAuras(state, before, tracked)
-    local name, aura
-    for name, aura in pairs(state.auras or {}) do
-        if before[name] ~= aura then tracked[name] = aura end
-    end
-    for name, aura in pairs(tracked) do
-        if not state.auras or state.auras[name] ~= aura then
-            tracked[name] = nil
-        end
-    end
+    EventAuras:Track(state, before, tracked)
 end
 
 function O:AdvanceEventAuras(state, tracked, elapsed)
-    if not elapsed or elapsed <= 0 then return end
-    local name, aura
-    for name, aura in pairs(tracked or {}) do
-        if not state.auras or state.auras[name] ~= aura then
-            tracked[name] = nil
-        elseif type(aura) == "table" and aura.remaining then
-            local active = math.min(aura.remaining, elapsed)
-            local interval = tonumber(aura.periodicInterval)
-            local nextTick = tonumber(aura.periodicNextIn)
-            local damageSpan = active
-            if interval and interval > 0 and nextTick then
-                local ticks = 0
-                while nextTick <= active do
-                    nextTick, ticks = nextTick + interval, ticks + 1
-                end
-                aura.periodicNextIn = math.max(0, nextTick - active)
-                damageSpan = ticks * interval
-            end
-            if damageSpan > 0 and aura.periodicRate
-                and state.targetHealthExact and state.targetHealth > 0 then
-                state.targetHealth = math.max(0, state.targetHealth
-                    - periodicSegment(aura, state, damageSpan))
-                markTargetDeath(state)
-            end
-            aura.remaining = math.max(0, aura.remaining - elapsed)
-            if aura.remaining <= 0 then
-                if aura.targetModifier then
-                    Effects:RemoveTargetModifier(state, name)
-                end
-                state.auras[name], tracked[name] = nil, nil
-            end
-        end
-    end
+    EventAuras:Advance(state, tracked, elapsed)
 end
 
 function O:Advance(out, source, candidate, context)

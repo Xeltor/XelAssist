@@ -1,6 +1,7 @@
 -- The one-input execution boundary. Every dispatch is revalidated against the
 -- exact actor/target identities and live application state used by the plan.
 local XA = XelAssist
+local Guard = XelAssist.Core.TargetGuard
 
 local function applicationGuarded(facts, tooltip)
     local kind = facts and facts.kind
@@ -32,73 +33,9 @@ local function friendlyRelation(relation)
         or relation == "self" or relation == "player" or relation == "pet"
 end
 
-local function currentGuid(unit)
-    if not unit or not UnitExists then return nil end
-    local ok, exists, guid = pcall(UnitExists, unit)
-    if not ok or not exists or exists == 0 then return nil end
-    if not guid or guid == "" or guid == "0x000000000"
-        or guid == "0x0000000000000000" then return nil end
-    return guid
-end
-
-local function targetGuid(plan, unit, ref)
-    ref = ref or plan.targetRef
-    if ref and ref.guid ~= nil then return ref.guid end
-    if plan.targetGUID ~= nil then return plan.targetGUID end
-    return currentGuid(unit)
-end
-
-local function validateHostileEffect(plan)
-    if not (plan.action and plan.action.facts
-        and plan.action.facts.effectTarget == "target") then return nil, nil end
-    local ref = plan.targetRef
-    if not ref or ref.guid == nil then return nil, "effect target identity unavailable" end
-    if ref.relation and ref.relation ~= "hostile" then
-        return nil, "hostile effect target required"
-    end
-    if not XelAssist.Game.Capabilities:SameUnitRef(ref) then
-        return nil, "effect target changed"
-    end
-    if UnitIsDead and UnitIsDead("target") then return nil, "effect target defeated" end
-    if not (UnitCanAttack and UnitCanAttack("player", "target")) then
-        return nil, "hostile effect target required"
-    end
-    local facts = plan.action.facts
-    if facts.effectActor == "pet" then
-        if not (UnitExists and UnitExists("pettarget")) then
-            return nil, "companion has no target"
-        end
-        if not (UnitIsUnit and UnitIsUnit("pettarget", "target")) then
-            return nil, "companion target changed"
-        end
-        if facts.requiresPetMelee then
-            local distance = XelAssist.Game.Actors:Distance("pet", "target")
-            if distance == nil then return nil, "companion melee range unknown" end
-            if facts.effectMinRange and distance < facts.effectMinRange then
-                return nil, "companion too close"
-            end
-            if facts.effectMaxRange and distance > facts.effectMaxRange then
-                return nil, "companion out of melee range"
-            end
-            local geometry = XelAssist.Game.Capabilities:Geometry("pet", "target")
-            if geometry and geometry.lineOfSight == false then
-                return nil, "companion line of sight"
-            end
-        end
-        if facts.commandMaxRange then
-            local commandDistance = XelAssist.Game.Capabilities:Distance("target")
-            if commandDistance == nil then return nil, "command range unknown" end
-            if commandDistance > facts.commandMaxRange then
-                return nil, "target outside command range"
-            end
-        end
-    end
-    return ref.guid, nil
-end
-
 local function autoShotEvidence()
     local capabilities = XelAssist.Game.Capabilities
-    local hostile = currentGuid("target") ~= nil
+    local hostile = Guard:CurrentGuid("target") ~= nil
         and not (UnitIsDead and UnitIsDead("target"))
         and UnitCanAttack and UnitCanAttack("player", "target") and true or false
     local distance = capabilities:Distance(hostile and "target" or nil)
@@ -109,24 +46,6 @@ local function autoShotEvidence()
         casting = casting and not channeling and true or false,
         channeling = channeling and true or false, distance = distance,
         lineOfSight = geometry and geometry.lineOfSight }
-end
-
-local function validateAutoShotTarget(plan)
-    local ref = plan.targetRef
-    if not ref or ref.guid == nil then
-        return nil, "target identity unavailable"
-    end
-    if ref.relation and ref.relation ~= "hostile" then
-        return nil, "hostile target required"
-    end
-    if not XelAssist.Game.Capabilities:SameUnitRef(ref) then
-        return nil, "target changed"
-    end
-    local guid = currentGuid("target")
-    if guid == nil or guid ~= ref.guid then return nil, "target changed" end
-    local evidence = autoShotEvidence()
-    if not evidence.hostile then return nil, "hostile target required" end
-    return guid, nil, evidence
 end
 
 local function duplicateApplication(owner, action, tooltip, unit, guid, casterGuid)
@@ -159,27 +78,6 @@ local function petRefForPlan(plan)
     return ref, nil
 end
 
-local function validatePetTarget(plan)
-    if plan.target ~= "target" then return true, nil end
-    if not plan.targetRef or plan.targetRef.guid == nil then
-        return false, "target identity unavailable"
-    end
-    if not XelAssist.Game.Capabilities:SameUnitRef(plan.targetRef) then
-        return false, "target changed"
-    end
-    local relation = plan.targetRef.relation or plan.targetRelation
-    if plan.action and plan.action.executor == "petAbility"
-        and relation == "hostile" then
-        if not (UnitExists and UnitExists("pettarget")) then
-            return false, "companion has no target"
-        end
-        if not (UnitIsUnit and UnitIsUnit("pettarget", "target")) then
-            return false, "companion target changed"
-        end
-    end
-    return true, nil
-end
-
 function XA:Fallback(reason)
     self.lastReason = "Conservative hold — " .. reason
     DEFAULT_CHAT_FRAME:AddMessage("XelAssist: " .. self.lastReason .. ".",
@@ -193,16 +91,14 @@ function XA:ExecutePetPlan(plan, selected)
     local _, validationReason = XelAssist.Game.Actors:ValidateActorRef(actorRef)
     if validationReason then self:Fallback(validationReason); return end
     local targetValid
-    targetValid, validationReason = validatePetTarget(plan)
+    targetValid, validationReason = Guard:ValidatePetTarget(plan)
     if not targetValid then self:Fallback(validationReason); return end
     local unit = plan.target or "target"
-    local exactTarget = targetGuid(plan, unit)
+    local exactTarget = Guard:TargetGuid(plan, unit)
     local duplicate = duplicateApplication(self, action, plan.tooltip, unit,
         exactTarget, actorRef.guid)
     if duplicate then self:Fallback(duplicate); return end
-    targetValid, validationReason = validatePetTarget(plan)
-    if not targetValid then self:Fallback(validationReason); return end
-    local executed, executionReason = XelAssist.Game.Actors:Execute(action, actorRef)
+    local executed, executionReason = Guard:DispatchPet(plan, action, actorRef)
     if not executed then self:Fallback(executionReason or "pet action unavailable"); return end
     self:RecordDecision(plan, selected)
     if XelAssist.Combat.Observations then
@@ -225,6 +121,15 @@ local function validateFriendly(owner, ref)
 end
 
 local function dispatchPlayer(action, plan, castName, friendly, capturedGuid, unit)
+    local castRef = plan.castTargetRef or plan.targetRef
+    local guid, reason, hostile
+    if action.facts.effectTarget == "target" then
+        guid, reason, hostile = Guard:ValidateHostileEffect(plan)
+        hostile = true
+    else
+        guid, reason, hostile = Guard:ValidateSelectedHostile(plan, unit, castRef)
+    end
+    if hostile and not guid then return false, reason end
     if action.facts.autoRepeat then CastSpellByName(castName)
     elseif action.facts.petLifecycle then CastSpellByName(castName)
     elseif action.facts.ground then CastSpellByName(castName, "CLICK")
@@ -233,6 +138,7 @@ local function dispatchPlayer(action, plan, castName, friendly, capturedGuid, un
     elseif unit then CastSpellByName(castName, unit)
     elseif QueueSpellByName then QueueSpellByName(castName)
     else CastSpellByName(castName) end
+    return true, nil, guid
 end
 
 function XA:ExecutePlayerPlan(plan, selected)
@@ -244,10 +150,26 @@ function XA:ExecutePlayerPlan(plan, selected)
     local friendly = friendlyRelation(relation) and not facts.petLifecycle
     local unit = plan.castTarget or plan.target
         or ((not facts.ground) and "target" or nil)
-    local capturedGuid, effectGuid, reason
+    local queueCandidate = not facts.autoRepeat and not facts.petLifecycle
+        and not facts.ground and not friendly
+        and (not plan.target or plan.target == "target") and QueueSpellByName
+    local capturedGuid, effectGuid, reason, hostileGuid, hostilePlan
+    hostileGuid, reason, hostilePlan =
+        Guard:SelectedHostileAnchor(plan, unit, castRef)
+    local forceQueue = queueCandidate and hostilePlan
+    if (tonumber(plan.wait) or 0) > 0 and not forceQueue then
+        self:Fallback(friendly and "ally action not ready" or "action not ready")
+        XelAssist.UI.HUD:Refresh(true); return
+    end
+    hostileGuid, reason, hostilePlan =
+        Guard:ValidateSelectedHostile(plan, unit, castRef)
+    if hostilePlan and not hostileGuid then
+        self:Fallback(reason); XelAssist.UI.HUD:Refresh(true); return
+    end
     if facts.autoRepeat and XelAssist.Combat.AutoShot then
         local evidence, allowed
-        capturedGuid, reason, evidence = validateAutoShotTarget(plan)
+        capturedGuid, reason, evidence =
+            Guard:ValidateAutoShotTarget(plan, autoShotEvidence)
         if not capturedGuid then
             self:Fallback(reason); XelAssist.UI.HUD:Refresh(true); return
         end
@@ -258,18 +180,11 @@ function XA:ExecutePlayerPlan(plan, selected)
             XelAssist.UI.HUD:Refresh(true); return
         end
     end
-    local forceQueue = not facts.autoRepeat and not facts.petLifecycle
-        and not facts.ground and not friendly
-        and (not plan.target or plan.target == "target") and QueueSpellByName
-    if (tonumber(plan.wait) or 0) > 0 and not forceQueue then
-        self:Fallback(friendly and "ally action not ready" or "action not ready")
-        XelAssist.UI.HUD:Refresh(true); return
-    end
     if friendly then
         unit, capturedGuid, reason = validateFriendly(self, castRef)
         if not unit then self:Fallback(reason); XelAssist.UI.HUD:Refresh(true); return end
     end
-    effectGuid, reason = validateHostileEffect(plan)
+    effectGuid, reason = Guard:ValidateHostileEffect(plan)
     if facts.effectTarget and not effectGuid then
         self:Fallback(reason); XelAssist.UI.HUD:Refresh(true); return
     end
@@ -289,8 +204,8 @@ function XA:ExecutePlayerPlan(plan, selected)
         end
     end
     local playerGuid = self:PlayerGUID()
-    local applicationGuid = effectGuid or friendly and capturedGuid
-        or targetGuid(plan, unit, castRef)
+    local applicationGuid = effectGuid or hostileGuid or friendly and capturedGuid
+        or Guard:TargetGuid(plan, unit, castRef)
     local applicationUnit = facts.effectTarget == "target" and "target" or unit
     local reservationGuid, reservationUnit = applicationGuid, applicationUnit
     if facts.deferredUntilPetMelee or facts.petCombatBuff
@@ -306,14 +221,15 @@ function XA:ExecutePlayerPlan(plan, selected)
         self:Fallback("ally changed"); XelAssist.UI.HUD:Refresh(true); return
     end
     local finalEffectGuid
-    finalEffectGuid, reason = validateHostileEffect(plan)
+    finalEffectGuid, reason = Guard:ValidateHostileEffect(plan)
     if facts.effectTarget and (not finalEffectGuid or finalEffectGuid ~= effectGuid) then
         self:Fallback(reason or "effect target changed")
         XelAssist.UI.HUD:Refresh(true); return
     end
     if facts.autoRepeat and XelAssist.Combat.AutoShot then
         local evidence, allowed
-        applicationGuid, reason, evidence = validateAutoShotTarget(plan)
+        applicationGuid, reason, evidence =
+            Guard:ValidateAutoShotTarget(plan, autoShotEvidence)
         if not applicationGuid then
             self:Fallback(reason); XelAssist.UI.HUD:Refresh(true); return
         end
@@ -324,7 +240,14 @@ function XA:ExecutePlayerPlan(plan, selected)
             XelAssist.UI.HUD:Refresh(true); return
         end
     end
-    dispatchPlayer(action, plan, castName, friendly, capturedGuid, unit)
+    local dispatched, dispatchReason, dispatchGuid = dispatchPlayer(
+        action, plan, castName, friendly, capturedGuid, unit)
+    if not dispatched then
+        self:Fallback(dispatchReason or "target changed")
+        XelAssist.UI.HUD:Refresh(true); return
+    end
+    if hostilePlan then applicationGuid = dispatchGuid end
+    if facts.effectTarget == "target" then effectGuid = dispatchGuid end
     if facts.autoRepeat and XelAssist.Combat.AutoShot then
         XelAssist.Combat.AutoShot:Submitted(applicationGuid, action.spellId)
     end
