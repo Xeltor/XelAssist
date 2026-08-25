@@ -88,6 +88,7 @@ dofile("Graph/Scoring.lua")
 dofile("Graph/Transitions.lua")
 dofile("Graph/SearchPolicy.lua")
 dofile("Graph/SearchBranches.lua")
+dofile("Graph/ResourceInvestment.lua")
 dofile("Graph/PlanDiagnostics.lua")
 dofile("Graph/PlanBuilder.lua")
 if XelAssistGraphScenarioSetupOnly then

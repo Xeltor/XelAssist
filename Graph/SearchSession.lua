@@ -14,7 +14,7 @@ local MovementSetup = G.MovementSetup
 local PlanBuilder = G.PlanBuilder
 local Timeline = G.Timeline
 local Lifecycle = G.SearchLifecycle
-local Preparation = G.SearchPreparation
+local Preparation, Investment = G.SearchPreparation, G.ResourceInvestment
 
 local function stringField(value)
     if type(value) == "string" then return value end
@@ -202,6 +202,8 @@ local function topFinished(session)
     if table.getn(session.candidates) == 0 then
         path.terminalBlockers = session.blockers
         table.insert(session.terminal, path)
+    elseif Investment:Eligible(path) then
+        table.insert(session.terminal, path)
     end
     session.candidateIndex, session.phase = 1, "candidate"
 end
@@ -210,7 +212,7 @@ local function advanceCandidate(session)
     local candidate = session.candidates[session.candidateIndex]
     if not candidate then session.phase = "path_finish"; return end
     session.candidateIndex = session.candidateIndex + 1
-    if candidate.value <= 0 then return end
+    if not Investment:Expandable(candidate) then return end
     local path = session.path
     inheritSpatial(candidate, path)
     session.pathOrder = session.pathOrder + 1
@@ -218,7 +220,7 @@ local function advanceCandidate(session)
     local weighted = candidate.value
         * Policy:Weight(session.rootTime, candidate)
     local conditional = candidate.spatialConditionalOnly == true
-    table.insert(session.expanded, {
+    local nextPath = {
         state = advanced, steps = copySteps(path.steps, candidate),
         total = path.total + (conditional and 0 or weighted),
         conditionalTotal = path.conditionalTotal
@@ -230,7 +232,9 @@ local function advanceCandidate(session)
             and candidate.action.facts.movementSetup and candidate.targetGUID
             or path.movementSetupTargetGUID,
         graphOrder = session.pathOrder,
-    })
+    }
+    table.insert(session.expanded,
+        Investment:Advance(path, candidate, nextPath))
 end
 
 local function startBudget(session)
@@ -242,7 +246,9 @@ local function initializeSearch(session)
     session.rootTime = tonumber(session.state.time) or 0
     session.frontier = { { state = session.state, steps = {}, total = 0,
         conditionalTotal = 0, graphOrder = 1 } }
-    session.terminal, session.pathOrder, session.level = {}, 1, 0
+    session.terminal = { { state = session.state, steps = {}, total = 0,
+        conditionalTotal = 0, graphOrder = 0 } }
+    session.pathOrder, session.level = 1, 0
     session.phase = "level_start"
 end
 
@@ -268,13 +274,7 @@ local function advancePreparation(session)
 end
 
 local function finalizePath(session)
-    local paths, i = {}, nil
-    for i = 1, table.getn(session.frontier) do
-        table.insert(paths, session.frontier[i])
-    end
-    for i = 1, table.getn(session.terminal) do
-        table.insert(paths, session.terminal[i])
-    end
+    local paths = Investment:Collect(session.frontier, session.terminal)
     table.sort(paths, pathBefore)
     session.path, session.phase = paths[1], "build"
 end
@@ -325,10 +325,7 @@ local function advanceSearch(session)
         end
     elseif session.phase == "level_finish" then
         if table.getn(session.expanded) == 0 then finalizePath(session); return end
-        table.sort(session.expanded, pathBefore)
-        while table.getn(session.expanded) > Policy.WIDTH do
-            table.remove(session.expanded)
-        end
+        Investment:Retain(session.expanded, Policy.WIDTH, pathBefore)
         session.frontier = session.expanded
         session.counter.completedDepth = session.level
         if session.interrupted or session.level >= 2

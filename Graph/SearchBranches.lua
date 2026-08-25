@@ -21,8 +21,8 @@ local function setupValue(candidate)
 end
 
 function B:Retain(candidates, width, before)
-    local setup, bestSetup, movement, wandStart, sustained, earliest,
-        earliestAt, i = nil, 0, nil, nil, nil, nil, nil, nil
+    local setup, bestSetup, movement, wandStart, sustained, exchange, earliest,
+        earliestAt, i = nil, 0, nil, nil, nil, nil, nil, nil, nil
     for i = 1, table.getn(candidates) do
         if candidates[i].action and candidates[i].action.facts
             and candidates[i].action.facts.movementSetup then
@@ -35,6 +35,10 @@ function B:Retain(candidates, width, before)
         if candidates[i].action and candidates[i].action.facts
             and candidates[i].action.facts.wandRepeat then
             wandStart = candidates[i]
+        end
+        if candidates[i].action and candidates[i].action.facts
+            and candidates[i].action.facts.healthConversion then
+            exchange = candidates[i]
         end
         local value = setupValue(candidates[i])
         if value > bestSetup then setup, bestSetup = candidates[i], value end
@@ -49,6 +53,7 @@ function B:Retain(candidates, width, before)
     if movement then required[movement] = true end
     if wandStart then required[wandStart] = true end
     if sustained then required[sustained] = true end
+    if exchange then required[exchange] = true end
     if earliest then required[earliest] = true end
     local branch
     for branch in pairs(required) do

@@ -43,7 +43,10 @@ function T:Apply(context)
         return
     end
     local healing = kind == "heal" or kind == "hot" or kind == "petHeal"
-    local threatPower = (kind == "damage" or kind == "dot" or kind == "builder")
+    -- A restored resource quantity is not hostile effect magnitude. Pricing
+    -- mana as threat made Life Tap appear to generate aggro equal to its gain.
+    local threatPower = kind == "resource" and 0
+        or (kind == "damage" or kind == "dot" or kind == "builder")
         and (context.fullEffectivePower or context.effectivePower
             or context.expectedPower) or (healing
             and (context.effectivePower or 0) or context.power)

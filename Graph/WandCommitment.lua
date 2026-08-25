@@ -87,16 +87,16 @@ function W:Candidate(state)
     local speed = math.max(0.5, tonumber(wand.speed) or 2)
     local wait = math.max(0.05, tonumber(wand.nextShotIn) or speed)
     local power, delivery = expectedDamage(state, wand)
+    local finishes = state.targetHealthExact
+        and (tonumber(state.targetHealth) or 0) > 0
+        and power >= (tonumber(state.targetHealth) or 0)
     if state.targetHealthExact then
         power = math.min(power, math.max(0, tonumber(state.targetHealth) or 0))
     end
-    local missing = math.max(0, (tonumber(state.resourceMax) or 0)
-        - (tonumber(state.resource) or 0))
-    local recovery = state.resourceMax and state.resourceMax > 0
-        and missing / state.resourceMax * 300 or 0
     local value, threat, reason = scoreDamageThreat(state, power,
-        power * 4 / speed + recovery,
-        "continues sustained wand attacks without spending mana")
+        power * 4 / speed + (finishes and 700 or 0),
+        finishes and "finishes the target with the next wand shot"
+            or "continues sustained wand attacks without spending mana")
     return { action = ACTION, value = value, reason = reason,
         target = "target", targetKey = state.targetGUID,
         targetGUID = state.targetGUID, targetRelation = "hostile",

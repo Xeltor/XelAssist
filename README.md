@@ -1,4 +1,4 @@
-# XelAssist 0.8.25
+# XelAssist 0.8.26
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -36,7 +36,10 @@ replacement buffering is disabled so repeated input cannot overwrite the armed
 action. Their resource, cooldown, damage, and threat occur at the verified
 main-hand round rather than when the button is pressed. Non-GCD actions remain
 independent and can be evaluated inside the shared-GCD window without resetting it.
-Explicit party, mouseover, self, and ground targets retain SuperWoW's unit-targeted cast path.
+Normal-GCD self actions use the same owned queue with the captured player GUID,
+so a displayed future self buff can be armed safely during the current GCD.
+Non-GCD self actions and ready-now party or mouseover actions retain SuperWoW's
+unit-targeted cast path; future party actions remain a conservative hold.
 Hostile actions remain selected-only by default. A per-character, default-off
 `Cast at engaged enemies` policy may let ordinary single-target player spells
 address an observed enemy whose exact victim is the player, companion, or group.
@@ -146,7 +149,8 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
   including the white dual-wield penalty and exact equipped item/enchant +hit
   when the matching ClassicAPI bridge is available;
 - current resources, per-rank cost, effective healing, overheal, and damage needed
-  to finish the target;
+  to finish the target; health-to-resource actions retain one bounded investment
+  lane only until a later action proves that the gained resource was necessary;
 - graph-native Warlock Soul Shard stock with a character-specific reserve of
   three, level-scaled kill eligibility, credible Drain Soul death windows, and
   marginal scarcity pricing for shard consumers instead of a typed rotation;

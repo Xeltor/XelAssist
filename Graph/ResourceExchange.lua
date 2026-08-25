@@ -9,6 +9,20 @@ local function facts(action)
     return action and action.facts or {}
 end
 
+local function dangerAfterExchange(state, healthAfter, healthMax, within)
+    local incoming = 0
+    local events = XelAssist.Graph.HostileCastEvents
+    local actor = state.actors and state.actors.player
+    local friendly = State:FriendlyByUnit(state, "player")
+    local guid = actor and actor.guid or friendly and friendly.guid
+    if events and guid then
+        incoming = events:IncomingDamage(state, guid, within)
+    end
+    incoming = math.max(0, tonumber(incoming) or 0)
+    local projected = math.max(0, healthAfter - incoming)
+    return 1 - math.min(1, projected / healthMax)
+end
+
 function R:Is(action)
     return facts(action).healthConversion == true
 end
@@ -44,11 +58,15 @@ function R:Score(context)
     local effective = math.min(gain, missing)
     local urgency = math.min(1, missing / resourceMax)
     local healthAfter = math.max(0, (tonumber(state.health) or 0) - healthCost)
-    local danger = 1 - math.min(1, healthAfter / healthMax)
+    local danger = dangerAfterExchange(
+        state, healthAfter, healthMax,
+        math.max(0, tonumber(context.wait) or 0)
+            + math.max(0, tonumber(context.downtime) or 0))
     local resourceValue = effective / resourceMax * 1800 * (0.5 + urgency)
         + effective * 4 / math.max(0.5, context.downtime)
     local healthValue = healthCost / healthMax * 1200
-        * (1 + danger * danger * 4 + (state.hasAggro and 1.5 or 0))
+        * (1 + danger * danger * 4
+            + (state.hasAggro and danger * 1.5 or 0))
     local waste = math.max(0, gain - effective) / resourceMax * 1800
     context.power, context.expectedPower, context.effectivePower =
         gain, gain, effective

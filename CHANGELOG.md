@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.26
+
+- Added a generic bounded resource-investment lane. A health-to-mana action may
+  survive an initially negative edge only until a later player action proves it
+  needed the gained resource; unresolved conversions and needless self-harm can
+  never become a published recommendation.
+- Corrected Life Tap's live low-level economics. Resource gain is no longer
+  mistaken for hostile threat, missing mana is no longer repeatedly credited to
+  every future wand shot, and aggro risk scales with post-Tap health plus proven
+  incoming damage instead of imposing a flat veto. Exact level-7 coverage keeps
+  a two-Tap damage runway at full health while preserving low-health wand safety.
+- Added an exact player-GUID normal-queue lane for self buffs such as Demon
+  Armor. A self buff displayed during the current GCD can now be submitted by
+  `/xa`; queue ownership, duplicate-aura guards, and exact result release remain
+  intact, while future party actions still hold and non-GCD self actions remain
+  direct.
+
 ## 0.8.25
 
 - Added a frame-sliced, evaluation-owned root observation contract. The graph

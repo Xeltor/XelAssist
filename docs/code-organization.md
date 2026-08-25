@@ -115,7 +115,9 @@ never class rotations or ordered priority lists.
   continuing and deliberately clipping a live player channel.
   `Graph/WandCommitment.lua` owns sustained Shoot continuation and clipping;
   `Graph/ResourceExchange.lua` owns conversion legality, value, and atomic
-  state transitions; `Graph/SoulShardReserve.lua` prices bounded stock,
+  state transitions; `Graph/ResourceInvestment.lua` retains a bounded setup
+  lane only until later resource consumption proves its payoff;
+  `Graph/SoulShardReserve.lua` prices bounded stock,
   eligible generation, and marginal consumption; `Graph/CooldownLedger.lua`
   captures exact-rank readiness
   once at the root and supplies pure projected clocks to descendants.

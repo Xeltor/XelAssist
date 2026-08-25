@@ -16,12 +16,12 @@ function R:Pet(action)
     return nil
 end
 
-function R:Player(action, usesHostileQueue)
+function R:Player(action, usesNormalQueue)
     local facts = action.facts
     if facts.playerAttack or facts.autoRepeat then return nil end
     local usable, reason = XelAssist.Game.Capabilities:Usable(action)
     if usable == false then return reason or "action unavailable" end
-    if action.slot and not usesHostileQueue
+    if action.slot and not usesNormalQueue
         and not XelAssist.Game.Capabilities:IsReady(action.name, 0) then
         return "action on cooldown"
     end

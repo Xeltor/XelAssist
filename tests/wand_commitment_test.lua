@@ -37,6 +37,18 @@ assert(candidate and candidate.action.facts.wandContinuation
     and candidate.wait == 0.4 and candidate.power == 12
     and candidate.value > 0,
     "an active matching wand must become one non-executable continuation branch")
+local starvedValue = candidate.value
+state.resource = state.resourceMax
+assert(W:Candidate(state).value == starvedValue,
+    "each wand impact must earn damage value once, not farm missing-mana value")
+state.resource = 10
+
+state.targetHealth = 12
+local lethal = W:Candidate(state)
+assert(lethal and lethal.value == candidate.value + 700
+    and lethal.reason == "finishes the target with the next wand shot",
+    "an imminent lethal wand impact must retain its terminal value")
+state.targetHealth = 100
 
 local out = { hostile = true, targetHealth = 100,
     wand = { active = true, activeKnown = true, speed = 2,

@@ -375,7 +375,7 @@ assert(XelAssistCharDB.schema == 5
     and XelAssistCharDB.toggles.engagedTargets == false,
     "saved-variable schema did not migrate with safe hostile-target defaults")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.25" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.26" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(not runtime.apis.comboOwner and not runtime.apis.comboDuration,
@@ -2157,6 +2157,25 @@ assert(directCastCount == reviveCasts + 1 and queueCount == reviveQueues
     "a verified pet lifecycle spell must use its implicit recipient without a dead-unit GUID")
 
 resetCastState()
+revivePlan.action.name, revivePlan.action.spellId = "Call Pet", 883
+revivePlan.action.facts.petLifecycle = "call"
+revivePlan.action.facts.fixedTarget, revivePlan.action.facts.cast = nil, 0
+revivePlan.target, revivePlan.targetRelation = "player", "self"
+revivePlan.targetRef = { unit = "player", guid = "player-guid",
+    relation = "self", source = "self" }
+revivePlan.wait, revivePlan.cast, revivePlan.downtime = 1.2, 0, 1.2
+revivePlan.tooltip = { gcd = 1.5, normalGcd = true }
+XelAssistTestFutureCallCasts, XelAssistTestFutureCallQueue =
+    directCastCount, queueCount
+XelAssistTestFutureCallLog = table.getn(XelAssistLog)
+XelAssistTestExecutePublished()
+assert(directCastCount == XelAssistTestFutureCallCasts
+    and queueCount == XelAssistTestFutureCallQueue
+    and table.getn(XelAssistLog) == XelAssistTestFutureCallLog
+    and string.find(XelAssist.lastReason, "action not ready", 1, true),
+    "a future implicit-target pet lifecycle spell must hold instead of claiming the self queue")
+
+resetCastState()
 testTargetGUID = "pet-runtime-target"
 local evaluatedPetGuid, replacementPetGuid = {}, {}
 testPetGUID = evaluatedPetGuid
@@ -2231,30 +2250,46 @@ testPetGUID, testTargetGUID = nil, nil
 resetCastState()
 queuedSpell, directlyCast, directUnit = nil, nil, nil
 XelAssist.Graph.Evaluate = function()
-    return { action = { name = "Arcane Intellect", spellId = 1459, rank = 1,
+    return { action = { name = "Arcane Intellect", spellId = 1459, slot = 1, rank = 1,
             rankText = "Rank 1", actor = "player", facts = { kind = "buff" } },
         target = "player",
         targetRef = { unit = "player", guid = "player-guid", relation = "self",
             source = "self" },
         reason = "test aura guard", confidence = "client data",
-        value = 1, threat = 0, downtime = 1.5, observed = {}, follow = {}, path = {},
-        tooltip = { duration = 1800 } }, nil, false
+        value = 1, threat = 0, wait = 1.2, downtime = 1.5,
+        observed = {}, follow = {}, path = {},
+        tooltip = { duration = 1800, gcd = 1.5, normalGcd = true } }, nil, false
 end
-local selfCastCount = directCastCount
+XelAssistTestSelfCastCount, XelAssistTestSelfQueueCount = directCastCount, queueCount
+XelAssistTestQueueHook = function(_, guid)
+    assert(guid == "player-guid",
+        "a queued self buff must remain bound to the captured player GUID")
+    fireEvent("SPELL_QUEUE_EVENT", 2, 1459)
+end
 XelAssistTestExecutePublished()
-local selfPending = XelAssist.pendingAuras[
+XelAssistTestQueueHook = nil
+XelAssistTestSelfPending = XelAssist.pendingAuras[
     XelAssist:PendingAuraKey("Arcane Intellect", "player-guid", "player-guid")]
-assert(directCastCount == selfCastCount + 1 and directUnit == "player-guid"
-    and selfPending and selfPending.target == "player-guid"
+assert(directCastCount == XelAssistTestSelfCastCount
+    and queueCount == XelAssistTestSelfQueueCount + 1
+    and queuedSpell == "Arcane Intellect(Rank 1)" and not directlyCast
+    and XelAssistTestSelfPending and XelAssistTestSelfPending.target == "player-guid"
     and XelAssist:IsAuraPending("Arcane Intellect", "player", "player"),
-    "self execution and its aura guard must use the same captured player GUID")
-local pendingRepeatCasts, pendingRepeatLog = directCastCount, table.getn(XelAssistLog)
+    "a future self buff and its aura guard must use the exact normal queue target")
+fireEvent("SPELL_CAST_EVENT", 1, 1459, 0, "player-guid", 0, "self-701")
+fireEvent("SPELL_CAST_RESULT_SELF", 1, 1459, "player-guid", 0, "self-701")
+assert(not XelAssist.Core.PlayerNormalQueue:Current(),
+    "the exact self-cast result must release normal queue ownership")
+XelAssistTestPendingRepeatCasts, XelAssistTestPendingRepeatQueue =
+    directCastCount, queueCount
+XelAssistTestPendingRepeatLog = table.getn(XelAssistLog)
 XelAssistTestExecutePublished()
-assert(directCastCount == pendingRepeatCasts
-    and table.getn(XelAssistLog) == pendingRepeatLog
+assert(directCastCount == XelAssistTestPendingRepeatCasts
+    and queueCount == XelAssistTestPendingRepeatQueue
+    and table.getn(XelAssistLog) == XelAssistTestPendingRepeatLog
     and XelAssist.pendingAuras[
         XelAssist:PendingAuraKey("Arcane Intellect", "player-guid", "player-guid")]
-        == selfPending,
+        == XelAssistTestSelfPending,
     "the dispatch boundary must reject a positive aura whose exact application is pending")
 
 resetCastState()
@@ -2266,6 +2301,41 @@ assert(directCastCount == liveRepeatCasts
     and not next(XelAssist.pendingAuras),
     "the player dispatch boundary must recheck a live buff immediately before casting")
 liveBuffSpellIds.player = nil
+
+resetCastState()
+queuedSpell, directlyCast, directUnit = nil, nil, nil
+XelAssistTestSavedSelfQueueApi, XelAssistTestUnavailableSelfCasts =
+    QueueSpellByName, directCastCount
+XelAssistTestUnavailableSelfQueue = queueCount
+XelAssistTestUnavailableSelfLog = table.getn(XelAssistLog)
+QueueSpellByName = nil
+XelAssistTestExecutePublished()
+QueueSpellByName = XelAssistTestSavedSelfQueueApi
+assert(directCastCount == XelAssistTestUnavailableSelfCasts
+    and queueCount == XelAssistTestUnavailableSelfQueue
+    and table.getn(XelAssistLog) == XelAssistTestUnavailableSelfLog
+    and string.find(XelAssist.lastReason, "ally action not ready", 1, true),
+    "a future self buff must hold safely when the exact normal queue API is unavailable")
+
+resetCastState()
+XelAssist.Graph.Evaluate = function()
+    return { action = { name = "Arcane Intellect", spellId = 1459, rank = 1,
+            rankText = "Rank 1", actor = "player", facts = { kind = "buff" } },
+        target = "player",
+        targetRef = { unit = "player", guid = "player-guid", relation = "self",
+            source = "self" },
+        reason = "test ambient self action", confidence = "client data",
+        value = 1, threat = 0, wait = 0, downtime = 0,
+        observed = {}, follow = {}, path = {},
+        tooltip = { duration = 1800, gcd = 0, normalGcd = false } }, nil, false
+end
+XelAssistTestAmbientSelfCasts, XelAssistTestAmbientSelfQueue =
+    directCastCount, queueCount
+XelAssistTestExecutePublished()
+assert(directCastCount == XelAssistTestAmbientSelfCasts + 1
+    and queueCount == XelAssistTestAmbientSelfQueue
+    and directlyCast == "Arcane Intellect(Rank 1)" and directUnit == "player-guid",
+    "a non-GCD self action must retain the direct exact-target dispatch lane")
 
 resetCastState()
 local buffPetGuid = {}

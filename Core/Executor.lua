@@ -1,5 +1,4 @@
--- The one-input execution boundary. Every dispatch is revalidated against the
--- exact actor/target identities and live application state used by the plan.
+-- One-input execution boundary with exact actor, target, and application revalidation.
 local XA = XelAssist
 local Guard = XelAssist.Core.TargetGuard
 local ExecutionReach = XelAssist.Core.ExecutionReach
@@ -134,7 +133,7 @@ local function validateFriendly(owner, ref)
     return unit, ref.guid, nil
 end
 
-local function dispatchPlayer(action, plan, castName, friendly, capturedGuid, unit)
+local function dispatchPlayer(action, plan, castName, friendly, selfQueue, capturedGuid, unit)
     local castRef = plan.castTargetRef or plan.targetRef
     local guid, reason, hostile
     if action.facts.effectTarget == "target" then
@@ -146,9 +145,7 @@ local function dispatchPlayer(action, plan, castName, friendly, capturedGuid, un
     if hostile and not guid then return false, reason end
     if action.facts.playerAttack then
         local attack = XelAssist.Game.PlayerAttack
-        if not (attack and attack.Start) then
-            return false, "player Attack state unavailable"
-        end
+        if not (attack and attack.Start) then return false, "player Attack state unavailable" end
         local started, startReason = attack:Start(guid)
         if not started then return false, startReason end
     elseif action.facts.wandRepeat then
@@ -156,22 +153,20 @@ local function dispatchPlayer(action, plan, castName, friendly, capturedGuid, un
     elseif action.facts.autoRepeat then CastSpellByName(castName)
     elseif action.facts.petLifecycle then CastSpellByName(castName)
     elseif action.facts.ground then CastSpellByName(castName, "CLICK")
+    elseif selfQueue then QueueSpellByName(castName, capturedGuid or "player")
     elseif friendly then CastSpellByName(castName, capturedGuid)
-    elseif hostile and QueueSpellByName then
-        QueueSpellByName(castName, guid)
+    elseif hostile and QueueSpellByName then QueueSpellByName(castName, guid)
     elseif unit then CastSpellByName(castName, unit)
     elseif QueueSpellByName then QueueSpellByName(castName, guid)
     else CastSpellByName(castName) end
     return true, nil, guid
 end
-
 local function rejectPlayer(owner, reason, directReason)
     if directReason then owner.lastReason = directReason
     else owner:Fallback(reason) end
     XelAssist.UI.HUD:RequestRefresh(true)
     return false
 end
-
 local function validateAutoShot(plan)
     local guid, reason, evidence =
         Guard:ValidateAutoShotTarget(plan, autoShotEvidence)
@@ -193,11 +188,14 @@ local function playerContext(plan)
         friendly = friendlyRelation(relation) and not facts.petLifecycle,
         unit = plan.castTarget or plan.target
             or ((not facts.ground) and "target" or nil) }
+    context.normalQueue = not facts.playerAttack and not facts.autoRepeat
+        and PlayerNormalQueue:MayOccupy(action, plan.tooltip)
     context.usesHostileQueue = not facts.playerAttack and not facts.autoRepeat
         and not facts.petLifecycle and not facts.ground and not context.friendly
         and QueueSpellByName ~= nil
-    context.normalQueue = not facts.playerAttack and not facts.autoRepeat
-        and PlayerNormalQueue:MayOccupy(action, plan.tooltip)
+    context.usesSelfQueue = not facts.petLifecycle and not facts.ground
+        and (relation == "self" or relation == "player") and context.normalQueue
+        and QueueSpellByName ~= nil
     context.onSwing = PlayerOnSwing
         and PlayerOnSwing:Is(action, plan.tooltip) and true or false
     local reason
@@ -208,8 +206,9 @@ end
 
 local function validatePlayerContext(owner, plan, context)
     local action, facts = context.action, context.facts
-    if (tonumber(plan.wait) or 0) > 0 and not (context.usesHostileQueue
-        and context.hostilePlan and plan.targetSource ~= "engaged") then
+    if (tonumber(plan.wait) or 0) > 0 and not (context.usesSelfQueue
+        or context.usesHostileQueue
+            and context.hostilePlan and plan.targetSource ~= "engaged") then
         return rejectPlayer(owner, context.friendly and "ally action not ready"
             or "action not ready")
     end
@@ -244,7 +243,7 @@ local function validatePlayerContext(owner, plan, context)
         and not XelAssist.Game.Capabilities:SameUnitRef(context.castRef) then
         return rejectPlayer(owner, "ally changed")
     end
-    reason = DispatchReadiness:Player(action, context.usesHostileQueue)
+    reason = DispatchReadiness:Player(action, context.usesHostileQueue or context.usesSelfQueue)
     if reason then return rejectPlayer(owner, reason) end
     if facts.requiresHunterCritical then
         local usable, usableReason = XelAssist.Game.Capabilities:Usable(action)
@@ -315,7 +314,8 @@ local function dispatchPlayerContext(owner, plan, context)
         if not swingRecord then return rejectPlayer(owner, reason) end
     end
     local dispatched, dispatchReason, dispatchGuid = dispatchPlayer(action, plan,
-        context.castName, context.friendly, context.capturedGuid, context.unit)
+        context.castName, context.friendly, context.usesSelfQueue,
+        context.capturedGuid, context.unit)
     local queueAccepted = true
     if queueRecord then
         queueAccepted, dispatchReason =

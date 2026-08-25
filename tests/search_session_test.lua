@@ -69,6 +69,7 @@ XelAssist.Graph.PlanBuilder = {
 }
 
 dofile("Graph/SearchPolicy.lua")
+dofile("Graph/ResourceInvestment.lua")
 dofile("Core/CombatRevision.lua")
 dofile("Graph/SearchLifecycle.lua")
 local maxStates, maxMilliseconds = 1000, 1000
