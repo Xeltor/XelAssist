@@ -1044,9 +1044,32 @@ assert(XelAssist:IsAuraPending("Immolate")
     "a full debuff bar must mark the real application submission uncertain")
 fireEvent("AURA_CAST_ON_OTHER", 348, "player-guid", "target-a", 6, 3, 0, 0, 15000, 0)
 local landedSubmission = XelAssist.Combat.Resistance:RecentSubmission("target-a", "player-guid", 348)
-assert(not XelAssist:IsAuraPending("Immolate")
+XelAssistTestConfirmedApplication = XelAssist.pendingAuras[
+    XelAssist:PendingAuraKey("Immolate", "target-a", "player-guid")]
+assert(XelAssist:IsAuraPending("Immolate")
+    and XelAssistTestConfirmedApplication
+    and XelAssistTestConfirmedApplication.state == "application-confirmed"
+    and XelAssistTestConfirmedApplication.confirmedAt == mockTime
+    and XelAssist.currentPendingAuras["player-guid"] == nil
     and landedSubmission and landedSubmission.applicationConfirmed,
-    "an uncapped exact owned aura event must confirm evidence and clear the tap guard")
+    "an uncapped exact owned aura event must retain a detached visibility guard")
+mockTime = mockTime + 0.74
+assert(XelAssist:IsAuraPending("Immolate"),
+    "the landed-aura guard must span the event-to-debuff visibility gap")
+mockTime = mockTime + 0.02
+assert(not XelAssist:IsAuraPending("Immolate"),
+    "the landed-aura visibility guard must expire without inventing aura duration")
+
+resetCastState()
+XelAssist.Combat.Resistance:Submitted(
+    immolateAction, "target-a", { duration = 15 })
+XelAssist:MarkAuraPending(
+    "Immolate", 3, "target-a", 348, "player-guid", "debuff")
+fireEvent("SPELL_MISS_SELF", "player-guid", "target-a", 348, 2)
+assert(not XelAssist:IsAuraPending("Immolate")
+    and not XelAssist.Combat.Resistance:Submission(
+        "target-a", "player-guid", 348),
+    "an exact resisted application must immediately reopen a valid retry")
 
 resetCastState()
 XelAssist.Combat.Resistance:Submitted(immolateAction, "target-a", { duration = 15 })
@@ -1168,9 +1191,14 @@ assert(not XelAssist.playerCastUntil and not XelAssist.playerCastName
 resetCastState()
 XelAssist:MarkAuraPending("Arcane Intellect", 3, "player-guid", 1459, "player-guid")
 fireEvent("AURA_CAST_ON_SELF", 1459, "player-guid", "player-guid", 6, 3, 0, 0, 1800000, 0)
-assert(not XelAssist.pendingAuras[
-        XelAssist:PendingAuraKey("Arcane Intellect", "player-guid", "player-guid")],
-    "an exact self-buff aura event must end its application guard")
+XelAssistTestConfirmedSelfBuff = XelAssist.pendingAuras[
+    XelAssist:PendingAuraKey("Arcane Intellect", "player-guid", "player-guid")]
+assert(XelAssistTestConfirmedSelfBuff
+    and XelAssistTestConfirmedSelfBuff.state == "application-confirmed",
+    "an exact self-buff event must retain the same visibility guard")
+mockTime = mockTime + 0.76
+assert(not XelAssist:IsAuraPending("Arcane Intellect", "player", "player"),
+    "the self-buff visibility guard must expire normally")
 XelAssist:MarkAuraPending("Arcane Intellect", 3, "player-guid", 1459, "player-guid")
 fireEvent("AURA_CAST_ON_SELF", 1459, "player-guid", "player-guid", 6, 3, 0, 0, 1800000, 1)
 local cappedBuff = XelAssist.pendingAuras[
@@ -1184,16 +1212,26 @@ XelAssist:MarkAuraPending("Immolate", 3, "target-a", 348, "player-guid", "debuff
 fireEvent("AURA_CAST_ON_OTHER", 348, "player-guid", "target-a", 6, 3, 0, 0, 15000, 1)
 local irrelevantBuffCap = XelAssist.Combat.Resistance:RecentSubmission(
     "target-a", "player-guid", 348)
-assert(not XelAssist:IsAuraPending("Immolate")
+assert(XelAssist:IsAuraPending("Immolate")
+    and XelAssist.pendingAuras[XelAssist:PendingAuraKey(
+        "Immolate", "target-a", "player-guid")].state == "application-confirmed"
     and irrelevantBuffCap and irrelevantBuffCap.applicationConfirmed,
-    "a full target buff bar must not invalidate an exact hostile debuff application")
+    "an irrelevant full buff bar must still retain hostile application visibility grace")
+mockTime = mockTime + 0.76
+assert(not XelAssist:IsAuraPending("Immolate"),
+    "the hostile application visibility grace must remain bounded")
 XelAssist:MarkAuraPending("Arcane Intellect", 3, "player-guid", 1459,
     "player-guid", "buff")
 fireEvent("AURA_CAST_ON_SELF", 1459, "player-guid", "player-guid", 6, 3, 0, 0,
     1800000, 2)
-assert(not XelAssist.pendingAuras[
-        XelAssist:PendingAuraKey("Arcane Intellect", "player-guid", "player-guid")],
-    "a full target debuff bar must not invalidate an exact friendly buff application")
+assert(XelAssist:IsAuraPending("Arcane Intellect", "player", "player")
+    and XelAssist.pendingAuras[XelAssist:PendingAuraKey(
+        "Arcane Intellect", "player-guid", "player-guid")].state
+        == "application-confirmed",
+    "an irrelevant full debuff bar must retain friendly application visibility grace")
+mockTime = mockTime + 0.76
+assert(not XelAssist:IsAuraPending("Arcane Intellect", "player", "player"),
+    "the friendly application visibility grace must remain bounded")
 
 resetCastState()
 XelAssist:MarkAuraPending("Shared Spell Player", 3, "target-a", 348, "player-guid")

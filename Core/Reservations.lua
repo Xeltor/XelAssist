@@ -2,6 +2,7 @@
 -- and atomic throughout lifecycle correlation; this module never serializes or
 -- presents them.
 local XA = XelAssist
+local APPLICATION_VISIBILITY_GRACE = 0.75
 
 function XA:TargetGUID()
     local exists, guid = UnitExists("target")
@@ -141,6 +142,33 @@ function XA:ClearAuraPending(name, guid, casterGuid)
         releaseKey(self, "pendingAuraKeys", record.target, record.casterGuid,
             record.name, key)
     end
+end
+
+-- Nampower's exact aura event can precede the corresponding UnitBuff/UnitDebuff
+-- visibility update. Keep a short execution guard after proven application so
+-- repeated physical inputs cannot submit the same effect in that gap. Detach
+-- it from the caster's current in-flight slot: later identityless cast failures
+-- belong to newer work and must not poison an already landed application.
+function XA:ConfirmAuraPending(name, guid, casterGuid)
+    local key = self:PendingAuraKey(name, guid or self:TargetGUID(), casterGuid)
+    local record = key and self.pendingAuras and self.pendingAuras[key]
+    if not record then return false end
+    local at = GetTime()
+    record.state, record.confirmedAt, record.failureAt =
+        "application-confirmed", at, nil
+    record.untilAt = at + APPLICATION_VISIBILITY_GRACE
+    local current = self.currentPendingAuras
+        and self.currentPendingAuras[record.casterGuid]
+    if current and current.key == key then
+        self.currentPendingAuras[record.casterGuid] = nil
+    end
+    local lifecycle = self:Lifecycle(record.spellId, record.casterGuid,
+        record.target, false)
+    if lifecycle then
+        lifecycle.state, lifecycle.confirmedAt, lifecycle.failureAt,
+            lifecycle.lastAt = "application-confirmed", at, nil, at
+    end
+    return true
 end
 
 function XA:ClearPendingBySpell(spellId, casterGuid, targetGuid)

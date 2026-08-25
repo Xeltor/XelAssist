@@ -345,10 +345,11 @@ ev:SetScript("OnEvent", function()
         if owned and not auraCapped then
             local landed, confirmed = XelAssist.Combat.Resistance:AuraLanded(arg3, arg1, arg2)
             -- Hostile applications have a resistance evidence submission;
-            -- friendly/self auras do not, but the exact caster+target+spell
-            -- pending record is itself sufficient to end their tap guard.
+            -- friendly/self auras do not. In either case the exact aura event
+            -- can precede UnitBuff/UnitDebuff visibility, so retain a brief
+            -- target-scoped guard instead of reopening a duplicate-cast gap.
             if spellName and (confirmed or pending) then
-                XA:ClearAuraPending(spellName, arg3, arg2)
+                XA:ConfirmAuraPending(spellName, arg3, arg2)
             end
         elseif owned and auraCapped and pending then
             pending.state = expectedBar == "buff" and "buff-cap-uncertain"
