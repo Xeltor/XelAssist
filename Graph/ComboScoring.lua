@@ -12,7 +12,7 @@ function C:Apply(context)
     local points = math.max(0, math.min(MAX_COMBO,
         spends and XelAssist.Graph.ComboState
             and XelAssist.Graph.ComboState:ConditionalExpected(
-                state, context.descriptor and context.descriptor.guid)
+                state, context.comboTargetGUID, context.comboAllOwners)
             or tonumber(state.combo) or 0))
     if spends and context.kind == "damage" and points < MAX_COMBO
         and context.reason ~= "finishes the target" then

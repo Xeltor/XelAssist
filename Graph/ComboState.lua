@@ -15,6 +15,10 @@ local function clampProbability(probability)
     return math.max(0, math.min(1, tonumber(probability) or 1))
 end
 
+local function spendsCombo(facts, tooltip)
+    return facts and facts.combo or tooltip and tooltip.comboSpendAll
+end
+
 local function addBranch(branches, targetGUID, points, probability)
     probability = math.max(0, tonumber(probability) or 0)
     if probability <= 0 then return end
@@ -48,24 +52,30 @@ function C:Attach(state, points, ownerGUID, observation)
         or observation.selectedExact ~= false
     state.comboGlobalExact = observation and observation.globalExact and true or false
     state.comboSource = observation and observation.source or "observed combo state"
+    state.comboObservedSelectedPoints = points
     self:Refresh(state)
+    -- The compatibility scalar is selected-target local, while the observed
+    -- point count above may belong to an unselected hidden owner. Track both
+    -- so Ensure does not erase exact off-target ownership as a false mutation.
+    state.comboObservedSelectedPoints = clampPoints(state.combo)
 end
 
 function C:Ensure(state)
     if type(state.comboBranches) ~= "table"
         or state.comboProjected ~= true
-            and clampPoints(state.combo) ~= state.comboObservedPoints then
+            and clampPoints(state.combo) ~= state.comboObservedSelectedPoints then
         self:Attach(state, state.combo,
             state.comboTargetGUID or state.targetGUID)
     end
     return state.comboBranches
 end
 
-function C:Summary(state, targetGUID)
+function C:Summary(state, targetGUID, allOwners)
     local branches = self:Ensure(state)
     local query = targetGUID
-    if query == nil then query = state.targetGUID end
-    local global = query == nil
+    local global = allOwners == true
+    if not global and query == nil then query = state.targetGUID end
+    if query == nil then global = true end
     local expected, available, i = 0, 0, nil
     for i = 1, table.getn(branches) do
         local branch = branches[i]
@@ -90,23 +100,54 @@ function C:Expected(state, targetGUID)
     return expected
 end
 
-function C:Availability(state, targetGUID)
-    local _, available = self:Summary(state, targetGUID)
+function C:Availability(state, targetGUID, allOwners)
+    local _, available = self:Summary(state, targetGUID, allOwners)
     return available
 end
 
-function C:ConditionalExpected(state, targetGUID)
-    local expected, available = self:Summary(state, targetGUID)
+function C:ConditionalExpected(state, targetGUID, allOwners)
+    local expected, available = self:Summary(state, targetGUID, allOwners)
     if available <= 0 then return 0 end
     return expected / available
 end
 
-function C:TooltipFor(state, targetGUID, tooltip)
+-- A self-recipient finisher still uses points owned by a hostile unit. Keep
+-- that resource owner separate from the effect recipient. When a projected
+-- branch has multiple possible owners, a self finisher consumes whichever
+-- owner actually carries the points because it has no explicit hostile effect
+-- target for the server to compare against.
+function C:ActionOwner(state, facts, tooltip, descriptor)
+    local targetGUID = descriptor and descriptor.guid
+    if not spendsCombo(facts, tooltip) then return nil, false end
+    if descriptor and descriptor.relation == "hostile" then
+        return targetGUID, false
+    end
+    local branches = self:Ensure(state)
+    local owner, found, multiple, i = nil, false, false, nil
+    for i = 1, table.getn(branches) do
+        local branch = branches[i]
+        if clampPoints(branch.points) > 0
+            and clampProbability(branch.probability) > 0 then
+            if not found then
+                owner, found = branch.targetGUID, true
+            elseif branch.targetGUID ~= owner then multiple = true end
+        end
+    end
+    if not found then
+        return state.comboTargetGUID or state.targetGUID, false
+    end
+    if multiple or owner == nil or owner == UNKNOWN_TARGET then
+        return nil, true
+    end
+    return owner, false
+end
+
+function C:TooltipFor(state, targetGUID, tooltip, allOwners)
     if not (tooltip and tooltip.durationComboScaled
         and tonumber(tooltip.durationBase)
         and tonumber(tooltip.durationMax)) then return tooltip end
     local points = math.max(0, math.min(MAX_COMBO,
-        self:ConditionalExpected(state, targetGUID)))
+        self:ConditionalExpected(state, targetGUID, allOwners)))
     local out, key, value = {}, nil, nil
     for key, value in pairs(tooltip) do out[key] = value end
     out.duration = tooltip.durationBase
@@ -121,7 +162,11 @@ function C:Apply(state, candidate, facts)
     if not gain and (facts.kind == "builder" or facts.comboBuilder) then gain = 1 end
     local spends = facts.combo or tooltip.comboSpendAll
     if not (gain and gain > 0 or spends) then return false end
-    local targetGUID = candidate.targetGUID or state.targetGUID or UNKNOWN_TARGET
+    local allOwners = candidate.comboAllOwners == true
+    local targetGUID = candidate.comboTargetGUID
+    if targetGUID == nil and not allOwners then
+        targetGUID = candidate.targetGUID or state.targetGUID or UNKNOWN_TARGET
+    end
     local land = candidate.resistance
         and candidate.resistance.landChance or 1
     land = clampProbability(land)
@@ -137,7 +182,7 @@ function C:Apply(state, candidate, facts)
             local owned = branch.targetGUID == targetGUID and prior or 0
             addBranch(projected, targetGUID,
                 math.min(MAX_COMBO, owned + gain), probability * land)
-        elseif branch.targetGUID == targetGUID and prior > 0 then
+        elseif (allOwners or branch.targetGUID == targetGUID) and prior > 0 then
             addBranch(projected, branch.targetGUID, prior,
                 probability * (1 - land))
             addBranch(projected, nil, 0, probability * land)
@@ -151,6 +196,7 @@ function C:Apply(state, candidate, facts)
     state.comboBranches = projected
     state.comboProjected = true
     state.comboObservedPoints = nil
+    state.comboObservedSelectedPoints = nil
     state.comboTargetGUID = nil
     state.comboGlobalExact = false
     self:Refresh(state)

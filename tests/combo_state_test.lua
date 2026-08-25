@@ -68,4 +68,27 @@ assert(targetBDuration.duration == 8 and targetBDuration.durationComboPoints == 
     and targetADuration.durationComboPoints == 2,
     "combo-scaled duration must use conditional points owned by the candidate target")
 
+local selfState = { targetGUID = "target-b" }
+C:Attach(selfState, 2, "target-a", { selectedExact = true,
+    globalExact = true, source = "test combo owner" })
+C:Apply(selfState, swapBuilder, { kind = "builder" })
+local selfDescriptor = { unit = "player", guid = "player-guid",
+    relation = "self" }
+local owner, allOwners = C:ActionOwner(selfState, { combo = true },
+    { comboSpendAll = true }, selfDescriptor)
+assert(owner == nil and allOwners == true,
+    "a self finisher must retain every possible hostile owner branch")
+local selfDuration = C:TooltipFor(selfState, owner, {
+    duration = 6, durationBase = 6, durationMax = 16,
+    durationComboScaled = true }, allOwners)
+assert(math.abs(selfDuration.durationComboPoints - 1.4) < 0.0001
+    and math.abs(selfDuration.duration - 8.8) < 0.0001,
+    "a self finisher must scale from the conditional global combo state")
+C:Apply(selfState, { targetGUID = "player-guid", comboTargetGUID = owner,
+    comboAllOwners = allOwners, tooltip = { comboSpendAll = true } },
+    { kind = "buff", combo = true })
+assert(C:Availability(selfState, "target-a") == 0
+    and C:Availability(selfState, "target-b") == 0,
+    "a landed self finisher must consume whichever hostile branch owns the points")
+
 print("ok: target-owned probabilistic combo and duration state")

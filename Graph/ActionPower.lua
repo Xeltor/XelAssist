@@ -4,10 +4,11 @@ XelAssist.Graph.ActionPower = {}
 local P = XelAssist.Graph.ActionPower
 local Triggered = XelAssist.Combat.TriggeredActions
 
-local function comboPower(action, tooltip, state, targetGUID)
+local function comboPower(action, tooltip, state, targetGUID, comboAllOwners)
     if not (action.facts.combo or tooltip.comboSpendAll) then return 0 end
     local points = XelAssist.Graph.ComboState
-        and XelAssist.Graph.ComboState:ConditionalExpected(state, targetGUID)
+        and XelAssist.Graph.ComboState:ConditionalExpected(
+            state, targetGUID, comboAllOwners)
         or tonumber(state.combo) or 0
     return (tonumber(tooltip.comboBonus) or 0)
         * points
@@ -38,43 +39,47 @@ local function weaponBasis(action, tooltip, observed, status)
 end
 
 local function dbcWeaponPower(action, tooltip, state, targetGUID,
-    observed, status)
+    comboAllOwners, observed, status)
     local coefficient = tonumber(tooltip.weaponCoefficient)
     if coefficient == nil then return nil end
     local basis, evidence = weaponBasis(action, tooltip, observed, status)
     local weapon = tonumber(basis)
     if weapon == nil then return nil end
     local points = XelAssist.Graph.ComboState
-        and XelAssist.Graph.ComboState:ConditionalExpected(state, targetGUID)
+        and XelAssist.Graph.ComboState:ConditionalExpected(
+            state, targetGUID, comboAllOwners)
         or tonumber(state.combo) or 0
     local percent = tonumber(evidence and evidence.damagePercent) or 1
     local combo = tooltip.weaponComboFlat ~= nil
         and (tonumber(tooltip.weaponComboFlat) or 0) * points * percent
-        or comboPower(action, tooltip, state, targetGUID)
+        or comboPower(action, tooltip, state, targetGUID, comboAllOwners)
     local direct = tonumber(tooltip.weaponDirectFlat) or 0
     return weapon * coefficient
         + (tonumber(tooltip.weaponFlat) or 0) * percent + combo + direct,
         evidence
 end
 
-local function unresolvedWeaponPower(action, tooltip, state, targetGUID)
+local function unresolvedWeaponPower(action, tooltip, state, targetGUID,
+    comboAllOwners)
     if tonumber(tooltip.weaponCoefficient) == nil then return nil end
     local points = XelAssist.Graph.ComboState
-        and XelAssist.Graph.ComboState:ConditionalExpected(state, targetGUID)
+        and XelAssist.Graph.ComboState:ConditionalExpected(
+            state, targetGUID, comboAllOwners)
         or tonumber(state.combo) or 0
     local combo = tooltip.weaponComboFlat ~= nil
         and (tonumber(tooltip.weaponComboFlat) or 0) * points
-        or comboPower(action, tooltip, state, targetGUID)
+        or comboPower(action, tooltip, state, targetGUID, comboAllOwners)
     return math.max(10, (tonumber(tooltip.weaponFlat) or 0) + combo)
 end
 
-function P:Estimate(action, tooltip, state, targetGUID)
+function P:Estimate(action, tooltip, state, targetGUID, comboAllOwners)
     local observed, observationStatus = observedPower(action, state)
     if observationStatus ~= "absent" and observationStatus ~= "known" then
         return 0, true, { unknown = true,
             gap = "action power observation missing" }
     end
-    local combo = comboPower(action, tooltip, state, targetGUID)
+    local combo = comboPower(
+        action, tooltip, state, targetGUID, comboAllOwners)
     local base, estimated, evidence = nil, nil, nil
     if action.facts.healthConversion and tooltip.resourceGain then
         base, estimated = tooltip.resourceGain, false
@@ -91,12 +96,12 @@ function P:Estimate(action, tooltip, state, targetGUID)
     end
     if not base then
         base, evidence = dbcWeaponPower(action, tooltip, state, targetGUID,
-            observed, observationStatus)
+            comboAllOwners, observed, observationStatus)
         if base ~= nil then estimated = true end
     end
     if not base and tooltip.weaponCoefficient ~= nil then
         base, estimated = unresolvedWeaponPower(
-            action, tooltip, state, targetGUID), true
+            action, tooltip, state, targetGUID, comboAllOwners), true
     end
     if not base and action.facts.kind == "dot"
         and not action.facts.combo and not tooltip.durationComboScaled

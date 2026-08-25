@@ -23,20 +23,25 @@ local function legalityAndTiming(action, state, descriptor)
     if not allowed then return nil, blocker end
     state = targetState or state
     descriptor = resolved or descriptor
+    local facts = action.facts
+    local comboTargetGUID, comboAllOwners = nil, false
     if XelAssist.Graph.ComboState then
+        comboTargetGUID, comboAllOwners =
+            XelAssist.Graph.ComboState:ActionOwner(
+                state, facts, tooltip, descriptor)
         tooltip = XelAssist.Graph.ComboState:TooltipFor(
-            state, descriptor and descriptor.guid, tooltip)
+            state, comboTargetGUID, tooltip, comboAllOwners)
     end
-    local facts, power, estimated, powerEvidence = action.facts, nil, nil, nil
+    local power, estimated, powerEvidence = nil, nil, nil
     local effectAction = Triggered and Triggered:ResultAction(action) or action
     local effectTooltip = Triggered and Triggered:EffectFacts(action, tooltip) or tooltip
     power, estimated, powerEvidence = XelAssist.Graph.ActionPower:Estimate(
-        effectAction, effectTooltip, state, descriptor and descriptor.guid)
+        effectAction, effectTooltip, state, comboTargetGUID, comboAllOwners)
     local comboAvailability = 1
     if facts.combo or tooltip.comboSpendAll then
         comboAvailability = XelAssist.Graph.ComboState
             and XelAssist.Graph.ComboState:Availability(
-                state, descriptor and descriptor.guid) or 1
+                state, comboTargetGUID, comboAllOwners) or 1
         power = power * comboAvailability
         if comboAvailability < 1 then estimated = true end
     end
@@ -62,6 +67,8 @@ local function legalityAndTiming(action, state, descriptor)
         estimated = estimated or state.playerResourceProjected == true,
         powerEvidence = powerEvidence,
         comboAvailability = comboAvailability,
+        comboTargetGUID = comboTargetGUID,
+        comboAllOwners = comboAllOwners,
         value = 0, reason = kind, damageKind = damageKind,
         targetEffect = damageKind or kind == "debuff"
             or kind == "crowdControl" or kind == "interrupt" or kind == "taunt"
@@ -365,6 +372,8 @@ local function candidate(context)
         powerEvidence = context.powerEvidence,
         survival = context.survival,
         comboAvailability = context.comboAvailability,
+        comboTargetGUID = context.comboTargetGUID,
+        comboAllOwners = context.comboAllOwners,
         effectivePower = context.effectivePower, rawPower = context.power,
         supportAoeUnknown = facts.aoe and context.friendlySupport and true or false,
         resistance = context.resistance, effectDelivery = context.effectDelivery,

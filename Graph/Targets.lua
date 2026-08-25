@@ -206,9 +206,16 @@ local function policyBlocker(action, state, tooltip, descriptor, config)
         return "resource type"
     end
     if facts.combo or tooltip and tooltip.comboSpendAll then
+        local comboTargetGUID, comboAllOwners = descriptor and descriptor.guid,
+            false
+        if XelAssist.Graph.ComboState then
+            comboTargetGUID, comboAllOwners =
+                XelAssist.Graph.ComboState:ActionOwner(
+                    state, facts, tooltip, descriptor)
+        end
         local available = XelAssist.Graph.ComboState
             and XelAssist.Graph.ComboState:Availability(
-                state, descriptor and descriptor.guid)
+                state, comboTargetGUID, comboAllOwners)
             or state.combo > 0 and 1 or 0
         if available <= 0 then return "combo points" end
     end
