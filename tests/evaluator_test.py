@@ -134,7 +134,7 @@ for pet_action in ["Growl", "Cower", "Bite", "Claw", "Screech", "Dash",
 assert "BY_ID[spellId]" in pet_knowledge and "BY_NAME[ownerClass][name]" in pet_knowledge
 actors = (ROOT / "Game/Actors.lua").read_text()
 assert "PET_KNOWLEDGE" not in actors
-assert "PetKnowledge:Facts(" in actors and "actionSpellId, name, ownerClass" in actors
+assert "PetKnowledge:Facts(" in actors and "actionSpellId, candidate.name, ownerClass" in actors
 
 representative_spells = ["Mortal Strike", "Holy Strike", "Steady Shot", "Sinister Strike",
     "Mind Flay", "Lightning Bolt", "Frostbolt", "Shadow Bolt", "Shred"]

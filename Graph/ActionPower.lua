@@ -57,7 +57,10 @@ end
 function P:Estimate(action, tooltip, state, targetGUID)
     local combo = comboPower(action, tooltip, state, targetGUID)
     local base, estimated, evidence = nil, nil, nil
-    if Triggered and Triggered.ScriptedPower then
+    if action.facts.healthConversion and tooltip.resourceGain then
+        base, estimated = tooltip.resourceGain, false
+    end
+    if not base and Triggered and Triggered.ScriptedPower then
         base, estimated = Triggered:ScriptedPower(action, state)
     end
     if not base then

@@ -3,6 +3,22 @@
 XelAssist.Graph.ReadinessEffects = {}
 local R = XelAssist.Graph.ReadinessEffects
 
+local function projectAction(out, action, readyAt)
+    local ledger = XelAssist.Graph.CooldownLedger
+    if ledger and ledger:IsPrepared(out) and ledger:Supports(action) then
+        return ledger:Project(out, action, readyAt)
+    end
+    out.readyAt[(action.actor or "player") .. ":" .. action.name] = readyAt
+end
+
+local function projectGroup(out, group, readyAt)
+    local ledger = XelAssist.Graph.CooldownLedger
+    if ledger and ledger:IsPrepared(out) then
+        return ledger:ProjectGroup(out, group, readyAt)
+    end
+    out.readyAt["group:" .. group] = readyAt
+end
+
 function R:Apply(out, candidate, context)
     local action, facts = context.action, context.facts
     local actionStart = tonumber(candidate.actionStart)
@@ -19,12 +35,11 @@ function R:Apply(out, candidate, context)
             actionStart + math.max(0, tonumber(candidate.gcd) or 0))
     end
     if candidate.tooltip.cooldown and candidate.tooltip.cooldown > 0 then
-        out.readyAt[(action.actor or "player") .. ":" .. action.name]
-            = applicationAt + candidate.tooltip.cooldown
+        projectAction(out, action,
+            applicationAt + candidate.tooltip.cooldown)
     end
     if facts.reactive then
-        out.readyAt[(action.actor or "player") .. ":" .. action.name]
-            = applicationAt + 60
+        projectAction(out, action, applicationAt + 60)
     end
     if facts.nextInstant then out.instantNext = true
     elseif facts.kind ~= "modifier" and out.instantNext then
@@ -33,7 +48,7 @@ function R:Apply(out, candidate, context)
     local group = facts.cooldownGroup or candidate.tooltip.cooldownGroup
     local category = candidate.tooltip.categoryCooldown
     if group and category and category > 0 then
-        out.readyAt["group:" .. group] = applicationAt + category
+        projectGroup(out, group, applicationAt + category)
     end
     if XelAssist.Graph.CompanionEvents then
         XelAssist.Graph.CompanionEvents:SyncChosenCooldown(

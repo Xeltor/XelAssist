@@ -9,6 +9,8 @@ local Readiness = XelAssist.Graph.ReadinessEffects
 local CompanionEventThreat = XelAssist.Graph.CompanionEventThreat
 local EventAuras = XelAssist.Graph.EventAuras
 local DotProjection = XelAssist.Graph.DotProjection
+local ResourceExchange = XelAssist.Graph.ResourceExchange
+local WandCommitment = XelAssist.Graph.WandCommitment
 
 function A:Context(source, candidate)
     local action, facts = candidate.action, candidate.action.facts
@@ -151,7 +153,9 @@ end
 local function applyDamageOrSupport(out, source, candidate, context,
     targetLocal, dotDirect, dotPeriodic, dotDuration, dotElapsed)
     local facts = context.facts
-    if facts.kind == "autoRepeat" then
+    if WandCommitment and WandCommitment:Apply(out, candidate) then
+        return true
+    elseif facts.kind == "autoRepeat" then
         return false
     elseif facts.kind == "damage" or facts.kind == "builder" then
         if candidate.areaDirectResolved
@@ -231,6 +235,16 @@ local function applyActorOrInventory(out, candidate, context)
     elseif facts.playerAttack then
         out.playerAttack = XelAssist.Game.PlayerAttack:Projected(
             candidate.targetGUID or out.targetGUID)
+    elseif facts.wandRepeat then
+        local wand = out.wand or {}
+        wand.supported, wand.active, wand.activeKnown = true, true, true
+        wand.source, wand.targetGuid = "graph start",
+            candidate.targetGUID or out.targetGUID
+        wand.speed = tonumber(wand.speed) or 2
+        wand.damage = tonumber(wand.damage) or tonumber(candidate.power) or 0
+        wand.nextShotIn = math.max(0.5, tonumber(wand.speed) or 2)
+        wand.pending = false
+        out.wand = wand
     elseif facts.kind == "autoRepeat" then
         local auto = out.autoShot or {}
         auto.supported, auto.active = true, true
@@ -271,6 +285,8 @@ local function applyActorOrInventory(out, candidate, context)
                 out.actors.pet.attackActiveKnown = true
             end
         end
+    elseif ResourceExchange and ResourceExchange:Apply(out, candidate) then
+        return
     elseif facts.kind == "resource" and facts.consumable then
         out.resource = math.min(out.resourceMax,
             out.resource + candidate.power)
@@ -313,6 +329,7 @@ local function applyAura(out, source, candidate, context,
     if not ((facts.kind == "dot" or facts.kind == "debuff"
         or facts.kind == "buff" or facts.kind == "hot"
         or facts.kind == "absorb" or facts.kind == "resource"
+            and not facts.transientResource
         or context.hasTargetModifier) and not targetLocal) then return end
     local priorAura = out.auras[action.name]
     local branches = facts.kind == "dot" and EventAuras:ReplaceStateAura(
@@ -400,12 +417,16 @@ function A:Apply(out, source, candidate, context)
         HostileEffects:ApplyPrimaryThreat(out, candidate, context)
     end
     applyCombatState(out, candidate, context)
+    if XelAssist.Graph.SoulShardReserve then
+        XelAssist.Graph.SoulShardReserve:Apply(out, candidate)
+    end
     if XelAssist.Graph.PlayerEngagement then XelAssist.Graph.PlayerEngagement:Apply(out, candidate) end
     if XelAssist.Graph.SpatialEffects then
         XelAssist.Graph.SpatialEffects:Apply(out, candidate)
     end
     applyAura(out, source, candidate, context, targetLocal,
         dotPeriodic, dotDuration, dotElapsed)
+    if WandCommitment then WandCommitment:AfterAction(out, candidate) end
     syncFriendlyCompatibility(out)
     if State.CommitActiveHostile then State:CommitActiveHostile(out) end
 end

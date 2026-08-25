@@ -45,6 +45,7 @@ local function syncLocal(state, key, record, changed)
         state.actors.pet.hasAggro = threat.projectedPetHasAggro
     end
     if record.dead == true and state.autoShot then state.autoShot.active = false end
+    if record.dead == true and state.wand then state.wand.active = false end
 end
 
 local function candidateTargets(candidate, key, guid)

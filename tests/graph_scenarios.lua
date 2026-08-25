@@ -6,6 +6,7 @@ table.getn = table.getn or function(value)
 end
 dofile("Combat/Knowledge.lua")
 dofile("Combat/TriggeredActions.lua")
+dofile("Combat/Wand.lua")
 dofile("Combat/AutoShotRange.lua")
 dofile("Combat/AutoShotFlights.lua")
 dofile("Combat/AutoShot.lua")
@@ -15,6 +16,7 @@ dofile("Game/SpellTiming.lua")
 dofile("Game/SpellClassification.lua")
 dofile("Game/SpellPower.lua")
 dofile("Game/Range.lua")
+dofile("Game/ResourceExchange.lua")
 dofile("Game/Capabilities.lua")
 dofile("Game/WeaponPower.lua")
 dofile("Game/PlayerAttack.lua")
@@ -28,11 +30,13 @@ dofile("Game/Friendlies.lua")
 dofile("Combat/TargetModifiers.lua")
 dofile("Graph/HostileState.lua")
 dofile("Graph/State.lua")
+dofile("Graph/ResourceExchange.lua")
 dofile("Graph/ComboState.lua")
 dofile("Graph/CompanionTargets.lua")
 dofile("Graph/TargetSelection.lua")
 dofile("Graph/CompanionThreat.lua")
 dofile("Graph/CompanionEventThreat.lua")
+dofile("Graph/CooldownLedger.lua")
 dofile("Graph/ActionAdmission.lua")
 dofile("Graph/StealthSetup.lua")
 dofile("Graph/ChannelCommitment.lua")
@@ -43,6 +47,7 @@ dofile("Graph/Targets.lua")
 dofile("Graph/Effects.lua")
 dofile("Graph/AreaRecipients.lua")
 dofile("Graph/HostileEffects.lua")
+dofile("Graph/WandCommitment.lua")
 dofile("Graph/AutoShotUncertainty.lua")
 dofile("Graph/AutoShotEffects.lua")
 dofile("Graph/CompanionTieScheduler.lua")
@@ -1187,6 +1192,29 @@ plan = expect("Auto Shot active repeat guard", "Low Filler")
 assert(plan.action.name ~= "Auto Shot",
     "an active repeat must never re-enter the candidate graph as a toggle press")
 
+do
+    currentState = state("smart")
+    currentState.targetDistance, currentState.distance = 20, 20
+    currentState.wand = { supported = true, active = false,
+        activeKnown = true, pending = false, clockKnown = true,
+        currentTargetGuid = currentState.targetGUID,
+        speed = 2, damage = 12 }
+    local wandStart = action("Shoot", 1, "autoRepeat", 0, 0,
+        { autoRepeat = true, wandRepeat = true, ambient = true,
+            startOnly = true, recovery = true, ranged = true, cast = 0 })
+    wandStart.mock.gcd, wandStart.mock.minRange, wandStart.mock.maxRange = 0, 0, 30
+    local strongerCast = action("Shadow Bolt", 1, "damage", 80, 20,
+        { ranged = true, cast = 1.7 })
+    scenarioActions, XelAssistCharDB.graphDepth = { wandStart, strongerCast }, 3
+    plan = expect("wand start cannot farm setup value", "Shadow Bolt")
+    assert(plan.path[1].action.name == "Shadow Bolt",
+        "a zero-output wand toggle must not beat or precede a stronger cast")
+    scenarioActions = { wandStart }
+    plan = expect("wand remains a resource fallback", "Shoot")
+    assert(plan.follow[1] and plan.follow[1].name == "Continue Shoot",
+        "wand start must remain searchable through its actual future shot")
+end
+
 local savedAttackTarget = AttackTarget
 AttackTarget = function() end
 XelAssist.Game.PlayerAttack:Reset()
@@ -1303,8 +1331,8 @@ do
         losAction, rootLosState)[1]
     local rootLegal, rootReason = XelAssist.Graph.Targets:Legal(
         losAction, rootLosState, rootDescriptor)
-    assert(not rootLegal and rootReason == "line of sight",
-        "an explicit current line-of-sight failure must still block the live action")
+    assert(rootLegal and not rootReason,
+        "an unproven line-of-sight hint must not block a live action")
 
     local futureLosState = state("smart")
     futureLosState.time, futureLosState.targetLineOfSight = 1, false
@@ -1319,11 +1347,9 @@ do
         local condition = projectedDescriptor.spatialConditions[i]
         if condition.kind == "line of sight" then losCondition = condition end
     end
-    assert(futureLegal and not futureReason and losCondition
-        and losCondition.assumption == "prove"
-        and losCondition.conditionalOnly ~= true
+    assert(futureLegal and not futureReason and not losCondition
         and projectedDescriptor.spatialConditionalOnly ~= true,
-        "a carried LOS failure must become an unproven future condition without erasing strategic value")
+        "future search must not invent line-of-sight conditions from an untrusted hint")
 
     local priorBlocker = XelAssist.Combat.Observations.Blocker
     local blockerCalls = 0
@@ -1721,6 +1747,30 @@ local function pinCombatHostile(s, health, exact)
             petHasAggro = false, playerDelta = 0, petDelta = 0 } }
     setHostiles(s, { record }, record.key)
     return record
+end
+
+do
+    local wandThreatState = state("smart")
+    local wandThreatRecord = pinCombatHostile(wandThreatState, 100)
+    wandThreatRecord.threat.playerHasAggro = false
+    wandThreatRecord.threat.petHasAggro = true
+    wandThreatState.hasAggro, wandThreatState.pet = false, true
+    wandThreatState.targetDistance = 20
+    wandThreatState.wand = { active = true, activeKnown = true,
+        targetGuid = "target-guid", damage = 12, speed = 2,
+        nextShotIn = 0.4, tooltip = { minRange = 0, maxRange = 30 } }
+    local wandThreatCandidate = XelAssist.Graph.WandCommitment:Candidate(
+        wandThreatState)
+    assert(wandThreatCandidate and wandThreatCandidate.threat == 12
+        and wandThreatCandidate.value < 24,
+        "wand continuation must price its player-owned threat while the pet tanks")
+    local afterWandThreat = XelAssist.Graph.Transitions:Advance(
+        wandThreatState, wandThreatCandidate)
+    wandThreatRecord = afterWandThreat.hostiles.byKey["target-guid"]
+    assert(wandThreatRecord.health == 88
+        and wandThreatRecord.projectedThreat.player == 12
+        and wandThreatRecord.threat.playerDelta == 12,
+        "a resolved wand shot must project both health loss and player threat")
 end
 
 local castCooldownState = state("smart")

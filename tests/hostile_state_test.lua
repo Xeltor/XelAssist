@@ -583,8 +583,8 @@ local spatialDescriptor = XelAssist.Graph.State:Descriptor(
     "target", "hostile", "selected", selectedGuid, selectedGuid, selectedRecord)
 local legal, reason = XelAssist.Graph.Targets:Legal(
     spatialAction, spatialState, spatialDescriptor)
-assert(not legal and reason == "line of sight",
-    "selected target legality must not replace settled LOS with its raw record")
+assert(not legal and reason == "must be behind target",
+    "unproven LOS hints must not override settled behind evidence")
 spatialState.spatialTargetLineOfSight = true
 XelAssist.Graph.State:SyncSelectedHostile(spatialState)
 legal, reason = XelAssist.Graph.Targets:Legal(

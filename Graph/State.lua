@@ -118,6 +118,19 @@ local function autoShotState(inventory, hostile, moving, casting, channeling,
     return auto
 end
 
+local function wandState(hostile, moving, casting, channeling, targetGuid)
+    if not XelAssist.Combat.Wand then return nil end
+    local wand = XelAssist.Combat.Wand:Snapshot({ hostile = hostile and true or false,
+        moving = moving and true or false,
+        casting = casting and not channeling and true or false,
+        channeling = channeling and true or false, targetGuid = targetGuid })
+    if wand then
+        wand.speed, wand.damage = wand.rangedSpeed, wand.rangedDamage
+        if wand.active then wand.nextShotIn = wand.speed end
+    end
+    return wand
+end
+
 local function snapshotContext()
     local actors = XelAssist.Game.Actors:Snapshot()
     local encounter = XelAssist.Game.Encounter and XelAssist.Game.Encounter:Snapshot() or nil
@@ -152,6 +165,7 @@ local function snapshotContext()
     local autoShot = autoShotState(inventory, target.hostile, moving,
         casting, channeling, target.guid, target.distance,
         target.distanceKind, target.geometry)
+    local wand = wandState(target.hostile, moving, casting, channeling, target.guid)
     local playerAttack = XelAssist.Game.PlayerAttack
         and XelAssist.Game.PlayerAttack:Snapshot() or nil
     local engagement = XelAssist.Game.Player and XelAssist.Game.Player.Engagement
@@ -184,7 +198,7 @@ local function snapshotContext()
         spatialLineOfSight = spatialLineOfSight, spatialBehind = spatialBehind,
         role = role, healDistance = healDistance,
         healDistanceKind = healDistanceKind, distance = distance,
-        distanceKind = distanceKind, autoShot = autoShot,
+        distanceKind = distanceKind, autoShot = autoShot, wand = wand,
         playerAttack = playerAttack, playerStealthed = playerStealthed,
         playerStealthKnown = playerStealthKnown,
         playerStealthSource = playerStealthSource, onSwing = onSwing,
@@ -222,7 +236,8 @@ local function newState(mode, context)
         moving = context.moving,
         pet = actors.pet ~= nil, petLifecycle = actors.petLifecycle,
         actors = actors, inventory = context.inventory,
-        autoShot = context.autoShot, playerAttack = context.playerAttack,
+        autoShot = context.autoShot, wand = context.wand,
+        playerAttack = context.playerAttack,
         playerStealthed = context.playerStealthed,
         playerStealthKnown = context.playerStealthKnown,
         playerStealthSource = context.playerStealthSource,
@@ -392,6 +407,9 @@ function S:Copy(state)
     end
     if state.autoShot then
         out.autoShot = copyNested(state.autoShot, 2, seen, nil, atomic)
+    end
+    if state.wand then
+        out.wand = copyNested(state.wand, 2, seen, nil, atomic)
     end
     if state.playerAttack then
         out.playerAttack = copyNested(state.playerAttack, 2, seen, nil, atomic)

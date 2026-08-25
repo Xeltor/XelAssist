@@ -14,6 +14,37 @@ local function rankNumber(rank)
     return tonumber(digits) or 1
 end
 
+local function rankKey(rank)
+    local text = string.lower(tostring(rank or ""))
+    return string.gsub(text, "%s+", "")
+end
+
+local function sameRank(left, right)
+    local leftKey, rightKey = rankKey(left), rankKey(right)
+    if leftKey == "" or rightKey == "" then return false end
+    if leftKey == rightKey then return true end
+    local leftDigits = string.gsub(leftKey, "%D", "")
+    local rightDigits = string.gsub(rightKey, "%D", "")
+    return leftDigits ~= "" and leftDigits == rightDigits
+end
+
+local function higherRank(candidate, current)
+    if not current then return true end
+    if candidate.rank ~= current.rank then return candidate.rank > current.rank end
+    return candidate.slot < current.slot
+end
+
+local function selectedPetSpell(candidates, barRank)
+    local exact, fallback, i
+    for i = 1, table.getn(candidates or {}) do
+        local candidate = candidates[i]
+        if higherRank(candidate, fallback) then fallback = candidate end
+        if sameRank(candidate.rankText, barRank)
+            and higherRank(candidate, exact) then exact = candidate end
+    end
+    return exact or fallback
+end
+
 local function spellIdFor(name, rank)
     local castName = name
     if rank and rank ~= "" then castName = name .. "(" .. rank .. ")" end
@@ -114,15 +145,17 @@ function A:BuildPetActions(ref)
         self.petActions, self.petActionsGuid = {}, nil
         return self.petActions
     end
-    local actions, barByName, ownerClass = {}, {}, playerClass()
+    local actions, bars, bookByName, ownerClass = {}, {}, {}, playerClass()
     local slots = NUM_PET_ACTION_SLOTS or 10
     local i
     if GetPetActionInfo then
         for i = 1, slots do
             local name, subtext, texture, isToken, active, autocastAllowed, autocastEnabled = GetPetActionInfo(i)
             if name and not isToken then
-                barByName[name] = { slot = i, texture = texture, active = active,
-                    autocastAllowed = autocastAllowed, autocastEnabled = autocastEnabled }
+                table.insert(bars, { name = name, rankText = subtext or "",
+                    slot = i, texture = texture, active = active,
+                    autocastAllowed = autocastAllowed,
+                    autocastEnabled = autocastEnabled })
             end
         end
     end
@@ -135,20 +168,33 @@ function A:BuildPetActions(ref)
             local ok, value = pcall(IsPassiveSpell, i, BOOKTYPE_PET)
             passive = ok and (value == true or value == 1)
         end
-        local bar = barByName[name]
-        if not passive and bar then
-            local actionSpellId = spellIdFor(name, rank)
+        if not passive then
+            local candidates = bookByName[name]
+            if not candidates then candidates = {}; bookByName[name] = candidates end
+            table.insert(candidates, { name = name, rankText = rank or "",
+                rank = rankNumber(rank), slot = i,
+                spellId = spellIdFor(name, rank) })
+        end
+        i = i + 1
+    end
+    for i = 1, table.getn(bars) do
+        local bar = bars[i]
+        local candidate = selectedPetSpell(bookByName[bar.name], bar.rankText)
+        if candidate then
+            local actionSpellId = candidate.spellId
             local facts = XelAssist.Combat.PetKnowledge
                 and XelAssist.Combat.PetKnowledge:Facts(
-                    actionSpellId, name, ownerClass) or {}
+                    actionSpellId, candidate.name, ownerClass) or {}
             if not facts.kind then
-                local inferred = XelAssist.Game.Capabilities:InferKnowledge(i, BOOKTYPE_PET)
+                local inferred = XelAssist.Game.Capabilities:InferKnowledge(
+                    candidate.slot, BOOKTYPE_PET)
                 facts = inferred or {}
             end
             if facts.kind then
                 facts.petAbility = true
-                table.insert(actions, { name = name, rankText = rank or "", rank = rankNumber(rank),
-                    slot = i, actionSlot = bar.slot, texture = bar.texture,
+                table.insert(actions, { name = candidate.name,
+                    rankText = candidate.rankText, rank = candidate.rank,
+                    slot = candidate.slot, actionSlot = bar.slot, texture = bar.texture,
                     spellId = actionSpellId,
                     bookType = BOOKTYPE_PET, actor = "pet", executor = "petAbility",
                     actorRef = ref,
@@ -157,7 +203,6 @@ function A:BuildPetActions(ref)
                     active = bar.active and true or false, facts = facts })
             end
         end
-        i = i + 1
     end
     self.petActions = actions
     self.petActionsGuid = ref.guid

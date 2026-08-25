@@ -99,22 +99,34 @@ function A:Readiness(action, state, tooltip, actionStart)
     if resource < (tooltip.cost or 0) then
         return action.actor == "pet" and "pet resource" or "resource"
     end
+    local handled
     if action.executor == "item" then
         local remaining = XelAssist.Game.Inventory:Cooldown(action)
         if remaining and remaining > actionStart then return "item cooldown" end
-    elseif action.actor == "pet" then
-        local remaining = XelAssist.Game.Actors:PetCooldown(action)
-        if remaining and remaining > actionStart then return "pet cooldown" end
-    elseif not XelAssist.Game.Capabilities:IsReady(action.name, actionStart) then
-        return "cooldown"
+    else
+        local ledger = XelAssist.Graph.CooldownLedger
+        local blocker
+        if ledger and ledger:IsPrepared(state) then
+            blocker, handled = ledger:Blocker(state, action, actionStart)
+        end
+        if handled then
+            if blocker then return blocker end
+        elseif action.actor == "pet" then
+            local remaining = XelAssist.Game.Actors:PetCooldown(action)
+            if remaining and remaining > actionStart then return "pet cooldown" end
+        elseif not XelAssist.Game.Capabilities:IsReady(action.name,
+            actionStart) then return "cooldown" end
     end
-    if state.readyAt[actor .. ":" .. action.name]
+    if not handled and state.readyAt[actor .. ":" .. action.name]
         and state.readyAt[actor .. ":" .. action.name] > actionStart then
         return "future cooldown"
     end
     local group = facts.cooldownGroup or tooltip.cooldownGroup
-    if group and state.readyAt["group:" .. group]
-        and state.readyAt["group:" .. group] > actionStart then
+    local ledger = XelAssist.Graph.CooldownLedger
+    local groupKey = ledger and ledger:IsPrepared(state)
+        and ledger:GroupKey(group) or group and "group:" .. group
+    if groupKey and state.readyAt[groupKey]
+        and state.readyAt[groupKey] > actionStart then
         return "shared cooldown"
     end
     return nil

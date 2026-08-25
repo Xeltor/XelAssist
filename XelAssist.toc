@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.19
+## Version: 0.8.20
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -16,6 +16,8 @@ Game\SpellPower.lua
 Game\Range.lua
 Game\ComboMechanics.lua
 Game\HitBonuses.lua
+Game\ResourceExchange.lua
+Game\Geometry.lua
 Game\Capabilities.lua
 Game\WeaponPower.lua
 Game\SpatialEvidence.lua
@@ -42,6 +44,7 @@ Combat\Delivery.lua
 Combat\HitDelivery.lua
 Combat\Knowledge.lua
 Combat\TriggeredActions.lua
+Combat\Wand.lua
 Combat\AutoShotRange.lua
 Combat\AutoShotFlights.lua
 Combat\AutoShot.lua
@@ -57,15 +60,18 @@ Game\TargetSurvival.lua
 Game\Hostiles.lua
 Combat\Observations.lua
 Game\Inventory.lua
+Game\SoulShards.lua
 
 # Graph pipeline
 Graph\HostileState.lua
 Graph\State.lua
+Graph\ResourceExchange.lua
 Graph\ComboState.lua
 Graph\CompanionTargets.lua
 Graph\TargetSelection.lua
 Graph\CompanionThreat.lua
 Graph\CompanionEventThreat.lua
+Graph\CooldownLedger.lua
 Graph\ActionAdmission.lua
 Graph\StealthSetup.lua
 Graph\ChannelCommitment.lua
@@ -76,6 +82,7 @@ Graph\Targets.lua
 Graph\Effects.lua
 Graph\AreaRecipients.lua
 Graph\HostileEffects.lua
+Graph\WandCommitment.lua
 Graph\AutoShotUncertainty.lua
 Graph\AutoShotEffects.lua
 Graph\CompanionTieScheduler.lua
@@ -101,6 +108,7 @@ Graph\ActionEffects.lua
 Graph\Timeline.lua
 Graph\ActionPower.lua
 Graph\SurvivalPressure.lua
+Graph\SoulShardReserve.lua
 Graph\Scoring.lua
 Graph\Transitions.lua
 Graph\SearchPolicy.lua
@@ -126,6 +134,7 @@ Core\Reservations.lua
 Core\TargetGuard.lua
 Core\ExecutionReach.lua
 Core\DispatchReadiness.lua
+Core\WandExecution.lua
 Core\DecisionLog.lua
 Core\Diagnostics.lua
 Core\PlayerNormalQueue.lua

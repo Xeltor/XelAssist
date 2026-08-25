@@ -202,7 +202,7 @@ local function autoShotBlocker(action, state, descriptor)
 end
 
 local function rangeBlocker(action, state, descriptor, target, tooltip)
-    if action.facts.autoRepeat then
+    if action.facts.autoRepeat and not action.facts.wandRepeat then
         return autoShotBlocker(action, state, descriptor)
     end
     local future = isFuture(state)
@@ -273,23 +273,6 @@ local function positionBlocker(action, state, descriptor, tooltip)
     if action.executor == "petCommand" then return nil end
     if descriptor.relation ~= "hostile" then return nil end
     local actor = actorUnit(action, true)
-    local lineOfSight = state.targetLineOfSight
-    local stableSelected = state.spatialTargetGUID ~= nil
-        and descriptor.guid == state.spatialTargetGUID
-    if actor == "pet" and state.actors and state.actors.pet then
-        lineOfSight = state.actors.pet.lineOfSight
-    elseif not stableSelected and descriptor.record
-        and descriptor.record.lineOfSight ~= nil then
-        lineOfSight = descriptor.record.lineOfSight
-    end
-    if not isFuture(state) then
-        if lineOfSight == false then return "line of sight" end
-    else
-        addCondition(descriptor, { kind = "line of sight", stage = "effect",
-            actor = actor, target = descriptor.guid,
-            assumption = "prove",
-            detail = "line of sight must be proven when this action becomes current" })
-    end
     if not facts.behind then return nil end
     local behind = actor == "pet" and state.actors and state.actors.pet
         and state.actors.pet.behind or state.playerBehindTarget

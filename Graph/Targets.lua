@@ -140,7 +140,13 @@ local function policyBlocker(action, state, tooltip, descriptor)
             state.playerAttack)
         if not allowed then return reason or "player Attack state uncertain" end
     end
-    if facts.autoRepeat and state.autoShot and state.autoShot.active then
+    if facts.wandRepeat then
+        if not state.wand or state.wand.activeKnown ~= true then
+            return "wand repeat state unknown"
+        end
+        if state.wand.active then return "wand repeat already active" end
+        if state.wand.pending then return "wand repeat start pending" end
+    elseif facts.autoRepeat and state.autoShot and state.autoShot.active then
         return "already active"
     end
     if facts.petCombatBuff then
@@ -241,6 +247,7 @@ local function contextBlocker(action, state)
     local facts, kind = action.facts, action.facts.kind
     if facts.autoRepeat and state.playerCasting
         and not state.playerChanneling then return "casting" end
+    if facts.wandRepeat and state.moving then return "moving" end
     if facts.outOfCombat and state.inCombat then return "combat state" end
     if facts.combatOnly and not state.inCombat then return "combat state" end
     if facts.stealthPreparation and state.playerStealthKnown == true
@@ -354,6 +361,9 @@ function T:Legal(action, state, descriptor)
     if blocker then return false, blocker end
     blocker = effectBlocker(self, action, state, descriptor, target,
         actionStart, tooltip)
+    if blocker then return false, blocker end
+    blocker = XelAssist.Graph.ResourceExchange
+        and XelAssist.Graph.ResourceExchange:Blocker(action, state, tooltip)
     if blocker then return false, blocker end
     return true, nil, tooltip, target, actionStart, descriptor
 end

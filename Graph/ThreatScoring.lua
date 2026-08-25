@@ -31,7 +31,8 @@ end
 
 function T:Apply(context)
     local state, facts, kind = context.state, context.facts, context.kind
-    local resourceMax = state.resourceMax
+    local groupSize = tonumber(state.groupSize) or 0
+    local resourceMax = tonumber(state.resourceMax) or 0
     if context.action.actor == "pet" then
         local pet = state.actors and state.actors.pet
         resourceMax = pet and pet.resourceMax or 0
@@ -65,16 +66,16 @@ function T:Apply(context)
         valueThreat = valueThreat * (facts.deferredFlatThreat and 1 or 0.9)
             * petThreatFactor(state)
         local petTank = XelAssistCharDB.petThreat == "tank"
-            or (XelAssistCharDB.petThreat ~= "avoid" and state.groupSize == 0)
+            or (XelAssistCharDB.petThreat ~= "avoid" and groupSize == 0)
         if petTank then context.value = context.value + valueThreat * 0.4
-        elseif state.groupSize > 0 then
+        elseif groupSize > 0 then
             context.value = context.value - valueThreat * 0.25
         end
     elseif state.tank and valueThreat > valueThreatPower then
         context.value = context.value
             + (valueThreat - valueThreatPower) * 0.5
         context.reason = "builds threat"
-    elseif (state.groupSize > 0 or state.pet) and not state.tank then
+    elseif (groupSize > 0 or state.pet) and not state.tank then
         -- Unknown future Auto Shot threat reserves additional threat without
         -- pretending the live victim observation already says player aggro.
         local risk = playerThreatRisk(state)

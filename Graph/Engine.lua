@@ -116,6 +116,8 @@ local function topCandidates(state, counter, actions)
     if movement then table.insert(candidates, movement) end
     local channel = G.ChannelCommitment and G.ChannelCommitment:Candidate(state)
     if channel then table.insert(candidates, channel) end
+    local wand = G.WandCommitment and G.WandCommitment:Candidate(state)
+    if wand then table.insert(candidates, wand) end
     SearchBranches:Retain(candidates, Policy.WIDTH, candidateBefore)
     return candidates, blockers
 end
@@ -269,8 +271,13 @@ function G:Evaluate(mode, preview, observedAt)
     local depth = Policy:Depth()
     counter.maxStates, counter.maxMs = Policy:Limits(state)
     local actions = availableActions()
+    if G.SoulShardReserve and G.SoulShardReserve:Relevant(actions) then
+        G.SoulShardReserve:Prepare(state)
+    end
+    if G.CooldownLedger then G.CooldownLedger:Prepare(state, actions, observedAt) end
     if G.StealthSetup then G.StealthSetup:Prepare(state, actions) end
     if G.ChannelCommitment then G.ChannelCommitment:Prepare(state, actions) end
+    if G.WandCommitment then G.WandCommitment:Prepare(state, actions) end
     local path = bestSearchPath(state, started, counter, depth, actions)
     if not path.steps[1] then
         return nil, Diagnostics:Reason(state, counter.blockers), false

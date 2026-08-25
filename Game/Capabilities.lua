@@ -16,16 +16,21 @@ local function tooltipText(slot, bookType)
     return string.lower(text)
 end
 
--- Unknown active spells can still become graph nodes when their live tooltip
--- states an unambiguous combat effect. This deliberately avoids guessing buffs,
--- debuffs, targets, threat, or special prerequisites from a spell name.
-function C:InferKnowledge(slot, bookType)
+-- Unknown active spells can still become graph nodes when installed-client DBC
+-- identity or their live tooltip proves an unambiguous combat effect. This
+-- avoids guessing buffs, debuffs, targets, threat, or prerequisites from names.
+function C:InferKnowledge(slot, bookType, spellId)
     if IsPassiveSpell then
         local ok, passive = pcall(IsPassiveSpell, slot, bookType or BOOKTYPE_SPELL)
         if ok and (passive == true or passive == 1) then return nil end
     end
+    local dbcExchange = XelAssist.Game.ResourceExchange
+        and XelAssist.Game.ResourceExchange:InferDBC(spellId)
+    if dbcExchange then return dbcExchange end
     local text = tooltipText(slot, bookType)
     if text == "" then return nil end
+    local exchange = XelAssist.Game.ResourceExchange and XelAssist.Game.ResourceExchange:Infer(text)
+    if exchange then return exchange end
     local facts = { inferred = true }
     if string.find(text, "interrupts spellcasting") or string.find(text, "interrupting spell") then
         facts.kind = "interrupt"
@@ -65,19 +70,20 @@ function C:BuildSpellIndex()
         local digits = string.gsub(rank or "", "%D", "")
         local value = tonumber(digits) or 1
         if not ranks[name] or value > ranks[name] then ranks[name] = value end
+        local castName = name
+        if rank and rank ~= "" then castName = name .. "(" .. rank .. ")" end
+        local spellId
+        if GetSpellSlotTypeIdForName then
+            local ok, _, _, foundId = pcall(GetSpellSlotTypeIdForName, castName)
+            if ok and foundId and foundId ~= 0 then spellId = foundId end
+        end
+        if not spellId and GetSpellIdForName then
+            local ok, foundId = pcall(GetSpellIdForName, castName)
+            if ok and foundId and foundId ~= 0 then spellId = foundId end
+        end
         local knowledge = XelAssist.Combat.Knowledge and XelAssist.Combat.Knowledge[name]
-        if not knowledge then knowledge = self:InferKnowledge(i) end
+        if not knowledge then knowledge = self:InferKnowledge(i, BOOKTYPE_SPELL, spellId) end
         if knowledge then
-            local castName = name
-            if rank and rank ~= "" then castName = name .. "(" .. rank .. ")" end
-            local spellId
-            if GetSpellSlotTypeIdForName then
-                local ok, _, _, foundId = pcall(GetSpellSlotTypeIdForName, castName)
-                if ok and foundId and foundId ~= 0 then spellId = foundId end
-            elseif GetSpellIdForName then
-                local ok, foundId = pcall(GetSpellIdForName, castName)
-                if ok and foundId and foundId ~= 0 then spellId = foundId end
-            end
             table.insert(actions, { name = name, rankText = rank or "", rank = value,
                 slot = i, spellId = spellId, bookType = BOOKTYPE_SPELL,
                 actor = "player", executor = "playerSpell", facts = knowledge })
@@ -746,6 +752,7 @@ function C:Facts(action)
             end
         end
     end
+    if XelAssist.Game.ResourceExchange then XelAssist.Game.ResourceExchange:Apply(action, out, description) end
     XelAssist.Game.SpellTiming:Apply(action, out)
     self.tooltipFacts[cacheKey] = out
     return out
@@ -869,13 +876,8 @@ function C:Distance(unit)
 end
 
 function C:Geometry(from, to)
-    local out = { source = nil, lineOfSight = nil, behind = nil }
-    if not UnitXP or not from or not to or not UnitExists(from) or not UnitExists(to) then return out end
-    local ok, value = pcall(UnitXP, "inSight", from, to)
-    if ok and type(value) == "boolean" then out.lineOfSight, out.source = value, "UnitXP" end
-    ok, value = pcall(UnitXP, "behind", from, to)
-    if ok and type(value) == "boolean" then out.behind, out.source = value, "UnitXP" end
-    return out
+    return XelAssist.Game.Geometry and XelAssist.Game.Geometry:Observe(from, to)
+        or { source = nil, lineOfSight = nil, behind = nil }
 end
 
 function C:CanAfford(name)

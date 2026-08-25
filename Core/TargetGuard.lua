@@ -120,10 +120,6 @@ function G:ValidateHostileEffect(plan)
             if facts.effectMaxRange and distance > facts.effectMaxRange then
                 return nil, "companion out of melee range"
             end
-            local geometry = XelAssist.Game.Capabilities:Geometry("pet", "target")
-            if geometry and geometry.lineOfSight == false then
-                return nil, "companion line of sight"
-            end
         end
         if facts.commandMaxRange then
             local distance = XelAssist.Game.Capabilities:Distance("target")

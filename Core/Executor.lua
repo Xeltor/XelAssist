@@ -5,10 +5,10 @@ local Guard = XelAssist.Core.TargetGuard
 local ExecutionReach = XelAssist.Core.ExecutionReach
 local DispatchReadiness = XelAssist.Core.DispatchReadiness
 local RecommendationSnapshot = XelAssist.Core.RecommendationSnapshot
+local WandExecution = XelAssist.Core.WandExecution
 local PlayerNormalQueue = XelAssist.Core.PlayerNormalQueue
 local PlayerOnSwing = XelAssist.Game.Player
     and XelAssist.Game.Player.OnSwing
-
 local function applicationGuarded(facts, tooltip)
     local kind = facts and facts.kind
     if kind == "dot" or kind == "debuff" or kind == "crowdControl"
@@ -17,10 +17,9 @@ local function applicationGuarded(facts, tooltip)
         return facts.channel or tooltip
             and (tonumber(tooltip.duration) or 0) > 0 and true or false
     end
-    return kind == "resource" and (facts.channel
+    return kind == "resource" and (facts.transientResource or facts.channel
         or tooltip and (tonumber(tooltip.duration) or 0) > 0) and true or false
 end
-
 local function auraBarForFacts(facts)
     if facts and (facts.deferredUntilPetMelee
         or facts.petCombatBuff or facts.petCombatEffects) then return "buff" end
@@ -33,7 +32,6 @@ local function auraBarForFacts(facts)
     if kind == "resource" then return facts.self and "buff" or "debuff" end
     return nil
 end
-
 local function friendlyRelation(relation)
     return relation == "ally" or relation == "friendly"
         or relation == "self" or relation == "player" or relation == "pet"
@@ -153,6 +151,8 @@ local function dispatchPlayer(action, plan, castName, friendly, capturedGuid, un
         end
         local started, startReason = attack:Start(guid)
         if not started then return false, startReason end
+    elseif action.facts.wandRepeat then
+        return WandExecution:Dispatch(castName, guid)
     elseif action.facts.autoRepeat then CastSpellByName(castName)
     elseif action.facts.petLifecycle then CastSpellByName(castName)
     elseif action.facts.ground then CastSpellByName(castName, "CLICK")
@@ -228,7 +228,7 @@ local function validatePlayerContext(owner, plan, context)
     if context.hostilePlan and not context.hostileGuid then
         return rejectPlayer(owner, reason)
     end
-    if facts.autoRepeat and XelAssist.Combat.AutoShot then
+    if facts.autoRepeat and not facts.wandRepeat and XelAssist.Combat.AutoShot then
         context.capturedGuid, reason = validateAutoShot(plan)
         if not context.capturedGuid then return rejectPlayer(owner, reason) end
     end
@@ -293,7 +293,10 @@ local function dispatchPlayerContext(owner, plan, context)
         or finalEffectGuid ~= context.effectGuid) then
         return rejectPlayer(owner, reason or "effect target changed")
     end
-    if facts.autoRepeat and XelAssist.Combat.AutoShot then
+    if facts.wandRepeat then
+        context.applicationGuid, reason = WandExecution:Validate(context.hostileGuid)
+        if not context.applicationGuid then return rejectPlayer(owner, reason) end
+    elseif facts.autoRepeat and XelAssist.Combat.AutoShot then
         context.applicationGuid, reason = validateAutoShot(plan)
         if not context.applicationGuid then return rejectPlayer(owner, reason) end
     end
@@ -334,7 +337,9 @@ end
 
 local function recordPlayerSubmission(owner, plan, selected, context)
     local action, facts = context.action, context.facts
-    if facts.autoRepeat and XelAssist.Combat.AutoShot then
+    if facts.wandRepeat and XelAssist.Combat.Wand then
+        WandExecution:Submitted(context.applicationGuid, action, plan.tooltip)
+    elseif facts.autoRepeat and XelAssist.Combat.AutoShot then
         XelAssist.Combat.AutoShot:Submitted(context.applicationGuid, action.spellId)
     end
     local engagement = XelAssist.Game.Player
@@ -350,6 +355,7 @@ local function recordPlayerSubmission(owner, plan, selected, context)
     end
     owner:RecordDecision(plan, selected)
     if XelAssist.Combat.Observations and not facts.playerAttack
+        and not facts.autoRepeat
         and not context.onSwing then
         local observedAction = facts.effectTarget == "target"
             and not facts.deferredUntilPetMelee

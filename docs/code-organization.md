@@ -46,6 +46,11 @@ never class rotations or ordered priority lists.
   score recommendations, or persist learned combat outcomes.
   `Game/Range.lua` owns normalized native spell verdicts and pure independent
   command/effect bands so planning and final dispatch cannot disagree.
+  `Game/Geometry.lua` exposes only proven positioning evidence and deliberately
+  excludes UnitXP's non-authoritative `inSight` hint. `Game/ResourceExchange.lua`
+  classifies exact DBC-backed health/resource conversions and tooltip magnitude.
+  `Game/SoulShards.lua` owns live shard inventory, the character reserve, and
+  level-scaled target-yield evidence without prescribing a Warlock sequence.
   `Game/HitBonuses.lua` owns the capability-gated equipped-hit snapshot and
   keeps unresolved talent/aura contributions explicit.
   `Game/Hostiles.lua` owns bounded GUID-deduplicated hostile observation, while
@@ -78,7 +83,9 @@ never class rotations or ordered priority lists.
 - `Combat` owns declarative player and companion spell meaning, stateless
   delivery rules, transient observations, and target evidence. Pet knowledge is
   ID-first metadata over live-discovered actions, never a family priority list.
-  It does not depend on graph search.
+  `Combat/Wand.lua` owns native Shoot-slot discovery, repeat observation, live
+  ranged stats, and the bounded submission latch. It does not depend on graph
+  search.
 - `Game/SpellPower.lua` decodes OctoWoW's VMaNGOS weapon-effect aggregation
   from live Spell.dbc rows. `Game/WeaponPower.lua` owns the ordinary and
   normalized live equipped-weapon basis. `Graph/ActionPower.lua` combines those
@@ -93,6 +100,12 @@ never class rotations or ordered priority lists.
   that expected survival factor causal across later aura ticks.
   `Graph/ChannelCommitment.lua` owns the remaining-value comparison between
   continuing and deliberately clipping a live player channel.
+  `Graph/WandCommitment.lua` owns sustained Shoot continuation and clipping;
+  `Graph/ResourceExchange.lua` owns conversion legality, value, and atomic
+  state transitions; `Graph/SoulShardReserve.lua` prices bounded stock,
+  eligible generation, and marginal consumption; `Graph/CooldownLedger.lua`
+  captures exact-rank readiness
+  once at the root and supplies pure projected clocks to descendants.
   `Graph/AreaRecipients.lua` resolves conservative per-effect recipient sets;
   `Graph/HostileEffects.lua` applies eligible hostile-local effects without
   spending one action more than once. `Graph/AutoShotEffects.lua` and

@@ -70,24 +70,17 @@ end
 
 local function recommendationUnknowns(state, best)
     local out, kind = {}, best.action.facts.kind
-    local distance, lineOfSight = state.targetDistance, state.targetLineOfSight
+    local distance = state.targetDistance
     if best.action.actor == "pet" and state.actors and state.actors.pet then
-        distance, lineOfSight = state.actors.pet.distance,
-            state.actors.pet.lineOfSight
+        distance = state.actors.pet.distance
     end
     if best.targetRelation == "hostile" and distance == nil then
         table.insert(out, "range")
-    end
-    if best.targetRelation == "hostile" and lineOfSight == nil then
-        table.insert(out, "line of sight")
     end
     if best.targetRelation ~= "hostile" and best.target ~= "player" then
         local friendly = State:FriendlyByKey(state, best.targetKey)
         if not friendly or friendly.distance == nil then
             table.insert(out, "ally range")
-        end
-        if not friendly or friendly.lineOfSight == nil then
-            table.insert(out, "ally line of sight")
         end
         if not best.targetGUID then table.insert(out, "ally identity") end
     end

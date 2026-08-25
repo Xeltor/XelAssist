@@ -167,11 +167,31 @@ function Config:Build()
     f.depthHelp:SetWidth(145); f.depthHelp:SetJustifyH("LEFT")
     f.depthHelp:SetTextColor(0.55, 0.58, 0.64)
 
+    local shards = CreateFrame("Slider", "XelAssistSoulShardSlider", f,
+        "OptionsSliderTemplate")
+    shards:SetWidth(125); shards:SetHeight(16)
+    shards:SetPoint("TOPLEFT", f, "TOPLEFT", 185, -474)
+    shards:SetMinMaxValues(0, 10); shards:SetValueStep(1)
+    getglobal(shards:GetName() .. "Low"):SetText("0")
+    getglobal(shards:GetName() .. "High"):SetText("10")
+    getglobal(shards:GetName() .. "Text"):SetText("Soul Shards kept: 3")
+    shards:SetScript("OnValueChanged", function()
+        XelAssistCharDB.soulShardReserve = math.floor(this:GetValue() + 0.5)
+        local reserve = XelAssist.Game.SoulShards
+            and XelAssist.Game.SoulShards:Reserve()
+            or XelAssistCharDB.soulShardReserve
+        getglobal(this:GetName() .. "Text"):SetText(
+            "Soul Shards kept: " .. tostring(reserve))
+        XelAssist.UI.HUD:Refresh(true)
+    end)
+    f.soulShardReserve = shards
+    shards:Hide()
+
     local macroLabel = label(f, "Fixed execute macro", "GameFontNormalSmall")
-    macroLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 185, -471)
+    macroLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 185, -511)
     local macro = CreateFrame("Frame", nil, f)
     macro:SetWidth(125); macro:SetHeight(22)
-    macro:SetPoint("TOPLEFT", f, "TOPLEFT", 185, -488)
+    macro:SetPoint("TOPLEFT", f, "TOPLEFT", 185, -528)
     macro.command = "/xa"
     macro.background = macro:CreateTexture(nil, "BACKGROUND")
     macro.background:SetAllPoints(macro)
@@ -220,6 +240,16 @@ function Config:Refresh()
     f.aoe.Refresh(); f.locked.Refresh(); f.shown.Refresh(); f.minimap.Refresh()
     f.slider:SetValue(XelAssistDB.ui.scale or 1)
     f.depth:SetValue(XelAssistCharDB.visibleSteps or 3)
+    local _, class = UnitClass("player")
+    if class == "WARLOCK" and XelAssist.Game.SoulShards then
+        f.soulShardReserve:Show()
+        local reserve = XelAssist.Game.SoulShards:Reserve()
+        f.soulShardReserve:SetValue(reserve)
+        getglobal(f.soulShardReserve:GetName() .. "Text"):SetText(
+            "Soul Shards kept: " .. tostring(reserve))
+    else
+        f.soulShardReserve:Hide()
+    end
 end
 
 function Config:Toggle()

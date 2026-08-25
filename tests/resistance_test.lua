@@ -1,4 +1,4 @@
-XelAssist = { Game = {}, Combat = {}, Graph = {}, UI = {} }
+XelAssist = { Game = {}, Combat = {}, Core = {}, Graph = {}, UI = {} }
 table.getn = table.getn or function(value)
     local count = 0
     while value[count + 1] ~= nil do count = count + 1 end
@@ -155,6 +155,7 @@ dofile("Combat/Delivery.lua")
 dofile("Combat/HitDelivery.lua")
 dofile("Combat/ResistanceSubmissions.lua")
 dofile("Combat/Resistance.lua")
+dofile("Core/WandExecution.lua")
 
 local submittedForCurrentTarget = XelAssist.Combat.Resistance.Submitted
 function XelAssist.Combat.Resistance:Submitted(action, guid, tooltip, refresh)
@@ -1371,7 +1372,11 @@ assert(ignoredVulnerabilityProfile and ignoredVulnerability.mode == "ignore-resi
 
 local wandAction = { name = "Shoot", spellId = 501, actor = "player",
     facts = { kind = "damage", dynamicSchool = "equippedWand" } }
-XelAssist.Combat.Resistance:Submitted(wandAction, targetGuid)
+XelAssist.Combat.Wand = { Submitted = function(_, guid)
+    return guid == targetGuid
+end }
+assert(XelAssist.Core.WandExecution:Submitted(targetGuid, wandAction),
+    "executor-owned wand submission must seed dynamic resistance context")
 XelAssist.Combat.Resistance:DamageEvent(targetGuid, "player-a", 501, 50, "0,0,0", 0, 6,
     "2,0,0,0")
 local wand = XelAssist.Combat.Resistance:Estimate(wandAction,

@@ -350,8 +350,8 @@ assert(table.getn(C:Events(rangedOut, candidate)) == 0,
 local blockedLos = targetLocalState(guidA, false)
 blockedLos.actors.pet.autocasts = { autocasts()[1] }
 blockedLos.hostiles.byKey[keyA].geometry.pet.lineOfSight = false
-assert(table.getn(C:Events(blockedLos, candidate)) == 0,
-    "an exact pet line-of-sight failure must block the ambient ability")
+assert(table.getn(C:Events(blockedLos, candidate)) == 1,
+    "an unproven line-of-sight hint must not suppress a ranged-valid ambient ability")
 local unknownGeometry = targetLocalState(guidA, false)
 unknownGeometry.actors.pet.autocasts = { autocasts()[1] }
 unknownGeometry.hostiles.byKey[keyA].geometry.pet = {}

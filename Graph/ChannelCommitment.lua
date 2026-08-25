@@ -104,7 +104,8 @@ function C:CanClip(state, action)
     return state and state.playerChanneling == true
         and (tonumber(state.castRemaining) or 0) > 0
         and action and (action.actor or "player") == "player"
-        and not (facts.channelContinuation or facts.autoRepeat
+        and not (facts.channelContinuation
+            or facts.autoRepeat and not facts.wandRepeat
             or facts.playerAttack or facts.onNextSwing or facts.onSwing)
 end
 
@@ -113,7 +114,7 @@ function C:Preserves(state, action)
     return state and state.playerChanneling == true
         and (tonumber(state.castRemaining) or 0) > 0
         and action and (action.actor or "player") == "player"
-        and (facts.autoRepeat or facts.playerAttack
+        and (facts.autoRepeat and not facts.wandRepeat or facts.playerAttack
             or facts.onNextSwing or facts.onSwing) and true or false
 end
 

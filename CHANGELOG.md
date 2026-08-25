@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.8.20
+
+- Modeled Warlock Life Tap as a graph-native atomic health-to-mana exchange.
+  Its identity comes from the installed DBC signature even under localized
+  names; exact tooltip magnitudes, lethal-health and full-mana gates, future
+  resource state, and a dispatch pending guard prevent wasteful double taps.
+- Added a bounded, character-specific Soul Shard stock model with a default
+  reserve of three. Drain Soul gains stock value only for a credible eligible
+  death during its channel, is strongly disfavored at the reserve, and shard
+  consumers pay only the marginal cost of dipping below that reserve.
+- Made wand Shoot an idempotent client-owned commitment. Native action-slot and
+  repeat state, live wand damage/speed, target identity, movement, continuation,
+  and weighted clipping now compete with casts and DoTs without a repeated
+  macro press toggling an active wand off.
+- Bound each executable companion action-bar slot to its exact learned spellbook
+  rank, with a deterministic highest-rank fallback when bar rank text is not
+  usable. Enabled Imp autocasts therefore produce one exact graph node instead
+  of duplicate or mismatched ranks.
+- Captured player and companion cooldowns once per root evaluation in an
+  exact-rank ledger. Descendant graph states now project pure cooldown clocks
+  without repeatedly calling live APIs during beam expansion.
+- Removed UnitXP's unproven `inSight` hint from planning and dispatch gates.
+  Exact range bands, hitboxes, behind evidence, movement, and actual client cast
+  failures remain authoritative without inventing a line-of-sight model.
+
 ## 0.8.19
 
 - Bounded synchronous graph work with the client's intra-frame profiler clock

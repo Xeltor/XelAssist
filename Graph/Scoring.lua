@@ -257,6 +257,8 @@ local function scoreStateUtility(context)
         context.value = state.hasAggro and not state.tank and 4200 or -500
         context.reason = "drops unwanted aggro"
     elseif kind == "resource" then
+        if XelAssist.Graph.ResourceExchange
+            and XelAssist.Graph.ResourceExchange:Score(context) then return end
         local missing = math.max(0, state.resourceMax - state.resource)
         if facts.consumable then
             local effective = math.min(context.power, missing)
@@ -396,6 +398,10 @@ local function candidate(context)
         marginalEffectivePower = context.marginalEffectivePower,
         playerSwingUnknowns = context.playerSwingUnknowns,
         startsPlayerAttack = context.startsPlayerAttack,
+        soulShardOpportunity = context.soulShardOpportunity,
+        soulShardStockValue = context.soulShardStockValue,
+        soulShardStockCost = context.soulShardStockCost,
+        soulShardOvercapPenalty = context.soulShardOvercapPenalty,
         confidence = descriptor and descriptor.projectionOpen and "partial data" or nil,
         spatialConditions = descriptor and descriptor.spatialConditions, spatialConditionFingerprint = descriptor and descriptor.spatialConditionFingerprint, spatialConditionalOnly = descriptor and descriptor.spatialConditionalOnly,
     }
@@ -417,6 +423,9 @@ function Scoring:Evaluate(action, state, descriptor)
         return candidate(context)
     end
     scoreKindUtility(context)
+    if XelAssist.Graph.SoulShardReserve then
+        XelAssist.Graph.SoulShardReserve:Score(context)
+    end
     if SurvivalPressure then SurvivalPressure:Explain(context) end
     ComboScoring:Apply(context)
     applyActionAdjustments(context)

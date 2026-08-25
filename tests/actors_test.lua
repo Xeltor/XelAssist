@@ -12,6 +12,7 @@ local petGuid = {}
 local playerGuid, targetGuid = {}, {}
 local ownerClass, hidePetCost = "WARLOCK", false
 local petFamily = "Felhunter"
+local warlockBarRank = "Rank 2"
 
 UnitClass = function(unit)
     if unit == "player" then return ownerClass == "HUNTER" and "Hunter" or "Warlock", ownerClass end
@@ -52,7 +53,7 @@ GetPetActionInfo = function(slot)
         if slot == 7 then return "Thunderstomp", "Rank 4", "stomp-icon", false, false, true, true end
         return nil
     end
-    if slot == 4 then return "Devour Magic", "Rank 2", "devour-icon", false, false, true, false end
+    if slot == 4 then return "Devour Magic", warlockBarRank, "devour-icon", false, false, true, true end
     if slot == 5 then return "Spell Lock", "Rank 1", "lock-icon", false, false, false, false end
 end
 GetSpellName = function(slot, book)
@@ -64,17 +65,25 @@ GetSpellName = function(slot, book)
         if slot == 4 then return "Thunderstomp", "Rank 4" end
         return nil
     end
-    if slot == 1 then return "Devour Magic", "Rank 2" end
-    if slot == 2 then return "Spell Lock", "Rank 1" end
+    if slot == 1 then return "Devour Magic", "Rank 1" end
+    if slot == 2 then return "Devour Magic", "Rank 2" end
+    if slot == 3 then return "Devour Magic", "Rank 3" end
+    if slot == 4 then return "Spell Lock", "Rank 1" end
 end
 GetSpellSlotTypeIdForName = function(name)
     if name == "Bite(Rank 8)" then return 1, BOOKTYPE_PET, 17261 end
     if name == "Growl(Rank 7)" then return 2, BOOKTYPE_PET, 14921 end
     if name == "Prowl(Rank 3)" then return 3, BOOKTYPE_PET, 24453 end
     if name == "Thunderstomp(Rank 4)" then return 4, BOOKTYPE_PET, 51156 end
+    if name == "Devour Magic(Rank 1)" then return 0, BOOKTYPE_PET, 0 end
     if name == "Devour Magic(Rank 2)" then return 1, BOOKTYPE_PET, 19731 end
-    if name == "Spell Lock(Rank 1)" then return 2, BOOKTYPE_PET, 19244 end
+    if name == "Devour Magic(Rank 3)" then return 3, BOOKTYPE_PET, 19734 end
+    if name == "Spell Lock(Rank 1)" then return 4, BOOKTYPE_PET, 19244 end
     return 0, "unknown", 0
+end
+GetSpellIdForName = function(name)
+    if name == "Devour Magic(Rank 1)" then return 19505 end
+    return 0
 end
 IsPassiveSpell = function() return false end
 GetPetActionCooldown = function(slot)
@@ -136,14 +145,20 @@ assert(pet.attackPowerKnown and pet.attackPower == 425,
 
 local actions = XelAssist.Game.Actors:Actions()
 assert(table.getn(actions) == 6, "player, two pet spells, and three commands should be graph nodes")
-local devour, lock
+local devour, lock, devourCount = nil, nil, 0
 local i
 for i = 1, table.getn(actions) do
-    if actions[i].name == "Devour Magic" then devour = actions[i] end
+    if actions[i].name == "Devour Magic" then
+        devour, devourCount = actions[i], devourCount + 1
+    end
     if actions[i].name == "Spell Lock" then lock = actions[i] end
 end
-assert(devour and devour.actor == "pet" and devour.actionSlot == 4)
-assert(devour.autocastAllowed and not devour.autocastEnabled and devour.facts.kind == "dispel")
+assert(devourCount == 1 and devour and devour.actor == "pet"
+    and devour.actionSlot == 4 and devour.rankText == "Rank 2"
+    and devour.spellId == 19731,
+    "one pet bar slot must emit exactly its matching learned rank")
+assert(devour.autocastAllowed and devour.autocastEnabled
+    and devour.facts.kind == "dispel")
 assert(lock and lock.actionSlot == 5 and lock.facts.kind == "interrupt")
 assert(lock.actorRef and lock.actorRef.guid == petGuid,
     "pet actions must capture the opaque actor identity used for discovery")
@@ -166,6 +181,35 @@ assert(replacementLock and replacementLock.actorRef.guid == petGuid
     "pet replacement must rebuild actions against the replacement identity")
 local actors = XelAssist.Game.Actors:Snapshot()
 assert(actors.player and actors.pet and actors.pet.distance == 18)
+assert(table.getn(actors.pet.autocasts) == 1
+    and actors.pet.autocasts[1].name == "Devour Magic"
+    and actors.pet.autocasts[1].spellId == 19731,
+    "one enabled pet bar slot must project exactly one matching-rank autocast")
+
+warlockBarRank = "Rank 1"
+XelAssist.Game.Actors:Invalidate()
+local firstSlotActions = XelAssist.Game.Actors:Actions()
+local firstSlotDevour
+for i = 1, table.getn(firstSlotActions) do
+    if firstSlotActions[i].name == "Devour Magic" then
+        firstSlotDevour = firstSlotActions[i]
+    end
+end
+assert(firstSlotDevour and firstSlotDevour.spellId == 19505,
+    "a native first-slot zero ID must use the exact GetSpellIdForName fallback")
+
+warlockBarRank = "Rank 99"
+XelAssist.Game.Actors:Invalidate()
+local fallbackActions = XelAssist.Game.Actors:Actions()
+local fallbackDevour, fallbackCount = nil, 0
+for i = 1, table.getn(fallbackActions) do
+    if fallbackActions[i].name == "Devour Magic" then
+        fallbackDevour, fallbackCount = fallbackActions[i], fallbackCount + 1
+    end
+end
+assert(fallbackCount == 1 and fallbackDevour
+    and fallbackDevour.rankText == "Rank 3" and fallbackDevour.spellId == 19734,
+    "an unreadable pet bar rank must deterministically bind the highest learned rank")
 
 ownerClass, petFamily, petGuid = "HUNTER", "Cat", {}
 XelAssist.Game.Actors:Invalidate()

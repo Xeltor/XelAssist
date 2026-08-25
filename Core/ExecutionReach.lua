@@ -133,10 +133,6 @@ function E:Validate(plan, castUnit)
     if geometryUnit and geometryUnit ~= geometryActor then
         local geometry = XelAssist.Game.Capabilities:Geometry(
             geometryActor, geometryUnit)
-        if geometry and geometry.lineOfSight == false then
-            return false, geometryActor == "pet" and "companion line of sight"
-                or "line of sight"
-        end
         if action.facts.behind and not (geometry and geometry.behind == true) then
             return false, "must be behind target"
         end

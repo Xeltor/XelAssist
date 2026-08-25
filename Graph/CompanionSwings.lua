@@ -25,9 +25,7 @@ end
 
 local function legal(pet, record)
     local observed = geometry(pet, record)
-    if observed.lineOfSight == false then return false, "line of sight" end
-    if type(observed.distance) ~= "number"
-        or observed.lineOfSight ~= true then
+    if type(observed.distance) ~= "number" then
         return nil, "companion melee geometry"
     end
     local kind = observed.distanceKind or observed.source

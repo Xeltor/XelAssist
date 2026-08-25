@@ -39,7 +39,7 @@ widget.__index = function(self, key)
     if key == "GetValue" then return function(s) return s.value or 1 end end
     if key == "GetChecked" then return function(s) return s.checked end end
     if key == "IsEnabled" then return function(s) return s.enabled ~= false end end
-    if key == "IsShown" then return function(s) return s.shown ~= false end end
+    if key == "IsShown" then return function(s) return s.visible ~= false end end
     if key == "GetText" then return function(s) return s.text end end
     if key == "GetStringWidth" then return function(s) return string.len(s.text or "") * 5 end end
     if key == "GetFont" then return function() return "Fonts\\FRIZQT__.TTF", 10, "" end end
@@ -76,8 +76,8 @@ widget.__index = function(self, key)
     end end
     if key == "Enable" then return function(s) s.enabled = true end end
     if key == "Disable" then return function(s) s.enabled = false end end
-    if key == "Show" then return function(s) s.shown = true end end
-    if key == "Hide" then return function(s) s.shown = false end end
+    if key == "Show" then return function(s) s.visible = true end end
+    if key == "Hide" then return function(s) s.visible = false end end
     if key == "SetScript" then return function(s, eventName, callback)
         XelAssistTestNoteMethod(s, "SetScript"); s[eventName] = callback
     end end
@@ -97,7 +97,7 @@ CreateFrame = function(frameType, name, parent, template)
         end
     end
     serial = serial + 1
-    local frame = setmetatable({ name = name or ("Mock" .. serial), shown = true,
+    local frame = setmetatable({ name = name or ("Mock" .. serial), visible = true,
         enabled = true, frameType = frameType, parent = parent, template = template }, widget)
     table.insert(createdFrames, frame)
     return frame
@@ -280,6 +280,29 @@ assert(getglobal("XelAssistDepthSliderText"):GetText() == "Decision steps shown"
     and string.find(XelAssist.UI.Settings.frame.depthHelp:GetText(),
         "current only", 1, true),
     "graph-depth control must explain the current-plus-future decision rail")
+assert(XelAssist.UI.Settings.frame.soulShardReserve
+    and not XelAssist.UI.Settings.frame.soulShardReserve:IsShown(),
+    "the character-specific Soul Shard reserve must stay hidden off Warlock")
+do
+    local savedUnitClass = UnitClass
+    UnitClass = function() return "Warlock", "WARLOCK" end
+    XelAssist.UI.Settings:Refresh()
+    local shardSlider = XelAssist.UI.Settings.frame.soulShardReserve
+    assert(shardSlider:IsShown() and shardSlider:GetValue() == 3
+        and XelAssistCharDB.soulShardReserve == 3
+        and getglobal("XelAssistSoulShardSliderText"):GetText()
+            == "Soul Shards kept: 3",
+        "Warlocks must receive a visible character-specific three-shard reserve")
+    shardSlider.value, this = 2, shardSlider
+    shardSlider.OnValueChanged()
+    assert(XelAssistCharDB.soulShardReserve == 2
+        and getglobal("XelAssistSoulShardSliderText"):GetText()
+            == "Soul Shards kept: 2",
+        "the Soul Shard reserve slider must persist a bounded character value")
+    XelAssistCharDB.soulShardReserve = 3
+    UnitClass = savedUnitClass
+    XelAssist.UI.Settings:Refresh()
+end
 assert(XelAssist.UI.HUD.frame.instrumentStyle
     and XelAssist.UI.Settings.frame.instrumentStyle
     and XelAssist.UI.HUD.frame.backdrop.edgeFile
@@ -350,7 +373,7 @@ assert(XelAssistCharDB.visibleSteps == 3 and XelAssistCharDB.graphDepth == nil
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.19" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.20" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(not runtime.apis.comboOwner and not runtime.apis.comboDuration,
@@ -2075,4 +2098,22 @@ assert(not XelAssist.Combat.Resistance:Submission(
 UnitCanAttack, UnitAttackSpeed, UnitDamage = XelAssistTestSavedHunterCanAttack,
     XelAssistTestSavedHunterAttackSpeed, XelAssistTestSavedHunterDamage
 testTargetGUID, XelAssistTestOnSwingNative = nil, nil
+
+-- Exercise active Shoot continuation through the actual TOC load order. This
+-- catches module captures that a standalone test with pre-seeded dependencies
+-- cannot observe.
+XelAssistTestWandState = { hostile = true, targetGUID = "wand-target",
+    targetHealth = 100, targetHealthExact = true,
+    targetDistance = 20,
+    resource = 20, resourceMax = 100,
+    wand = { active = true, activeKnown = true,
+        targetGuid = "wand-target", damage = 12, speed = 2,
+        nextShotIn = 0.4, tooltip = { minRange = 0, maxRange = 30 } } }
+XelAssistTestWandCandidate = XelAssist.Graph.WandCommitment:Candidate(
+    XelAssistTestWandState)
+assert(XelAssistTestWandCandidate and XelAssist.Graph.WandCommitment:Apply(
+        XelAssistTestWandState, XelAssistTestWandCandidate)
+        and XelAssistTestWandState.targetHealth == 88,
+    "TOC-loaded wand continuation must reach hostile damage projection")
+
 print("ok: full TOC-order load, initialization, UI, config and minimap")

@@ -163,9 +163,9 @@ end
 
 local function legalGeometry(state, record)
     local observed = geometry(state, record)
-    if observed.lineOfSight == false then return false, "line of sight" end
-    if type(observed.distance) ~= "number"
-        or observed.lineOfSight ~= true then return nil, "player melee geometry" end
+    if type(observed.distance) ~= "number" then
+        return nil, "player melee geometry"
+    end
     local kind = observed.distanceKind or observed.source
     if kind ~= "hitbox" and kind ~= "combat reach" then
         return nil, "player melee distance provenance"
@@ -298,19 +298,23 @@ local function commitCooldown(out, pending, entry)
     local action, tooltip = pending.action, pending.tooltip or {}
     if not action then return end
     local at = tonumber(entry.applicationAt) or tonumber(out.time) or 0
+    local ledger = XelAssist.Graph.CooldownLedger
+    local function project(readyAt)
+        if ledger and ledger:IsPrepared(out) and ledger:Supports(action) then
+            return ledger:Project(out, action, readyAt)
+        end
+        out.readyAt[(action.actor or "player") .. ":" .. action.name] = readyAt
+    end
     local cooldown = tonumber(tooltip.cooldown)
-    if cooldown and cooldown > 0 then
-        out.readyAt[(action.actor or "player") .. ":" .. action.name]
-            = at + cooldown
-    end
+    if cooldown and cooldown > 0 then project(at + cooldown) end
     local facts = action.facts or {}
-    if facts.reactive then
-        out.readyAt[(action.actor or "player") .. ":" .. action.name] = at + 60
-    end
+    if facts.reactive then project(at + 60) end
     local group = facts.cooldownGroup or tooltip.cooldownGroup
     local category = tonumber(tooltip.categoryCooldown)
     if group and category and category > 0 then
-        out.readyAt["group:" .. group] = at + category
+        if ledger and ledger:IsPrepared(out) then
+            ledger:ProjectGroup(out, group, at + category)
+        else out.readyAt["group:" .. group] = at + category end
     end
 end
 

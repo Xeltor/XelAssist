@@ -93,7 +93,6 @@ end
 local function legality(pet, record, ambient)
     local observed, tooltip, facts = geometry(pet, record),
         ambient.tooltip or {}, ambient.facts or {}
-    if observed.lineOfSight == false then return false, "line of sight" end
     local distance = tonumber(observed.distance)
     local minimum = math.max(0, tonumber(tooltip.minRange) or 0)
     local maximum = tonumber(tooltip.maxRange)
@@ -101,8 +100,8 @@ local function legality(pet, record, ambient)
     if distance and (distance < minimum or maximum and distance > maximum) then
         return false, "range"
     end
-    if observed.lineOfSight == nil or not distance
-        and (minimum > 0 or maximum or facts.melee or facts.ranged) then
+    if not distance and (minimum > 0 or maximum
+        or facts.melee or facts.ranged) then
         return nil, "companion autocast geometry"
     end
     return true, nil

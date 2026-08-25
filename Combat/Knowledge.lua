@@ -2,8 +2,13 @@
 -- live spellbook and applies the same utility model to every class.
 XelAssist.Combat.Knowledge = {
     -- Shared utility
-    ["Shoot"] = { kind = "damage", recovery = true, cast = 0, gcd = 0,
+    ["Shoot"] = { kind = "autoRepeat", autoRepeat = true,
+        wandRepeat = true, ambient = true, startOnly = true,
+        recovery = true, cast = 0, gcd = 0,
         ranged = true, weaponRanged = true, dynamicSchool = "equippedWand" },
+    ["Life Tap"] = { kind = "resource", self = true,
+        transientResource = true, healthConversion = true,
+        resourceType = "mana" },
     -- Attack only starts the client-owned melee state. Resolved white swings
     -- arrive independently through Nampower and are never damage from this press.
     ["Attack"] = { kind = "command", playerAttack = true, ambient = true,
@@ -190,6 +195,8 @@ XelAssist.Combat.Knowledge = {
     ["Immolate"] = { kind = "dot", ranged = true }, ["Corruption"] = { kind = "dot", ranged = true },
     ["Curse of Agony"] = { kind = "dot", ranged = true,
         exclusiveFamily = "warlockCurse" },
+    ["Curse of Weakness"] = { kind = "debuff", ranged = true,
+        attackSpeedReduction = true, exclusiveFamily = "warlockCurse" },
     ["Curse of Elements"] = { kind = "debuff", ranged = true, resistanceDebuff = true,
         modifierGroup = "curseElements", exclusiveFamily = "warlockCurse" },
     ["Curse of Shadow"] = { kind = "debuff", ranged = true, resistanceDebuff = true,
@@ -198,7 +205,8 @@ XelAssist.Combat.Knowledge = {
         modifierGroup = "curseArmor", exclusiveFamily = "warlockCurse" },
     ["Siphon Life"] = { kind = "dot", ranged = true, leech = true },
     ["Drain Life"] = { kind = "damage", ranged = true, channel = true, leech = true },
-    ["Drain Soul"] = { kind = "damage", ranged = true, channel = true, recovery = true },
+    ["Drain Soul"] = { kind = "damage", ranged = true, channel = true,
+        recovery = true, soulShardGenerator = true },
     ["Rain of Fire"] = { kind = "damage", ranged = true, aoe = true, ground = true, channel = true },
     ["Hellfire"] = { kind = "damage", aoe = true, channel = true },
     ["Death Coil"] = { kind = "damage", ranged = true, leech = true, cooldown = true },

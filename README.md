@@ -1,4 +1,4 @@
-# XelAssist 0.8.19
+# XelAssist 0.8.20
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -123,13 +123,17 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
 - normalized live command-range verdicts and independently enforced effect
   reach, including minimum/maximum DBC bands, hitbox-only melee effects, and
   movement;
-- hitbox-aware actor-to-target distance, line of sight, and behind-position
-  evidence when UnitXP exposes it;
+- hitbox-aware actor-to-target distance and behind-position evidence. UnitXP's
+  `inSight` hint is deliberately excluded because it is not a proven cast-LOS
+  verdict;
 - live main-hand, off-hand, and ranged weapon skill versus target Defense,
   including the white dual-wield penalty and exact equipped item/enchant +hit
   when the matching ClassicAPI bridge is available;
 - current resources, per-rank cost, effective healing, overheal, and damage needed
   to finish the target;
+- graph-native Warlock Soul Shard stock with a character-specific reserve of
+  three, level-scaled kill eligibility, credible Drain Soul death windows, and
+  marginal scarcity pricing for shard consumers instead of a typed rotation;
 - talent-adjusted client tooltip facts, refreshed whenever talent points change;
 - group role, current target-of-target aggro, and relative action threat;
 - interrupts, proc/stance usability, combo points, buffs, debuffs, ranks,
@@ -237,8 +241,8 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
   retain the opaque hostile GUID captured at launch/scheduling across a later
   selected-target change instead of damaging the new selected-target mirror;
 - a final selected-hostile dispatch guard that rechecks identity, relation,
-  hostility, death state, player/pet command and effect reach, line of sight,
-  behind state, movement, and companion dual-target requirements before any
+  hostility, death state, player/pet command and effect reach, behind state,
+  movement, and companion dual-target requirements before any
   hostile queue, Auto Shot, pet ability, or attack command can execute. Pet
   Attack remains an approach command and therefore does not pretend the pet is
   already in effect range.

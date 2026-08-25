@@ -103,7 +103,6 @@ end
 function R:TargetEligible(evidence, expectedGuid, spellId)
     evidence = evidence or {}
     if evidence.hostile == false then return false, "hostile target" end
-    if evidence.lineOfSight == false then return false, "line of sight" end
     if evidence.rangeIdentityVerified ~= true
         or expectedGuid ~= nil and evidence.rangeTargetGuid ~= expectedGuid
         or evidence.rangeSpellId ~= self:CanonicalSpellId(spellId) then

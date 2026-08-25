@@ -3,6 +3,27 @@
 XelAssist.Graph.ActorScoring = {}
 local A = XelAssist.Graph.ActorScoring
 
+local function scoreAutoRepeat(context, state, facts)
+    local auto = facts.wandRepeat and (state.wand or {})
+        or state.autoShot or {}
+    local speed = math.max(0.5, tonumber(facts.wandRepeat and auto.speed
+        or auto.rangedSpeed) or 2.8)
+    local shot = tonumber(facts.wandRepeat and auto.damage
+        or auto.shotDamage) or context.power or 0
+    if facts.wandRepeat then
+        -- Starting the client toggle is only a setup edge. Its first
+        -- resolved shot is valued by WandCommitment on a later clock.
+        context.value = 0.01
+        context.power, context.expectedPower, context.effectivePower = 0, 0, 0
+        context.estimated = false
+        context.reason = "starts wanding for a future shot"
+    else
+        context.value = 800 + shot * 4 / speed
+        context.power, context.expectedPower, context.effectivePower = shot, shot, shot
+        context.reason = "starts sustained ranged attacks"
+    end
+end
+
 function A:Score(context)
     local state, facts, kind = context.state, context.facts, context.kind
     if XelAssist.Graph.CompanionThreat then
@@ -85,11 +106,7 @@ function A:Score(context)
                 or "recalls the companion from another target"
         end
     elseif kind == "autoRepeat" then
-        local auto = state.autoShot or {}
-        local speed = math.max(0.5, tonumber(auto.rangedSpeed) or 2.8)
-        local shot = tonumber(auto.shotDamage) or context.power or 0
-        context.value = 800 + shot * 4 / speed
-        context.reason = "starts sustained ranged attacks"
+        scoreAutoRepeat(context, state, facts)
     else return false end
     return true
 end

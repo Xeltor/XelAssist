@@ -111,6 +111,9 @@ clocks are independent: a pet interrupt can remain immediately available while
 the player is casting. Applying a candidate advances the responsible actor's
 clock and updates that actor's resource, health, targets, auras, threat state,
 summon/sacrifice state, dispels, and known cooldowns before the next layer.
+Warlock Soul Shards are a bounded stock ledger: live count and a per-character
+reserve flow through descendants, eligible Drain Soul death windows add
+expected stock, and shard consumers pay marginal scarcity only below reserve.
 Encounter context records instance type, zone/subzone, target GUID and creature
 ID, level, classification, creature type, reaction, raid marker, ownership and
 controlled-unit classification. These are data join keys and constraints, never
@@ -271,7 +274,7 @@ can never splice old future steps. Presentation painting is slot-local: a new
 future branch does not repaint the current card or an unchanged visible prefix,
 and an unchanged `IF` row can receive newer tooltip evidence without visual
 churn. Cooldown timers are rewritten only when their
-timer tuple changes. Blocking movement/range/LOS/behind evidence applies at
+timer tuple changes. Blocking movement/range/behind evidence applies at
 once; recovery must remain positive for 150 ms. Transient live-only facts are
 authoritative at the root and marked OPEN rather than frozen into future nodes.
 Candidate pruning retains one meaningful target-modifier branch when raw
@@ -459,9 +462,10 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
 - No external addon is a runtime dependency. Installed addons are used only as
   read-only API/mechanics references; XelAssist calls capability-checked DLL and
   stock client globals itself.
-- Pet line of sight, pathing, exact numeric threat lead, and encounter hazards
-  remain unknown unless the client exposes them; they are not silently treated
-  as safe.
+- Proactive player and pet line of sight is unavailable: UnitXP's `inSight`
+  hint is not a proven cast verdict and is excluded from legality. Actual client
+  cast failures can still be observed, while pathing, exact numeric threat lead,
+  and encounter hazards remain explicit unknowns.
 - A resolved companion round proves swing phase, not its next outcome magnitude.
   The live normal-damage envelope is retained for diagnostics, but white-round
   damage and threat remain unknown until crit, glancing, block, absorb, and

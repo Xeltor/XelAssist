@@ -9,6 +9,7 @@ local Ongoing = XelAssist.Graph.OngoingEffects
 local Companion = XelAssist.Graph.CompanionEvents
 local CompanionResources = XelAssist.Graph.CompanionResources
 local PlayerSwings = XelAssist.Graph.PlayerSwings
+local WandCommitment = XelAssist.Graph.WandCommitment
 
 local function append(events, entry, order)
     entry.order = order
@@ -49,6 +50,10 @@ local function advancePlayerResources(out, elapsed)
     local resources = XelAssist.Game.Player
         and XelAssist.Game.Player.Resources
     if resources then resources:Advance(out, elapsed) end
+end
+
+local function advanceWand(out, elapsed)
+    if WandCommitment then WandCommitment:Advance(out, elapsed) end
 end
 
 local function collectEvents(out, source, candidate, context, advanceWindow)
@@ -118,6 +123,7 @@ function L:BeforeAction(source, candidate)
         local step = entry.offset - elapsed
         advancePetEffects(out, step)
         advancePlayerResources(out, step)
+        advanceWand(out, step)
         Ongoing:AdvanceEventAuras(out, eventAuras, step)
         if out.targetHealthExact and out.targetHealth < prior then
             damageEvents = damageEvents + 1
@@ -184,6 +190,7 @@ function L:Run(out, source, candidate, context)
         local step = entry.offset - elapsed
         advancePetEffects(out, step)
         advancePlayerResources(out, step)
+        advanceWand(out, step)
         Ongoing:AdvanceEventAuras(out, eventAuras, step)
         elapsed = entry.offset
         if entry.kind == "chosenActionStart" then
@@ -219,6 +226,7 @@ function L:Run(out, source, candidate, context)
     local remainder = candidate.downtime - elapsed
     advancePetEffects(out, remainder)
     advancePlayerResources(out, remainder)
+    advanceWand(out, remainder)
     Ongoing:AdvanceEventAuras(out, eventAuras, remainder)
     if autoTimeline then AutoShot:FinishTimeline(out, autoTimeline) end
     out.chosenActionPrevented = not actionApplied and true or nil

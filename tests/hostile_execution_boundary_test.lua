@@ -86,7 +86,7 @@ assert(legacy and legacy.unit == "target" and legacy.guid == selectedGuid
     and legacy.targetRef.source == "selected",
     "legacy states must retain a canonical selected-target fallback")
 
-local effects, hooks = {}, {}
+local effects, hooks, wandPending = {}, {}, false
 local playerDistance, playerDistanceKind = 3, "hitbox"
 local petDistance, petDistanceKind = 3, "hitbox"
 local geometryLineOfSight = true
@@ -96,7 +96,8 @@ local spellRangeVerdict = true
 local function resetEffects()
     effects = { direct = 0, queue = 0, petAbility = 0, petAttack = 0,
         petFollow = 0, petPassive = 0, log = 0, observation = 0,
-        pending = 0, auto = 0, playerAttack = 0, petEffect = 0, item = 0 }
+        pending = 0, auto = 0, wand = 0, resistance = 0, playerAttack = 0,
+        petEffect = 0, item = 0 }
     hooks = {}
     playerDistance, playerDistanceKind = 3, "hitbox"
     petDistance, petDistanceKind = 3, "hitbox"
@@ -104,6 +105,7 @@ local function resetEffects()
     playerLineOfSight, petLineOfSight = nil, nil
     playerBehind, petBehind = nil, nil
     spellRangeVerdict = true
+    wandPending = false
     resetUnits()
     XelAssist.pendingAuras = {}
     if XelAssist.Core.PlayerNormalQueue then
@@ -116,7 +118,8 @@ local function assertNoExecution(message)
         and effects.petAbility == 0 and effects.petAttack == 0
         and effects.petFollow == 0 and effects.petPassive == 0
         and effects.log == 0 and effects.observation == 0
-        and effects.pending == 0 and effects.auto == 0
+        and effects.pending == 0 and effects.auto == 0 and effects.wand == 0
+        and effects.resistance == 0
         and effects.playerAttack == 0
         and effects.petEffect == 0 and effects.item == 0, message)
 end
@@ -214,6 +217,31 @@ XelAssist.Combat.AutoShot = {
     end,
     Submitted = function() effects.auto = effects.auto + 1 end,
 }
+XelAssist.Combat.Wand = {
+    Snapshot = function()
+        return { active = false, activeKnown = true, pending = wandPending,
+            currentTargetGuid = units.target and units.target.guid,
+            clockKnown = true }
+    end,
+    CanStart = function(_, snapshot)
+        if snapshot.pending then return false, "wand start pending" end
+        return true
+    end,
+    Submitted = function(_, guid)
+        assert(guid == selectedGuid)
+        wandPending, effects.wand = true, effects.wand + 1
+        return true
+    end,
+}
+XelAssist.Combat.Resistance = {
+    RememberUnit = function(_, unit) assert(unit == "target") end,
+    Submitted = function(_, action, guid, tooltip)
+        assert(action and action.facts
+            and action.facts.dynamicSchool == "equippedWand")
+        assert(guid == selectedGuid and type(tooltip) == "table")
+        effects.resistance = effects.resistance + 1
+    end,
+}
 XelAssist.Game.PlayerAttack = {
     Start = function()
         AttackTarget()
@@ -247,6 +275,7 @@ dofile("Game/Range.lua")
 dofile("Game/Pets/Actions.lua")
 dofile("Core/ExecutionReach.lua")
 dofile("Core/DispatchReadiness.lua")
+dofile("Core/WandExecution.lua")
 dofile("Core/PlayerNormalQueue.lua")
 dofile("Core/Executor.lua")
 
@@ -287,6 +316,27 @@ assert(effects.queue == 1 and effects.queueGuid == selectedGuid
     and effects.direct == 0 and effects.log == 1
     and effects.observation == 1,
     "a selected-hostile queue submission must pin its validated GUID")
+
+-- Shoot is a distinct client repeat boundary. It must never pass through the
+-- Hunter Auto Shot validator, and macro tapping must not toggle it off.
+resetEffects()
+currentPlan = hostilePlan(playerAction("Shoot", { kind = "autoRepeat",
+    autoRepeat = true, wandRepeat = true, ranged = true,
+    dynamicSchool = "equippedWand" }))
+hooks.autoCanStart = function()
+    error("wand dispatch reached Hunter Auto Shot validation")
+end
+XelAssist:Execute()
+assert(effects.direct == 1 and effects.directName == "Shoot"
+    and effects.queue == 0 and effects.auto == 0 and effects.wand == 1
+    and effects.resistance == 1 and effects.log == 1
+    and effects.observation == 0,
+    "a proven wand start must dispatch directly and seed dynamic resistance evidence")
+XelAssist:Execute()
+assert(effects.direct == 1 and effects.wand == 1 and effects.log == 1
+    and effects.resistance == 1
+    and string.find(XelAssist.lastReason or "", "wand start pending", 1, true),
+    "a repeated wand input must hold while native repeat confirmation is pending")
 
 -- A synchronous client rejection is not a submitted action. It must not leave
 -- the ghost DoT reservation that would suppress the required immediate retry.
@@ -720,14 +770,16 @@ assert(effects.direct == 1 and effects.directUnit == petGuid
     "a pet-owned effect must use pet line-of-sight and behind geometry")
 
 resetEffects()
-playerLineOfSight, petLineOfSight = true, false
+playerLineOfSight, petLineOfSight, petBehind = true, false, true
 currentPlan = hostilePlan(positionedKill)
 currentPlan.castTarget, currentPlan.castTargetGUID = "pet", petGuid
 currentPlan.castTargetRelation = "pet"
 currentPlan.castTargetRef = { unit = "pet", guid = petGuid,
     relation = "pet", source = "controlled" }
-XelAssist:Execute()
-assertNoExecution("player line-of-sight incorrectly authorized a pet-owned effect")
+    XelAssist:Execute()
+assert(effects.direct == 1 and effects.directUnit == petGuid
+    and effects.log == 1,
+    "an unproven pet line-of-sight hint must not suppress a reachable effect")
 
 resetEffects()
 currentPlan = hostilePlan(kill)
