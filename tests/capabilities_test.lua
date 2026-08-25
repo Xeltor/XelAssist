@@ -122,6 +122,9 @@ GetSpellRecField = function(spellId, field)
             effectBasePoints = { -46, 5, 0 }, effectMiscValue = { 20, 20, 0 } }
         return modifier[field]
     end
+    if spellId == 348 and field == "effect" then return { 2, 6, 0 } end
+    if spellId == 348 and field == "effectApplyAuraName" then return { 0, 3, 0 } end
+    if spellId == 348 and field == "effectAmplitude" then return { 0, 3000, 0 } end
     local values = { castTime = 2500, recoveryTime = 8000, categoryRecoveryTime = 6000,
         category = 44, startRecoveryTime = 1500, rangeIndex = 7, manaCost = 60,
         school = 4, spellLevel = 20, attributesEx4 = 1 }
@@ -160,7 +163,27 @@ GetTalentInfo = function(tab, talent)
 end
 
 dofile("Combat/Knowledge.lua")
+dofile("Game/SpellTiming.lua")
 dofile("Game/Capabilities.lua")
+
+local savedGetCastInfo, savedGetCurrentCastingInfo = GetCastInfo,
+    GetCurrentCastingInfo
+GetCastInfo = function()
+    return { spellId = 116, castRemainingMs = 1250,
+        gcdRemainingMs = 300, castType = 3 }
+end
+local _, castRemaining, casting, gcdRemaining, channeling =
+    XelAssist.Game.Capabilities:CurrentCast()
+assert(casting and channeling and castRemaining == 1.25 and gcdRemaining == 0.3,
+    "the detailed cast record must preserve native channel state")
+GetCastInfo = nil
+GetCurrentCastingInfo = function() return 116, 0, 0, 0, 1 end
+_, castRemaining, casting, gcdRemaining, channeling =
+    XelAssist.Game.Capabilities:CurrentCast()
+assert(casting and channeling and castRemaining == 0 and gcdRemaining == 0,
+    "the compatibility cast API must preserve its channel flag")
+GetCastInfo, GetCurrentCastingInfo = savedGetCastInfo,
+    savedGetCurrentCastingInfo
 
 local actions = XelAssist.Game.Capabilities:Actions()
 assert(table.getn(actions) == 2, "all learned ranks should become graph nodes")
@@ -348,9 +371,11 @@ assert(armorDebuff.targetArmorReduction == 450 and armorDebuff.targetArmorPerCom
 tooltipLines[2] = { left = "Burns the enemy for 25 to 35 Fire damage and then an additional 60 Fire damage over 15 sec.", right = nil }
 tooltipLines[3] = { left = "2 sec cast", right = "30 yd range" }
 local hybrid = XelAssist.Game.Capabilities:Facts({ name = "Immolate", slot = 4,
-    spellId = 348, bookType = BOOKTYPE_SPELL })
-assert(hybrid.directDamage == 30 and hybrid.periodicDamage == 60 and hybrid.average == 90,
-    "hybrid direct/periodic tooltip damage must remain separable")
+    spellId = 348, bookType = BOOKTYPE_SPELL, facts = { kind = "dot" } })
+assert(hybrid.directDamage == 30 and hybrid.periodicDamage == 60
+    and hybrid.average == 90 and hybrid.periodicInterval == 3
+    and hybrid.periodicIntervalSource == "client DBC effectAmplitude",
+    "hybrid damage and authoritative DBC tick cadence must remain separable")
 tooltipLines[2] = { left = "Heals a friendly target for 100 to 120.", right = nil }
 tooltipLines[3] = { left = "2 sec cast", right = "30 yd range" }
 local inferred = XelAssist.Game.Capabilities:InferKnowledge(9)

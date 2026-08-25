@@ -10,6 +10,12 @@ NUM_PET_ACTION_SLOTS = 10
 local castSlot, attacked, followed, passive
 local petGuid = {}
 local playerGuid, targetGuid = {}, {}
+local ownerClass = "WARLOCK"
+local petFamily = "Felhunter"
+
+UnitClass = function(unit)
+    if unit == "player" then return ownerClass == "HUNTER" and "Hunter" or "Warlock", ownerClass end
+end
 
 UnitExists = function(unit)
     if unit == "player" then return true, playerGuid end
@@ -19,12 +25,18 @@ UnitExists = function(unit)
 end
 UnitIsDead = function() return false end
 UnitIsUnit = function(a, b) return a == "pettarget" and b == "target" end
-UnitCreatureFamily = function(unit) return unit == "pet" and "Felhunter" or nil end
-UnitCreatureType = function(unit) return unit == "pet" and "Demon" or nil end
+UnitCreatureFamily = function(unit) return unit == "pet" and petFamily or nil end
+UnitCreatureType = function(unit)
+    return unit == "pet" and (ownerClass == "HUNTER" and "Beast" or "Demon") or nil
+end
 UnitHealth = function(unit) return unit == "pet" and 700 or 1000 end
 UnitHealthMax = function() return 1000 end
 UnitMana = function(unit) return unit == "pet" and 220 or 1000 end
 UnitManaMax = function(unit) return unit == "pet" and 300 or 1000 end
+UnitAttackPower = function(unit)
+    assert(unit == "pet")
+    return 410, 25, -10
+end
 UnitXP = function(op, from, to)
     assert(op == "distanceBetween" and from == "pet" and to == "target")
     return 18
@@ -33,13 +45,36 @@ GetTime = function() return 10 end
 GetPetActionInfo = function(slot)
     if slot == 1 then return "Attack", nil, "attack-icon", true, false, false, false end
     if slot == 2 then return "PET_MODE_DEFENSIVE", nil, "defensive-icon", true, true, false, false end
+    if ownerClass == "HUNTER" then
+        if slot == 4 then return "Bite", "Rank 8", "bite-icon", false, false, true, false end
+        if slot == 5 then return "Growl", "Rank 7", "growl-icon", false, false, true, false end
+        if slot == 6 then return "Prowl", "Rank 3", "prowl-icon", false, false, true, false end
+        if slot == 7 then return "Thunderstomp", "Rank 4", "stomp-icon", false, false, true, false end
+        return nil
+    end
     if slot == 4 then return "Devour Magic", "Rank 2", "devour-icon", false, false, true, false end
     if slot == 5 then return "Spell Lock", "Rank 1", "lock-icon", false, false, false, false end
 end
 GetSpellName = function(slot, book)
     if book ~= BOOKTYPE_PET then return nil end
+    if ownerClass == "HUNTER" then
+        if slot == 1 then return "Bite", "Rank 8" end
+        if slot == 2 then return "Growl", "Rank 7" end
+        if slot == 3 then return "Prowl", "Rank 3" end
+        if slot == 4 then return "Thunderstomp", "Rank 4" end
+        return nil
+    end
     if slot == 1 then return "Devour Magic", "Rank 2" end
     if slot == 2 then return "Spell Lock", "Rank 1" end
+end
+GetSpellSlotTypeIdForName = function(name)
+    if name == "Bite(Rank 8)" then return 1, BOOKTYPE_PET, 17261 end
+    if name == "Growl(Rank 7)" then return 2, BOOKTYPE_PET, 14921 end
+    if name == "Prowl(Rank 3)" then return 3, BOOKTYPE_PET, 24453 end
+    if name == "Thunderstomp(Rank 4)" then return 4, BOOKTYPE_PET, 51156 end
+    if name == "Devour Magic(Rank 2)" then return 1, BOOKTYPE_PET, 19731 end
+    if name == "Spell Lock(Rank 1)" then return 2, BOOKTYPE_PET, 19244 end
+    return 0, "unknown", 0
 end
 IsPassiveSpell = function() return false end
 GetPetActionCooldown = function(slot)
@@ -67,11 +102,31 @@ XelAssist.Game.Capabilities = {
     end,
 }
 
+dofile("Combat/PetKnowledge.lua")
+dofile("Game/Pets/Effects.lua")
+dofile("Game/Pets/EffectRuntime.lua")
 dofile("Game/Actors.lua")
+
+local idFirst = XelAssist.Combat.PetKnowledge:Facts(2649, "Spell Lock", "HUNTER")
+assert(idFirst and idFirst.kind == "petThreat" and idFirst.petThreatGain == 50
+    and idFirst.petKnowledgeName == "Growl"
+    and idFirst.petKnowledgeSource == "octowow dbc id",
+    "spell ID must outrank a conflicting fallback name")
+local hunterFallback = XelAssist.Combat.PetKnowledge:Facts(nil, "Screech", "HUNTER")
+assert(hunterFallback and hunterFallback.kind == "damage" and hunterFallback.aoe
+    and hunterFallback.petKnowledgeSource == "name fallback")
+local cower = XelAssist.Combat.PetKnowledge:Facts(16697, "Cower", "HUNTER")
+assert(cower and cower.kind == "petThreat" and cower.petThreatDrop == 225)
+local familyById = XelAssist.Combat.PetKnowledge:Family(9, "Cat", "HUNTER")
+assert(familyById and familyById.name == "Gorilla" and familyById.source == "octowow dbc id")
+assert(not XelAssist.Combat.PetKnowledge:Facts(2649, "Growl", "WARLOCK"),
+    "known owner class must prevent cross-class pet semantics")
 
 local pet = XelAssist.Game.Actors:PetIdentity()
 assert(pet and pet.family == "Felhunter" and pet.creatureType == "Demon" and pet.stance == "defensive")
 assert(pet.resource == 220 and pet.resourceMax == 300 and pet.targetsCurrent)
+assert(pet.attackPowerKnown and pet.attackPower == 425,
+    "controlled actor snapshots must expose exact live pet attack power")
 
 local actions = XelAssist.Game.Actors:Actions()
 assert(table.getn(actions) == 6, "player, two pet spells, and three commands should be graph nodes")
@@ -105,4 +160,43 @@ assert(replacementLock and replacementLock.actorRef.guid == petGuid
     "pet replacement must rebuild actions against the replacement identity")
 local actors = XelAssist.Game.Actors:Snapshot()
 assert(actors.player and actors.pet and actors.pet.distance == 18)
-print("ok: controlled actor identity, pet spellbook, bar metadata, cooldowns, commands and execution")
+
+ownerClass, petFamily, petGuid = "HUNTER", "Cat", {}
+XelAssist.Game.Actors:Invalidate()
+local hunterPet = XelAssist.Game.Actors:PetIdentity()
+assert(hunterPet and hunterPet.ownerClass == "HUNTER" and hunterPet.familyId == 2
+    and hunterPet.familySkillLine == 209 and hunterPet.creatureType == "Beast")
+local hunterActions = XelAssist.Game.Actors:Actions()
+assert(table.getn(hunterActions) == 8,
+    "player, four Hunter pet actions, and three commands should be graph nodes")
+local bite, growl, prowl, stomp
+for i = 1, table.getn(hunterActions) do
+    local action = hunterActions[i]
+    if action.name == "Bite" then bite = action end
+    if action.name == "Growl" then growl = action end
+    if action.name == "Prowl" then prowl = action end
+    if action.name == "Thunderstomp" then stomp = action end
+end
+assert(bite and bite.spellId == 17261 and bite.facts.kind == "damage"
+    and bite.facts.petKnowledgeSource == "octowow dbc id")
+assert(growl and growl.facts.kind == "petThreat"
+    and growl.facts.petThreatGain == 415)
+assert(prowl and prowl.facts.kind == "buff" and prowl.facts.self and prowl.facts.stealth)
+assert(stomp and stomp.facts.kind == "damage" and stomp.facts.aoe
+    and stomp.facts.school == 3 and stomp.facts.threat > 1)
+local bestial = { name = "Bestial Wrath", spellId = 19574, facts = {
+    petCombatBuff = true, petCombatEffects = {
+        { key = "control-immunity", duration = 18,
+            crowdControlImmune = true, sourceSpellId = 19574 },
+        { key = "damage-enrage", duration = 8,
+            damageMultiplier = 1.4, sourceSpellId = 52995 },
+    } } }
+local runtime = XelAssist.Game.Pets.EffectRuntime
+runtime:Reset()
+assert(runtime:Submitted(bestial, petGuid, nil, playerGuid)
+    and runtime:ObserveCast(19574, playerGuid, petGuid, "go"))
+local reconstructed = XelAssist.Game.Actors:Snapshot().pet
+assert(reconstructed.combatEffects["Bestial Wrath:damage-enrage"].remaining == 8
+    and reconstructed.combatEffects["Bestial Wrath:control-immunity"].remaining == 18,
+    "every fresh actor/graph snapshot must reconstruct confirmed pet effects")
+print("ok: controlled identity plus ID-first Warlock and Hunter pet semantics")

@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.7.0
+
+- Added first-class Hunter companion state: alive/dead/dismissed/unknown
+  lifecycle, exact identity, family evidence, happiness damage, focus, loyalty,
+  training, diet, target, attack state, pet spell ranks, cooldowns, and autocast
+  become graph facts rather than a pet-present boolean.
+- Moved companion meaning into focused `Combat/PetKnowledge.lua` and added
+  ID-first Hunter pet semantics verified from the installed Octowow Spell,
+  SkillLineAbility, and CreatureFamily DBCs. Growl, Cower, Bite/Claw, mobility,
+  control, defensives, and classic/Turtle family actions remain live-discovered
+  graph nodes rather than a Hunter priority list.
+- Modeled Auto Shot as an idempotent ambient launch/projectile/impact state
+  machine. It preserves exact spell and target identity, spends ammunition at
+  launch, respects movement/cast shot-delay floors, carries launched arrows
+  through later range/LOS changes, and cannot toggle itself off on repeated taps.
+- Added dual-recipient Hunter actions: Kill Command and Intimidation retain the
+  captured pet cast recipient and hostile effect target independently, recheck
+  both identities plus pet reach/LOS at dispatch, and learn from their exact
+  pet-owned result spell rather than the Hunter's command spell.
+- Split Bestial Wrath into its verified 8-second +40% damage enrage and
+  18-second control-immunity windows. Intimidation now has an independent
+  8-second threat modifier and 15-second one-charge next-successful-melee proc,
+  including pet-level flat threat and a three-second stun. Confirmed casts and
+  live pet auras reconstruct these windows across fresh graph snapshots; exact
+  successful pet swings and melee-ability outcomes consume the hidden proc.
+- Model Kill Command's advertised 80% live-pet-attack-power result as an
+  explicitly estimated private-server script, preserve its critical usability
+  gate at dispatch, and apply pet happiness, delivery, resistance, and threat
+  ownership to the result.
+- Corrected Mend Pet to a five-tick, five-second interruptible channel with
+  per-rank total healing, effective-healing threat owned by the Hunter,
+  overheal/mana tradeoffs, post-combat relevance, and repeated-tap protection.
+- Put Auto Shot events, pet autocasts, periodic ticks, and chosen-action impact
+  onto one offset-sorted causal timeline. Earlier kills now preserve only the
+  resources actually spent, while instant companion buffs can affect a later
+  same-window pet action.
+- Added explicit Auto/Tank/Assist/Avoid companion-threat policy and separated
+  pet threat scoring from core action scoring.
+
 ## 0.6.0
 
 - Replaced root-level `XelAssist_*.lua` modules with responsibility-based

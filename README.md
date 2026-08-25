@@ -1,4 +1,4 @@
-# XelAssist 0.6.0
+# XelAssist 0.7.0
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -96,6 +96,12 @@ a 3 ms hot-path budget. It accounts for:
 - independent player and companion clocks; live pet identity, health, resource,
   target, action bar, spellbook ranks, cooldowns, autocast state, range, threat,
   commands, dispels, interrupts, crowd control, self-healing, sacrifice, and summons;
+- Hunter pet lifecycle, happiness, focus, family abilities, Growl/Cower policy,
+  Bestial Wrath's separate damage/immunity windows, Intimidation's deferred
+  successful-melee proc, Kill Command's pet-owned result, and five-second Mend Pet;
+- Auto Shot launch, projectile, impact, ammunition, movement/cast delay, and
+  repeated-tap state on the same causal timeline as pet attacks, periodic ticks,
+  and the chosen action;
 - equipped weapon durability and ammunition, plus opt-in immediate-use healing
   and mana consumables discovered conservatively from live bag tooltips;
 - future resource, health, target-health, aura, threat-drop, and cooldown state.

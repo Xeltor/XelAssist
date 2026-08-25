@@ -5,13 +5,22 @@ local Scoring = XelAssist.Graph.Scoring
 local State = XelAssist.Graph.State
 local Targets = XelAssist.Graph.Targets
 local Effects = XelAssist.Graph.Effects
+local ActorScoring = XelAssist.Graph.ActorScoring
+local ThreatScoring = XelAssist.Graph.ThreatScoring
+local Timeline = XelAssist.Graph.Timeline
+local Triggered = XelAssist.Combat.TriggeredActions
 
 local function potency(action, tooltip, state)
     local combo = action.facts.combo
         and (tooltip.comboBonus or 0) * state.combo or 0
     local base, estimated = nil, nil
-    if tooltip.average then base, estimated = tooltip.average + combo, false end
-    if tooltip.dbcAverage then
+    if Triggered and Triggered.ScriptedPower then
+        base, estimated = Triggered:ScriptedPower(action, state)
+    end
+    if not base and tooltip.average then
+        base, estimated = tooltip.average + combo, false
+    end
+    if not base and tooltip.dbcAverage then
         local weapon = action.facts.melee
             and XelAssist.Game.Capabilities:WeaponDamage() or 0
         if action.facts.ranged and tooltip.school == 0 then
@@ -24,6 +33,10 @@ local function potency(action, tooltip, state)
     if not base then
         base = math.max(10, action.rank * 24 + (tooltip.cost or 0) * 0.8)
         estimated = true
+    end
+    if action.facts.kind == "petHeal"
+        and tonumber(action.facts.channelTicks) then
+        base = base * action.facts.channelTicks
     end
     if (action.facts.kind == "damage" or action.facts.kind == "dot")
         and action.actor ~= "pet" then
@@ -40,6 +53,15 @@ local function potency(action, tooltip, state)
             base, estimated = base + bonus * coefficient, true
         end
     end
+    local damage = action.facts.kind == "damage" or action.facts.kind == "dot"
+        or action.facts.kind == "builder"
+    local effectActor = action.facts.damageActor
+        or action.facts.effectActor or action.actor
+    if damage and effectActor == "pet" and XelAssist.Game.Pets
+        and XelAssist.Game.Pets.Effects then
+        base = base * XelAssist.Game.Pets.Effects:DamageMultiplier(
+            state.actors and state.actors.pet)
+    end
     return base, estimated
 end
 
@@ -49,7 +71,9 @@ local function legalityAndTiming(action, state, descriptor)
     if not allowed then return nil, blocker end
     descriptor = resolved or descriptor
     local facts, power, estimated = action.facts, nil, nil
-    power, estimated = potency(action, tooltip, state)
+    local effectAction = Triggered and Triggered:ResultAction(action) or action
+    local effectTooltip = Triggered and Triggered:EffectFacts(action, tooltip) or tooltip
+    power, estimated = potency(effectAction, effectTooltip, state)
     local cast = facts.cast
     if cast == nil then cast = tooltip.cast or (facts.channel and 3 or 0) end
     if facts.channel and cast <= 0 then cast = tooltip.duration or 3 end
@@ -61,14 +85,17 @@ local function legalityAndTiming(action, state, descriptor)
     local kind = facts.kind
     local damageKind = kind == "damage" or kind == "dot" or kind == "builder"
     return {
-        action = action, state = state, descriptor = descriptor,
+        action = action, effectAction = effectAction,
+        state = state, descriptor = descriptor,
         facts = facts, kind = kind, tooltip = tooltip, target = target,
+        effectTooltip = effectTooltip,
         actionStart = actionStart, cast = cast, occupancy = occupancy,
         wait = wait, downtime = wait + occupancy, cost = tooltip.cost or 0,
         power = power, expectedPower = power, estimated = estimated,
         value = 0, reason = kind, damageKind = damageKind,
         targetEffect = damageKind or kind == "debuff"
-            or kind == "crowdControl" or kind == "interrupt" or kind == "taunt",
+            or kind == "crowdControl" or kind == "interrupt" or kind == "taunt"
+            or kind == "petThreat" and not facts.petThreatDrop,
         effectDelivery = 1,
     }
 end
@@ -88,7 +115,8 @@ end
 
 local function estimateResistance(context)
     if not context.targetEffect then return end
-    local action, state, tooltip = context.action, context.state, context.tooltip
+    local action, state = context.effectAction, context.state
+    local tooltip = context.effectTooltip
     local resistanceState = state
     if context.wait + context.cast > 0 then
         resistanceState = Effects:StateAtImpact(
@@ -159,15 +187,32 @@ local function projectDamageAndResistance(context)
     projectPeriodicDamage(context)
 end
 
+local function projectAmbientTargetHealth(context)
+    local state = context.state
+    if not (Timeline and state.targetHealthExact) then return end
+    local descriptor = context.descriptor or {}
+    context.targetRelation = descriptor.relation
+    context.targetGUID = descriptor.guid
+    local probe = Timeline:BeforeAction(state, context)
+    context.targetHealthAtImpact = probe.targetHealth
+    context.autoShotLaunchesBeforeImpact = probe.autoLaunches
+    context.autoShotImpactsBeforeImpact = probe.autoImpacts
+    if context.descriptor and context.descriptor.relation == "hostile"
+        and probe.damageEvents > 0 and probe.defeated then
+        context.ambientDefeatsTarget = true
+    end
+end
+
 local function scoreDamageAndHealing(context)
     local state, facts, kind = context.state, context.facts, context.kind
     local power, expected = context.power, context.expectedPower
+    local targetHealth = context.targetHealthAtImpact or state.targetHealth
     if kind == "damage" or kind == "builder" then
-        local effective = state.targetHealthExact and state.targetHealth > 0
-            and math.min(expected, state.targetHealth) or expected
+        local effective = state.targetHealthExact and targetHealth > 0
+            and math.min(expected, targetHealth) or expected
         context.value = 250 + effective * 4 / math.max(0.5, context.downtime)
-        if state.targetHealthExact and state.targetHealth > 0
-            and expected >= state.targetHealth then
+        if state.targetHealthExact and targetHealth > 0
+            and expected >= targetHealth then
             context.value, context.reason = context.value + 700, "finishes the target"
         elseif facts.recovery then
             context.value = context.value + ((state.resourceMax > 0
@@ -179,9 +224,9 @@ local function scoreDamageAndHealing(context)
         elseif state.role == "healer" then context.value = context.value * 0.85 end
     elseif kind == "dot" then
         local effective, fraction = expected, 1
-        if state.targetHealthExact and state.targetHealth > 0 then
-            effective = math.min(expected, state.targetHealth)
-            fraction = math.min(1, state.targetHealth / math.max(1, expected))
+        if state.targetHealthExact and targetHealth > 0 then
+            effective = math.min(expected, targetHealth)
+            fraction = math.min(1, targetHealth / math.max(1, expected))
         end
         context.value = effective * 4 / math.max(1, context.downtime)
             + effective / math.max(1, context.cost) * 45
@@ -224,63 +269,6 @@ local function scoreDamageAndHealing(context)
             + (incoming and 900 or 0)
         context.reason = incoming and "absorbs expected incoming damage"
             or "adds a protective buffer"
-    else return false end
-    return true
-end
-
-local function scoreCompanionAndControl(context)
-    local state, facts, kind = context.state, context.facts, context.kind
-    if kind == "interrupt" then
-        local probability = state.targetCastProbability
-        if probability == nil then probability = state.targetCasting and 1 or 0 end
-        context.value = state.targetCasting and 5000 * probability or -1000
-        context.reason = context.action.actor == "pet"
-            and "companion stops the current cast" or "stops the current cast"
-    elseif kind == "taunt" then
-        context.value, context.reason = state.hasAggro and not state.tank
-            and 3800 or 900, "companion takes unwanted aggro"
-    elseif kind == "petHeal" then
-        local pet = state.actors and state.actors.pet
-        local missing = pet and math.max(0, pet.healthMax - pet.health) or 0
-        local effective = math.min(context.power, missing)
-        context.value, context.reason = effective * 4
-            / math.max(0.5, context.downtime), "restores the companion"
-        if missing <= 0 then context.value = -1000 end
-    elseif kind == "crowdControl" then
-        context.value, context.reason = state.hasAggro and not state.tank
-            and 2200 or 650, "controls a dangerous target"
-    elseif kind == "dispel" then
-        context.value, context.reason = 700, "removes a harmful combat effect"
-    elseif kind == "summon" then
-        context.value, context.reason = 850, "restores a missing companion"
-        if facts.summonRole == "tank" and state.groupSize == 0 then
-            context.value, context.reason = 1250,
-                "brings a companion that can hold solo threat"
-        elseif facts.summonRole == "interrupt" and state.targetCasting then
-            context.value, context.reason = 1800,
-                "brings a companion with an interrupt"
-        elseif facts.summonRole == "control"
-            and XelAssistCharDB.toggles.petControl then
-            context.value, context.reason = 1050,
-                "brings a companion with crowd control"
-        elseif facts.summonRole == "support" and state.groupSize > 0 then
-            context.value, context.reason = 1100, "brings group support"
-        end
-    elseif kind == "command" then
-        local pet = state.actors and state.actors.pet
-        if context.action.command == "attack" then
-            context.value, context.reason = 850,
-                "sends the companion to the current target"
-        elseif context.action.command == "passive" then
-            context.value, context.reason = 2900,
-                "stops the endangered companion from re-engaging"
-        else
-            local low = pet and pet.healthMax > 0
-                and pet.health / pet.healthMax < 0.25
-            context.value = low and 2600 or 1000
-            context.reason = low and "retreats the endangered companion"
-                or "recalls the companion from another target"
-        end
     else return false end
     return true
 end
@@ -337,7 +325,7 @@ end
 
 local function scoreKindUtility(context)
     if scoreDamageAndHealing(context) then return end
-    if scoreCompanionAndControl(context) then return end
+    if ActorScoring:Score(context) then return end
     scoreStateUtility(context)
 end
 
@@ -371,49 +359,21 @@ local function applyActionAdjustments(context)
     end
 end
 
-local function applyThreatResourceAndConfidence(context)
-    local state, facts, kind = context.state, context.facts, context.kind
-    local threatPower = (kind == "damage" or kind == "dot" or kind == "builder")
-        and context.expectedPower or ((kind == "heal" or kind == "hot")
-            and (context.effectivePower or 0) or context.power)
-    local threat = threatPower * (facts.threat
-        or ((kind == "heal" or kind == "hot") and 0.5 or 1))
-    local damageActor = facts.damageActor or context.action.actor
-    if damageActor == "pet" then threat = threat * 0.9 end
-    if damageActor == "pet" then
-        local petTank = XelAssistCharDB.petThreat == "tank"
-            or (XelAssistCharDB.petThreat ~= "avoid" and state.groupSize == 0)
-        if petTank then context.value = context.value + threat * 0.4
-        elseif state.groupSize > 0 then
-            context.value = context.value - threat * 0.25
-        end
-    elseif state.tank and threat > threatPower then
-        context.value = context.value + (threat - threatPower) * 0.5
-        context.reason = "builds threat"
-    elseif (state.groupSize > 0 or state.pet) and not state.tank then
-        context.value = context.value - threat * (state.hasAggro and 3 or 0.25)
-        if state.hasAggro then context.reason = "limits additional threat"
-        elseif threat > threatPower * 1.2 then
-            context.reason = "lower threat for the group"
-        end
-    end
-    context.threat = threat
-    if context.cost > 0 and state.resourceMax > 0 then
-        context.value = context.value - context.cost / state.resourceMax * 240
-    end
-    if facts.inferred then context.estimated = true end
-    if context.estimated then context.value = context.value * 0.88 end
-end
-
 local function candidate(context)
     local descriptor, facts = context.descriptor, context.facts
     return {
         action = context.action, value = context.value, reason = context.reason,
+        effectAction = context.effectAction, effectTooltip = context.effectTooltip,
         target = context.target, targetKey = descriptor and descriptor.key,
         targetGUID = descriptor and descriptor.guid,
         targetRelation = descriptor and descriptor.relation,
         targetSource = descriptor and descriptor.source,
         targetRef = descriptor and descriptor.targetRef,
+        castTarget = descriptor and descriptor.castUnit,
+        castTargetGUID = descriptor and descriptor.castGuid,
+        castTargetRelation = descriptor and descriptor.castRelation,
+        castTargetSource = descriptor and descriptor.castSource,
+        castTargetRef = descriptor and descriptor.castTargetRef,
         targetPriority = descriptor and descriptor.record
             and descriptor.record.priority,
         cost = context.cost, cast = context.cast, downtime = context.downtime,
@@ -435,8 +395,14 @@ function Scoring:Evaluate(action, state, descriptor)
     if not context then return nil, blocker end
     resolveTargetNeed(context)
     projectDamageAndResistance(context)
+    projectAmbientTargetHealth(context)
+    if context.ambientDefeatsTarget then
+        context.value, context.reason = -100000,
+            "ambient attack resolves first"
+        return candidate(context)
+    end
     scoreKindUtility(context)
     applyActionAdjustments(context)
-    applyThreatResourceAndConfidence(context)
+    ThreatScoring:Apply(context)
     return candidate(context)
 end

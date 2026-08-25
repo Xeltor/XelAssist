@@ -4,7 +4,6 @@ XelAssist.Graph.ActionEffects = {}
 local A = XelAssist.Graph.ActionEffects
 local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
-
 local function dotPowerSplit(candidate)
     local resistance = candidate.resistance
     if not (resistance and resistance.mode == "hybrid"
@@ -142,7 +141,7 @@ end
 
 local function applyReadiness(out, candidate, context)
     local action, facts = context.action, context.facts
-    out.actorReadyAt[action.actor or "player"] = out.time
+    if not facts.autoRepeat then out.actorReadyAt[action.actor or "player"] = out.time end
     if candidate.tooltip.cooldown and candidate.tooltip.cooldown > 0 then
         out.readyAt[(action.actor or "player") .. ":" .. action.name]
             = candidate.actionStart + candidate.tooltip.cooldown
@@ -225,24 +224,28 @@ local function applyFriendlyTarget(out, candidate, context)
     end
     return true
 end
-
 local function applyDamageOrSupport(out, source, candidate, context,
     targetLocal, dotDirect, dotPeriodic, dotDuration, dotElapsed)
     local facts = context.facts
-    if (facts.kind == "damage" or facts.kind == "builder")
+    if facts.kind == "autoRepeat" then
+        return false
+    elseif (facts.kind == "damage" or facts.kind == "builder")
         and out.targetHealthExact then
         out.targetHealth = math.max(0, out.targetHealth - candidate.power)
         return true
     elseif facts.kind == "dot" and out.targetHealthExact then
-        local immediate = dotPeriodic * dotElapsed / dotDuration
+        local immediate = XelAssist.Game.SpellTiming:AppliedPower(
+            dotPeriodic, dotDuration, dotElapsed, candidate.tooltip.periodicInterval)
         if candidate.dotRawPeriodicPower and XelAssist.Combat.Resistance
             and dotElapsed > 0 then
             local conditional = Effects:OverWindow(context.action,
                 candidate.target, candidate.tooltip, source,
                 context.applicationOffset, dotElapsed, "periodic", true)
             if conditional then
-                immediate = candidate.dotRawPeriodicPower / dotDuration
-                    * dotElapsed * context.projectedDelivery * conditional
+                immediate = XelAssist.Game.SpellTiming:AppliedPower(
+                    candidate.dotRawPeriodicPower * context.projectedDelivery
+                        * conditional, dotDuration, dotElapsed,
+                    candidate.tooltip.periodicInterval)
             end
         end
         out.targetHealth = math.max(0,
@@ -280,10 +283,30 @@ local function applyDamageOrSupport(out, source, candidate, context,
     end
     return false
 end
-
 local function applyActorOrInventory(out, candidate, context)
     local facts, action = context.facts, context.action
-    if facts.kind == "command" and out.actors and out.actors.pet then
+    if XelAssist.Graph.CompanionThreat
+        and XelAssist.Graph.CompanionThreat:Apply(
+            out, candidate, nil, candidate.effectDelivery) then
+        return
+    elseif XelAssist.Game.Pets and XelAssist.Game.Pets.Effects
+        and XelAssist.Game.Pets.Effects:Apply(out, candidate,
+            context.petEventContext or context) then
+        return
+    elseif facts.kind == "autoRepeat" then
+        local auto = out.autoShot or {}
+        auto.supported, auto.active = true, true
+        auto.activeSource, auto.confidence = "graph start", "projected"
+        auto.targetGuid = candidate.targetGUID or out.targetGUID
+        auto.spellId = XelAssist.Combat.AutoShot
+            and XelAssist.Combat.AutoShot:CanonicalSpellId(action.spellId)
+            or action.spellId or auto.spellId
+        auto.rangedSpeed = tonumber(auto.rangedSpeed) or 2.8
+        auto.projectileSpeed = tonumber(auto.projectileSpeed) or 40
+        auto.nextLaunchIn = 0.5
+        auto.blocked = out.moving and true or false
+        out.autoShot = auto
+    elseif facts.kind == "command" and out.actors and out.actors.pet then
         if action.command == "passive" then
             out.actors.pet.stance = "passive"
         else
@@ -295,6 +318,10 @@ local function applyActorOrInventory(out, candidate, context)
             out.resource + candidate.power)
     elseif facts.kind == "dispel" then
         out.dispelled = true
+    elseif facts.petLifecycle and XelAssist.Game.Pets
+        and XelAssist.Game.Pets.Actions
+        and XelAssist.Game.Pets.Actions:ApplyLifecycle(out, candidate) then
+        return
     elseif facts.kind == "summon" then
         out.pet = true
         out.actors.pet = {
@@ -329,12 +356,14 @@ local function applyCombatState(out, candidate, context)
     elseif facts.combo then out.combo = 0 end
     if out.targetHealthExact and out.targetHealth <= 0 then
         out.hostile = false
+        if out.autoShot then out.autoShot.active = false end
     end
 end
 
 local function applyAura(out, source, candidate, context,
     targetLocal, dotPeriodic, dotDuration, dotElapsed)
     local facts, action = context.facts, context.action
+    if facts.petCombatBuff or facts.deferredUntilPetMelee then return end
     if not ((facts.kind == "dot" or facts.kind == "debuff"
         or facts.kind == "buff" or facts.kind == "hot"
         or facts.kind == "absorb" or facts.kind == "resource"
@@ -369,6 +398,9 @@ local function applyAura(out, source, candidate, context,
             periodicAction = facts.kind == "dot" and action or nil,
             periodicTooltip = facts.kind == "dot"
                 and { school = candidate.tooltip.school } or nil,
+            periodicInterval = facts.kind == "dot" and candidate.tooltip.periodicInterval or nil,
+            periodicNextIn = facts.kind == "dot" and XelAssist.Game.SpellTiming:Next(
+                candidate.tooltip.periodicInterval, dotElapsed) or nil,
             applicationProbability = context.projectedDelivery,
             targetModifier = context.hasTargetModifier
                 and context.targetModifierRemaining
@@ -381,7 +413,6 @@ local function applyAura(out, source, candidate, context,
         }
     end
 end
-
 local function syncFriendlyCompatibility(state)
     local record = State:PrimaryFriendly(state)
     if not record then return end
@@ -406,6 +437,11 @@ function A:Apply(out, source, candidate, context)
         dotDirect, dotPeriodic, dotDuration, dotElapsed)
     if not primaryHandled then
         applyActorOrInventory(out, candidate, context)
+    end
+    if XelAssist.Game.Pets and XelAssist.Game.Pets.Effects then
+        XelAssist.Game.Pets.Effects:ConsumeMelee(
+            out, context.action, candidate.targetGUID,
+            candidate.effectDelivery)
     end
     applyCombatState(out, candidate, context)
     applyAura(out, source, candidate, context, targetLocal,

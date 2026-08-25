@@ -2,7 +2,6 @@ XelAssist.Game.Capabilities = {}
 local C = XelAssist.Game.Capabilities
 local TIP_NAME = "XelAssistScanTip"
 local scanTip
-
 local function tooltipText(slot, bookType)
     if not scanTip then scanTip = CreateFrame("GameTooltip", TIP_NAME, nil, "GameTooltipTemplate") end
     scanTip:SetOwner(UIParent, "ANCHOR_NONE"); scanTip:ClearLines()
@@ -741,10 +740,10 @@ function C:Facts(action)
             end
         end
     end
+    XelAssist.Game.SpellTiming:Apply(action, out)
     self.tooltipFacts[cacheKey] = out
     return out
 end
-
 function C:WeaponDamage()
     if GetUnitField then
         local okLow, low = pcall(GetUnitField, "player", "minDamage")
@@ -758,7 +757,6 @@ function C:WeaponDamage()
     if not ok or type(low) ~= "number" or type(high) ~= "number" then return nil end
     return (low + high) / 2
 end
-
 function C:RangedDamage()
     if GetUnitField then
         local okLow, low = pcall(GetUnitField, "player", "minRangedDamage")
@@ -910,7 +908,8 @@ function C:CurrentCast()
             local remaining = (info.castRemainingMs or 0) / 1000
             local name = spellId ~= 0 and SpellInfo and SpellInfo(spellId) or nil
             local gcd = (info.gcdRemainingMs or 0) / 1000
-            return name, math.max(0, remaining), true, math.max(0, gcd)
+            return name, math.max(0, remaining), true, math.max(0, gcd),
+                tonumber(info.castType) == 3
         end
     end
     if GetCurrentCastingInfo then
@@ -918,7 +917,7 @@ function C:CurrentCast()
         if ok and (casting == 1 or channeling == 1) then
             local spellId = castId ~= 0 and castId or visualId
             local name = spellId and spellId ~= 0 and SpellInfo and SpellInfo(spellId) or nil
-            return name, 0, true, 0
+            return name, 0, true, 0, channeling == 1
         end
     end
     return nil, 0, false, 0

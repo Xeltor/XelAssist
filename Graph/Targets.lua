@@ -1,89 +1,16 @@
 XelAssist.Graph.Targets = {}
 local T = XelAssist.Graph.Targets
 local S = XelAssist.Graph.State
+local Selection = XelAssist.Graph.TargetSelection
 
 local APPLICATION_BLOCK_THRESHOLD = 0.75
 
-local function friendlyDescriptor(state, record)
-    if not record then return nil end
-    return S:Descriptor(record.unit, record.relation or "friendly",
-        record.source, record.guid, record.key, record)
-end
-
-local function unitDescriptor(state, unit, relation, source)
-    local record = S:FriendlyByUnit(state, unit)
-    if record then return friendlyDescriptor(state, record) end
-    if relation == "hostile" then
-        local ref = state.targetRef
-        return { unit = unit, relation = relation, source = source,
-            guid = ref and ref.guid or state.targetGUID,
-            key = ref and ref.guid or state.targetGUID or "target",
-            targetRef = ref }
-    end
-    return S:Descriptor(unit, relation, source, nil, nil, nil)
-end
-
 function T:VariableFriendlyAction(action)
-    if action.actor == "pet" or action.executor == "item" or action.facts.self then
-        return false
-    end
-    local kind = action.facts.kind
-    return kind == "heal" or kind == "hot" or kind == "absorb" or kind == "buff"
-end
-
-local function fixedActionTarget(action, state)
-    local kind = action.facts.kind
-    if action.actor == "pet" then
-        if kind == "petHeal" then
-            return unitDescriptor(state, "pet", "pet", "companion")
-        end
-        if action.facts.petSacrifice then
-            return unitDescriptor(state, "player", "self", "self")
-        end
-        if kind == "buff" or kind == "absorb" then
-            if action.facts.self then
-                return unitDescriptor(state, "pet", "pet", "companion")
-            end
-            return friendlyDescriptor(state, S:PrimaryFriendly(state))
-        end
-        if kind == "command" then
-            if action.command == "attack" then
-                return unitDescriptor(state, "target", "hostile", "selected")
-            end
-            return unitDescriptor(state, "pet", "pet", "companion")
-        end
-        if kind == "dispel" then
-            local unit = XelAssist.Game.Actors:DispelTarget(state)
-            if not unit then return nil end
-            if unit == "target" and state.hostile then
-                return unitDescriptor(state, unit, "hostile", "selected")
-            end
-            return unitDescriptor(state, unit, "friendly", "dispel")
-        end
-        return unitDescriptor(state, "target", "hostile", "selected")
-    end
-    if kind == "summon" or action.facts.self
-        or kind == "defensive" or kind == "resource" or kind == "threatDrop"
-        or kind == "modifier" then
-        return unitDescriptor(state, "player", "self", "self")
-    end
-    return unitDescriptor(state, "target", "hostile", "selected")
+    return Selection:VariableFriendlyAction(action)
 end
 
 function T:Targets(action, state)
-    if not self:VariableFriendlyAction(action) then
-        local fixed = fixedActionTarget(action, state)
-        return fixed and { fixed } or {}
-    end
-    local out, i, order = {}, nil,
-        XelAssist.Game.Friendlies:TargetKeys(state.friendlies, action)
-    for i = 1, table.getn(order) do
-        local record = S:FriendlyByKey(state, order[i])
-        if record and not record.dead then
-            table.insert(out, friendlyDescriptor(state, record))
-        end
-    end
-    return out
+    return Selection:Targets(action, state)
 end
 local function friendlyAuraActive(action, state, descriptor)
     local record = descriptor and descriptor.record
@@ -172,7 +99,7 @@ function T:Relevant(action, state, descriptor)
     end
     local support = kind == "heal" or kind == "hot" or kind == "absorb" or kind == "buff"
         or kind == "defensive" or kind == "resource" or kind == "threatDrop"
-        or kind == "modifier" or kind == "summon"
+        or kind == "modifier" or kind == "summon" or kind == "petHeal"
     if state.mode == "buff" then return kind == "buff" end
     if state.mode == "support" then return support end
     if state.mode == "single" or state.mode == "aoe" then return not support end
@@ -192,7 +119,9 @@ function T:Relevant(action, state, descriptor)
         and (kind == "heal" or kind == "hot" or kind == "absorb") then
         return true
     end
-    if state.hostile then return kind ~= "buff" or action.facts.self end
+    if state.hostile then
+        return kind ~= "buff" or action.facts.self or action.facts.combatBuff
+    end
     return support
 end
 
@@ -204,6 +133,22 @@ local function policyBlocker(action, state)
     if facts.consumable and not XelAssistCharDB.toggles.consumables then
         return "consumable policy"
     end
+    if facts.autoRepeat and state.autoShot and state.autoShot.active then
+        return "already active"
+    end
+    if facts.petCombatBuff then
+        local pet = state.actors and state.actors.pet
+        if not state.inCombat then return "companion combat buff out of combat" end
+        if not (pet and pet.targetExists and pet.targetsCurrent) then
+            return "companion not engaged"
+        end
+    end
+    local petBlocker = XelAssist.Game.Pets and XelAssist.Game.Pets.Actions
+        and XelAssist.Game.Pets.Actions:Blocker(action, state)
+    if petBlocker then return petBlocker end
+    local threatBlocker = XelAssist.Graph.CompanionThreat
+        and XelAssist.Graph.CompanionThreat:Block(state, action)
+    if threatBlocker then return threatBlocker end
     if (facts.pet or action.actor == "pet") and not state.pet then return "pet" end
     if action.autocastEnabled then return "autocast active" end
     if facts.reagent and not XelAssistCharDB.toggles.reagents then
@@ -230,6 +175,12 @@ local function policyBlocker(action, state)
 end
 
 local function targetBlocker(action, state, descriptor, target)
+    if action.actor == "pet" and action.executor == "petAbility"
+        and descriptor.relation == "hostile" then
+        local pet = state.actors and state.actors.pet
+        if not (pet and pet.targetExists) then return "companion has no target" end
+        if not pet.targetsCurrent then return "companion targets another enemy" end
+    end
     if action.actor == "pet" and target ~= "target" then
         local facts, kind = action.facts, action.facts.kind
         if kind ~= "command" and kind ~= "petHeal"
@@ -264,6 +215,9 @@ local function usabilityBlocker(action, state, descriptor, target, tooltip)
     elseif action.executor ~= "item" then
         usable, usableReason = XelAssist.Game.Capabilities:Usable(action)
     end
+    local petBlocker = XelAssist.Game.Pets and XelAssist.Game.Pets.Actions
+        and XelAssist.Game.Pets.Actions:UsabilityBlocker(action, usable, usableReason)
+    if petBlocker then return petBlocker end
     if facts.reactive and usable ~= true then return "proc unknown" end
     if usable == false and descriptor.relation == "hostile" then
         return usableReason or "state"
@@ -275,9 +229,12 @@ end
 
 local function positionBlocker(action, state, descriptor)
     local facts, kind = action.facts, action.facts.kind
+    if facts.autoRepeat and state.playerCasting
+        and not state.playerChanneling then return "casting" end
     local actorLineOfSight
     if descriptor.relation == "hostile" then actorLineOfSight = state.targetLineOfSight end
-    if descriptor.relation == "hostile" and action.actor == "pet"
+    if descriptor.relation == "hostile" and (action.actor == "pet"
+        or facts.effectActor == "pet" or facts.damageActor == "pet")
         and state.actors and state.actors.pet then
         actorLineOfSight = state.actors.pet.lineOfSight
     end
@@ -294,7 +251,7 @@ local function positionBlocker(action, state, descriptor)
     if facts.behind and actorBehind == false then return "must be behind target" end
     if facts.outOfCombat and state.inCombat then return "combat state" end
     if facts.combatOnly and not state.inCombat then return "combat state" end
-    if kind == "summon" then
+    if kind == "summon" and not facts.petLifecycle then
         if state.pet then return "companion already active" end
         if state.inCombat then return "unsafe summon" end
     end
@@ -309,8 +266,10 @@ local function actionTiming(action, state, tooltip)
     if state.instantNext and cast and cast > 0 then cast = 0 end
     if state.moving and cast and cast > 0 then return nil, "moving" end
     local actor = action.actor or "player"
-    local actionStart = kind == "command" and (state.time or 0) or math.max(
-        state.time or 0, (state.actorReadyAt and state.actorReadyAt[actor]) or 0)
+    local immediate = kind == "command"
+        or facts.autoRepeat and state.playerChanneling
+    local actionStart = immediate and (state.time or 0) or math.max(state.time or 0,
+        (state.actorReadyAt and state.actorReadyAt[actor]) or 0)
     if actor == "pet" and kind ~= "command" and actionStart > (state.time or 0) then
         return nil, "companion casting"
     end
@@ -349,15 +308,19 @@ local function readinessBlocker(action, state, tooltip, actionStart)
 end
 
 local function rangeBlocker(action, state, descriptor, target, tooltip)
+    local facts = action.facts
     local liveRange
-    if action.actor ~= "pet" and action.executor ~= "item" then
+    local implicitPetTarget = XelAssist.Game.Pets and XelAssist.Game.Pets.Actions
+        and XelAssist.Game.Pets.Actions:ImplicitTarget(action)
+    if action.actor ~= "pet" and action.executor ~= "item" and not implicitPetTarget then
         liveRange = XelAssist.Game.Capabilities:InRange(
             XelAssist.Game.Capabilities:CastName(action), target)
     end
     if liveRange == false then return "range" end
     -- Unknown direct range remains unknown; only then use discovered geometry.
     local rangeDistance = descriptor.record and descriptor.record.distance or state.distance
-    if action.actor == "pet" and descriptor.relation == "hostile"
+    if (action.actor == "pet" or action.facts.effectActor == "pet"
+        or action.facts.damageActor == "pet") and descriptor.relation == "hostile"
         and state.actors and state.actors.pet then
         rangeDistance = state.actors.pet.distance
     elseif descriptor.relation == "hostile" and state.targetDistance ~= nil then
@@ -365,14 +328,25 @@ local function rangeBlocker(action, state, descriptor, target, tooltip)
     elseif target == "player" or target == "pet" and descriptor.relation ~= "hostile" then
         rangeDistance = 0
     end
+    local minRange, maxRange = tooltip.minRange, tooltip.maxRange
+    if descriptor.relation == "hostile" and facts.effectActor == "pet" then
+        minRange = facts.effectMinRange or minRange
+        maxRange = facts.effectMaxRange or maxRange
+    end
     if liveRange == nil and rangeDistance then
-        if tooltip.minRange and rangeDistance < tooltip.minRange then
+        if minRange and rangeDistance < minRange then
             return "minimum range"
         end
-        if tooltip.maxRange and tooltip.maxRange > 0
-            and rangeDistance > tooltip.maxRange then
+        if maxRange and maxRange > 0 and rangeDistance > maxRange then
             return "range"
         end
+    end
+    if facts.commandMaxRange and state.targetDistance
+        and state.targetDistance > facts.commandMaxRange then
+        return "command range"
+    end
+    if facts.requiresPetMelee and rangeDistance == nil then
+        return "companion melee range unknown"
     end
     return nil
 end
@@ -383,12 +357,25 @@ local function effectBlocker(owner, action, state, descriptor, target, actionSta
         and owner:AuraActive(action, state, descriptor) then
         return "already active"
     end
+    local pendingTarget = (facts.deferredUntilPetMelee
+        or facts.petCombatBuff or facts.petCombatEffects)
+        and descriptor.castGuid or descriptor.guid or target
     if (kind == "dot" or kind == "debuff" or kind == "crowdControl"
         or kind == "buff" or kind == "hot" or kind == "absorb" or kind == "resource")
         and XelAssist and XelAssist.IsAuraPending
         and XelAssist:IsAuraPending(action.name, action.actor,
-            descriptor.guid or target) then
+            pendingTarget) then
         return "application pending"
+    end
+    local pet = state.actors and state.actors.pet
+    if facts.deferredUntilPetMelee and pet and pet.pendingMeleeEffects
+        and pet.pendingMeleeEffects[action.name] then
+        return "companion proc already armed"
+    end
+    if facts.petCombatBuff and XelAssist.Game.Pets
+        and XelAssist.Game.Pets.Effects
+        and XelAssist.Game.Pets.Effects:Active(pet, action.name) then
+        return "companion effect already active"
     end
     if (kind == "buff" or kind == "hot" or kind == "absorb" or kind == "resource")
         and owner:AuraActive(action, state, descriptor) then

@@ -3,29 +3,10 @@
 XelAssist.Game.Actors = {}
 local A = XelAssist.Game.Actors
 
-local PET_KNOWLEDGE = {
-    ["Firebolt"] = { kind = "damage", ranged = true },
-    ["Lash of Pain"] = { kind = "damage", melee = true },
-    ["Shadow Bite"] = { kind = "damage", melee = true },
-    ["Torment"] = { kind = "taunt", melee = true, threat = 3 },
-    ["Suffering"] = { kind = "taunt", aoe = true, threat = 3 },
-    ["Sacrifice"] = { kind = "absorb", petSacrifice = true },
-    ["Consume Shadows"] = { kind = "petHeal", channel = true, self = true, outOfCombat = true },
-    ["Seduction"] = { kind = "crowdControl", ranged = true, channel = true,
-        requiresCreature = "Humanoid" },
-    ["Devour Magic"] = { kind = "dispel", ranged = true },
-    ["Spell Lock"] = { kind = "interrupt", ranged = true },
-    ["Blood Pact"] = { kind = "buff", self = true },
-    ["Fire Shield"] = { kind = "buff" },
-    ["Paranoia"] = { kind = "buff", self = true },
-    ["Fel Intelligence"] = { kind = "buff", self = true },
-    ["Tainted Blood"] = { kind = "debuff", melee = true }
-}
-
-local function copyFacts(source)
-    local out, key, value = {}, nil, nil
-    for key, value in pairs(source or {}) do out[key] = value end
-    return out
+local function playerClass()
+    if not UnitClass then return nil end
+    local _, class = UnitClass("player")
+    return class
 end
 
 local function rankNumber(rank)
@@ -77,6 +58,9 @@ function A:PetIdentity(ref)
     local petGuid = ref.guid
     local family = UnitCreatureFamily and UnitCreatureFamily("pet") or nil
     local creature = UnitCreatureType and UnitCreatureType("pet") or nil
+    local ownerClass = playerClass()
+    local familyKnowledge = XelAssist.Combat.PetKnowledge
+        and XelAssist.Combat.PetKnowledge:Family(nil, family, ownerClass) or nil
     local stance, i
     if GetPetActionInfo then
         for i = 1, (NUM_PET_ACTION_SLOTS or 10) do
@@ -90,12 +74,25 @@ function A:PetIdentity(ref)
     end
     local castRemaining = XelAssist and XelAssist.petCastGuid == petGuid
         and XelAssist.petCastUntil and math.max(0, XelAssist.petCastUntil - GetTime()) or 0
+    local attackPower, attackPowerKnown
+    if UnitAttackPower then
+        local ok, base, positive, negative = pcall(UnitAttackPower, "pet")
+        if ok and type(base) == "number" then
+            attackPower = math.max(0, base + (tonumber(positive) or 0)
+                + (tonumber(negative) or 0))
+            attackPowerKnown = true
+        end
+    end
     return { id = "pet", unit = "pet", actorType = "controlled", guid = petGuid,
         actorRef = ref,
-        family = family, creatureType = creature, stance = stance,
+        family = family, familyId = familyKnowledge and familyKnowledge.id,
+        familySkillLine = familyKnowledge and familyKnowledge.skillLine,
+        familyKnowledgeSource = familyKnowledge and familyKnowledge.source,
+        ownerClass = ownerClass, creatureType = creature, stance = stance,
         level = UnitLevel and UnitLevel("pet") or nil,
         health = UnitHealth("pet") or 0, healthMax = UnitHealthMax("pet") or 0,
         resource = UnitMana("pet") or 0, resourceMax = UnitManaMax("pet") or 0,
+        attackPower = attackPower, attackPowerKnown = attackPowerKnown,
         casting = castRemaining > 0, castRemaining = castRemaining,
         castSpellId = castRemaining > 0 and XelAssist.petCastSpellId or nil,
         channeling = castRemaining > 0 and XelAssist.petCastChannel or false,
@@ -111,7 +108,7 @@ function A:BuildPetActions(ref)
         self.petActions, self.petActionsGuid = {}, nil
         return self.petActions
     end
-    local actions, barByName = {}, {}
+    local actions, barByName, ownerClass = {}, {}, playerClass()
     local slots = NUM_PET_ACTION_SLOTS or 10
     local i
     if GetPetActionInfo then
@@ -134,7 +131,10 @@ function A:BuildPetActions(ref)
         end
         local bar = barByName[name]
         if not passive and bar then
-            local facts = copyFacts(PET_KNOWLEDGE[name])
+            local actionSpellId = spellIdFor(name, rank)
+            local facts = XelAssist.Combat.PetKnowledge
+                and XelAssist.Combat.PetKnowledge:Facts(
+                    actionSpellId, name, ownerClass) or {}
             if not facts.kind then
                 local inferred = XelAssist.Game.Capabilities:InferKnowledge(i, BOOKTYPE_PET)
                 facts = inferred or {}
@@ -143,7 +143,7 @@ function A:BuildPetActions(ref)
                 facts.petAbility = true
                 table.insert(actions, { name = name, rankText = rank or "", rank = rankNumber(rank),
                     slot = i, actionSlot = bar.slot, texture = bar.texture,
-                    spellId = spellIdFor(name, rank),
+                    spellId = actionSpellId,
                     bookType = BOOKTYPE_PET, actor = "pet", executor = "petAbility",
                     actorRef = ref,
                     autocastAllowed = bar.autocastAllowed and true or false,
@@ -239,8 +239,17 @@ function A:Snapshot()
             end
         end
     end
+    local lifecycle = XelAssist.Game.Pets and XelAssist.Game.Pets.State
+        and XelAssist.Game.Pets.State:Snapshot() or nil
+    actors.petLifecycle = lifecycle
     local pet = self:PetIdentity()
     if pet then
+        if XelAssist.Game.Pets and XelAssist.Game.Pets.Actions then
+            pet = XelAssist.Game.Pets.Actions:MergeLive(pet, lifecycle)
+        end
+        if XelAssist.Game.Pets and XelAssist.Game.Pets.EffectRuntime then
+            pet = XelAssist.Game.Pets.EffectRuntime:Merge(pet)
+        end
         pet.distance, pet.distanceKind = self:Distance("pet", "target")
         local geometry = XelAssist.Game.Capabilities:Geometry("pet", "target")
         pet.lineOfSight, pet.behind = geometry.lineOfSight, geometry.behind
@@ -313,6 +322,8 @@ function A:Execute(action, expectedRef)
     return false
 end
 
-function A:Knowledge(name)
-    return PET_KNOWLEDGE[name]
+function A:Knowledge(name, spellId, ownerClass)
+    if not XelAssist.Combat.PetKnowledge then return nil end
+    return XelAssist.Combat.PetKnowledge:Facts(
+        spellId, name, ownerClass or playerClass())
 end

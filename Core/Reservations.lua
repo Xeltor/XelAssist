@@ -185,6 +185,10 @@ function XA:TouchPendingSpell(spellId, state, seconds, casterGuid, targetGuid)
             targetGuid = current.target
         else targetGuid = uniquePendingTarget(self, spellId, casterGuid) end
     end
+    if XelAssist.Game.Pets and XelAssist.Game.Pets.EffectRuntime then
+        XelAssist.Game.Pets.EffectRuntime:ObserveCast(
+            spellId, casterGuid, targetGuid, state)
+    end
     local lifecycle = self:Lifecycle(spellId, casterGuid, targetGuid)
     if lifecycle then
         local at = GetTime()
@@ -216,6 +220,11 @@ function XA:MarkPendingFailure(spellId, casterGuid, targetGuid)
         targetGuid = current.target
     end
     if not targetGuid then targetGuid = uniquePendingTarget(self, spellId, casterGuid) end
+    if spellId and XelAssist.Game.Pets
+        and XelAssist.Game.Pets.EffectRuntime then
+        XelAssist.Game.Pets.EffectRuntime:ObserveCast(
+            spellId, casterGuid, targetGuid, "failed")
+    end
     local lifecycle = spellId and self:Lifecycle(spellId, casterGuid, targetGuid) or nil
     if lifecycle then
         lifecycle.state, lifecycle.failureAt, lifecycle.lastAt = "failed-tentative", at, at
@@ -298,6 +307,9 @@ function XA:HandlePetIdentityChange()
     end
     if self.petCastGuid and self.petCastGuid ~= petGuid then
         self:ClearPetCast(nil, self.petCastGuid)
+    end
+    if XelAssist.Game.Pets and XelAssist.Game.Pets.EffectRuntime then
+        XelAssist.Game.Pets.EffectRuntime:IdentityChanged(self.lastPetGuid, petGuid)
     end
     self.lastPetGuid = petGuid
 end

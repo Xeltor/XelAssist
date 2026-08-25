@@ -4,13 +4,10 @@ XelAssist.Graph.Transitions = {}
 local T = XelAssist.Graph.Transitions
 local State = XelAssist.Graph.State
 local Actions = XelAssist.Graph.ActionEffects
-local Ongoing = XelAssist.Graph.OngoingEffects
+local Timeline = XelAssist.Graph.Timeline
 
 function T:Advance(source, candidate)
     local out = State:Copy(source)
     local context = Actions:Context(source, candidate)
-    Actions:Consume(out, candidate)
-    Ongoing:Advance(out, source, candidate, context)
-    Actions:Apply(out, source, candidate, context)
-    return out
+    return Timeline:Run(out, source, candidate, context)
 end

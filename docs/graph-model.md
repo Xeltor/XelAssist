@@ -32,9 +32,9 @@ the bounded, session-only correlation ledger for pending and recently consumed
 casts; it indexes opaque target and caster identities directly. Resistance uses
 Delivery through a stable facade. `Graph/State.lua`, `Graph/Targets.lua`,
 `Graph/Effects.lua`, `Graph/Scoring.lua`, `Graph/OngoingEffects.lua`,
-`Graph/ActionEffects.lua`, and `Graph/Transitions.lua` own one planning stage
-each; `Graph/Engine.lua` is the bounded-search facade. Architecture tests prevent
-the old monolith or a dependency cycle from returning.
+`Graph/ActionEffects.lua`, `Graph/Timeline.lua`, and `Graph/Transitions.lua` own
+one planning stage each; `Graph/Engine.lua` is the bounded-search facade.
+Architecture tests prevent the old monolith or a dependency cycle from returning.
 
 ## Evidence order
 
@@ -222,7 +222,10 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   hybrid direct damage lands immediately and only its periodic share is spread
   over the aura duration. Existing DoTs and channels re-evaluate resistance and
   damage-taken state across modifier start/expiry boundaries rather than freezing
-  the multiplier that existed when they were first stored.
+  the multiplier that existed when they were first stored. Auto Shot launches
+  and impacts, pet autocasts, stored periodic ticks, and the chosen action share
+  one offset-sorted causal timeline, so only effects that really resolve first
+  can suppress resource spending or consume a same-window pet trigger.
 - Mutually exclusive effects use generic family metadata. Applying one of the
   player's Warlock curses replaces only that player's prior curse in projected
   state; an attributable curse from another Warlock is preserved. Ambient pet
@@ -251,9 +254,12 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   Autocast-enabled abilities become actor-owned timed future transitions and are
   not redundantly recommended for manual execution. Each simulated path copies
   actor/autocast state so one branch cannot spend another branch's pet resource.
-  Warlock demon semantics include
-  threat, interrupts, dispels, crowd control, Consume Shadows, Sacrifice, and
-  shard-aware summoning without keying decisions to localized demon family names.
+  Warlock demon semantics include threat, interrupts, dispels, crowd control,
+  Consume Shadows, Sacrifice, and shard-aware summoning without keying decisions
+  to localized demon family names. Hunter pets use the same actor path. Their
+  Growl/Cower, focus attacks, movement, control, self-defense, and family actions
+  are ID-first facts taken from the installed Octowow DBCs; only actions present
+  in the live pet spellbook and executable pet bar become graph nodes.
 - Evaluation errors, missing dependencies, and budget overruns hold without a cast.
 
 ## Known evidence gaps
@@ -275,6 +281,19 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
 - Pet line of sight, pathing, exact numeric threat lead, and encounter hazards
   remain unknown unless the client exposes them; they are not silently treated
   as safe.
+- The stock API exposes a localized Hunter family name but not its numeric
+  CreatureFamily ID. XelAssist records an English-name family match for
+  diagnostics only and never uses it to admit an action; the live spell ID/bar
+  remains authoritative. Cower, pet-only defensives, and multi-effect family
+  skills retain explicit semantic flags but stay conservatively undervalued
+  until actor-local threat/health and simultaneous-effect projection consume
+  those flags.
+- Kill Command's 80% pet-attack-power description is client intent implemented
+  by Turtle's private server script, not a DBC damage formula. Its graph power
+  is therefore marked estimated until attributable runtime outcomes validate
+  the script. Intimidation's 51556 +50% pet-threat aura is modeled from the
+  installed client but remains runtime-unverified because the available public
+  core does not apply that modifier to non-player units.
 - Stock `CastPetAction(slot)` has no explicit recipient argument. A manual pet
   ability that needs a friendly recipient is therefore legal only when that
   recipient is the selected target; off-target pet buffs and dispels hold until

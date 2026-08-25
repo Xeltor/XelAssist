@@ -1,20 +1,16 @@
 local XA = XelAssist
-
 local function msg(text, r, g, b)
     DEFAULT_CHAT_FRAME:AddMessage("XelAssist: " .. text, r or 0.35, g or 0.85, b or 1)
 end
-
 local function cvarEnabled(name)
     if not GetCVar then return false end
     local ok, value = pcall(GetCVar, name)
     return ok and tostring(value) == "1"
 end
-
 local function flagSet(value, flag)
     value = math.max(0, tonumber(value) or 0)
     return math.floor(value / flag) - math.floor(value / (flag * 2)) * 2 == 1
 end
-
 function XA:EnableEvidenceEvents()
     local names = { "NP_EnableAuraCastEvents", "NP_EnableSpellStartEvents",
         "NP_EnableSpellGoEvents" }
@@ -471,7 +467,9 @@ ev:SetScript("OnEvent", function()
     end
     if (event == "AUTO_ATTACK_SELF" or event == "AUTO_ATTACK_OTHER")
         and XelAssist.Combat.Resistance then
-        XelAssist.Combat.Resistance:AutoAttack(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9)
+        XelAssist.Game.Pets.EffectRuntime:ObserveAutoAttack(arg1, arg2,
+            XelAssist.Combat.Resistance:AutoAttack(arg1, arg2, arg3, arg4,
+                arg5, arg6, arg7, arg8, arg9))
     end
     if event == "AURA_CAST_ON_SELF" or event == "AURA_CAST_ON_OTHER" then
         local spellName = SpellInfo and SpellInfo(arg1) or nil
@@ -484,6 +482,8 @@ ev:SetScript("OnEvent", function()
         local auraCapped = expectedBar == "buff" and buffCapped
             or expectedBar == "debuff" and debuffCapped
             or not expectedBar and (buffCapped or debuffCapped)
+        XelAssist.Game.Pets.EffectRuntime:ObserveAura(
+            arg1, arg2, arg3, arg8, auraCapped)
         local capReason = expectedBar == "buff" and "target buff bar full"
             or expectedBar == "debuff" and "target debuff bar full"
             or buffCapped and "target buff bar full" or "target debuff bar full"

@@ -5,16 +5,29 @@ table.getn = table.getn or function(value)
     return count
 end
 dofile("Combat/Knowledge.lua")
+dofile("Combat/TriggeredActions.lua")
+dofile("Combat/AutoShot.lua")
+dofile("Combat/AutoShotProjection.lua")
+dofile("Combat/PetKnowledge.lua")
+dofile("Game/SpellTiming.lua")
 dofile("Game/Capabilities.lua")
+dofile("Game/Pets/Actions.lua")
+dofile("Game/Pets/Effects.lua")
 dofile("Game/Actors.lua")
 dofile("Game/Friendlies.lua")
 dofile("Combat/TargetModifiers.lua")
 dofile("Graph/State.lua")
+dofile("Graph/TargetSelection.lua")
+dofile("Graph/CompanionThreat.lua")
 dofile("Graph/Targets.lua")
 dofile("Graph/Effects.lua")
-dofile("Graph/Scoring.lua")
+dofile("Graph/AutoShotEffects.lua")
+dofile("Graph/ActorScoring.lua")
+dofile("Graph/ThreatScoring.lua")
 dofile("Graph/OngoingEffects.lua")
 dofile("Graph/ActionEffects.lua")
+dofile("Graph/Timeline.lua")
+dofile("Graph/Scoring.lua")
 dofile("Graph/Transitions.lua")
 dofile("Graph/Engine.lua")
 
@@ -151,7 +164,7 @@ local function action(name, rank, kind, power, cost, extra)
             cast = facts.cast or 0, cooldown = facts.testCooldown,
             cooldownGroup = facts.testGroup, categoryCooldown = facts.testCategoryCooldown,
             minRange = facts.testMinRange, maxRange = facts.testMaxRange, school = facts.testSchool,
-            duration = facts.testDuration,
+            duration = facts.testDuration, periodicInterval = facts.testPeriodicInterval,
             directDamage = facts.testDirectDamage, periodicDamage = facts.testPeriodicDamage,
             targetArmorReduction = facts.testArmorReduction,
             targetArmorPerCombo = facts.testArmorPerCombo,
@@ -540,6 +553,30 @@ assert(plan.follow[1] and plan.follow[1].name == "Filler"
     and plan.follow[2] and plan.follow[2].name == "Execute",
     "active periodic damage must change later health-gated graph actions")
 
+currentState = state("smart"); currentState.targetHealth = 1000
+currentState.targetMax = 1000; XelAssistCharDB.graphDepth = 1
+scenarioActions = { action("Cadenced Burn", 1, "dot", 120, 20,
+    { testDuration = 6, testPeriodicInterval = 2 }) }
+plan = expect("DBC periodic cadence propagation", "Cadenced Burn")
+local cadenced = XelAssist.Graph.Transitions:Advance(
+    currentState, plan.path[1])
+assert(cadenced.targetHealth == 1000
+    and cadenced.auras["Cadenced Burn"].periodicInterval == 2
+    and math.abs(cadenced.auras["Cadenced Burn"].periodicNextIn - 0.5) < 0.0001,
+    "a projected DoT must retain cadence without inventing a partial tick")
+local cadenceWaitAction = action("Cadence Wait", 1, "buff", 0, 0)
+local cadenceWait = { action = cadenceWaitAction, target = "target",
+    targetGUID = currentState.targetGUID, targetRelation = "hostile",
+    cost = 0, cast = 0, occupancy = 1, wait = 0, downtime = 1,
+    actionStart = cadenced.time, tooltip = cadenceWaitAction.mock,
+    power = 0, effectDelivery = 1 }
+local afterCadenceTick = XelAssist.Graph.Transitions:Advance(
+    cadenced, cadenceWait)
+assert(afterCadenceTick.targetHealth == 960
+    and math.abs(afterCadenceTick.auras["Cadenced Burn"].periodicNextIn - 1.5)
+        < 0.0001,
+    "the first exact DoT tick must land once and preserve its future phase")
+
 currentState = state("smart"); currentState.targetHealth = 60; currentState.targetMax = 100
 XelAssistCharDB.graphDepth = 2
 XelAssist.Combat.Resistance = {
@@ -791,6 +828,478 @@ assert(plan.follow[1] and plan.follow[1].name == "Filler"
 
 XelAssist.Combat.Resistance = nil
 
+currentState = state("smart")
+currentState.actorReadyAt = { player = 0, pet = 0 }
+currentState.autoShot = { supported = true, active = false,
+    targetGuid = "target-guid", rangedSpeed = 2, ammoKnown = true,
+    ammoCount = 10, shotDamage = 100 }
+currentState.inventory = { ammo = { known = true, count = 10 } }
+local autoStart = action("Auto Shot", 1, "autoRepeat", 0, 0,
+    { autoRepeat = true, ambient = true, startOnly = true, cast = 0 })
+autoStart.mock.gcd = 0
+local autoFiller = action("Low Filler", 1, "damage", 1, 0)
+autoFiller.mock.gcd = 2.5
+scenarioActions = { autoStart, autoFiller }
+XelAssistCharDB.graphDepth = 2
+plan = expect("Auto Shot ambient start", "Auto Shot")
+assert(plan.follow[1] and plan.follow[1].name == "Low Filler",
+    "the graph must start sustained fire once, then evaluate ordinary actions")
+local afterAutoStart = XelAssist.Graph.Transitions:Advance(currentState, plan.path[1])
+assert(afterAutoStart.autoShot.active and afterAutoStart.targetHealth == 1000,
+    "starting Auto Shot must enable ambient state without inventing an immediate hit")
+local afterAutoFiller = XelAssist.Graph.Transitions:Advance(afterAutoStart, plan.path[2])
+assert(afterAutoFiller.autoShot.ammoCount == 8
+    and afterAutoFiller.targetHealth == 899
+    and table.getn(afterAutoFiller.autoShot.inFlight) == 1,
+    "launches must spend arrows immediately while projectile damage lands on its own timeline")
+
+currentState.playerCasting, currentState.playerChanneling = true, true
+currentState.castRemaining, currentState.actorReadyAt.player = 3, 3
+scenarioActions, XelAssistCharDB.graphDepth = { autoStart }, 1
+plan = expect("Auto Shot armed during channel", "Auto Shot")
+assert(plan.wait < 0.2,
+    "Auto Shot must arm now during a channel while its launches remain blocked")
+local armedDuringChannel = XelAssist.Graph.Transitions:Advance(
+    currentState, plan.path[1])
+assert(armedDuringChannel.playerCasting and armedDuringChannel.playerChanneling
+    and armedDuringChannel.castRemaining > 2.9
+    and armedDuringChannel.actorReadyAt.player == 3,
+    "arming Auto Shot must preserve and advance the channel's readiness state")
+currentState = armedDuringChannel
+scenarioActions = { autoFiller }
+plan = expect("action after armed channel", "Low Filler")
+assert(plan.wait > 2.9,
+    "ordinary Hunter actions must still wait for the armed channel to finish")
+currentState.playerCasting, currentState.playerChanneling = true, false
+currentState.castRemaining, currentState.actorReadyAt.player = 3, 3
+currentState.autoShot.active = false
+scenarioActions = { autoStart }
+local castBlockedAuto = XelAssist.Graph:Evaluate("smart", true)
+assert(castBlockedAuto == nil,
+    "a non-channel spell cast must still prevent an immediate Auto Shot toggle")
+currentState.playerCasting, currentState.castRemaining = false, 0
+currentState.actorReadyAt.player = 0
+scenarioActions = { autoStart, autoFiller }
+
+currentState.autoShot.active = true
+currentState.autoShot.activeSource = "action bar repeat"
+currentState.autoShot.nextLaunchIn = 2
+XelAssistCharDB.graphDepth = 1
+plan = expect("Auto Shot active repeat guard", "Low Filler")
+assert(plan.action.name ~= "Auto Shot",
+    "an active repeat must never re-enter the candidate graph as a toggle press")
+
+local function hunterAutoState(health, nextLaunch, distance)
+    local value = state("smart")
+    value.targetHealth, value.targetMax = health, health
+    value.targetDistance, value.targetLineOfSight = distance, true
+    value.actorReadyAt = { player = 0, pet = 0 }
+    value.autoShot = { supported = true, active = true,
+        activeSource = "action bar repeat", spellId = 75,
+        targetGuid = value.targetGUID, currentTargetGuid = value.targetGUID,
+        nextLaunchIn = nextLaunch, rangedSpeed = 2,
+        projectileSpeed = 40, projectable = true,
+        ammoKnown = true, ammoCount = 10, shotDamage = 100,
+        inFlight = {} }
+    value.inventory = { ammo = { known = true, count = 10 } }
+    return value
+end
+
+local delayedShot = action("Delayed Shot", 1, "damage", 100, 30)
+currentState = hunterAutoState(50, 0.1, 8)
+currentState.actorReadyAt.player = 1
+local delayedDescriptor = XelAssist.Graph.Targets:Targets(
+    delayedShot, currentState)[1]
+local delayedCandidate = XelAssist.Graph.Scoring:Evaluate(
+    delayedShot, currentState, delayedDescriptor)
+assert(delayedCandidate and delayedCandidate.value == -100000
+    and delayedCandidate.reason == "ambient attack resolves first",
+    "a projectile that lands first must suppress a redundant hostile action")
+local ambientKill = XelAssist.Graph.Transitions:Advance(
+    currentState, delayedCandidate)
+assert(ambientKill.targetHealth == 0 and ambientKill.resource == 1000
+    and ambientKill.autoShot.ammoCount == 9,
+    "a lethal earlier projectile must spend one arrow but not the skipped action resource")
+
+local instantShot = action("Instant Shot", 1, "damage", 100, 30)
+currentState = hunterAutoState(50, 0.2, 8)
+local instantDescriptor = XelAssist.Graph.Targets:Targets(
+    instantShot, currentState)[1]
+local instantCandidate = XelAssist.Graph.Scoring:Evaluate(
+    instantShot, currentState, instantDescriptor)
+local instantKill = XelAssist.Graph.Transitions:Advance(
+    currentState, instantCandidate)
+assert(instantKill.targetHealth == 0 and instantKill.resource == 970
+    and instantKill.autoShot.ammoCount == 10,
+    "an instant lethal action must stop a future launch before it spends ammunition")
+
+currentState = hunterAutoState(100, 2, 100)
+currentState.targetLineOfSight = false
+currentState.autoShot.active = false
+currentState.autoShot.projectable = false
+currentState.autoShot.inFlight = {
+    { power = 60, targetGuid = currentState.targetGUID, remaining = 0.1 }
+}
+local carriedHealth, carriedImpacts =
+    XelAssist.Graph.AutoShotEffects:HealthBeforeImpact(currentState,
+        { action = { actor = "pet", facts = {} }, wait = 1,
+            cast = 0, occupancy = 1 })
+assert(carriedHealth == 40 and carriedImpacts == 1,
+    "an already-launched arrow must still land after range or line-of-sight changes")
+currentState.autoShot.inFlight[1].targetGuid = "prior-target-guid"
+carriedHealth, carriedImpacts =
+    XelAssist.Graph.AutoShotEffects:HealthBeforeImpact(currentState,
+        { action = { actor = "pet", facts = {} }, wait = 1,
+            cast = 0, occupancy = 1 })
+assert(carriedHealth == 100 and carriedImpacts == 0,
+    "an arrow launched at a prior target must never damage the selected target")
+
+-- Bridge the exact live CAST event through Combat's session ledger into the
+-- graph. The arrow is already paid for by the client, but its earlier lethal
+-- impact must prevent the later chosen action and its resource cost.
+local priorUnitClass, priorUnitExists = UnitClass, UnitExists
+local priorRangedSpeed, priorAmmo = UnitRangedDamage, GetAmmo
+local priorRangedDamage = XelAssist.Game.Capabilities.RangedDamage
+local priorDistance = XelAssist.Game.Capabilities.Distance
+local liveClock = 100
+GetTime = function() return liveClock end
+UnitClass = function() return "Hunter", "HUNTER" end
+UnitExists = function(unit)
+    if unit == "player" then return true, "player-guid" end
+    if unit == "target" then return true, "target-guid" end
+    return false, nil
+end
+UnitRangedDamage = function() return 2 end
+GetAmmo = function() return 2516, 9 end
+XelAssist.Game.Capabilities.RangedDamage = function() return 60 end
+XelAssist.Game.Capabilities.Distance = function() return 20 end
+XelAssist.Combat.AutoShot:Reset(true)
+XelAssist.Combat.AutoShot:UnitCast(
+    "player-guid", "target-guid", "CAST", 75)
+liveClock = 100.1
+local liveAuto = XelAssist.Combat.AutoShot:Snapshot({ hostile = true,
+    distance = 20, lineOfSight = true })
+UnitClass, UnitExists = priorUnitClass, priorUnitExists
+UnitRangedDamage, GetAmmo = priorRangedSpeed, priorAmmo
+XelAssist.Game.Capabilities.RangedDamage = priorRangedDamage
+XelAssist.Game.Capabilities.Distance = priorDistance
+GetTime = function() return 0 end
+currentState = state("smart")
+currentState.targetHealth, currentState.targetMax = 50, 50
+currentState.targetDistance, currentState.targetLineOfSight = 20, true
+currentState.actorReadyAt = { player = 1, pet = 0 }
+currentState.autoShot = liveAuto
+currentState.inventory = { ammo = { known = true, count = 9 } }
+local liveArrowAction = action("Live Arrow Followup", 1, "damage", 100, 30)
+local liveArrowDescriptor = XelAssist.Graph.Targets:Targets(
+    liveArrowAction, currentState)[1]
+local liveArrowCandidate = XelAssist.Graph.Scoring:Evaluate(
+    liveArrowAction, currentState, liveArrowDescriptor)
+assert(liveArrowCandidate.value == -100000
+    and liveArrowCandidate.reason == "ambient attack resolves first",
+    "a lethal live in-flight arrow must suppress the later chosen action")
+local liveArrowResult = XelAssist.Graph.Transitions:Advance(
+    currentState, liveArrowCandidate)
+assert(liveArrowResult.targetHealth == 0
+    and liveArrowResult.resource == 1000
+    and liveArrowResult.autoShot.ammoCount == 9
+    and liveArrowResult.chosenActionPrevented,
+    "a carried live arrow must land without spending action resource or another arrow")
+XelAssist.Combat.AutoShot:Reset(true)
+
+local autoSpellIds = {}
+XelAssist.Combat.Resistance = {
+    Estimate = function(_, subject, _, tooltip)
+        if subject.name == "Auto Shot" then autoSpellIds[subject.spellId] = true end
+        return { school = tooltip.school or 0, multiplier = 1,
+            landChance = 1, uncertaintyMultiplier = 1,
+            source = "Auto Shot causal test" }
+    end,
+    Contrast = function() return nil end,
+}
+currentState = hunterAutoState(500, 0.1, 20)
+currentState.autoShot.spellId = 52636
+currentState.autoShot.rangedSpeed = 1
+currentState.actors.pet = { health = 100, healthMax = 100,
+    resource = 100, resourceMax = 100, targetExists = true,
+    targetsCurrent = true, hasAggro = false }
+local petExposure = petAction("Pet Exposure", "debuff", 0, 0,
+    { cast = 0.2, testDuration = 10, testDamageTaken = { [0] = 0.5 } })
+local exposureCandidate = { action = petExposure, target = "target",
+    targetGUID = currentState.targetGUID, targetRelation = "hostile",
+    cost = 0, cast = 0.2, occupancy = 0.2, wait = 0, downtime = 0.2,
+    tooltip = petExposure.mock, power = 0, effectDelivery = 1 }
+local afterExposure = XelAssist.Graph.Transitions:Advance(
+    currentState, exposureCandidate)
+assert(autoSpellIds[52636] and afterExposure.autoShot.inFlight[1]
+    and afterExposure.autoShot.inFlight[1].power == 100
+    and afterExposure.targetDamageTaken[0] == 0.5,
+    "launch must preserve exact spell identity and lock power before a later modifier")
+local petWait = petAction("Pet Follow", "command", 0, 0)
+petWait.command = "follow"
+local waitCandidate = { action = petWait, target = "pet",
+    targetRelation = "pet", cost = 0, cast = 0, occupancy = 1,
+    wait = 0, downtime = 1, tooltip = petWait.mock,
+    power = 0, effectDelivery = 1 }
+local afterModifierLaunch = XelAssist.Graph.Transitions:Advance(
+    afterExposure, waitCandidate)
+assert(afterModifierLaunch.targetHealth == 400
+    and afterModifierLaunch.autoShot.inFlight[1]
+    and afterModifierLaunch.autoShot.inFlight[1].power == 150,
+    "a prior shot must stay unmodified while a later launch uses the active vulnerability")
+XelAssist.Combat.Resistance = nil
+
+local function causalCandidate(subject, wait, occupancy, cast, power, cost)
+    return { action = subject, target = "target",
+        targetGUID = "target-guid", targetRelation = "hostile",
+        cost = cost or 0, cast = cast or 0, occupancy = occupancy,
+        wait = wait, downtime = wait + occupancy, actionStart = wait,
+        tooltip = subject.mock, power = power or 0, effectDelivery = 1 }
+end
+
+currentState = state("smart")
+currentState.targetHealth, currentState.targetMax = 1000, 1000
+currentState.actors.pet = { health = 1000, healthMax = 1000,
+    resource = 100, resourceMax = 100, targetExists = true,
+    targetsCurrent = true, hasAggro = false, distance = 3,
+    happinessDamageMultiplier = 1,
+    autocasts = { { name = "Scorpid Poison", actor = "pet", kind = "dot",
+        facts = { kind = "dot", damageActor = "pet", melee = true,
+            stackable = 5 }, power = 100, cost = 20, cooldown = 10,
+        readyIn = 0, tooltip = { school = 3, duration = 10,
+            periodicInterval = 2 } } } }
+local dotFiller = action("Pet Dot Filler", 1, "damage", 1, 0)
+local afterPetDot = XelAssist.Graph.Transitions:Advance(currentState,
+    causalCandidate(dotFiller, 0, 1.5, 0, 1, 0))
+assert(afterPetDot.targetHealth == 999
+    and afterPetDot.actors.pet.resource == 80
+    and afterPetDot.auras["Scorpid Poison"]
+    and afterPetDot.auras["Scorpid Poison"].remaining == 8.5
+    and afterPetDot.auras["Scorpid Poison"].periodicNextIn == 0.5,
+    "an ambient pet DoT must create a timed aura instead of silently spending focus")
+local afterPetDotTick = XelAssist.Graph.Transitions:Advance(afterPetDot,
+    causalCandidate(dotFiller, 0, 1, 0, 1, 0))
+assert(afterPetDotTick.targetHealth == 978
+    and afterPetDotTick.auras["Scorpid Poison"].remaining == 7.5,
+    "an ambient pet DoT must tick on its exact carried cadence")
+
+local repeatedPetState = state("smart")
+repeatedPetState.targetHealth, repeatedPetState.targetMax = 1000, 1000
+repeatedPetState.actors.pet = { health = 1000, healthMax = 1000,
+    resource = 100, resourceMax = 100, targetExists = true,
+    targetsCurrent = true, hasAggro = false, distance = 3,
+    autocasts = { { name = "Repeated Bite", actor = "pet", kind = "damage",
+        facts = { kind = "damage", damageActor = "pet", melee = true },
+        power = 10, cost = 10, cooldown = 1.5, readyIn = 0,
+        tooltip = { school = 0 } } } }
+local afterRepeatedPet = XelAssist.Graph.Transitions:Advance(repeatedPetState,
+    causalCandidate(dotFiller, 0, 5, 0, 1, 0))
+assert(afterRepeatedPet.targetHealth == 959
+    and afterRepeatedPet.actors.pet.resource == 60
+    and math.abs(afterRepeatedPet.actors.pet.autocasts[1].readyIn - 1) < 0.0001,
+    "a long action window must carry every affordable pet autocast cooldown")
+
+local observedGrowlState = state("smart")
+observedGrowlState.groupSize = 4
+observedGrowlState.actors.pet = { health = 1000, healthMax = 1000,
+    resource = 100, resourceMax = 100, targetExists = true,
+    targetsCurrent = true, hasAggro = false, distance = 3,
+    autocasts = { { name = "Observed Growl", actor = "pet", kind = "petThreat",
+        facts = { kind = "petThreat", petThreatGain = 415 },
+        power = 0, cost = 15, cooldown = 5, readyIn = 0,
+        tooltip = {} } } }
+XelAssistCharDB.petThreat = "avoid"
+local afterObservedGrowl = XelAssist.Graph.Transitions:Advance(observedGrowlState,
+    causalCandidate(dotFiller, 0, 1.5, 0, 1, 0))
+assert(afterObservedGrowl.actors.pet.resource == 85
+    and afterObservedGrowl.actors.pet.threatEstimate
+    and afterObservedGrowl.actors.pet.threatEstimate.delta == 415,
+    "an enabled Growl autocast must remain graph-visible despite recommendation policy")
+XelAssistCharDB.petThreat = "auto"
+
+local lethalPetDot = XelAssist.Graph.State:Copy(currentState)
+lethalPetDot.targetHealth, lethalPetDot.targetMax = 15, 15
+local latePetDotAction = action("Late After Pet Dot", 1, "damage", 100, 30)
+local latePetDotCandidate = causalCandidate(
+    latePetDotAction, 3, 1, 0, 100, 30)
+local petDotProbe = XelAssist.Graph.Timeline:BeforeAction(
+    lethalPetDot, latePetDotCandidate)
+local afterLethalPetDot = XelAssist.Graph.Transitions:Advance(
+    lethalPetDot, latePetDotCandidate)
+assert(petDotProbe.defeated and petDotProbe.damageEvents == 1
+    and afterLethalPetDot.chosenActionPrevented
+    and afterLethalPetDot.resource == lethalPetDot.resource,
+    "a lethal pet DoT tick must suppress a later action without spending its resource")
+
+-- A launch, companion attack, and chosen action must share one causal clock.
+-- The companion kills after the arrow leaves but before either its impact or
+-- the delayed chosen action, so the arrow is spent and the action is not.
+currentState = hunterAutoState(30, 0.1, 35)
+currentState.actors.pet = { health = 1000, healthMax = 1000,
+    resource = 300, resourceMax = 300, targetExists = true,
+    targetsCurrent = true, hasAggro = false, distance = 3,
+    autocasts = { { name = "Causal Bite", actor = "pet", kind = "damage",
+        facts = { kind = "damage", damageActor = "pet", melee = true },
+        power = 30, cost = 0, cooldown = 10, readyIn = 0.5,
+        tooltip = { school = 0 } } } }
+local lateStrike = action("Late Strike", 1, "damage", 100, 30)
+local petOnlyProbe = XelAssist.Graph.State:Copy(currentState)
+petOnlyProbe.autoShot, petOnlyProbe.inventory = nil, nil
+petOnlyProbe.actorReadyAt.player = 1
+local petOnlyDescriptor = XelAssist.Graph.Targets:Targets(
+    lateStrike, petOnlyProbe)[1]
+local petSuppressed = XelAssist.Graph.Scoring:Evaluate(
+    lateStrike, petOnlyProbe, petOnlyDescriptor)
+assert(petSuppressed and petSuppressed.value == -100000
+    and petSuppressed.reason == "ambient attack resolves first",
+    "an earlier ambient pet kill must suppress a redundant recommendation")
+assert(petOnlyProbe.actors.pet.autocasts[1].readyIn == 0.5,
+    "the unified scoring probe must not mutate its source pet timeline")
+local causalResult = XelAssist.Graph.Transitions:Advance(currentState,
+    causalCandidate(lateStrike, 1, 0.5, 0, 100, 30))
+assert(causalResult.targetHealth == 0 and causalResult.resource == 1000
+    and causalResult.autoShot.ammoCount == 9
+    and causalResult.autoShot.launches == 1
+    and causalResult.chosenActionPrevented,
+    "offset sorting must preserve an earlier launch, then pet kill, then skip the action")
+
+-- Player pet effects are action-impact events too: an instant next-melee
+-- trigger must exist before a later ambient pet melee in the same occupancy.
+currentState = state("smart")
+currentState.actorReadyAt = { player = 0, pet = 0 }
+currentState.targetHealth, currentState.targetMax = 100, 100
+currentState.actors.pet = { health = 1000, healthMax = 1000,
+    resource = 300, resourceMax = 300, targetExists = true,
+    targetsCurrent = true, hasAggro = false, distance = 3,
+    autocasts = { { name = "Triggered Bite", actor = "pet", kind = "damage",
+        facts = { kind = "damage", damageActor = "pet", melee = true },
+        power = 1, cost = 0, cooldown = 10, readyIn = 0.5,
+        tooltip = { school = 0 } } } }
+local intimidation = action("Timeline Intimidation", 1, "combatBuff", 0, 0,
+    { deferredUntilPetMelee = true, triggerWindow = 15, stunDuration = 3 })
+local intimidationResult = XelAssist.Graph.Transitions:Advance(currentState,
+    causalCandidate(intimidation, 0, 1.5, 0, 0, 0))
+assert(not next(intimidationResult.actors.pet.pendingMeleeEffects or {})
+    and intimidationResult.auras["Timeline Intimidation"]
+    and math.abs(intimidationResult.auras[
+        "Timeline Intimidation"].remaining - 2) < 0.0001,
+    "a later pet melee trigger must age its new aura only after that event")
+
+currentState = state("smart")
+currentState.actorReadyAt = { player = 0, pet = 0 }
+currentState.targetHealth, currentState.targetMax = 100, 100
+currentState.actors.pet = { health = 1000, healthMax = 1000,
+    resource = 300, resourceMax = 300, targetExists = true,
+    targetsCurrent = true, hasAggro = false, distance = 3,
+    pendingMeleeEffects = {},
+    autocasts = { { name = "Missing Bite", actor = "pet", kind = "damage",
+        facts = { kind = "damage", damageActor = "pet", melee = true },
+        power = 10, cost = 0, cooldown = 10, readyIn = 0.5,
+        tooltip = { school = 0 } } } }
+XelAssist.Combat.Resistance = {
+    Estimate = function()
+        return { school = 0, multiplier = 0, landChance = 0,
+            uncertaintyMultiplier = 1, source = "forced melee miss" }
+    end,
+}
+local missedIntimidation = XelAssist.Graph.Transitions:Advance(currentState,
+    causalCandidate(intimidation, 0, 1.5, 0, 0, 0))
+assert(missedIntimidation.actors.pet.pendingMeleeEffects[
+        "Timeline Intimidation"]
+    and missedIntimidation.actors.pet.pendingMeleeEffects[
+        "Timeline Intimidation"].chargeProbability == 1,
+    "a missed ambient melee must preserve the Intimidation charge")
+XelAssist.Combat.Resistance = nil
+
+currentState = state("smart")
+currentState.actorReadyAt = { player = 0, pet = 0 }
+currentState.targetHealth, currentState.targetMax = 100, 100
+currentState.actors.pet = { health = 1000, healthMax = 1000,
+    resource = 300, resourceMax = 300, targetExists = true,
+    targetsCurrent = true, hasAggro = false, distance = 3,
+    happinessDamageMultiplier = 1,
+    autocasts = { { name = "Enraged Bite", actor = "pet", kind = "damage",
+        facts = { kind = "damage", damageActor = "pet", melee = true },
+        power = 10, cost = 0, cooldown = 10, readyIn = 0.5,
+        tooltip = { school = 0 } } } }
+local bestial = action("Timeline Bestial Wrath", 1, "buff", 0, 0,
+    { petCombatBuff = true, petCombatEffects = {
+        { key = "damage", duration = 8, damageMultiplier = 1.4 } } })
+local bestialResult = XelAssist.Graph.Transitions:Advance(currentState,
+    causalCandidate(bestial, 0, 1.5, 0, 0, 0))
+assert(math.abs(bestialResult.targetHealth - 86) < 0.0001,
+    "an offset-zero pet damage buff must affect a later same-window autocast")
+
+currentState = state("smart")
+currentState.actorReadyAt = { player = 0, pet = 0 }
+currentState.targetHealth, currentState.targetMax = 100, 100
+currentState.actors.pet = { health = 1000, healthMax = 1000,
+    resource = 300, resourceMax = 300, targetExists = true,
+    targetsCurrent = true, hasAggro = false, distance = 3,
+    happinessDamageMultiplier = 1,
+    combatEffects = { short = { remaining = 1, damageMultiplier = 2 } },
+    autocasts = { { name = "Early Buffed Bite", actor = "pet", kind = "damage",
+        facts = { kind = "damage", damageActor = "pet", melee = true },
+        power = 10, cost = 0, cooldown = 10, readyIn = 0.5,
+        tooltip = { school = 0 } } } }
+local harmlessBuff = action("Timeline Harmless Buff", 1, "buff", 0, 0)
+local existingEffectResult = XelAssist.Graph.Transitions:Advance(currentState,
+    causalCandidate(harmlessBuff, 0, 1.5, 0, 0, 0))
+assert(existingEffectResult.targetHealth == 80
+    and not existingEffectResult.actors.pet.combatEffects.short,
+    "pet effects must remain active for earlier events then expire by window end")
+
+currentState = state("smart")
+currentState.actorReadyAt = { player = 0, pet = 0 }
+currentState.targetHealth, currentState.targetMax = 100, 100
+currentState.actors.pet = { health = 1000, healthMax = 1000,
+    resource = 300, resourceMax = 300, targetExists = true,
+    targetsCurrent = true, hasAggro = false, distance = 3,
+    happinessDamageMultiplier = 1,
+    autocasts = { { name = "Short Enraged Bite", actor = "pet", kind = "damage",
+        facts = { kind = "damage", damageActor = "pet", melee = true },
+        power = 10, cost = 0, cooldown = 10, readyIn = 0.5,
+        tooltip = { school = 0 } } } }
+local shortEnrage = action("Timeline Short Enrage", 1, "buff", 0, 0,
+    { petCombatBuff = true, petCombatEffects = {
+        { key = "damage", duration = 1, damageMultiplier = 2 } } })
+local newEffectResult = XelAssist.Graph.Transitions:Advance(currentState,
+    causalCandidate(shortEnrage, 0, 1.5, 0, 0, 0))
+assert(newEffectResult.targetHealth == 80
+    and not next(newEffectResult.actors.pet.combatEffects or {}),
+    "new pet effects must start at action impact, affect earlier events, and age once")
+
+local function tickingState(nextTick)
+    local value = state("smart")
+    value.targetHealth, value.targetMax = 40, 40
+    value.auras["Causal Burn"] = { remaining = 10, duration = 10,
+        mine = true, target = "target", periodicRate = 25,
+        periodicInterval = 2, periodicNextIn = nextTick,
+        applicationProbability = 1 }
+    return value
+end
+
+local timelineStrike = action("Timeline Strike", 1, "damage", 100, 30)
+currentState = tickingState(0.5)
+currentState.actorReadyAt = { player = 1, pet = 0 }
+local tickDescriptor = XelAssist.Graph.Targets:Targets(
+    timelineStrike, currentState)[1]
+local tickSuppressed = XelAssist.Graph.Scoring:Evaluate(
+    timelineStrike, currentState, tickDescriptor)
+assert(tickSuppressed and tickSuppressed.value == -100000,
+    "an earlier periodic kill must suppress a redundant recommendation")
+local tickFirst = XelAssist.Graph.Transitions:Advance(currentState,
+    causalCandidate(timelineStrike, 1, 1, 0, 100, 30))
+assert(tickFirst.targetHealth == 0 and tickFirst.resource == 1000
+    and tickFirst.chosenActionPrevented,
+    "a lethal periodic tick before impact must prevent chosen-action spending")
+currentState = tickingState(1.5)
+local actionFirst = XelAssist.Graph.Transitions:Advance(currentState,
+    causalCandidate(timelineStrike, 1, 1, 0, 100, 30))
+assert(actionFirst.targetHealth == 0 and actionFirst.resource == 970
+    and not actionFirst.chosenActionPrevented,
+    "a chosen action before a lethal periodic tick must spend exactly once")
+
 local function ambientState(unknownAmbient, health)
     local value = state("smart")
     value.targetHealth, value.targetMax = health, 120
@@ -914,6 +1423,77 @@ scenarioActions = { action("Spell Lock", 1, "interrupt", 0, 0, { pet = true }),
     action("Shadow Bolt", 1, "damage", 300, 20) }
 expect("warlock missing pet", "Shadow Bolt")
 
+currentState = state("smart"); currentState.pet = false
+currentState.actors.pet = nil; currentState.actorReadyAt = { player = 0, pet = 0 }
+currentState.petLifecycle = { supported = true, lifecycle = "dead",
+    health = 0, healthMax = 1000, focus = 35, focusMax = 100,
+    lastKnown = { guid = "dead-pet-guid", family = "Cat" } }
+currentState.actors.petLifecycle = currentState.petLifecycle
+XelAssistCharDB.graphDepth = 2
+scenarioActions = {
+    action("Call Pet", 1, "summon", 0, 0, { petLifecycle = "call" }),
+    action("Revive Pet", 1, "summon", 0, 0, { petLifecycle = "revive",
+        requiresPetState = "dead", fixedTarget = "pet", cast = 10 }),
+    action("Mend Pet", 1, "petHeal", 500, 50, { pet = true,
+        fixedTarget = "pet", channel = true, cast = 5 }),
+}
+plan = expect("dead Hunter pet lifecycle", "Revive Pet")
+assert(plan.target == "pet" and plan.follow[1]
+    and plan.follow[1].name == "Mend Pet",
+    "a defeated Hunter pet must remain graph-visible for Revive and later care")
+
+currentState = state("smart"); currentState.pet = false
+currentState.actors.pet = nil; currentState.actorReadyAt = { player = 0, pet = 0 }
+currentState.petLifecycle = { supported = true, lifecycle = "dismissed",
+    lastKnown = { guid = "dismissed-pet-guid", family = "Wolf" } }
+currentState.actors.petLifecycle = currentState.petLifecycle
+XelAssistCharDB.graphDepth = 1
+scenarioActions = {
+    action("Call Pet", 1, "summon", 0, 0, { petLifecycle = "call" }),
+    action("Revive Pet", 1, "summon", 0, 0, { petLifecycle = "revive",
+        fixedTarget = "pet", cast = 10 }),
+}
+expect("dismissed Hunter pet lifecycle", "Call Pet")
+
+currentState.petLifecycle.lifecycle = "unknown"
+local unknownPetPlan = XelAssist.Graph:Evaluate("smart", true)
+assert(unknownPetPlan == nil,
+    "unexplained Hunter pet absence must not blindly alternate Call and Revive")
+
+currentState = state("smart"); currentState.pet = true
+currentState.actorReadyAt = { player = 0, pet = 0 }
+currentState.actors.pet = { health = 100, healthMax = 1000,
+    resource = 50, resourceMax = 100, targetExists = false,
+    targetsCurrent = false, hasAggro = false }
+currentState.petLifecycle = { supported = true, lifecycle = "alive" }
+scenarioActions = { action("Mend Pet", 1, "petHeal", 500, 50,
+    { pet = true, fixedTarget = "pet", channel = true, cast = 5 }) }
+plan = expect("fixed Hunter Mend recipient", "Mend Pet")
+assert(plan.target == "pet" and plan.targetRelation == "pet",
+    "Mend Pet must never become a variable party heal")
+
+local graphBestial = action("Bestial Wrath", 1, "buff", 0, 100,
+    { pet = true, fixedTarget = "pet", petCombatBuff = true,
+        combatBuff = true, testDuration = 18 })
+scenarioActions = { graphBestial }
+currentState.inCombat = false
+local idleBestial = XelAssist.Graph:Evaluate("smart", true)
+assert(idleBestial == nil,
+    "the graph must not spend Bestial Wrath on an idle out-of-combat pet")
+currentState.inCombat = true
+currentState.actors.pet.targetExists = true
+currentState.actors.pet.targetsCurrent = true
+expect("engaged Hunter Bestial Wrath", "Bestial Wrath")
+
+scenarioActions = { action("Feed Pet", 1, "petCare", 0, 0,
+    { pet = true, fixedTarget = "pet", itemTarget = true }) }
+local feedPlan = XelAssist.Graph:Evaluate("smart", true)
+assert(feedPlan == nil, "Feed Pet must hold without a proven compatible configured food")
+scenarioActions = { action("Dismiss Pet", 1, "petLifecycle", 0, 0,
+    { pet = true, fixedTarget = "pet", petLifecycle = "dismiss" }) }
+local dismissPlan = XelAssist.Graph:Evaluate("smart", true)
+assert(dismissPlan == nil, "the graph must never autonomously dismiss a Hunter pet")
+
 currentState = state("smart"); currentState.combo = 0
 scenarioActions = { action("Eviscerate", 1, "damage", 700, 35, { combo = true }),
     action("Sinister Strike", 1, "builder", 200, 45) }
@@ -950,11 +1530,28 @@ scenarioActions = { petAction("Spell Lock", "interrupt", 0, 40, { ranged = true 
 plan = expect("felhunter interrupt", "Spell Lock")
 assert(plan.actor == "pet", "the graph must retain the independently acting companion")
 assert(plan.downtime < 0.2, "pet interrupt must remain independent of the player's cast/GCD clock")
+currentState.actors.pet.targetsCurrent = false
+scenarioActions = { petAction("Spell Lock", "interrupt", 0, 40, { ranged = true }),
+    action("Shadow Bolt", 1, "damage", 600, 100) }
+expect("felhunter hostile target identity", "Shadow Bolt")
+currentState.actors.pet.targetsCurrent = true
 
 currentState.targetCasting = false; currentState.actors.pet.resource = 0
 scenarioActions = { petAction("Firebolt", "damage", 800, 50, { ranged = true }),
     action("Shadow Bolt", 1, "damage", 250, 100) }
 expect("pet resource isolation", "Shadow Bolt")
+
+currentState = state("smart")
+currentState.resource, currentState.resourceMax = 5000, 5000
+currentState.actors.pet = { health = 1000, healthMax = 1000,
+    resource = 100, resourceMax = 100, targetExists = true,
+    targetsCurrent = true, hasAggro = false, distance = 3 }
+XelAssistCharDB.graphDepth = 1
+scenarioActions = {
+    petAction("Focus Heavy Bite", "damage", 100, 35, { melee = true }),
+    petAction("Focus Efficient Claw", "damage", 98, 25, { melee = true }),
+}
+expect("pet focus-normalized damage value", "Focus Efficient Claw")
 
 currentState = state("smart"); currentState.pet = true
 currentState.actors.pet = { health = 1000, healthMax = 1000, resource = 300, resourceMax = 300,
@@ -997,6 +1594,41 @@ scenarioActions = { petAction("Torment", "taunt", 0, 50, { melee = true, threat 
 expect("solo voidwalker taunt", "Torment")
 currentState.groupSize = 4
 expect("group taunt avoidance", "Shadow Bolt")
+
+currentState = state("smart"); currentState.pet = true; currentState.hasAggro = true
+currentState.actorReadyAt = { player = 0, pet = 0 }
+currentState.actors.pet = { health = 1000, healthMax = 1000,
+    resource = 100, resourceMax = 100, targetExists = true,
+    targetsCurrent = true, hasAggro = false, distance = 3 }
+XelAssistCharDB.petThreat = "auto"
+scenarioActions = { petAction("Growl", "petThreat", 0, 10,
+        { melee = true, petThreatGain = 415 }),
+    action("Low Shot", 1, "damage", 50, 0) }
+plan = expect("Hunter Growl relative threat", "Growl")
+local afterGrowl = XelAssist.Graph.Transitions:Advance(currentState, plan.path[1])
+assert(afterGrowl.hasAggro and not afterGrowl.actors.pet.hasAggro
+    and afterGrowl.actors.pet.threatEstimate.delta == 415,
+    "Growl must add uncertain relative threat without claiming an aggro transfer")
+currentState.groupSize, currentState.hasAggro = 4, false
+expect("Hunter Growl group avoidance", "Low Shot")
+
+currentState = state("smart"); currentState.pet = true; currentState.groupSize = 4
+currentState.actorReadyAt = { player = 0, pet = 0 }
+currentState.actors.pet = { health = 1000, healthMax = 1000,
+    resource = 100, resourceMax = 100, targetExists = true,
+    targetsCurrent = true, hasAggro = true, distance = 3 }
+scenarioActions = { petAction("Cower", "petThreat", 0, 15,
+    { self = true, petThreatDrop = 225 }) }
+plan = expect("Hunter Cower relative threat", "Cower")
+local afterCower = XelAssist.Graph.Transitions:Advance(currentState, plan.path[1])
+assert(afterCower.hasAggro == currentState.hasAggro
+    and afterCower.actors.pet.hasAggro
+    and afterCower.actors.pet.threatEstimate.delta == -225,
+    "Cower must reduce only the pet estimate and preserve live victim facts")
+XelAssistCharDB.petThreat = "tank"
+local tankCower = XelAssist.Graph:Evaluate("smart", true)
+assert(tankCower == nil, "Cower must be blocked while the companion is the tank")
+XelAssistCharDB.petThreat = "auto"
 
 currentState = state("smart"); currentState.playerBehindTarget = false
 scenarioActions = { action("Backstab", 1, "builder", 900, 60, { behind = true }),

@@ -77,14 +77,15 @@ local function targetAuraState(encounter)
 end
 
 local function currentPlayerCast()
-    local castName, castRemaining, casting, gcdRemaining =
+    local castName, castRemaining, casting, gcdRemaining, channeling =
         XelAssist.Game.Capabilities:CurrentCast()
     if not casting and XelAssist.playerCastUntil
         and XelAssist.playerCastUntil > GetTime() then
         castName, castRemaining, casting = XelAssist.playerCastName,
             XelAssist.playerCastUntil - GetTime(), true
+        channeling = false
     end
-    return castName, castRemaining, casting, gcdRemaining
+    return castName, castRemaining, casting, gcdRemaining, channeling
 end
 
 local function targetModifierState(encounter, hostile)
@@ -104,6 +105,21 @@ local function targetModifierState(encounter, hostile)
     return resistance, damageTaken, source, effects, auras
 end
 
+local function autoShotState(inventory, hostile, moving, casting, channeling,
+    targetDistance, targetGeometry)
+    if not XelAssist.Combat.AutoShot then return nil end
+    local auto = XelAssist.Combat.AutoShot:Snapshot({
+        hostile = hostile and true or false, moving = moving,
+        casting = casting and not channeling and true or false,
+        channeling = channeling and true or false, distance = targetDistance,
+        lineOfSight = targetGeometry.lineOfSight })
+    if auto and inventory and inventory.ammo and inventory.ammo.known
+        and not auto.ammoKnown then
+        auto.ammoKnown, auto.ammoCount = true, inventory.ammo.count
+    end
+    return auto
+end
+
 function S:Snapshot(mode)
     local actors = XelAssist.Game.Actors:Snapshot()
     local encounter = XelAssist.Game.Encounter and XelAssist.Game.Encounter:Snapshot() or nil
@@ -116,7 +132,9 @@ function S:Snapshot(mode)
     local healUnit = primary and primary.unit or "player"
     local healHealth = primary and primary.health or UnitHealth("player") or 0
     local healMax = primary and primary.healthMax or UnitHealthMax("player") or 0
-    local castName, castRemaining, casting, gcdRemaining = currentPlayerCast()
+    local castName, castRemaining, casting, gcdRemaining, channeling =
+        currentPlayerCast()
+    local moving = PlayerIsMoving and PlayerIsMoving() or false
     local hostile = UnitExists("target") and not UnitIsDead("target")
         and UnitCanAttack("player", "target")
     local targetHealth, targetMax, targetHealthExact = 0, 0, false
@@ -135,6 +153,8 @@ function S:Snapshot(mode)
     local distance = hostile and targetDistance or healDistance
     local distanceKind = hostile and targetDistanceKind or healDistanceKind
     local targetGeometry = XelAssist.Game.Capabilities:Geometry("player", "target")
+    local autoShot = autoShotState(inventory, hostile, moving, casting, channeling,
+        targetDistance, targetGeometry)
     local _, currentTargetGUID = UnitExists("target")
     local hostileTargetRef = hostile and XelAssist.Game.Capabilities.UnitRef
         and XelAssist.Game.Capabilities:UnitRef("target", "hostile", "selected") or nil
@@ -165,13 +185,16 @@ function S:Snapshot(mode)
         resourceMax = UnitManaMax("player") or 0,
         resourceType = UnitPowerType and UnitPowerType("player") or nil,
         combo = GetComboPoints and GetComboPoints() or 0,
-        moving = PlayerIsMoving and PlayerIsMoving() or false,
-        pet = actors.pet ~= nil, actors = actors, inventory = inventory,
+        moving = moving,
+        pet = actors.pet ~= nil, petLifecycle = actors.petLifecycle,
+        actors = actors, inventory = inventory,
+        autoShot = autoShot,
         encounter = encounter, targetAuras = targetAuraState(encounter),
         targetCasting = targetCasting and true or false,
         targetCastRemaining = targetCasting
             and (XelAssist.targetCastUntil - GetTime()) or 0,
-        playerCasting = casting, playerCastName = castName,
+        playerCasting = casting, playerChanneling = channeling and true or false,
+        playerCastName = castName,
         castRemaining = castRemaining or 0,
         groupSize = (GetNumRaidMembers and GetNumRaidMembers() or 0)
             + (GetNumPartyMembers and GetNumPartyMembers() or 0),
@@ -231,6 +254,9 @@ function S:Copy(state)
     out.readyAt = copyNested(state.readyAt or {}, 2, seen, nil, atomic)
     out.actorReadyAt = copyNested(state.actorReadyAt or {}, 2, seen, nil, atomic)
     if state.actors then out.actors = copyNested(state.actors, 4, seen, nil, atomic) end
+    if state.petLifecycle then
+        out.petLifecycle = copyNested(state.petLifecycle, 3, seen, nil, atomic)
+    end
     if state.friendlies then
         if XelAssist.Game.Friendlies and XelAssist.Game.Friendlies.Copy then
             out.friendlies = XelAssist.Game.Friendlies:Copy(state.friendlies)
@@ -261,6 +287,9 @@ function S:Copy(state)
         if state.inventory.reagentCounts then
             out.inventory.reagentCounts = copyNested(state.inventory.reagentCounts, 2, seen)
         end
+    end
+    if state.autoShot then
+        out.autoShot = copyNested(state.autoShot, 2, seen, nil, atomic)
     end
     return out
 end

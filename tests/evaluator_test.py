@@ -113,6 +113,7 @@ def top_level_function_spans(text):
 
 
 actions = (ROOT / "Combat/Knowledge.lua").read_text()
+pet_knowledge = (ROOT / "Combat/PetKnowledge.lua").read_text()
 graph_files = sorted((ROOT / "Graph").glob("*.lua"))
 graph = "\n".join(path.read_text() for path in graph_files)
 engine = (ROOT / "Graph/Engine.lua").read_text()
@@ -125,6 +126,15 @@ delivery = (ROOT / "Combat/Delivery.lua").read_text()
 assert not (ROOT / "XelAssist_Profiles.lua").exists(), "typed rotations must not remain"
 assert "XelAssistProfiles" not in graph + actions
 assert "priority" not in actions.lower()
+assert "priority" not in pet_knowledge.lower(), "pet knowledge must not become a rotation"
+assert "XelAssist.Combat.PetKnowledge" in pet_knowledge
+for pet_action in ["Growl", "Cower", "Bite", "Claw", "Screech", "Dash",
+        "Dive", "Charge", "Prowl", "Thunderstomp", "Lightning Breath"]:
+    assert f'"{pet_action}"' in pet_knowledge, pet_action
+assert "BY_ID[spellId]" in pet_knowledge and "BY_NAME[ownerClass][name]" in pet_knowledge
+actors = (ROOT / "Game/Actors.lua").read_text()
+assert "PET_KNOWLEDGE" not in actors
+assert "PetKnowledge:Facts(" in actors and "actionSpellId, name, ownerClass" in actors
 
 representative_spells = ["Mortal Strike", "Holy Strike", "Steady Shot", "Sinister Strike",
     "Mind Flay", "Lightning Bolt", "Frostbolt", "Shadow Bolt", "Shred"]
@@ -143,7 +153,8 @@ assert ".hasAggro" in graph and ".tank" in graph and "threat" in graph
 assert '.role == "healer"' in graph and '.role == "damage"' in graph
 assert ".moving and cast" in graph
 assert "math.min(power, missing)" in graph
-assert re.search(r"math\.min\(expected(?:Power)?,\s*\w+\.targetHealth\)", graph)
+assert re.search(r"math\.min\(expected(?:Power)?,\s*targetHealth\)", graph)
+assert "targetHealthAtImpact" in graph and "ambient attack resolves first" in graph
 assert "resistance = XelAssist.Combat.Resistance:Estimate" in graph
 assert re.search(r"power\s*=\s*(?:context\.)?expectedPower", graph) and "threatPower" in graph
 assert ".targetHealthExact" in graph and "function C:Health" in capabilities
@@ -153,7 +164,8 @@ assert "TargetUnit(" not in graph + core
 assert "ClearTarget(" not in graph + core
 assert 'CastSpellByName(castName, "CLICK")' in core
 assert "QueueSpellByName(castName)" in core
-assert 'plan.target == "target" and QueueSpellByName' in core
+assert "local forceQueue" in core
+assert 'plan.target == "target") and QueueSpellByName' in core
 assert "fallback=conservative hold" in core
 assert "function XA:RuntimeAudit" in core and "function XA:RecordError" in core
 assert "function UI:Refresh" not in core
@@ -182,8 +194,8 @@ for contract in ["function D:SpellTraits", "function D:Record",
     assert contract in delivery, contract
 assert "trimDelivery" not in resistance and "physicalHitFromSkills" not in resistance
 
-graph_modules = ["State", "Targets", "Effects", "Scoring", "OngoingEffects",
-    "ActionEffects", "Transitions"]
+graph_modules = ["State", "Targets", "Effects", "AutoShotEffects", "Scoring", "OngoingEffects",
+    "ActionEffects", "Timeline", "Transitions"]
 for module in graph_modules:
     module_path = ROOT / "Graph" / f"{module}.lua"
     assert module_path.exists(), f"missing graph module file: {module_path.relative_to(ROOT)}"

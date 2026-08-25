@@ -9,7 +9,7 @@ reason to change, and the TOC is the only runtime dependency manifest.
 ```text
 Core/       bootstrap, lifecycle, commands, events, and execution boundary
 Game/       client API discovery and live actor, ally, encounter, and item state
-Combat/     action semantics, delivery mechanics, observations, and learned evidence
+Combat/     player/pet semantics, delivery mechanics, observations, and learned evidence
 Graph/      snapshot, targets, effects, scoring, transitions, and bounded search
 UI/         recommendation HUD, character settings, and minimap entry
 ```
@@ -43,12 +43,20 @@ never class rotations or ordered priority lists.
 ## Ownership boundaries
 
 - `Game` reads the client and produces structured live facts. It does not cast,
-  score recommendations, or persist learned combat outcomes.
-- `Combat` owns declarative spell meaning, stateless delivery rules, transient
-  observations, and target evidence. It does not depend on graph search.
-- `Graph/State.lua` is the live observation boundary for planning. Targeting,
-  scoring, transitions, and search consume passed state and do not mutate live
-  game state.
+  score recommendations, or persist learned combat outcomes. The session-only
+  `Game/Pets/EffectRuntime.lua` ledger correlates confirmed casts, observable
+  pet auras, and exact melee outcomes so fresh snapshots retain pet effects
+  without writing opaque identities or inferred state to saved variables.
+- `Combat` owns declarative player and companion spell meaning, stateless
+  delivery rules, transient observations, and target evidence. Pet knowledge is
+  ID-first metadata over live-discovered actions, never a family priority list.
+  It does not depend on graph search.
+- `Graph/State.lua` is the live observation boundary for planning.
+  `Graph/Timeline.lua` orders projected combat events without owning their
+  mechanics. `Graph/ActorScoring.lua` and `Graph/ThreatScoring.lua` keep
+  controlled-actor utility and actor-owned threat out of core potency scoring.
+  Targeting, scoring, transitions, and search consume passed state and do not
+  mutate live game state.
 - `UI` renders plans and settings. It does not score actions or execute cached
   previews.
 - `Core` owns startup and the one-input execution boundary. Cast, queue, item,

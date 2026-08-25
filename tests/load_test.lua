@@ -184,6 +184,15 @@ end
 XelAssist:Init()
 XelAssist.UI.Settings:Build()
 XelAssist.UI.HUD:Refresh(true)
+local savedCurrentCast = XelAssist.Game.Capabilities.CurrentCast
+XelAssist.Game.Capabilities.CurrentCast = function()
+    return "Test Channel", 2, true, 0, true
+end
+local channelSnapshot = XelAssist.Graph.State:Snapshot("smart")
+XelAssist.Game.Capabilities.CurrentCast = savedCurrentCast
+assert(channelSnapshot.playerCasting and channelSnapshot.playerChanneling
+    and channelSnapshot.castRemaining == 2,
+    "graph state must preserve the native channel distinction")
 assert(XelAssist.UI.HUD.frame and XelAssist.UI.HUD.frame.main, "recommendation frame did not build")
 assert(XelAssist.UI.HUD.frame:GetWidth() == 372,
     "recommendation runway must reserve enough width for readable action contracts")
@@ -196,7 +205,7 @@ assert(XelAssistCharDB.graphDepth == 3 and XelAssistCharDB.role == "auto", "char
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.6.0" and runtime.nampower == "test-3.0", "runtime versions missing")
+assert(runtime.version == "0.7.0" and runtime.nampower == "test-3.0", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(runtime.evidenceEvents.damage and runtime.evidenceEvents.miss,
@@ -906,9 +915,228 @@ assert(directCastCount == petTargetCastCount + 1 and directUnit == "pet-guid"
 testPetGUID, testAssistUnits.pet = nil, nil
 
 resetCastState()
+queuedSpell, directlyCast, directUnit = nil, nil, "unchanged"
+local originalUnitClass, originalAutoRepeat, originalUnitCanAttack =
+    UnitClass, IsAutoRepeatAction, UnitCanAttack
+UnitClass = function() return "Hunter", "HUNTER" end
+IsAutoRepeatAction = function() return false end
+UnitCanAttack = function(_, unit) return unit == "target" end
+testTargetGUID = "hunter-auto-target"
+XelAssist.Combat.AutoShot:Reset(true)
+local autoPlan = { action = { name = "Auto Shot", spellId = 75, rank = 1,
+        rankText = "", actor = "player", facts = { kind = "autoRepeat",
+            autoRepeat = true, cast = 0, gcd = 0 } },
+    target = "target", targetGUID = "hunter-auto-target",
+    targetRelation = "hostile",
+    targetRef = { unit = "target", guid = "hunter-auto-target",
+        relation = "hostile", source = "selected" },
+    reason = "test sustained shot", confidence = "client data", value = 1,
+    threat = 0, wait = 0, cast = 0, downtime = 0.05,
+    observed = {}, follow = {}, path = {}, tooltip = {} }
+XelAssist.Graph.Evaluate = function() return autoPlan, nil, false end
+local autoCasts, autoQueues, autoLog = directCastCount, queueCount, table.getn(XelAssistLog)
+XelAssist:Execute()
+assert(directCastCount == autoCasts + 1 and queueCount == autoQueues
+    and directlyCast == "Auto Shot" and directUnit == nil,
+    "Auto Shot activation must dispatch directly once rather than enter the spell queue")
+XelAssist:Execute()
+assert(directCastCount == autoCasts + 1 and queueCount == autoQueues
+    and table.getn(XelAssistLog) == autoLog + 1
+    and string.find(XelAssist.lastReason, "state uncertain", 1, true),
+    "a second tap before the client update must hold without toggling Auto Shot off")
+XelAssist.Combat.AutoShot:Reset(true)
+UnitClass, IsAutoRepeatAction, UnitCanAttack = originalUnitClass,
+    originalAutoRepeat, originalUnitCanAttack
+testTargetGUID = nil
+
+-- A Hunter command has two independently captured recipients: the player
+-- casts the button on the controlled pet while its triggered result affects
+-- the exact hostile unit the pet is already attacking.  Exercise that
+-- dispatch contract here, including every mutable identity/state recheck.
+resetCastState()
+queuedSpell, directlyCast, directUnit = nil, nil, nil
+local savedHunterUnitExists, savedHunterUnitIsUnit = UnitExists, UnitIsUnit
+local savedHunterUnitCanAttack, savedHunterSpellUsable = UnitCanAttack, IsSpellUsable
+local savedHunterUnitXP = UnitXP
+local hunterPetTargetMatches = true
+local hunterUsable = true
+local hunterPetDistance, hunterCommandDistance = 3, 20
+local hunterTargetGuid, hunterPetGuid = {}, {}
+testTargetGUID, testPetGUID = hunterTargetGuid, hunterPetGuid
+testAssistUnits.pet = true
+UnitExists = function(unit)
+    if unit == "pettarget" then
+        return true, hunterPetTargetMatches and testTargetGUID or "other-target-guid"
+    end
+    return savedHunterUnitExists(unit)
+end
+UnitIsUnit = function(a, b)
+    if a == "pettarget" and b == "target" then return hunterPetTargetMatches end
+    return savedHunterUnitIsUnit(a, b)
+end
+UnitCanAttack = function(_, unit) return unit == "target" end
+UnitXP = function(operation, from, to)
+    if operation == "distanceBetween" and from == "pet" and to == "target" then
+        return hunterPetDistance
+    end
+    if operation == "distanceBetween" and from == "player" and to == "target" then
+        return hunterCommandDistance
+    end
+    if operation == "inSight" then return true end
+    if operation == "behind" then return false end
+    return nil
+end
+IsSpellUsable = function(name)
+    assert(name == "Kill Command",
+        "Hunter critical revalidation must query the exact cast name")
+    return hunterUsable and 1 or 0, 0
+end
+local killCommandAction = { name = "Kill Command", spellId = 41827, rank = 1,
+    rankText = "", actor = "player", executor = "playerSpell",
+    facts = { kind = "damage", pet = true, fixedTarget = "pet",
+        effectTarget = "target", effectActor = "pet", damageActor = "pet",
+        requiresHunterCritical = true, resultSpellId = 41828, gcd = 0,
+        requiresPetMelee = true, effectMinRange = 0, effectMaxRange = 5,
+        commandMaxRange = 45 } }
+local killCommandEffect = XelAssist.Combat.TriggeredActions:ResultAction(
+    killCommandAction)
+assert(killCommandEffect.spellId == 41828 and killCommandEffect.actor == "pet",
+    "Kill Command must expose its exact pet-owned triggered result")
+local killCommandPlan = { action = killCommandAction,
+    effectAction = killCommandEffect, actor = "player",
+    target = "target", targetGUID = hunterTargetGuid,
+    targetRelation = "hostile",
+    targetRef = { unit = "target", guid = hunterTargetGuid,
+        relation = "hostile", source = "selected" },
+    castTarget = "pet", castTargetGUID = hunterPetGuid,
+    castTargetRelation = "pet",
+    castTargetRef = { unit = "pet", guid = hunterPetGuid,
+        relation = "pet", source = "controlled" },
+    reason = "test Hunter dual target", confidence = "client data",
+    value = 1, threat = 1, wait = 0, cast = 0, downtime = 0,
+    observed = { actors = { pet = { unit = "pet", guid = hunterPetGuid } } },
+    follow = {}, path = {}, tooltip = {}, effectTooltip = {} }
+XelAssist.Graph.Evaluate = function() return killCommandPlan, nil, false end
+local killCasts, killQueues = directCastCount, queueCount
+local killLog = table.getn(XelAssistLog)
+XelAssist.Combat.Observations.last = { name = "before Kill Command" }
+XelAssist:Execute()
+local killSubmission = XelAssist.Combat.Resistance:Submission(
+    hunterTargetGuid, hunterPetGuid, 41828)
+assert(directCastCount == killCasts + 1 and queueCount == killQueues
+    and directlyCast == "Kill Command" and directUnit == hunterPetGuid
+    and table.getn(XelAssistLog) == killLog + 1,
+    "Kill Command must cast directly on its captured pet without entering the hostile queue")
+assert(XelAssist.Combat.Observations.last
+    and XelAssist.Combat.Observations.last.spellId == 41828
+    and XelAssist.Combat.Observations.last.actor == "pet"
+    and XelAssist.Combat.Observations.last.target == hunterTargetGuid
+    and killSubmission,
+    "Kill Command observation must correlate result 41828 from the pet to the captured hostile")
+
+resetCastState()
+hunterPetTargetMatches = false
+local mismatchCasts, mismatchQueues = directCastCount, queueCount
+local mismatchLog = table.getn(XelAssistLog)
+local mismatchObservation = { name = "pettarget mismatch sentinel" }
+XelAssist.Combat.Observations.last = mismatchObservation
+XelAssist:Execute()
+assert(directCastCount == mismatchCasts and queueCount == mismatchQueues
+    and table.getn(XelAssistLog) == mismatchLog
+    and XelAssist.Combat.Observations.last == mismatchObservation
+    and not next(XelAssist.Combat.Resistance.submissions)
+    and string.find(XelAssist.lastReason, "companion target changed", 1, true),
+    "Kill Command must hold without side effects when pettarget no longer matches the hostile")
+
+resetCastState()
+hunterPetTargetMatches = true
+hunterPetDistance = 8
+local rangeCasts, rangeQueues = directCastCount, queueCount
+local rangeLog = table.getn(XelAssistLog)
+XelAssist:Execute()
+assert(directCastCount == rangeCasts and queueCount == rangeQueues
+    and table.getn(XelAssistLog) == rangeLog
+    and not next(XelAssist.Combat.Resistance.submissions)
+    and string.find(XelAssist.lastReason, "out of melee range", 1, true),
+    "Kill Command must hold while the captured pet cannot reach its target")
+hunterPetDistance = 3
+
+resetCastState()
+hunterPetTargetMatches = true
+hunterUsable = true
+testTargetGUID = hunterTargetGuid
+local savedHunterInRange = XelAssist.Game.Capabilities.InRange
+local raceRangeChecks = 0
+XelAssist.Game.Capabilities.InRange = function(_, name, unit)
+    assert(name == "Kill Command" and unit == "pet",
+        "dual-target range validation must inspect the pet cast recipient")
+    raceRangeChecks = raceRangeChecks + 1
+    testTargetGUID = {}
+    return true
+end
+local hunterRaceCasts, hunterRaceQueues = directCastCount, queueCount
+local hunterRaceLog = table.getn(XelAssistLog)
+local hunterRaceObservation = { name = "hostile race sentinel" }
+XelAssist.Combat.Observations.last = hunterRaceObservation
+XelAssist:Execute()
+XelAssist.Game.Capabilities.InRange = savedHunterInRange
+assert(raceRangeChecks == 1 and directCastCount == hunterRaceCasts
+    and queueCount == hunterRaceQueues and table.getn(XelAssistLog) == hunterRaceLog
+    and XelAssist.Combat.Observations.last == hunterRaceObservation
+    and not next(XelAssist.Combat.Resistance.submissions)
+    and string.find(XelAssist.lastReason, "effect target changed", 1, true),
+    "Kill Command must catch a hostile identity race immediately before dispatch")
+
+resetCastState()
+testTargetGUID = hunterTargetGuid
+hunterUsable = false
+local expiredCasts, expiredQueues = directCastCount, queueCount
+local expiredLog = table.getn(XelAssistLog)
+local expiredObservation = { name = "critical expired sentinel" }
+XelAssist.Combat.Observations.last = expiredObservation
+XelAssist:Execute()
+assert(directCastCount == expiredCasts and queueCount == expiredQueues
+    and table.getn(XelAssistLog) == expiredLog
+    and XelAssist.Combat.Observations.last == expiredObservation
+    and not next(XelAssist.Combat.Resistance.submissions)
+    and string.find(XelAssist.lastReason, "state", 1, true),
+    "Kill Command must recheck and hold when its Hunter-critical state has expired")
+
+UnitExists, UnitIsUnit = savedHunterUnitExists, savedHunterUnitIsUnit
+UnitCanAttack, IsSpellUsable, UnitXP = savedHunterUnitCanAttack,
+    savedHunterSpellUsable, savedHunterUnitXP
+testTargetGUID, testPetGUID, testAssistUnits.pet = nil, nil, nil
+
+resetCastState()
+queuedSpell, directlyCast, directUnit = nil, nil, "unchanged"
+local revivePlan = { action = { name = "Revive Pet", spellId = 982, rank = 1,
+        rankText = "", actor = "player", facts = { kind = "summon",
+            petLifecycle = "revive", fixedTarget = "pet", cast = 10 } },
+    target = "pet", targetRelation = "pet", reason = "test dead pet lifecycle",
+    confidence = "client data", value = 1, threat = 0, wait = 0, cast = 10,
+    downtime = 10, observed = {}, follow = {}, path = {}, tooltip = {} }
+XelAssist.Graph.Evaluate = function() return revivePlan, nil, false end
+local reviveCasts, reviveQueues = directCastCount, queueCount
+XelAssist:Execute()
+assert(directCastCount == reviveCasts + 1 and queueCount == reviveQueues
+    and directlyCast == "Revive Pet" and directUnit == nil,
+    "a verified pet lifecycle spell must use its implicit recipient without a dead-unit GUID")
+
+resetCastState()
 testTargetGUID = "pet-runtime-target"
 local evaluatedPetGuid, replacementPetGuid = {}, {}
 testPetGUID = evaluatedPetGuid
+local savedPetActionUnitExists, savedPetActionUnitIsUnit = UnitExists, UnitIsUnit
+local petActionTargetMatches = true
+UnitExists = function(unit)
+    if unit == "pettarget" then return true, petActionTargetMatches
+        and testTargetGUID or "other-pet-target" end
+    return savedPetActionUnitExists(unit)
+end
+UnitIsUnit = function(a, b)
+    if a == "pettarget" and b == "target" then return petActionTargetMatches end
+    return savedPetActionUnitIsUnit(a, b)
+end
 local petRuntimeAction = { name = "Spell Lock", spellId = 6358, rank = 1,
     rankText = "Rank 1", actor = "pet", executor = "petAbility", actionSlot = 5,
     actorRef = { unit = "pet", guid = evaluatedPetGuid, relation = "controlled",
@@ -927,6 +1155,18 @@ local validPetDispatches = petActionCount
 XelAssist:Execute()
 assert(petActionCount == validPetDispatches + 1 and petActionSlot == 5,
     "an independently ready pet action must dispatch only for its captured actor identity")
+local wrongPetTargetDispatches, wrongPetTargetLog = petActionCount,
+    table.getn(XelAssistLog)
+local wrongPetTargetObservation = XelAssist.Combat.Observations.last
+petActionTargetMatches = false
+XelAssist:Execute()
+assert(petActionCount == wrongPetTargetDispatches
+    and table.getn(XelAssistLog) == wrongPetTargetLog
+    and XelAssist.Combat.Observations.last == wrongPetTargetObservation
+    and not next(XelAssist.pendingAuras)
+    and string.find(XelAssist.lastReason, "companion target changed", 1, true),
+    "a hostile pet ability must hold when the pet is attacking another enemy")
+petActionTargetMatches = true
 local staleTargetDispatches, staleTargetLog = petActionCount, table.getn(XelAssistLog)
 testTargetGUID = "replacement-runtime-target"
 XelAssist:Execute()
@@ -945,6 +1185,7 @@ assert(petActionCount == stalePetDispatches
     and not next(XelAssist.pendingAuras)
     and string.find(XelAssist.lastReason, "companion changed", 1, true),
     "pet replacement must hold without dispatch, log, observation or pending-aura side effects")
+UnitExists, UnitIsUnit = savedPetActionUnitExists, savedPetActionUnitIsUnit
 testPetGUID, testTargetGUID = nil, nil
 
 resetCastState()

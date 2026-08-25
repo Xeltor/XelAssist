@@ -323,9 +323,14 @@ local function buildPlan(state, observed, path, counter, started)
     local confidence = table.getn(unknowns) > 0 and "partial data"
         or (best.estimated and "estimated" or "client data")
     return { action = best.action, follow = follow, reason = best.reason,
+        effectAction = best.effectAction, effectTooltip = best.effectTooltip,
         target = best.target, targetKey = best.targetKey,
         targetGUID = best.targetGUID, targetRelation = best.targetRelation,
         targetSource = best.targetSource, targetRef = best.targetRef,
+        castTarget = best.castTarget, castTargetGUID = best.castTargetGUID,
+        castTargetRelation = best.castTargetRelation,
+        castTargetSource = best.castTargetSource,
+        castTargetRef = best.castTargetRef,
         actor = best.action.actor or "player", confidence = confidence,
         unknowns = unknowns, expanded = counter.count,
         elapsed = (GetTime() - started) * 1000, value = best.value,

@@ -142,8 +142,13 @@ end
 
 function O:SpellDamage(targetGuid, casterGuid, spellId, amount, mitigation, hitInfo, school, effectAura)
     if not XelAssist.Combat.Resistance then return nil end
-    return XelAssist.Combat.Resistance:DamageEvent(targetGuid, casterGuid, spellId, amount,
-        mitigation, hitInfo, school, effectAura)
+    local observed = XelAssist.Combat.Resistance:DamageEvent(targetGuid,
+        casterGuid, spellId, amount, mitigation, hitInfo, school, effectAura)
+    if XelAssist.Game.Pets and XelAssist.Game.Pets.EffectRuntime then
+        XelAssist.Game.Pets.EffectRuntime:ObserveSpellDamage(
+            targetGuid, casterGuid, spellId, observed, amount)
+    end
+    return observed
 end
 
 function O:ResistanceMultiplier(action, target, tooltip, state)

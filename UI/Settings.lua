@@ -99,14 +99,15 @@ function Config:Build()
     f.petControl:SetPoint("TOPLEFT", f, "TOPLEFT", 188, -226)
     local petThreat = label(f, "Companion threat", "GameFontHighlightSmall")
     petThreat:SetPoint("TOPLEFT", f, "TOPLEFT", 22, -260)
-    local threatModes = { { "Auto", "auto" }, { "Tank", "tank" }, { "Avoid", "avoid" } }
+    local threatModes = { { "Auto", "auto" }, { "Tank", "tank" },
+        { "Assist", "assist" }, { "Avoid", "avoid" } }
     f.petThreats = {}
     for i = 1, table.getn(threatModes) do
         local entry = threatModes[i]
-        local button = makeButton(f, entry[1], 96, function()
+        local button = makeButton(f, entry[1], 72, function()
             XelAssistCharDB.petThreat = this.petThreat; Config:Refresh(); XelAssist.UI.HUD:Refresh(true)
         end)
-        button:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + ((i - 1) * 101), -276)
+        button:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + ((i - 1) * 76), -276)
         button.petThreat = entry[2]; f.petThreats[i] = button
     end
 
