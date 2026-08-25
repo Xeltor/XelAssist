@@ -37,7 +37,11 @@ local function makeCheck(parent, text, key, scope)
         elseif key == "minimap" and XelAssist.UI.Minimap then
             XelAssist.UI.Minimap:SetVisible(store[key])
         end
-        XelAssist.UI.HUD:Refresh(true)
+        if scope == "global" then
+            XelAssist.UI.HUD:RenderCommitted(true)
+        else
+            XelAssist.UI.HUD:RequestRefresh(true)
+        end
     end)
     check.Refresh = function()
         local store = storeFor(scope)
@@ -126,7 +130,8 @@ function Config:Build()
     for i = 1, table.getn(threatModes) do
         local entry = threatModes[i]
         local button = makeButton(f, entry[1], 72, function()
-            XelAssistCharDB.petThreat = this.petThreat; Config:Refresh(); XelAssist.UI.HUD:Refresh(true)
+            XelAssistCharDB.petThreat = this.petThreat; Config:Refresh()
+            XelAssist.UI.HUD:RequestRefresh(true)
         end)
         button:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + ((i - 1) * 76), -306)
         button.petThreat = entry[2]; f.petThreats[i] = button
@@ -139,7 +144,8 @@ function Config:Build()
     for i = 1, table.getn(roles) do
         local entry = roles[i]
         local button = makeButton(f, entry[1], 75, function()
-            XelAssistCharDB.role = this.role; Config:Refresh(); XelAssist.UI.HUD:Refresh(true)
+            XelAssistCharDB.role = this.role; Config:Refresh()
+            XelAssist.UI.HUD:RequestRefresh(true)
         end)
         button:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + ((i - 1) * 79), -364)
         button.role = entry[2]; f.roles[i] = button
@@ -171,7 +177,7 @@ function Config:Build()
     getglobal(depth:GetName() .. "Text"):SetText("Decision steps shown")
     depth:SetScript("OnValueChanged", function()
         XelAssistCharDB.visibleSteps = math.floor(this:GetValue() + 0.5)
-        XelAssist.UI.HUD:Refresh(true)
+        XelAssist.UI.HUD:RenderCommitted(true)
     end)
     f.depth = depth
     f.depthHelp = label(f,
@@ -196,7 +202,7 @@ function Config:Build()
             or XelAssistCharDB.soulShardReserve
         getglobal(this:GetName() .. "Text"):SetText(
             "Soul Shards kept: " .. tostring(reserve))
-        XelAssist.UI.HUD:Refresh(true)
+        XelAssist.UI.HUD:RequestRefresh(true)
     end)
     f.soulShardReserve = shards
     shards:Hide()

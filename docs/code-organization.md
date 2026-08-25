@@ -148,7 +148,11 @@ never class rotations or ordered priority lists.
   `ComboEffects.lua`, and `ComboScoring.lua` own target-owned probabilistic DBC
   combo transitions, combo-scaled durations, and marginal efficiency;
   `Graph/SearchPolicy.lua` owns the
-  automatic time/state horizon independently of visible HUD rows, and
+  automatic active-CPU/state horizon independently of visible HUD rows, while
+  `Graph/SearchSession.lua` carries deterministic Lua 5.0 table cursors across
+  short frame slices and exposes only complete accepted paths. The synchronous
+  graph facade consumes the same continuation without yielding, so tests and
+  production cannot drift into separate search algorithms. In addition,
   `Graph/SearchBranches.lua` protects distinct immediate/setup beam branches;
   `Graph/PlanDiagnostics.lua` describes only the selected path's terminal gate
   without inventing an executable wait or action.
@@ -159,8 +163,10 @@ never class rotations or ordered priority lists.
   live-discovered actions governed by the major-cooldown policy. The visual HUD
   remains fixed-height and owns no update callback;
   `UI/RecommendationController.lua` keeps its UIParent-owned producer alive even
-  while the visual frame is hidden and publishes complete plans after target
-  changes settle. `UI/RunwayPlaceholder.lua` distinguishes path-local gates,
+  while the visual frame is hidden, resumes one graph slice per frame, and uses
+  epoch tickets to publish a complete current plan atomically. Target changes
+  start replacement work on the next frame; physical input only consumes the
+  finished one-shot snapshot. `UI/RunwayPlaceholder.lua` distinguishes path-local gates,
   graph time, and bounded search without inventing future actions, while
   `UI/RunwayRenderer.lua` incrementally paints only visibly changed future
   slots and refreshes their underlying tooltip contracts independently.
@@ -186,6 +192,9 @@ never class rotations or ordered priority lists.
   reservations, keeping same-spell attempt generations isolated.
   `Core/CastEventRouter.lua` normalizes Nampower and SuperWoW cast lifecycles
   before routing them to the hostile ledger or existing owned actor lanes.
+  `Core/AuraApplicationReservations.lua` owns exact landing, visibility-gap,
+  aura-cap uncertainty, and cast-pushback extensions after the base reservation
+  module establishes identity and lifecycle records.
   Cast, queue, item, pet-command, and any future target-changing APIs must remain
   on that boundary.
 

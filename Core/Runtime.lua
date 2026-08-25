@@ -92,7 +92,7 @@ end
 function XA:SetMode(mode)
     self.mode = mode; XelAssistCharDB.mode = mode; msg("mode set to " .. mode .. ".")
     if XelAssist.UI.HUD.ClearExecutionMode then XelAssist.UI.HUD:ClearExecutionMode() end
-    XelAssist.UI.HUD:Refresh(true)
+    XelAssist.UI.HUD:RequestRefresh(true)
 end
 
 function XA:Command(text)
@@ -107,6 +107,7 @@ function XA:Command(text)
         local current = XelAssistCharDB.toggles[cmd]
         XelAssistCharDB.toggles[cmd] = not current
         msg(cmd .. " " .. (not current and "enabled" or "disabled") .. ".")
+        XelAssist.UI.HUD:RequestRefresh(true)
         return
     end
     if XelAssist.Core.EngagedTargetConfig:Command(cmd) then return end
@@ -335,8 +336,10 @@ ev:SetScript("OnEvent", function()
         local owned = XelAssist.Combat.Resistance and XelAssist.Combat.Resistance:IsOwnedCaster(arg2)
         local pendingKey = XA:PendingAuraKey(spellName, arg3, arg2)
         local pending = pendingKey and XA.pendingAuras and XA.pendingAuras[pendingKey]
+        local lifecycle = XA:Lifecycle(arg1, arg2, arg3, false)
         local buffCapped, debuffCapped = flagSet(arg9, 1), flagSet(arg9, 2)
         local expectedBar = pending and pending.auraBar
+            or lifecycle and lifecycle.applicationAuraBar
         if not expectedBar and event == "AURA_CAST_ON_SELF" then expectedBar = "buff" end
         local auraCapped = expectedBar == "buff" and buffCapped
             or expectedBar == "debuff" and debuffCapped
@@ -356,14 +359,21 @@ ev:SetScript("OnEvent", function()
                 XA:ConfirmAuraPending(
                     spellName, arg3, arg2, arg1, expectedBar)
             end
-        elseif owned and auraCapped and pending then
-            pending.state = expectedBar == "buff" and "buff-cap-uncertain"
+        elseif owned and auraCapped then
+            local uncertainState = expectedBar == "buff" and "buff-cap-uncertain"
                 or expectedBar == "debuff" and "debuff-cap-uncertain"
-                or buffCapped and "buff-cap-uncertain" or "debuff-cap-uncertain"
-            pending.untilAt = math.max(pending.untilAt or 0, GetTime() + 0.75)
-            if XelAssist.Combat.Resistance.MarkApplicationUncertain then
-                XelAssist.Combat.Resistance:MarkApplicationUncertain(arg3, arg1, arg2,
-                    capReason)
+                or buffCapped and "buff-cap-uncertain"
+                or "debuff-cap-uncertain"
+            if pending or lifecycle
+                and lifecycle.applicationName == spellName then
+                pending = XA:HoldAuraPendingUncertain(spellName, arg3, arg2,
+                    arg1, expectedBar, uncertainState)
+            end
+            if pending then
+                if XelAssist.Combat.Resistance.MarkApplicationUncertain then
+                    XelAssist.Combat.Resistance:MarkApplicationUncertain(
+                        arg3, arg1, arg2, capReason)
+                end
             end
         end
     end

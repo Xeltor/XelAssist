@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.23
+## Version: 0.8.24
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -127,6 +127,7 @@ Graph\SearchPolicy.lua
 Graph\SearchBranches.lua
 Graph\PlanDiagnostics.lua
 Graph\PlanBuilder.lua
+Graph\SearchSession.lua
 Graph\Engine.lua
 
 # Presentation and execution boundary
@@ -143,6 +144,7 @@ UI\HUD.lua
 UI\Settings.lua
 UI\Minimap.lua
 Core\Reservations.lua
+Core\AuraApplicationReservations.lua
 Core\TargetGuard.lua
 Core\ExecutionReach.lua
 Core\DispatchReadiness.lua

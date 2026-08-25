@@ -88,6 +88,7 @@ dofile("Graph/SearchPolicy.lua")
 dofile("Graph/SearchBranches.lua")
 dofile("Graph/PlanDiagnostics.lua")
 dofile("Graph/PlanBuilder.lua")
+dofile("Graph/SearchSession.lua")
 dofile("Graph/Engine.lua")
 
 local pendingAura

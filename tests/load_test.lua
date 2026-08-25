@@ -375,7 +375,7 @@ assert(XelAssistCharDB.schema == 5
     and XelAssistCharDB.toggles.engagedTargets == false,
     "saved-variable schema did not migrate with safe hostile-target defaults")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.23" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.24" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(not runtime.apis.comboOwner and not runtime.apis.comboDuration,
@@ -538,9 +538,12 @@ assert(string.find(tooltipText, "Physical 50% · 60% share", 1, true)
     and string.find(tooltipText, "uncertain", 1, true),
     "mixed resistance UI must expose each component's normalized share and uncertainty")
 local savedEvaluatorForTooltip = XelAssist.Graph.Evaluate
-XelAssist.Graph.Evaluate = function()
-    return nil, "Select a target or injured ally", false
-end
+XelAssistTestSavedAsyncGraph = {
+    beginEvaluation = XelAssist.Graph.BeginEvaluation,
+    resumeEvaluation = XelAssist.Graph.ResumeEvaluation,
+    cancelEvaluation = XelAssist.Graph.CancelEvaluation,
+}
+XelAssist.Graph.Evaluate = function() return displayPlan, nil, false end
 XelAssist.UI.HUD:Refresh(true)
 local actionFrame = XelAssist.UI.HUD.frame
 do
@@ -557,69 +560,193 @@ do
     for i = 1, table.getn(actionFrame.follow) do
         rowScriptsBefore[i] = actionFrame.follow[i].methodCalls.SetScript or 0
     end
-    local settledEvaluations = 0
-    XelAssist.Graph.Evaluate = function()
-        settledEvaluations = settledEvaluations + 1
-        return displayPlan, nil, false
+    local async = { synchronous = 0, begun = 0, resumed = 0,
+        cancelled = 0, sessions = {} }
+    async.PlanFor = function(mode, observedAt)
+        local plan, key, value = {}, nil, nil
+        if mode == "buff" then
+            plan = { action = estimatedFollowAction, target = "player",
+                targetRelation = "self", reason = "prepares a lasting buff",
+                confidence = "client data", value = 1, threat = 0,
+                downtime = 1.5, observed = {}, follow = {},
+                path = { { action = estimatedFollowAction,
+                    target = "player", targetRelation = "self" } } }
+        else
+            for key, value in pairs(displayPlan) do plan[key] = value end
+        end
+        plan.observedAt = observedAt
+        return plan
     end
+    XelAssist.Graph.Evaluate = function()
+        async.synchronous = async.synchronous + 1
+        error("the live driver must not call synchronous Graph.Evaluate")
+    end
+    XelAssist.Graph.BeginEvaluation = function(_, mode, preview, observedAt)
+        async.begun = async.begun + 1
+        local session = { id = async.begun, mode = mode, preview = preview,
+            observedAt = observedAt, resumes = 0,
+            plan = async.PlanFor(mode, observedAt) }
+        table.insert(async.sessions, session)
+        return session
+    end
+    XelAssist.Graph.ResumeEvaluation = function(_, session)
+        assert(session and not session.cancelled,
+            "a cancelled graph job must never be resumed")
+        async.resumed, session.resumes = async.resumed + 1, session.resumes + 1
+        if session.resumes < 2 then return false, nil, nil end
+        return true, session.plan, nil
+    end
+    XelAssist.Graph.CancelEvaluation = function(_, session, reason)
+        async.cancelled = async.cancelled + 1
+        session.cancelled, session.cancelReason = true, reason
+        return true
+    end
+    async.savedRender, async.renderCalls = XelAssist.UI.HUD.Render, 0
+    XelAssist.UI.HUD.Render = function(owner, plan, err, changed)
+        async.renderCalls = async.renderCalls + 1
+        return async.savedRender(owner, plan, err, changed)
+    end
+    async.snapshot = XelAssist.Core.RecommendationSnapshot
+    async.generationBeforeTarget = async.snapshot.generation or 0
+    async.revisionBeforeTarget = actionFrame.xelCurrentRenderRevision
     event = "PLAYER_TARGET_CHANGED"; driver.OnEvent()
-    arg1 = 0.21; driver.OnUpdate()
-    assert(settledEvaluations == 0,
-        "a new target must settle for one HUD tick before native presentation work")
-    arg1 = 0.36; driver.OnUpdate()
-    assert(settledEvaluations == 1
+    assert(async.begun == 0 and async.resumed == 0 and async.synchronous == 0,
+        "a target event must only invalidate and schedule graph work")
+    arg1 = 0; driver.OnUpdate()
+    async.abandoned = XelAssist.UI.HUD.activeEvaluation
+    assert(async.begun == 1 and async.resumed == 0 and async.abandoned
+        and async.abandoned.session == async.sessions[1]
+        and async.synchronous == 0,
+        "the next frame must begin, but not synchronously execute, target work")
+    arg1 = 0.01; driver.OnUpdate()
+    assert(async.resumed == 1 and async.sessions[1].resumes == 1
+        and async.snapshot.generation == async.generationBeforeTarget
+        and async.renderCalls == 0
+        and actionFrame.xelCurrentRenderRevision == async.revisionBeforeTarget,
+        "a pending slice must neither publish nor render a partial recommendation")
+
+    event = "PLAYER_TARGET_CHANGED"; driver.OnEvent()
+    assert(async.cancelled == 1 and async.sessions[1].cancelled
+        and XelAssist.UI.HUD.activeEvaluation == nil,
+        "new target evidence must cancel the prior pending graph job")
+    async.staleGeneration = async.snapshot.generation
+    assert(not XelAssist.UI.RecommendationController:Commit(
+            XelAssist.UI.HUD, async.abandoned, async.sessions[1].plan, nil)
+        and async.snapshot.generation == async.staleGeneration
+        and async.renderCalls == 0,
+        "an invalidated graph ticket must never publish after late completion")
+    arg1 = 0; driver.OnUpdate()
+    async.replacement = XelAssist.UI.HUD.activeEvaluation
+    assert(async.begun == 2 and async.resumed == 1 and async.replacement
+        and async.replacement.session == async.sessions[2],
+        "the replacement target job must begin on the next frame")
+
+    async.ensured = XelAssist.UI.HUD:EnsureEvaluation(XelAssist.mode)
+    XelAssist:Execute()
+    XelAssist:Execute()
+    assert(not async.ensured and async.begun == 2 and async.cancelled == 1
+        and XelAssist.UI.HUD.activeEvaluation == async.replacement,
+        "repeated same-mode input must reuse one pending graph job")
+    arg1 = 0.01; driver.OnUpdate()
+    assert(async.sessions[2].resumes == 1
+        and async.snapshot.generation == async.staleGeneration
+        and async.renderCalls == 0,
+        "the replacement's first pending slice must remain unpublished")
+    XelAssist:Execute()
+    XelAssist.UI.HUD:EnsureEvaluation(XelAssist.mode)
+    assert(async.begun == 2 and async.cancelled == 1
+        and XelAssist.UI.HUD.activeEvaluation == async.replacement,
+        "Ensure and Execute must not restart a same-mode job between slices")
+    arg1 = 0.01; driver.OnUpdate()
+    assert(async.sessions[2].resumes == 2
+        and XelAssist.UI.HUD.activeEvaluation == nil
+        and async.snapshot.generation == async.staleGeneration + 1
+        and async.snapshot.mode == XelAssist.mode and async.snapshot.plan
+        and async.snapshot.plan.action == tooltipAction
+        and async.renderCalls == 1
         and (rootCalls.GetPoint or 0) == geometryBefore.getPoint
         and (rootCalls.SetHeight or 0) == geometryBefore.setHeight
         and (rootCalls.ClearAllPoints or 0) == geometryBefore.clearPoints
         and (rootCalls.SetPoint or 0) == geometryBefore.setPoint,
-        "HOLD-to-plan OnUpdate must not query, resize, or reanchor its visual owner")
+        "only a completed replacement may publish without reanchoring the HUD")
     for i = 1, table.getn(actionFrame.follow) do
         assert((actionFrame.follow[i].methodCalls.SetScript or 0) == rowScriptsBefore[i],
             "prediction handlers must be installed once during HUD construction")
     end
-    local forcedEvaluations, forcedMode = 0, nil
-    XelAssist.Graph.Evaluate = function(_, mode)
-        forcedEvaluations, forcedMode = forcedEvaluations + 1, mode
-        return nil, "forced mode probe", false
-    end
-    XelAssist.Core.RecommendationSnapshot:Invalidate("forced mode probe")
-    XelAssist:Execute("buff")
-    assert(forcedEvaluations == 0 and XelAssist.UI.HUD.requestedMode == "buff",
-        "a forced-mode input must request, but never perform, graph evaluation")
-    arg1 = 0; driver.OnUpdate()
-    assert(forcedEvaluations == 1 and forcedMode == "buff"
-        and XelAssist.Core.RecommendationSnapshot.mode == "buff",
-        "the independent controller must publish the requested forced mode: calls="
-            .. tostring(forcedEvaluations) .. " mode=" .. tostring(forcedMode)
-            .. " published="
-            .. tostring(XelAssist.Core.RecommendationSnapshot.mode))
-    XelAssist.UI.HUD:ClearExecutionMode()
 
-    XelAssistTestSavedReachValidate =
-        XelAssist.Core.ExecutionReach.Validate
-    XelAssist.Core.ExecutionReach.Validate = function()
-        return false, "range"
-    end
-    XelAssist.Graph.Evaluate = function(_, mode, preview, observedAt)
-        XelAssistTestObservedAt = observedAt
-        return { liveSnapshot = true, observedAt = observedAt,
-            action = { name = "Stale Shadow Bolt", actor = "player",
-                executor = "playerSpell", facts = { kind = "damage" } },
-            target = "target", reason = "stale range probe",
-            observed = {}, follow = {}, path = {} }, nil, false
-    end
-    XelAssistTestFreshPlan, XelAssistTestFreshError =
-        XelAssist.UI.RecommendationController:Evaluate(
-            XelAssist.UI.HUD, true)
-    assert(XelAssistTestObservedAt == mockTime
-        and XelAssistTestFreshPlan == nil
-        and string.find(XelAssistTestFreshError,
-            "State changed during evaluation: range", 1, true)
-        and XelAssist.Core.RecommendationSnapshot.plan == nil,
-        "a range-stale live graph plan must be rejected before publication")
-    XelAssist.Core.ExecutionReach.Validate =
-        XelAssistTestSavedReachValidate
+    async.smartGeneration = async.snapshot.generation
+    XelAssist:Execute("buff")
+    assert(async.begun == 2 and XelAssist.UI.HUD.requestedMode == "buff"
+        and async.snapshot.generation == async.smartGeneration
+        and async.snapshot.mode == nil and async.snapshot.plan == nil,
+        "forced buff input must retire the incompatible mode without synchronous graph work")
+    arg1 = 0; driver.OnUpdate()
+    async.buffEvaluation = XelAssist.UI.HUD.activeEvaluation
+    assert(async.begun == 3 and async.sessions[3].mode == "buff"
+        and async.sessions[3].resumes == 0
+        and async.snapshot.generation == async.smartGeneration,
+        "the buff job must begin without publishing before any resume")
+    XelAssist:Execute("buff")
+    assert(XelAssist.UI.HUD.activeEvaluation == async.buffEvaluation
+        and async.begun == 3 and async.cancelled == 1,
+        "repeated forced-mode input must retain its existing pending job")
+    arg1 = 0.01; driver.OnUpdate()
+    assert(async.sessions[3].resumes == 1
+        and async.snapshot.mode == nil and async.snapshot.plan == nil
+        and async.snapshot.generation == async.smartGeneration
+        and async.renderCalls == 1,
+        "a pending buff slice must not publish a replacement plan")
+    arg1 = 0.01; driver.OnUpdate()
+    assert(async.sessions[3].resumes == 2 and async.snapshot.mode == "buff"
+        and async.snapshot.generation == async.smartGeneration + 1
+        and async.snapshot.plan.action == estimatedFollowAction
+        and async.renderCalls == 2,
+        "forced buff mode may publish only after its graph job completes")
+    async.savedReach = XelAssist.Core.ExecutionReach.Validate
+    XelAssist.Core.ExecutionReach.Validate = function() return false, "range" end
+    async.rejectedPlan = async.PlanFor("buff", mockTime)
+    async.rejectedPlan.liveSnapshot = true
+    async.rejectedGeneration = async.snapshot.generation
+    assert(not XelAssist.UI.RecommendationController:Commit(
+            XelAssist.UI.HUD, { mode = "buff", ticket =
+                async.snapshot:Ticket("buff", mockTime) },
+            async.rejectedPlan, nil)
+        and async.snapshot.generation == async.rejectedGeneration
+        and async.snapshot.plan == nil and XelAssist.UI.HUD.refreshRequested,
+        "a final live-evidence rejection must schedule replacement without publishing HOLD")
+    XelAssist.Core.ExecutionReach.Validate = async.savedReach
+    XelAssist.UI.HUD:ClearExecutionMode()
+    XelAssist.UI.HUD.Render = async.savedRender
 end
+XelAssist.Graph.BeginEvaluation = XelAssistTestSavedAsyncGraph.beginEvaluation
+XelAssist.Graph.ResumeEvaluation = XelAssistTestSavedAsyncGraph.resumeEvaluation
+XelAssist.Graph.CancelEvaluation = XelAssistTestSavedAsyncGraph.cancelEvaluation
+XelAssist.Graph.Evaluate = savedEvaluatorForTooltip
+
+XelAssistTestSavedReachValidate =
+    XelAssist.Core.ExecutionReach.Validate
+XelAssist.Core.ExecutionReach.Validate = function()
+    return false, "range"
+end
+XelAssist.Graph.Evaluate = function(_, mode, preview, observedAt)
+    XelAssistTestObservedAt = observedAt
+    return { liveSnapshot = true, observedAt = observedAt,
+        action = { name = "Stale Shadow Bolt", actor = "player",
+            executor = "playerSpell", facts = { kind = "damage" } },
+        target = "target", reason = "stale range probe",
+        observed = {}, follow = {}, path = {} }, nil, false
+end
+XelAssistTestFreshPlan, XelAssistTestFreshError =
+    XelAssist.UI.RecommendationController:Evaluate(
+        XelAssist.UI.HUD, true)
+assert(XelAssistTestObservedAt == mockTime
+    and XelAssistTestFreshPlan == nil
+    and string.find(XelAssistTestFreshError,
+        "State changed during evaluation: range", 1, true)
+    and XelAssist.Core.RecommendationSnapshot.plan == nil,
+    "a range-stale live graph plan must be rejected before publication")
+XelAssist.Core.ExecutionReach.Validate =
+    XelAssistTestSavedReachValidate
 XelAssist.Graph.Evaluate = function() return displayPlan, nil, false end
 XelAssist.UI.HUD:Refresh(true)
 assert(actionFrame.route:GetText() == "You -> Target",
@@ -1098,6 +1225,30 @@ assert(not XelAssist:IsAuraPending("Immolate"),
     "the pushed-back application visibility guard must remain bounded")
 
 resetCastState()
+mockTime = 25
+XelAssist:TouchPendingSpell(
+    172, "started", 3.5, "player-guid", "target-a")
+XelAssist:MarkAuraPending(
+    "Corruption", 3.5, "target-a", 172, "player-guid", "debuff")
+XelAssistTestStartedDeadline = XelAssist.pendingAuras[
+    XelAssist:PendingAuraKey(
+        "Corruption", "target-a", "player-guid")].untilAt
+XelAssist:TouchPendingSpell(
+    348, "queued", 3.5, "player-guid", "target-b")
+XelAssist:MarkAuraPending(
+    "Immolate", 3.5, "target-b", 348, "player-guid", "debuff")
+XelAssistTestQueuedApplication = XelAssist.pendingAuras[
+    XelAssist:PendingAuraKey(
+        "Immolate", "target-b", "player-guid")]
+XelAssistTestQueuedDeadline = XelAssistTestQueuedApplication.untilAt
+fireEvent("SPELL_DELAYED_SELF", "player-guid", 1000)
+assert(math.abs(XelAssist.pendingAuras[XelAssist:PendingAuraKey(
+        "Corruption", "target-a", "player-guid")].untilAt
+        - XelAssistTestStartedDeadline - 1) < 0.001
+    and XelAssistTestQueuedApplication.untilAt == XelAssistTestQueuedDeadline,
+    "pushback must find the unique started aura behind a newer queued aura")
+
+resetCastState()
 mockTime = 30
 XelAssist:MarkAuraPending(
     "Immolate", 0.10, "off-target-guid", 348, "player-guid", "debuff")
@@ -1107,7 +1258,7 @@ assert(not XelAssist:IsAuraPending(
     "the overrun regression must first sweep the provisional reservation")
 mockTime = mockTime + 0.24
 fireEvent("AURA_CAST_ON_OTHER",
-    348, "player-guid", "off-target-guid", 6, 3, 0, 0, 15000, 0)
+    348, "player-guid", "off-target-guid", 6, 3, 0, 0, 15000, 1)
 XelAssistTestRecoveredApplication = XelAssist.pendingAuras[
     XelAssist:PendingAuraKey(
         "Immolate", "off-target-guid", "player-guid")]
@@ -1118,7 +1269,7 @@ assert(XelAssistTestRecoveredApplication
     and XelAssistTestRecoveredApplication.state == "application-confirmed"
     and math.abs(XelAssistTestRecoveredApplication.untilAt
         - mockTime - 0.75) < 0.001,
-    "exact owned landing must rebuild an expired off-target visibility guard")
+    "an irrelevant buff cap must not suppress an expired debuff's landing guard")
 mockTime = mockTime + 0.74
 assert(XelAssist:IsAuraPending(
         "Immolate", "player", "off-target-guid"),
@@ -1127,6 +1278,25 @@ mockTime = mockTime + 0.02
 assert(not XelAssist:IsAuraPending(
         "Immolate", "player", "off-target-guid"),
     "the rebuilt off-target landing guard must expire normally")
+
+resetCastState()
+mockTime = 31
+XelAssist:MarkAuraPending(
+    "Immolate", 0.10, "capped-target-guid", 348, "player-guid", "debuff")
+mockTime = mockTime + 0.11
+assert(not XelAssist:IsAuraPending(
+        "Immolate", "player", "capped-target-guid"),
+    "the capped reconstruction regression must sweep its provisional guard")
+fireEvent("AURA_CAST_ON_OTHER",
+    348, "player-guid", "capped-target-guid", 6, 3, 0, 0, 15000, 2)
+XelAssistTestRecoveredCappedApplication = XelAssist.pendingAuras[
+    XelAssist:PendingAuraKey(
+        "Immolate", "capped-target-guid", "player-guid")]
+assert(XelAssistTestRecoveredCappedApplication
+    and XelAssistTestRecoveredCappedApplication.state == "debuff-cap-uncertain"
+    and XelAssist.Combat.Resistance:RecentSubmission(
+        "capped-target-guid", "player-guid", 348) == nil,
+    "an actual debuff cap must rebuild uncertainty without claiming a landing")
 
 resetCastState()
 XelAssist.Combat.Resistance:Submitted(

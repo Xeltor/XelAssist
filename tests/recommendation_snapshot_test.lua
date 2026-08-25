@@ -30,10 +30,13 @@ assert(acquired == nil and reason == "recommendation mode changed",
 
 now = now + 0.2
 Snapshot:Publish(first, "smart")
+local inFlightTicket = Snapshot:Ticket("smart", now)
 now = now + Snapshot.MAX_AGE + 0.01
 acquired, reason = Snapshot:Acquire("smart")
 assert(acquired == nil and reason == "recommendation expired",
     "a stale publication must fail closed")
+assert(Snapshot:IsTicketCurrent(inFlightTicket, "smart"),
+    "retiring an expired publication must preserve newer in-flight graph work")
 
 now = now + 1
 local delayed = { action = { name = "Shadow Bolt" },
@@ -49,5 +52,17 @@ Snapshot:Invalidate("target changed")
 acquired, reason = Snapshot:Acquire("smart")
 assert(acquired == nil and reason == "target changed",
     "target invalidation must retire the published action immediately")
+
+local staleTicket = Snapshot:Ticket("smart", now)
+Snapshot:Invalidate("material state changed")
+assert(Snapshot:PublishIfCurrent(
+        staleTicket, second, "smart", nil) == nil
+    and Snapshot.plan == nil,
+    "an invalidated multi-frame evaluation must never republish stale work")
+local currentTicket = Snapshot:Ticket("smart", now)
+local guardedGeneration = Snapshot:PublishIfCurrent(
+    currentTicket, second, "smart", nil)
+assert(guardedGeneration and Snapshot.plan == second,
+    "the current evaluation ticket must publish atomically")
 
 print("ok: fresh graph publications are atomic, one-shot and fail closed")

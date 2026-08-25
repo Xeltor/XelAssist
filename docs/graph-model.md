@@ -565,7 +565,8 @@ so their weapon, hand, and position fingerprint is sampled when the packet is
 
 `XelAssistLog` keeps the latest 200 executed decisions per character, including
 rank, reason, confidence, utility, modeled downtime/threat, health/resources,
-movement, aggro, role, and distance. It deliberately omits player and target names.
+movement, aggro, role, distance, total active graph time, slice count, and the
+maximum observed frame slice. It deliberately omits player and target names.
 This turns future tuning into a comparison against real recommendations instead
 of a rewrite of a hand-authored rotation.
 

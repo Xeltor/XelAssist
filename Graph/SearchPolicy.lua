@@ -13,6 +13,7 @@ P.WIDTH = 5
 P.MAX_DECISIONS = 24
 P.MAX_SECONDS = 45
 P.DISCOUNT_SECONDS = 4.5
+P.SLICE_MS = 3
 
 -- GetTime is updated at the frame boundary on the 1.12 client. A synchronous
 -- graph search therefore sees a frozen value and cannot enforce a millisecond
@@ -28,8 +29,26 @@ function P:ClockMilliseconds()
 end
 
 function P:ElapsedMilliseconds(started)
+    -- A resumable evaluation stores only CPU time accumulated while it was
+    -- actively running. Its per-resume clock is cleared before control is
+    -- returned to the frame, so inter-frame idle never consumes the graph's
+    -- existing millisecond budget.
+    if type(started) == "table" and started.xelSearchSession then
+        local elapsed = math.max(0, tonumber(started.activeMs) or 0)
+        if started.budgetResumeStarted ~= nil then
+            elapsed = elapsed + math.max(0, self:ClockMilliseconds()
+                - (tonumber(started.budgetResumeStarted) or 0))
+        end
+        return elapsed
+    end
     return math.max(0, self:ClockMilliseconds()
         - (tonumber(started) or 0))
+end
+
+function P:SliceReached(started, sliceMs)
+    local limit = tonumber(sliceMs)
+    return limit ~= nil and limit > 0
+        and self:ElapsedMilliseconds(started) >= limit
 end
 
 function P:Depth()

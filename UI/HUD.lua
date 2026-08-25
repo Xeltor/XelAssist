@@ -272,8 +272,33 @@ function UI:RequestRefresh(force, mode)
     return RecommendationController:RequestRefresh(self, force, mode)
 end
 
+function UI:EnsureEvaluation(mode)
+    return RecommendationController:EnsureEvaluation(self, mode)
+end
+
 function UI:ClearExecutionMode()
     return RecommendationController:ClearExecutionMode(self)
+end
+
+function UI:SetUpdating()
+    local f = self.frame
+    if not (f and self.lastPlan) then return end
+    -- Keep the last complete recommendation visible while its replacement is
+    -- calculated. RecommendationSnapshot has already been invalidated, and the
+    -- button is disabled as a second visual/input boundary until publication.
+    f.xelCurrentRenderKey = false
+    f:SetAlpha(0.68)
+    f.status:SetText("UPDATING")
+    f.status:SetTextColor(0.60, 0.64, 0.70)
+    f.main:Disable()
+    self.lastReason = "Updating — previous recommendation is disabled"
+end
+
+function UI:RenderCommitted(force)
+    if not self.frame then return end
+    self:Render(self.xelDisplayPlan, self.xelDisplayError,
+        force and true or false)
+    if self.activeEvaluation or self.forceRequested then self:SetUpdating() end
 end
 
 function UI:SetScale(value)
@@ -374,8 +399,11 @@ function UI:Build()
                 GameTooltip:AddLine(string.format("Range evidence %.1f yd · %s", observed.distance,
                     observed.distanceKind or "unknown"), 0.72, 0.75, 0.82)
             end
-            GameTooltip:AddLine(string.format("Graph %d states · %.2fms%s", plan.expanded or 0,
-                plan.elapsed or 0, plan.budgetLimited and " · runway limited" or ""), 0.55, 0.58, 0.64)
+            GameTooltip:AddLine(string.format(
+                "Graph %d states · %.2fms total · %.2fms max slice%s",
+                plan.expanded or 0, plan.elapsed or 0, plan.maxSliceMs or 0,
+                plan.budgetLimited and " · runway limited" or ""),
+                0.55, 0.58, 0.64)
             if observed.talentPoints then
                 GameTooltip:AddLine(string.format("Talent-adjusted client facts · %d points", observed.talentPoints),
                     0.55, 0.58, 0.64)
@@ -476,14 +504,14 @@ function UI:Build()
     RecommendationController:Bind(self)
     self.frame = f
     if XelAssistDB.ui.shown == false then f:Hide() else f:Show() end
-    self:Refresh(true)
+    self:RequestRefresh(true)
 end
 
-function UI:Refresh(force, evaluationMode)
+function UI:Render(plan, err, changed)
     if not self.frame then return end
-    local plan, err, changed = RecommendationController:Evaluate(self, force, evaluationMode)
     if not changed then self.lastPlan = plan; return end
     local f = self.frame
+    f:SetAlpha(1)
     if plan then
         self.lastPlan = plan
         local action = plan.action
@@ -553,4 +581,11 @@ function UI:Refresh(force, evaluationMode)
     end
     local key = GetBindingKey("XELASSIST_EXECUTE")
     f.main.binding:SetText(key or "")
+end
+
+function UI:Refresh(force, evaluationMode)
+    if not self.frame then return end
+    local plan, err, changed = RecommendationController:Evaluate(
+        self, force, evaluationMode)
+    self:Render(plan, err, changed)
 end

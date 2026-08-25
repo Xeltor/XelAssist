@@ -19,7 +19,7 @@ function C:Command(command)
     DEFAULT_CHAT_FRAME:AddMessage("XelAssist: engaged enemy casts "
         .. (not current and "enabled" or "disabled") .. ".", 0.35, 0.85, 1)
     if XelAssist.UI and XelAssist.UI.HUD then
-        XelAssist.UI.HUD:Refresh(true)
+        XelAssist.UI.HUD:RequestRefresh(true)
     end
     return true
 end

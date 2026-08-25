@@ -30,6 +30,7 @@ function L:Record(plan, mode)
         reason = plan.reason, status = "attempted", confidence = plan.confidence,
         value = math.floor(plan.value or 0), downtime = plan.downtime,
         graphElapsed = plan.elapsed, graphExpanded = plan.expanded,
+        graphSlices = plan.slices, graphMaxSliceMs = plan.maxSliceMs,
         graphDepth = plan.completedDepth, graphHorizon = plan.decisionHorizon,
         graphBudgetLimited = plan.budgetLimited and true or false,
         timelineProbeHits = plan.timelineProbeHits,

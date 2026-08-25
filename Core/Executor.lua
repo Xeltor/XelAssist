@@ -433,7 +433,7 @@ function XA:Execute(mode)
         self.lastReason = "Conservative hold — "
             .. (err or "recommendation not ready")
         if XelAssist.UI and XelAssist.UI.HUD then
-            XelAssist.UI.HUD:RequestRefresh(true, selected)
+            XelAssist.UI.HUD:EnsureEvaluation(selected)
         end
         return
     end

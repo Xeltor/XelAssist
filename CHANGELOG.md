@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.8.24
+
+- Replaced synchronous HUD graph evaluation with a Lua 5.0-compatible search
+  continuation. Work now resumes in short frame slices while retaining the
+  existing active-CPU, state, beam, depth, and horizon budgets; only a complete
+  accepted path can reach plan construction or publication.
+- Decoupled physical macro input from graph production. A press consumes at
+  most one fresh publication and merely ensures an already scheduled
+  evaluation when none is ready, without repeatedly cancelling or restarting
+  same-mode work. Epoch and freshness guards reject superseded target, mode,
+  and state observations.
+- Kept the last complete recommendation visibly dimmed and non-executable while
+  a forced replacement is calculated. Target changes begin replacement work on
+  the next frame, stable periodic results avoid repainting the HUD, and
+  display-only settings no longer trigger graph work.
+- Preserved exact aura reservations through incremental cast pushback and the
+  server-to-aura-bar visibility gap. Exact owned application reconstructs a
+  bounded guard after provisional expiry, while buff/debuff-cap uncertainty
+  remains bar-specific and never falsely claims that the effect landed.
+- Added per-plan slice count and maximum-frame-slice telemetry to the bounded
+  decision log and HUD diagnostics, and extracted exact aura application
+  lifecycle handling from the core reservation module.
+
 ## 0.8.23
 
 - Derived complete direct and periodic damage totals from the installed
