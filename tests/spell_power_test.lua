@@ -42,6 +42,13 @@ local ordered = formula({ spellLevel = 1, baseLevel = 1,
 assert(ordered.weaponCoefficient == 1.5 and ordered.weaponFlat == 15,
     "weapon percent effects must scale every VMaNGOS fixed bonus lane")
 
+local mixed = formula({ spellLevel = 1, baseLevel = 1,
+    effect = { 121, 31, 2 }, effectBasePoints = { 9, 149, 24 },
+    effectBaseDice = { 1, 1, 1 }, effectDieSides = { 1, 1, 1 } })
+assert(mixed.weaponCoefficient == 1.5 and mixed.weaponFlat == 15
+    and mixed.weaponDirectFlat == 25,
+    "a separate direct-damage effect must remain outside the weapon multiplier")
+
 XelAssist.Game.Capabilities = {
     WeaponDamage = function() return 10 end,
     RangedDamage = function() return nil end,
@@ -59,5 +66,12 @@ local sinisterPower = XelAssist.Graph.ActionPower:Estimate(
         weaponFlat = sinister.weaponFlat, school = 0, cost = 40 }, state)
 assert(backstabPower == 30 and sinisterPower == 13 and estimated,
     "ordered DBC weapon power must override misleading tooltip magnitudes")
+local mixedPower = XelAssist.Graph.ActionPower:Estimate(
+    { rank = 1, actor = "player", facts = { kind = "damage", melee = true } },
+    { weaponCoefficient = mixed.weaponCoefficient,
+        weaponFlat = mixed.weaponFlat, weaponDirectFlat = mixed.weaponDirectFlat,
+        school = 0, cost = 10 }, state)
+assert(mixedPower == 55,
+    "mixed direct-plus-weapon power must sum the separately aggregated effects")
 
 print("ok: VMaNGOS DBC weapon formula extraction and action power")

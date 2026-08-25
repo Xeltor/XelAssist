@@ -1,4 +1,4 @@
-# XelAssist 0.8.10
+# XelAssist 0.8.11
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -101,8 +101,10 @@ identity.
 
 ## Graph model
 
-The evaluator automatically explores up to eight actions or twelve modeled
-seconds, four branches, and 128 expanded path states under a 6 ms soft budget.
+The evaluator automatically explores up to twelve actions or twenty modeled
+seconds with a five-path beam. It expands 192 states under a 7 ms soft budget
+when an action is immediately due, and up to 384 states/12 ms while out of
+combat or while an observed cast/GCD already gives the graph safe compute slack.
 The graph samples at 5 Hz and independently shows one to five requested steps.
 The first two decisions are completed before the soft limit can shorten the
 runway; an otherwise usable current action never becomes a budget HOLD. It accounts for:
@@ -121,7 +123,9 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
 - interrupts, proc/stance usability, combo points, buffs, debuffs, ranks,
   area policy, cooldown policy, and reagents;
 - generic DBC-discovered combo generation and finishing moves, including the
-  marginal value lost by spending a nonlethal direct-damage finisher too early;
+  marginal value lost by spending a nonlethal direct-damage finisher too early,
+  plus probabilistic gain/spend state so a missed builder retains no invented
+  point and a missed finisher retains its prior points;
 - session-only player energy timing learned from clean exact ticks, without a
   hardcoded server cadence or allowing a predicted tick to make the current
   macro press executable;
@@ -164,11 +168,17 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
   and mana consumables discovered conservatively from live bag tooltips;
 - OctoWoW VMaNGOS weapon-effect coefficients and delivered
   damage-per-resource value, so a legal rear Backstab is compared with Sinister
-  Strike from graph evidence rather than a Rogue priority list;
+  Strike from graph evidence rather than a Rogue priority list. Ordinary and
+  normalized weapon bases use live equipped-weapon speed, type, attack power,
+  and damage multipliers, while mixed direct damage stays outside the weapon
+  coefficient;
 - future resource, health, target-health, aura, threat-drop, and cooldown state;
 - captured future spatial contracts that never call live APIs or invent
   movement. Predicted rows disclose the range, line-of-sight, behind, and
-  stationary facts that must remain true or be proven at execution time;
+  stationary facts that must remain true or be proven at execution time. An
+  out-of-combat Stealth against a proven aggressive target may expose a
+  conditional approach-and-rear Backstab path, but movement, detection, facing,
+  and the actual opener remain revalidated rather than treated as accomplished;
 - root movement/range/line-of-sight/behind failures with immediate blocking and
   short settled recovery, plus atomic recommendation/cooldown publication so
   equivalent 5 Hz recomputations do not visually blink;

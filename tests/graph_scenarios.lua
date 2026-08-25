@@ -16,6 +16,7 @@ dofile("Game/SpellClassification.lua")
 dofile("Game/SpellPower.lua")
 dofile("Game/Range.lua")
 dofile("Game/Capabilities.lua")
+dofile("Game/WeaponPower.lua")
 dofile("Game/PlayerAttack.lua")
 dofile("Game/Player/Engagement.lua")
 dofile("Game/Player/Resources.lua")
@@ -27,11 +28,13 @@ dofile("Game/Friendlies.lua")
 dofile("Combat/TargetModifiers.lua")
 dofile("Graph/HostileState.lua")
 dofile("Graph/State.lua")
+dofile("Graph/ComboState.lua")
 dofile("Graph/CompanionTargets.lua")
 dofile("Graph/TargetSelection.lua")
 dofile("Graph/CompanionThreat.lua")
 dofile("Graph/CompanionEventThreat.lua")
 dofile("Graph/ActionAdmission.lua")
+dofile("Graph/StealthSetup.lua")
 dofile("Graph/SpatialRequirements.lua")
 dofile("Graph/Targets.lua")
 dofile("Graph/Effects.lua")
@@ -63,6 +66,7 @@ dofile("Graph/ActionPower.lua")
 dofile("Graph/Scoring.lua")
 dofile("Graph/Transitions.lua")
 dofile("Graph/SearchPolicy.lua")
+dofile("Graph/SearchBranches.lua")
 dofile("Graph/PlanDiagnostics.lua")
 dofile("Graph/Engine.lua")
 
@@ -234,6 +238,7 @@ local function action(name, rank, kind, power, cost, extra)
             targetDamageTaken = facts.testDamageTaken,
             initiatesCombat = facts.testInitiatesCombat,
             requiresStealth = facts.testRequiresStealth,
+            appliesStealth = facts.testAppliesStealth,
             topology = facts.testTopology } }
 end
 
@@ -1254,6 +1259,10 @@ currentState.playerAttack = { supported = true, active = false,
     activeKnown = true, pending = false, clockKnown = true }
 XelAssistTestSavedWeaponDamage = XelAssist.Game.Capabilities.WeaponDamage
 XelAssist.Game.Capabilities.WeaponDamage = function() return 10 end
+XelAssistTestSavedWeaponBasis = XelAssist.Game.WeaponPower.Basis
+XelAssist.Game.WeaponPower.Basis = function()
+    return 10, { exact = true, damagePercent = 1 }
+end
 XelAssistTestBackstab = action("Backstab", 1, "builder", 999, 60,
     { melee = true, behind = true, testInitiatesCombat = true,
         testWeaponCoefficient = 1.5, testWeaponFlat = 15,
@@ -1283,8 +1292,58 @@ assert(plan.rootBlockers
     "the root plan must retain why the stronger rear attack was gated")
 XelAssist.Graph.testDelivery = nil
 XelAssist.Game.Capabilities.WeaponDamage = XelAssistTestSavedWeaponDamage
+XelAssist.Game.WeaponPower.Basis = XelAssistTestSavedWeaponBasis
 XelAssistTestSavedWeaponDamage, XelAssistTestBackstab = nil, nil
+XelAssistTestSavedWeaponBasis = nil
 XelAssistTestSinister, XelAssistTestAfterBackstab = nil, nil
+end
+
+do
+currentState = state("smart")
+currentState.inCombat = false
+currentState.targetReaction = 2
+currentState.playerStealthed, currentState.playerStealthKnown = false, true
+currentState.playerBehindTarget = false
+currentState.targetDistance, currentState.distance = 20, 20
+currentState.targetDistanceKind, currentState.distanceKind = "hitbox", "hitbox"
+currentState.resource, currentState.resourceMax, currentState.combo = 100, 100, 0
+currentState.playerAttack = { supported = true, active = false,
+    activeKnown = true, pending = false, clockKnown = true }
+local stealth = action("Stealth", 1, "buff", 0, 0,
+    { self = true, outOfCombat = true, stealthPreparation = true,
+        testAppliesStealth = true })
+local approachBackstab = action("Backstab", 1, "builder", 400, 60,
+    { melee = true, behind = true, testMaxRange = 5,
+        testInitiatesCombat = true })
+local approachSinister = action("Sinister Strike", 1, "builder", 200, 40,
+    { melee = true, testMaxRange = 5, testInitiatesCombat = true })
+scenarioActions = { stealth, approachBackstab, approachSinister }
+XelAssistCharDB.graphDepth = 3
+XelAssist.Graph.testRangeBlocked = true
+plan = expect("stealth opens conditional rear approach", "Stealth")
+assert(plan.path[2] and plan.path[2].action.name == "Backstab"
+    and plan.path[2].spatialConditionalOnly
+    and plan.path[2].spatialConditionFingerprint,
+    "Stealth against an aggressive target must expose the stronger rear opener as conditional")
+local sawApproach, sawRear, i = false, false, nil
+for i = 1, table.getn(plan.path[2].spatialConditions or {}) do
+    local condition = plan.path[2].spatialConditions[i]
+    if condition.assumption == "approach" then sawApproach = true end
+    if condition.kind == "behind" and condition.assumption == "position" then
+        sawRear = true
+    end
+end
+assert(sawApproach and sawRear,
+    "the setup must disclose both undetected approach and rear-position conditions")
+local afterStealth = XelAssist.Graph.Transitions:Advance(currentState, plan.path[1])
+assert(afterStealth.playerStealthed == true
+    and afterStealth.stealthApproachTargetGUID == currentState.targetGUID,
+    "Stealth must project the exact target-pinned approach opportunity")
+currentState.targetReaction = 4
+plan = expect("neutral target does not invent stealth approach", "Stealth")
+assert(not plan.path[2],
+    "the aggressive-mob approach edge must not be generalized to neutral targets")
+XelAssist.Graph.testRangeBlocked = false
 end
 AttackTarget = savedAttackTarget
 

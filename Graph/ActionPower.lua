@@ -6,33 +6,48 @@ local Triggered = XelAssist.Combat.TriggeredActions
 
 local function comboPower(action, tooltip, state)
     if not (action.facts.combo or tooltip.comboSpendAll) then return 0 end
+    local points = XelAssist.Graph.ComboState
+        and XelAssist.Graph.ComboState:ConditionalExpected(state)
+        or tonumber(state.combo) or 0
     return (tonumber(tooltip.comboBonus) or 0)
-        * (tonumber(state.combo) or 0)
+        * points
 end
 
 local function weaponBasis(action, tooltip)
-    local facts = action.facts or {}
-    if facts.ranged and tooltip.school == 0 then
-        return XelAssist.Game.Capabilities:RangedDamage()
+    if XelAssist.Game.WeaponPower and XelAssist.Game.WeaponPower.Basis then
+        return XelAssist.Game.WeaponPower:Basis(action, tooltip)
     end
-    return XelAssist.Game.Capabilities:WeaponDamage()
+    local facts = action.facts or {}
+    local value = facts.ranged and tooltip.school == 0
+        and XelAssist.Game.Capabilities:RangedDamage()
+        or XelAssist.Game.Capabilities:WeaponDamage()
+    return value, { exact = false, gap = "weapon power model" }
 end
 
 local function dbcWeaponPower(action, tooltip, state)
     local coefficient = tonumber(tooltip.weaponCoefficient)
     if coefficient == nil then return nil end
-    local weapon = tonumber(weaponBasis(action, tooltip))
+    local basis, evidence = weaponBasis(action, tooltip)
+    local weapon = tonumber(basis)
     if weapon == nil then return nil end
-    local points = tonumber(state.combo) or 0
+    local points = XelAssist.Graph.ComboState
+        and XelAssist.Graph.ComboState:ConditionalExpected(state)
+        or tonumber(state.combo) or 0
+    local percent = tonumber(evidence and evidence.damagePercent) or 1
     local combo = tooltip.weaponComboFlat ~= nil
-        and (tonumber(tooltip.weaponComboFlat) or 0) * points
+        and (tonumber(tooltip.weaponComboFlat) or 0) * points * percent
         or comboPower(action, tooltip, state)
-    return weapon * coefficient + (tonumber(tooltip.weaponFlat) or 0) + combo
+    local direct = tonumber(tooltip.weaponDirectFlat) or 0
+    return weapon * coefficient
+        + (tonumber(tooltip.weaponFlat) or 0) * percent + combo + direct,
+        evidence
 end
 
 local function unresolvedWeaponPower(action, tooltip, state)
     if tonumber(tooltip.weaponCoefficient) == nil then return nil end
-    local points = tonumber(state.combo) or 0
+    local points = XelAssist.Graph.ComboState
+        and XelAssist.Graph.ComboState:ConditionalExpected(state)
+        or tonumber(state.combo) or 0
     local combo = tooltip.weaponComboFlat ~= nil
         and (tonumber(tooltip.weaponComboFlat) or 0) * points
         or comboPower(action, tooltip, state)
@@ -41,12 +56,12 @@ end
 
 function P:Estimate(action, tooltip, state)
     local combo = comboPower(action, tooltip, state)
-    local base, estimated = nil, nil
+    local base, estimated, evidence = nil, nil, nil
     if Triggered and Triggered.ScriptedPower then
         base, estimated = Triggered:ScriptedPower(action, state)
     end
     if not base then
-        base = dbcWeaponPower(action, tooltip, state)
+        base, evidence = dbcWeaponPower(action, tooltip, state)
         if base ~= nil then estimated = true end
     end
     if not base and tooltip.weaponCoefficient ~= nil then
@@ -98,5 +113,5 @@ function P:Estimate(action, tooltip, state)
         base = base * XelAssist.Game.Pets.Effects:DamageMultiplier(
             state.actors and state.actors.pet)
     end
-    return base, estimated
+    return base, estimated, evidence
 end

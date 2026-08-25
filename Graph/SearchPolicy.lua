@@ -3,11 +3,13 @@
 XelAssist.Graph.SearchPolicy = {}
 local P = XelAssist.Graph.SearchPolicy
 
-P.MAX_STATES = 128
-P.MAX_MS = 6
-P.WIDTH = 4
-P.MAX_DECISIONS = 8
-P.MAX_SECONDS = 12
+P.MIN_STATES = 192
+P.MAX_STATES = 384
+P.MIN_MS = 7
+P.MAX_MS = 12
+P.WIDTH = 5
+P.MAX_DECISIONS = 12
+P.MAX_SECONDS = 20
 P.DISCOUNT_SECONDS = 4.5
 
 function P:Depth()
@@ -17,9 +19,23 @@ function P:Depth()
     return math.max(1, math.min(self.MAX_DECISIONS, math.floor(depth)))
 end
 
+function P:Limits(state)
+    local time = tonumber(state and state.time) or 0
+    local gcd = math.max(0,
+        (tonumber(state and state.playerGcdReadyAt) or time) - time)
+    local actor = state and state.actorReadyAt
+    local ready = math.max(0,
+        (tonumber(actor and actor.player) or time) - time)
+    local slack = math.max(gcd, ready)
+    if state and (state.inCombat == false or slack >= 0.5) then
+        return self.MAX_STATES, self.MAX_MS
+    end
+    return self.MIN_STATES, self.MIN_MS
+end
+
 function P:BudgetReached(started, counter)
-    return counter.count >= self.MAX_STATES
-        or (GetTime() - started) * 1000 > self.MAX_MS
+    return counter.count >= (counter.maxStates or self.MIN_STATES)
+        or (GetTime() - started) * 1000 > (counter.maxMs or self.MIN_MS)
 end
 
 function P:WithinHorizon(state, rootTime)

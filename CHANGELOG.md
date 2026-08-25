@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.11
+
+- Added live ordinary and normalized VMaNGOS weapon bases for melee and ranged
+  specials. Equipped weapon type/speed, attack power, attack-time multiplier,
+  and total damage multiplier now feed normalized attacks; mixed direct-damage
+  effects remain outside the weapon coefficient.
+- Replaced deterministic future combo mutation with a bounded probability
+  distribution. Missed builders retain the prior count, missed finishers retain
+  their points, and finisher legality/power use availability and conditional
+  expected points rather than inventing a guaranteed outcome.
+- Added a target-pinned out-of-combat Stealth setup edge for proven aggressive
+  targets. It can expose a conditional approach-and-rear Backstab continuation,
+  while explicitly withholding movement, detection, facing, and execution proof.
+- Expanded automatic search to twelve decisions/twenty modeled seconds with a
+  five-path beam and adaptive 192-384-state, 7-12 ms budget. Out-of-combat and
+  observed GCD/cast slack receive the larger budget; immediate independent and
+  target-modifier branches remain protected from beam pruning.
+
 ## 0.8.10
 
 - Decoupled `/xa` from graph evaluation. The HUD driver now atomically publishes

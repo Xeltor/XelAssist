@@ -19,11 +19,18 @@ local function legalityAndTiming(action, state, descriptor)
         Targets:Legal(action, state, descriptor)
     if not allowed then return nil, blocker end
     descriptor = resolved or descriptor
-    local facts, power, estimated = action.facts, nil, nil
+    local facts, power, estimated, powerEvidence = action.facts, nil, nil, nil
     local effectAction = Triggered and Triggered:ResultAction(action) or action
     local effectTooltip = Triggered and Triggered:EffectFacts(action, tooltip) or tooltip
-    power, estimated = XelAssist.Graph.ActionPower:Estimate(
+    power, estimated, powerEvidence = XelAssist.Graph.ActionPower:Estimate(
         effectAction, effectTooltip, state)
+    local comboAvailability = 1
+    if facts.combo or tooltip.comboSpendAll then
+        comboAvailability = XelAssist.Graph.ComboState
+            and XelAssist.Graph.ComboState:Availability(state) or 1
+        power = power * comboAvailability
+        if comboAvailability < 1 then estimated = true end
+    end
     local cast, nextSwing, gcd, normalGcd, cycle, occupancy =
         Admission:Timing(action, state, tooltip)
     local wait = math.max(0, (actionStart or state.time) - state.time)
@@ -43,6 +50,8 @@ local function legalityAndTiming(action, state, descriptor)
         impactDelay = impactDelay,
         costKnown = tooltip.cost ~= nil,
         power = power, expectedPower = power, estimated = estimated,
+        powerEvidence = powerEvidence,
+        comboAvailability = comboAvailability,
         value = 0, reason = kind, damageKind = damageKind,
         targetEffect = damageKind or kind == "debuff"
             or kind == "crowdControl" or kind == "interrupt" or kind == "taunt"
@@ -342,6 +351,8 @@ local function candidate(context)
         valueDowntime = context.downtime,
         threat = context.threat, estimated = context.estimated,
         tooltip = context.tooltip, power = context.expectedPower,
+        powerEvidence = context.powerEvidence,
+        comboAvailability = context.comboAvailability,
         effectivePower = context.effectivePower, rawPower = context.power,
         supportAoeUnknown = facts.aoe and context.friendlySupport and true or false,
         resistance = context.resistance, effectDelivery = context.effectDelivery,

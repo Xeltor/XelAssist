@@ -74,8 +74,9 @@ never class rotations or ordered priority lists.
   ID-first metadata over live-discovered actions, never a family priority list.
   It does not depend on graph search.
 - `Game/SpellPower.lua` decodes OctoWoW's VMaNGOS weapon-effect aggregation
-  from live Spell.dbc rows. `Graph/ActionPower.lua` combines that formula with
-  the live weapon basis, scripted effects, tooltip evidence, and spell power;
+  from live Spell.dbc rows. `Game/WeaponPower.lua` owns the ordinary and
+  normalized live equipped-weapon basis. `Graph/ActionPower.lua` combines those
+  facts with scripted effects, tooltip evidence, and spell power;
   strategic utility and delivery stay outside raw potency.
 - `Graph/State.lua` is the live observation boundary for planning, and
   `Graph/HostileState.lua` owns target-local copies, context switching, and
@@ -100,9 +101,12 @@ never class rotations or ordered priority lists.
   controlled-actor utility, actor-owned threat, and delivered
   damage-per-resource value out of core potency scoring.
   `Graph/PlayerEngagement.lua` projects productive Attack starts;
-  `Graph/ComboEffects.lua` and `ComboScoring.lua` own generic DBC combo
+  `Graph/StealthSetup.lua` owns target-pinned conditional stealth approach
+  opportunities without projecting movement; `Graph/ComboState.lua`,
+  `ComboEffects.lua`, and `ComboScoring.lua` own probabilistic generic DBC combo
   transitions and marginal efficiency; `Graph/SearchPolicy.lua` owns the
   automatic time/state horizon independently of visible HUD rows, and
+  `Graph/SearchBranches.lua` protects distinct immediate/setup beam branches;
   `Graph/PlanDiagnostics.lua` describes only the selected path's terminal gate
   without inventing an executable wait or action.
   Targeting, scoring, transitions, and search consume passed state and do not

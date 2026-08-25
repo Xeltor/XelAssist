@@ -230,9 +230,10 @@ action with positive wait is submitted only through Nampower's forced selected-
 target queue; exact-friendly, ground, and item paths hold until they are ready.
 Future nodes are predictions, not queued casts; every `/xa` press takes a fresh
 snapshot and may choose differently.
-The automatic horizon is eight decisions or twelve modeled seconds, with a
-four-path beam, 128 expanded-state cap, and 6 ms expansion budget beginning
-after the live snapshot. The first two decisions complete before the soft
+The automatic horizon is twelve decisions or twenty modeled seconds, with a
+five-path beam. Immediately actionable states receive a 192-state/7 ms budget;
+out-of-combat states and observed cast/GCD slack receive up to 384 states/12 ms,
+beginning after the live snapshot. The first two decisions complete before the soft
 budget can shorten later look-ahead. Utility is discounted by modeled elapsed
 time rather than layer number, so GCD, off-GCD, cast, and resource-wait edges
 pay their actual clock cost. The one-to-five HUD setting is presentation-only.
@@ -259,7 +260,9 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
 - Spell.dbc effect 80 supplies deterministic combo gains, while the installed
   finishing-move attributes consume all points. A surviving target charges a
   low-point direct finisher for discarded marginal efficiency; exact lethal
-  output and capped-point spends remain authoritative. This is mechanic data,
+  output and capped-point spends remain authoritative. Each uncertain hostile
+  delivery updates a bounded combo distribution: a failed builder retains the
+  prior count and a failed finisher retains its points. This is mechanic data,
   not a Rogue action order.
 - Armor or school resistance is applied to expected damage before it enters
   throughput, overkill, periodic-payback, future-health, leech, and threat math.
@@ -386,19 +389,17 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   exact threat lead from the current APIs.
 - Vanilla hostile health may be percentage-scaled. Damage-to-health and finisher
   math is enabled only when Nampower exposes exact `health` and `maxHealth` fields.
-- OctoWoW VMaNGOS weapon opcodes 17/31/58/121 are aggregated before scoring,
-  but normalized bases for non-1.70-speed weapons and mixed direct-plus-weapon
-  spells still need fuller decomposition. Triggered child spells, absorbs, and
-  server-scripted modifiers can also remain estimated; those recommendations
+- OctoWoW VMaNGOS weapon opcodes 2/17/31/58/121 and live ordinary/normalized
+  weapon bases are decomposed before scoring. Triggered child spells, absorbs,
+  and server-scripted modifiers can still remain estimated; those recommendations
   are visibly marked `estimated` and logged.
 - Future movement, target swaps, incoming damage, other players' casts, proc
   arrivals, and shared cooldown categories cannot be predicted. The independent
   producer continuously publishes fresh complete plans; each physical press
   consumes at most one publication and never starts graph work itself.
-- Exact hit/miss outcome branches do not yet condition combo transitions: a
-  missed hostile finisher should retain points and a missed builder should not
-  gain them. Target time-to-die beyond exact current health is also not yet a
-  learned survival model, so short-lived-target finisher timing remains bounded
+- Combo gain and spend transitions retain probabilistic landed/missed outcomes,
+  but target time-to-die beyond exact current health is not yet a learned
+  survival model, so short-lived-target finisher timing remains bounded
   heuristic reasoning rather than a full encounter forecast.
 - Combo-scaled duration/utility curves for Slice and Dice, Rupture, Expose
   Armor, and similar non-direct finishers are not yet decoded into marginal

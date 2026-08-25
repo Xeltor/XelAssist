@@ -10,7 +10,9 @@ function C:Apply(context)
     local facts, tooltip, state = context.facts, context.tooltip, context.state
     local spends = facts.combo or tooltip.comboSpendAll
     local points = math.max(0, math.min(MAX_COMBO,
-        tonumber(state.combo) or 0))
+        spends and XelAssist.Graph.ComboState
+            and XelAssist.Graph.ComboState:ConditionalExpected(state)
+            or tonumber(state.combo) or 0))
     if spends and context.kind == "damage" and points < MAX_COMBO
         and context.reason ~= "finishes the target" then
         local raw = math.max(0, tonumber(context.power) or 0)

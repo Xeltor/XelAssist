@@ -413,7 +413,6 @@ local function syncFriendlyCompatibility(state)
         state.health, state.healthMax = player.health, player.healthMax
     end
 end
-
 function A:Apply(out, source, candidate, context)
     applyModifierProjection(out, source, context)
     Readiness:Apply(out, candidate, context)
@@ -441,6 +440,9 @@ function A:Apply(out, source, candidate, context)
     end
     applyCombatState(out, candidate, context)
     if XelAssist.Graph.PlayerEngagement then XelAssist.Graph.PlayerEngagement:Apply(out, candidate) end
+    if XelAssist.Graph.StealthSetup then
+        XelAssist.Graph.StealthSetup:Apply(out, candidate)
+    end
     applyAura(out, source, candidate, context, targetLocal,
         dotPeriodic, dotDuration, dotElapsed)
     syncFriendlyCompatibility(out)

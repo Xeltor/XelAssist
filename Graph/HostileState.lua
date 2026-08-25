@@ -55,6 +55,8 @@ local function sync(state, record)
     state.targetHealthExact = record and record.healthExact == true or false
     state.targetCreatureType = record and record.encounter
         and record.encounter.creatureType or nil
+    state.targetReaction = record and (record.reaction
+        or record.encounter and record.encounter.reaction) or nil
     state.targetAuras = record and record.targetAuras or {}
     state.auras = record and record.projectedAuras or {}
     state.targetResistance = record and record.resistance or nil

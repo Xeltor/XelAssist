@@ -263,6 +263,9 @@ end
 function S:Snapshot(mode)
     local context = snapshotContext()
     local state = newState(mode, context)
+    if XelAssist.Graph.ComboState then
+        XelAssist.Graph.ComboState:Attach(state, state.combo)
+    end
     attachPlayerResource(state, context.actors)
     if context.target.hostiles then self:SyncSelectedHostile(state) end
     if XelAssist.Graph.AutoShotUncertainty then
@@ -328,6 +331,10 @@ function S:Copy(state)
     out.absorbs = copyNested(state.absorbs or {}, 3, seen, nil, atomic)
     out.readyAt = copyNested(state.readyAt or {}, 2, seen, nil, atomic)
     out.actorReadyAt = copyNested(state.actorReadyAt or {}, 2, seen, nil, atomic)
+    if state.comboDistribution then
+        out.comboDistribution = copyNested(
+            state.comboDistribution, 2, seen, nil, atomic)
+    end
     if state.actors then out.actors = copyNested(state.actors, 4, seen, nil, atomic) end
     if state.petLifecycle then
         out.petLifecycle = copyNested(state.petLifecycle, 3, seen, nil, atomic)

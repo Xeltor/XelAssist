@@ -50,4 +50,10 @@ local uncertain = classify({ attributes = 0, attributesEx = 0,
 assert(uncertain.comboGain == nil and uncertain.comboGainUnknown,
     "negative, random or scaled combo generation must remain explicitly unknown")
 
-print("ok: DBC-native combo generation and finishing-move consumption")
+local stealth = classify({ attributes = 0, attributesEx = 0,
+    attributesEx2 = 0, attributesEx4 = 0, stances = 0,
+    effect = { 6, 0, 0 }, effectApplyAuraName = { 16, 0, 0 } })
+assert(stealth.appliesStealth,
+    "the DBC stealth aura must expose a projected stealth state")
+
+print("ok: DBC-native combo, finisher, and stealth classification")

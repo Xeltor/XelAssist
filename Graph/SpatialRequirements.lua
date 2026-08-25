@@ -4,6 +4,7 @@
 XelAssist.Graph.SpatialRequirements = {}
 local S = XelAssist.Graph.SpatialRequirements
 local Range = XelAssist.Game.Range
+local StealthSetup = XelAssist.Graph.StealthSetup
 
 local function isFuture(state)
     return (tonumber(state and state.time) or 0) > 0
@@ -86,6 +87,20 @@ local function projectedVerdict(descriptor, verdict, reason, record)
     end
     addCondition(descriptor, record)
     return nil
+end
+
+local function projectedRangeVerdict(action, state, descriptor, verdict,
+    reason, record)
+    if verdict == false and StealthSetup
+        and StealthSetup:CanApproach(action, state, descriptor) then
+        record.assumption, record.conditionalOnly = "approach", true
+        record.stealthApproach = true
+        record.detail = "approach into " .. bandText(record.minimum,
+            record.maximum) .. " while remaining undetected"
+        addCondition(descriptor, record)
+        return nil
+    end
+    return projectedVerdict(descriptor, verdict, reason, record)
 end
 
 local function rootVerdict(action, descriptor, verdict, reason)
@@ -181,7 +196,8 @@ local function rangeBlocker(action, state, descriptor, target, tooltip)
         commandVerdict(action, state, descriptor, target, tooltip)
     if relevant then
         if future then
-            local blocker = projectedVerdict(descriptor, verdict, reason, {
+            local blocker = projectedRangeVerdict(action, state,
+                descriptor, verdict, reason, {
                 kind = "range", stage = "command",
                 actor = actorUnit(action, false), target = descriptor.castGuid
                     or descriptor.guid or unit,
@@ -199,7 +215,8 @@ local function rangeBlocker(action, state, descriptor, target, tooltip)
         effectVerdict(action, state, descriptor, target)
     if relevant then
         if future then
-            local blocker = projectedVerdict(descriptor, verdict, reason, {
+            local blocker = projectedRangeVerdict(action, state,
+                descriptor, verdict, reason, {
                 kind = "range", stage = "effect", actor = actor,
                 target = descriptor.guid or unit, minimum = minimum,
                 maximum = maximum,
@@ -215,7 +232,8 @@ local function rangeBlocker(action, state, descriptor, target, tooltip)
         commandMaximumVerdict(action, state, descriptor)
     if relevant then
         if future then
-            return projectedVerdict(descriptor, verdict, reason, {
+            return projectedRangeVerdict(action, state,
+                descriptor, verdict, reason, {
                 kind = "range", stage = "command", actor = "player",
                 target = descriptor.guid, minimum = 0, maximum = commandMaximum,
                 detail = "command target must remain within "
@@ -262,7 +280,18 @@ local function positionBlocker(action, state, descriptor, tooltip)
     if not facts.behind then return nil end
     local behind = actor == "pet" and state.actors and state.actors.pet
         and state.actors.pet.behind or state.playerBehindTarget
-    if behind == false then return "must be behind target" end
+    if behind == false then
+        if isFuture(state) and StealthSetup
+            and StealthSetup:CanApproach(action, state, descriptor) then
+            addCondition(descriptor, { kind = "behind", stage = "effect",
+                actor = actor, target = descriptor.guid,
+                assumption = "position", conditionalOnly = true,
+                stealthApproach = true,
+                detail = "reach and retain the target's rear arc before opening" })
+            return nil
+        end
+        return "must be behind target"
+    end
     if isFuture(state) then
         addCondition(descriptor, { kind = "behind", stage = "effect",
             actor = actor, target = descriptor.guid,

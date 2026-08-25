@@ -8,6 +8,7 @@ local Effects = G.Effects
 local Scoring = G.Scoring
 local Transitions = G.Transitions
 local Policy = G.SearchPolicy
+local SearchBranches = G.SearchBranches
 local Diagnostics = G.PlanDiagnostics
 
 function G:ActiveTargetModifiers(encounter, targetResistance)
@@ -87,40 +88,6 @@ local function flattenCandidates(buckets)
     return out
 end
 
-local function setupValue(candidate)
-    local tooltip = candidate.tooltip or {}
-    local remaining = (tonumber(tooltip.duration) or 0)
-        - math.max(0, (candidate.occupancy or 0) - (candidate.cast or 0))
-    if candidate.targetRelation ~= "hostile" or remaining <= 0
-        or (candidate.effectDelivery or 1) <= 0 then return 0 end
-    local value, _, amount = math.max(0,
-        tonumber(tooltip.targetArmorReduction) or 0), nil, nil
-    for _, amount in pairs(tooltip.targetResistanceReduction or {}) do
-        value = value + math.max(0, tonumber(amount) or 0)
-    end
-    for _, amount in pairs(tooltip.targetDamageTaken or {}) do
-        value = value + math.max(0, tonumber(amount) or 0) * 100
-    end
-    return value * remaining * (candidate.effectDelivery or 1)
-end
-
-local function retainSetupBranch(candidates)
-    local best, bestValue, i = nil, 0, nil
-    for i = 1, table.getn(candidates) do
-        local value = setupValue(candidates[i])
-        if value > bestValue then best, bestValue = candidates[i], value end
-    end
-    while table.getn(candidates) > Policy.WIDTH do table.remove(candidates) end
-    if not best then return end
-    for i = 1, table.getn(candidates) do
-        if candidates[i] == best then return end
-    end
-    if table.getn(candidates) >= Policy.WIDTH then
-        candidates[Policy.WIDTH] = best
-    else table.insert(candidates, best) end
-    table.sort(candidates, candidateBefore)
-end
-
 local function topCandidates(state, counter, actions)
     local buckets, blockers, order = {}, {}, 0
     local i, targets, targetIndex, candidate, blocker
@@ -140,7 +107,7 @@ local function topCandidates(state, counter, actions)
         end
     end
     local candidates = flattenCandidates(buckets)
-    retainSetupBranch(candidates)
+    SearchBranches:Retain(candidates, Policy.WIDTH, candidateBefore)
     counter.count = counter.count + table.getn(candidates)
     return candidates, blockers
 end
@@ -356,6 +323,9 @@ local function recommendationUnknowns(state, best)
         table.insert(out, "exact target health")
     end
     addResistanceUnknowns(best, out)
+    if best.powerEvidence and best.powerEvidence.exact == false then
+        table.insert(out, best.powerEvidence.gap or "weapon damage")
+    end
     return out
 end
 
@@ -410,6 +380,8 @@ local function buildPlan(state, observed, path, counter, started)
         totalEffectivePower = best.totalEffectivePower,
         collateralExpectedPower = best.collateralExpectedPower,
         power = best.power, rawPower = best.rawPower,
+        powerEvidence = best.powerEvidence,
+        comboAvailability = best.comboAvailability,
         marginalPower = best.marginalPower,
         displacedWhitePower = best.displacedWhitePower,
         effectDelivery = best.effectDelivery,
@@ -433,6 +405,7 @@ function G:Evaluate(mode, preview)
     -- slow client APIs can shorten the runway without suppressing an action.
     local started = GetTime()
     local depth = Policy:Depth()
+    counter.maxStates, counter.maxMs = Policy:Limits(state)
     local actions = availableActions()
     local path = bestSearchPath(state, started, counter, depth, actions)
     if not path.steps[1] then

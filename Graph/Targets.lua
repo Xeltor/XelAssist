@@ -173,8 +173,12 @@ local function policyBlocker(action, state, tooltip)
         and state.resourceType ~= 0 then
         return "resource type"
     end
-    if (facts.combo or tooltip and tooltip.comboSpendAll)
-        and state.combo <= 0 then return "combo points" end
+    if facts.combo or tooltip and tooltip.comboSpendAll then
+        local available = XelAssist.Graph.ComboState
+            and XelAssist.Graph.ComboState:Availability(state)
+            or state.combo > 0 and 1 or 0
+        if available <= 0 then return "combo points" end
+    end
     return nil
 end
 local function targetBlocker(action, state, descriptor, target)
@@ -237,6 +241,8 @@ local function contextBlocker(action, state)
         and not state.playerChanneling then return "casting" end
     if facts.outOfCombat and state.inCombat then return "combat state" end
     if facts.combatOnly and not state.inCombat then return "combat state" end
+    if facts.stealthPreparation and state.playerStealthKnown == true
+        and state.playerStealthed == true then return "already stealthed" end
     if kind == "summon" and not facts.petLifecycle then
         if state.pet then return "companion already active" end
         if state.inCombat then return "unsafe summon" end

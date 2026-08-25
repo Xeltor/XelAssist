@@ -5,6 +5,7 @@ local P = XelAssist.Game.SpellPower
 
 local FIXED_WEAPON_EFFECT = { [17] = true, [58] = true, [121] = true }
 local PERCENT_WEAPON_EFFECT = 31
+local DIRECT_DAMAGE_EFFECT = 2
 
 local function scaledLevel(action, dbc)
     local unit = action and action.actor == "pet" and "pet" or "player"
@@ -41,7 +42,7 @@ function P:Apply(action, out, dbc, dbcArray)
         combo = dbcArray("effectPointsPerComboPoint"),
     }
     if not arrays.effects then return end
-    local coefficient, flat, comboFlat = 1, 0, 0
+    local coefficient, flat, comboFlat, direct = 1, 0, 0, 0
     local weapon, normalized = false, false
     local levels = scaledLevel(action, dbc)
     local index
@@ -59,12 +60,16 @@ function P:Apply(action, out, dbc, dbcArray)
                 coefficient = coefficient * multiplier
                 weapon = true
             end
+        elseif effect == DIRECT_DAMAGE_EFFECT then
+            direct = direct + math.max(0,
+                meanMagnitude(index, arrays, levels))
         end
     end
     if not weapon then return end
     out.weaponCoefficient = coefficient
     out.weaponFlat = flat * coefficient
     if comboFlat ~= 0 then out.weaponComboFlat = comboFlat * coefficient end
+    if direct > 0 then out.weaponDirectFlat = direct end
     out.weaponNormalized = normalized
     out.weaponFormulaSource = "OctoWoW VMaNGOS weapon effects"
 end

@@ -226,6 +226,7 @@ local function enrich(record, selectedGuid)
     record.casting = record.cast.active
     record.castRemaining = record.cast.remaining
     record.encounter = unitContext(record)
+    record.reaction = record.encounter and record.encounter.reaction or nil
 end
 
 local function candidates()

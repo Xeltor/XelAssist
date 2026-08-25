@@ -62,6 +62,7 @@ function S:Apply(action, out, dbc, dbcArray)
 
     if dbcArray then
         local effects = dbcArray("effect")
+        local auras = dbcArray("effectApplyAuraName")
         local points = dbcArray("effectBasePoints")
         local dice = dbcArray("effectBaseDice")
         local sides = dbcArray("effectDieSides")
@@ -69,6 +70,10 @@ function S:Apply(action, out, dbc, dbcArray)
         local pointsLevel = dbcArray("effectRealPointsPerLevel")
         local i, gain, gainUnknown = nil, 0, false
         for i = 1, table.getn(effects or {}) do
+            if tonumber(effects[i]) == 6
+                and tonumber(auras and auras[i]) == 16 then
+                out.appliesStealth = true
+            end
             if tonumber(effects[i]) == 80 then
                 local scaled = math.abs(tonumber(diceLevel and diceLevel[i]) or 0)
                     + math.abs(tonumber(pointsLevel and pointsLevel[i]) or 0)

@@ -144,10 +144,10 @@ for semantic in ["kind", "threat", "execute", "recovery", "channel", "aoe"]:
     assert re.search(rf"\b{semantic}\s*=", actions), semantic
 
 search_policy = (ROOT / "Graph/SearchPolicy.lua").read_text()
-assert "P.MAX_STATES = 128" in search_policy
-assert "P.MAX_MS = 6" in search_policy
-assert "P.WIDTH = 4" in search_policy and "P.MAX_DECISIONS = 8" in search_policy
-assert "P.MAX_SECONDS = 12" in search_policy and "P.DISCOUNT_SECONDS = 4.5" in search_policy
+assert "P.MIN_STATES = 192" in search_policy and "P.MAX_STATES = 384" in search_policy
+assert "P.MIN_MS = 7" in search_policy and "P.MAX_MS = 12" in search_policy
+assert "P.WIDTH = 5" in search_policy and "P.MAX_DECISIONS = 12" in search_policy
+assert "P.MAX_SECONDS = 20" in search_policy and "P.DISCOUNT_SECONDS = 4.5" in search_policy
 assert "level > 2" in engine and "level >= 2" in engine
 assert '"graph budget exceeded"' not in engine
 assert "budgetLimited" in engine

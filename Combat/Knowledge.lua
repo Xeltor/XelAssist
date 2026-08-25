@@ -124,6 +124,8 @@ XelAssist.Combat.Knowledge = {
 
     -- Rogue
     ["Sinister Strike"] = { kind = "builder", melee = true }, ["Backstab"] = { kind = "builder", melee = true, behind = true },
+    ["Stealth"] = { kind = "buff", self = true, outOfCombat = true,
+        stealthPreparation = true },
     ["Ambush"] = { kind = "builder", melee = true, behind = true },
     ["Garrote"] = { kind = "dot", melee = true, behind = true,
         comboBuilder = true, bleed = true, ignoresArmor = true },
