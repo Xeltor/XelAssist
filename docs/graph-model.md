@@ -52,8 +52,9 @@ cadence, `EnergyEvents.lua` owns its Nampower attribution/reset boundary, and
 `Graph/PlayerSwings.lua` schedules the corresponding target-pinned ambient
 rounds and applies full replacement-hit consequences, while
 `Graph/PlayerSwingScoring.lua` values only the gain over the displaced white hit.
-`Graph/ComboEffects.lua` owns DBC-derived combo transitions,
-`Graph/ComboScoring.lua` owns marginal finisher efficiency, and
+`Graph/ComboState.lua` owns target-specific landed/missed branches and
+combo-scaled durations, `Graph/ComboEffects.lua` applies DBC-derived combo
+transitions, `Graph/ComboScoring.lua` owns marginal finisher efficiency, and
 `Graph/SearchPolicy.lua` owns the bounded time horizon independently of the HUD.
 `Graph/State.lua`, `Graph/Targets.lua`, `Graph/Effects.lua`,
 `Graph/Scoring.lua`, `Graph/OngoingEffects.lua`, `Graph/ActionEffects.lua`,
@@ -269,9 +270,11 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   finishing-move attributes consume all points. A surviving target charges a
   low-point direct finisher for discarded marginal efficiency; exact lethal
   output and capped-point spends remain authoritative. Each uncertain hostile
-  delivery updates a bounded combo distribution: a failed builder retains the
-  prior count and a failed finisher retains its points. This is mechanic data,
-  not a Rogue action order.
+  delivery updates bounded target-owned branches: a failed builder retains the
+  prior owner and count, a landed builder transfers ownership to its target,
+  and a failed finisher retains that target's points. ClassicAPI duration
+  endpoints interpolate combo-scaled auras against the conditional points
+  owned by the candidate target. This is mechanic data, not a Rogue action order.
 - Armor or school resistance is applied to expected damage before it enters
   throughput, overkill, periodic-payback, future-health, leech, and threat math.
   This lets a smaller Shadow hit beat a larger Fire hit when target evidence
@@ -409,11 +412,13 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   but target time-to-die beyond exact current health is not yet a learned
   survival model, so short-lived-target finisher timing remains bounded
   heuristic reasoning rather than a full encounter forecast.
-- Combo-scaled duration/utility curves for Slice and Dice, Rupture, Expose
-  Armor, and similar non-direct finishers are not yet decoded into marginal
-  scoring. The stock combo-count API also lacks a target identity in the current
-  snapshot, so an observed off-target hostile cannot yet be proven to own those
-  points. Spend semantics are known, but these cases remain model gaps.
+- Combo-scaled duration endpoints for Slice and Dice, Rupture, Expose Armor,
+  and similar finishers are decoded when the matching ClassicAPI bridge is
+  available and remain conservative otherwise. Duration-aware periodic and
+  target-modifier projections are active; full marginal utility curves for
+  every non-direct finisher remain a model gap. Stock `GetComboPoints()` still
+  proves only the selected target, so exact off-target ownership also requires
+  the ClassicAPI bridge.
 - Hostile discovery is not a nameplate scan or a complete encounter roster. It
   sees only the selected, mouseover, pet-target, and group-target unit tokens,
   deduplicates them by exact GUID, and caps the planning collection at five.

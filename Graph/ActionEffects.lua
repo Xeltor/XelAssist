@@ -56,6 +56,7 @@ function A:Context(source, candidate)
         hasTargetModifier = hasModifier,
         targetModifierDuration = duration,
         targetModifierRemaining = remaining,
+        targetGUID = candidate.targetGUID,
         applicationState = applicationState,
     }
     function context:ChangesHostileTarget()
@@ -82,7 +83,7 @@ function A:Context(source, candidate)
             and self.targetModifierDuration > elapsedAfterApplication then
             local prior, fallback = self:ModifierPrior(elapsedAfterApplication)
             Effects:ApplyTargetModifier(state, self.action, self.targetFacts,
-                source, self.projectedDelivery, prior, fallback)
+                source, self.projectedDelivery, prior, fallback, self.targetGUID)
         end
     end
 
@@ -117,9 +118,8 @@ local function applyModifierProjection(out, source, context)
         and context.targetModifierRemaining > 0 then
         local prior, fallback = context:ModifierPrior(
             context.applicationElapsed)
-        Effects:ApplyTargetModifier(out, context.action,
-            context.targetFacts, source, context.projectedDelivery,
-            prior, fallback)
+        Effects:ApplyTargetModifier(out, context.action, context.targetFacts,
+            source, context.projectedDelivery, prior, fallback, context.targetGUID)
     end
 end
 

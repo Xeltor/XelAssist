@@ -1,10 +1,11 @@
--- Probability distribution for combo points after uncertain hostile actions.
--- Root observations are exact; future builders and finishers retain both their
--- landed and failed branches without pretending either outcome is guaranteed.
+-- Target-owned probability branches for combo points after uncertain hostile
+-- actions. A missed builder retains the old owner; a landed builder transfers
+-- ownership to its target; a missed finisher retains that target's points.
 XelAssist.Graph.ComboState = {}
 local C = XelAssist.Graph.ComboState
 
 local MAX_COMBO = 5
+local UNKNOWN_TARGET = {}
 
 local function clampPoints(points)
     return math.max(0, math.min(MAX_COMBO, tonumber(points) or 0))
@@ -14,49 +15,104 @@ local function clampProbability(probability)
     return math.max(0, math.min(1, tonumber(probability) or 1))
 end
 
-function C:Attach(state, points)
+local function addBranch(branches, targetGUID, points, probability)
+    probability = math.max(0, tonumber(probability) or 0)
+    if probability <= 0 then return end
     points = clampPoints(points)
-    state.comboDistribution = { [points] = 1 }
-    state.comboDistributionProjected = false
-    state.comboDistributionObserved = points
-    state.combo, state.comboAvailability = points, points > 0 and 1 or 0
+    if points == 0 then targetGUID = nil end
+    local i
+    for i = 1, table.getn(branches) do
+        local branch = branches[i]
+        if branch.points == points and branch.targetGUID == targetGUID then
+            branch.probability = branch.probability + probability
+            return
+        end
+    end
+    table.insert(branches, { targetGUID = targetGUID, points = points,
+        probability = probability })
+end
+
+function C:Attach(state, points, ownerGUID, observation)
+    points = clampPoints(points)
+    if points > 0 and ownerGUID == nil then
+        ownerGUID = state.targetGUID or UNKNOWN_TARGET
+    end
+    state.comboBranches = { { targetGUID = points > 0 and ownerGUID or nil,
+        points = points, probability = 1 } }
+    state.comboProjected = false
+    state.comboObservedPoints = points
+    state.comboTargetGUID = points > 0 and ownerGUID or nil
+    state.combo = points
+    state.comboAvailability = points > 0 and 1 or 0
+    state.comboSelectedExact = not observation
+        or observation.selectedExact ~= false
+    state.comboGlobalExact = observation and observation.globalExact and true or false
+    state.comboSource = observation and observation.source or "observed combo state"
+    self:Refresh(state)
 end
 
 function C:Ensure(state)
-    if type(state.comboDistribution) ~= "table"
-        or state.comboDistributionProjected ~= true
-            and clampPoints(state.combo) ~= state.comboDistributionObserved then
-        self:Attach(state, state.combo)
+    if type(state.comboBranches) ~= "table"
+        or state.comboProjected ~= true
+            and clampPoints(state.combo) ~= state.comboObservedPoints then
+        self:Attach(state, state.combo,
+            state.comboTargetGUID or state.targetGUID)
     end
-    return state.comboDistribution
+    return state.comboBranches
 end
 
-function C:Summarize(state)
-    local distribution = self:Ensure(state)
-    local expected, available, points, probability = 0, 0, nil, nil
-    for points, probability in pairs(distribution) do
-        expected = expected + clampPoints(points) * probability
-        if points > 0 then available = available + probability end
+function C:Summary(state, targetGUID)
+    local branches = self:Ensure(state)
+    local query = targetGUID
+    if query == nil then query = state.targetGUID end
+    local global = query == nil
+    local expected, available, i = 0, 0, nil
+    for i = 1, table.getn(branches) do
+        local branch = branches[i]
+        local probability = clampProbability(branch.probability)
+        if branch.points > 0 and (global
+            or branch.targetGUID == query) then
+            expected = expected + clampPoints(branch.points) * probability
+            available = available + probability
+        end
     end
-    state.combo = expected
-    state.comboAvailability = clampProbability(available)
-    return expected, state.comboAvailability
+    return expected, clampProbability(available)
 end
 
-function C:Expected(state)
-    local expected = self:Summarize(state)
+function C:Refresh(state)
+    local expected, available = self:Summary(state, state.targetGUID)
+    state.combo, state.comboAvailability = expected, available
+    return expected, available
+end
+
+function C:Expected(state, targetGUID)
+    local expected = self:Summary(state, targetGUID)
     return expected
 end
 
-function C:Availability(state)
-    local _, available = self:Summarize(state)
+function C:Availability(state, targetGUID)
+    local _, available = self:Summary(state, targetGUID)
     return available
 end
 
-function C:ConditionalExpected(state)
-    local expected, available = self:Summarize(state)
+function C:ConditionalExpected(state, targetGUID)
+    local expected, available = self:Summary(state, targetGUID)
     if available <= 0 then return 0 end
     return expected / available
+end
+
+function C:TooltipFor(state, targetGUID, tooltip)
+    if not (tooltip and tooltip.durationComboScaled
+        and tonumber(tooltip.durationBase)
+        and tonumber(tooltip.durationMax)) then return tooltip end
+    local points = math.max(0, math.min(MAX_COMBO,
+        self:ConditionalExpected(state, targetGUID)))
+    local out, key, value = {}, nil, nil
+    for key, value in pairs(tooltip) do out[key] = value end
+    out.duration = tooltip.durationBase
+        + (tooltip.durationMax - tooltip.durationBase) * points / MAX_COMBO
+    out.durationComboPoints = points
+    return out
 end
 
 function C:Apply(state, candidate, facts)
@@ -65,23 +121,38 @@ function C:Apply(state, candidate, facts)
     if not gain and (facts.kind == "builder" or facts.comboBuilder) then gain = 1 end
     local spends = facts.combo or tooltip.comboSpendAll
     if not (gain and gain > 0 or spends) then return false end
+    local targetGUID = candidate.targetGUID or state.targetGUID or UNKNOWN_TARGET
     local land = candidate.resistance
         and candidate.resistance.landChance or 1
     land = clampProbability(land)
     local current, projected = self:Ensure(state), {}
-    local points, probability
-    for points, probability in pairs(current) do
-        local prior = clampPoints(points)
-        projected[prior] = (projected[prior] or 0)
-            + probability * (1 - land)
-        local landed = gain and gain > 0
-            and math.min(MAX_COMBO, prior + gain) or 0
-        projected[landed] = (projected[landed] or 0)
-            + probability * land
+    local i
+    for i = 1, table.getn(current) do
+        local branch = current[i]
+        local prior, probability = clampPoints(branch.points),
+            clampProbability(branch.probability)
+        if gain and gain > 0 then
+            addBranch(projected, branch.targetGUID, prior,
+                probability * (1 - land))
+            local owned = branch.targetGUID == targetGUID and prior or 0
+            addBranch(projected, targetGUID,
+                math.min(MAX_COMBO, owned + gain), probability * land)
+        elseif branch.targetGUID == targetGUID and prior > 0 then
+            addBranch(projected, branch.targetGUID, prior,
+                probability * (1 - land))
+            addBranch(projected, nil, 0, probability * land)
+        else
+            -- This uncertainty branch did not own points on the attempted
+            -- target. The conditional finisher cannot consume another unit's
+            -- points, so its state remains intact.
+            addBranch(projected, branch.targetGUID, prior, probability)
+        end
     end
-    state.comboDistribution = projected
-    state.comboDistributionProjected = true
-    state.comboDistributionObserved = nil
-    self:Summarize(state)
+    state.comboBranches = projected
+    state.comboProjected = true
+    state.comboObservedPoints = nil
+    state.comboTargetGUID = nil
+    state.comboGlobalExact = false
+    self:Refresh(state)
     return true
 end

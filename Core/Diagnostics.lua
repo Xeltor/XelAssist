@@ -39,6 +39,10 @@ function D:Audit(owner)
         onSwingInfo = GetOnSwingInfo and true or false,
         rangeData = GetSpellRangeData and true or false,
         movement = PlayerIsMoving and true or false,
+        comboOwner = C_PlayerInfo
+            and type(C_PlayerInfo.GetComboPointState) == "function" or false,
+        comboDuration = C_Spell
+            and type(C_Spell.GetSpellDurationRange) == "function" or false,
         targetResistances = (UnitResistance or GetUnitField) and true or false }
     local evidence = owner:EnableEvidenceEvents()
     runtime.evidenceEvents = { damage = evidence.damage, miss = evidence.miss,
@@ -93,6 +97,8 @@ function D:Print(owner)
         .. (runtime.nampower or (runtime.apis.queue and "present" or "missing"))
         .. ", DBC=" .. (runtime.apis.spellRecords and "yes" or "no")
         .. ", exact-units=" .. (runtime.apis.exactUnits and "yes" or "no") .. ".")
+    msg("ClassicAPI combo owner=" .. (runtime.apis.comboOwner and "yes" or "fallback")
+        .. ", combo duration=" .. (runtime.apis.comboDuration and "yes" or "fallback") .. ".")
     msg("resistance outcomes: damage=" .. (runtime.evidenceEvents.damage and "on" or "off")
         .. ", miss=" .. (runtime.evidenceEvents.miss and "on" or "off")
         .. ", white swings=" .. (runtime.evidenceEvents.autoAttack and "on" or "off")

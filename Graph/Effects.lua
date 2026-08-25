@@ -236,7 +236,7 @@ function C:StateAtImpact(state, elapsed)
 end
 
 function C:ApplyTargetModifier(state, action, targetFacts, sourceState, delivery,
-    priorEffect, fallbackRemaining)
+    priorEffect, fallbackRemaining, targetGUID)
     if not state.targetModifierEffects then state.targetModifierEffects = {} end
     if state.baseTargetDamageTaken == nil then
         state.baseTargetDamageTaken = copyNumbers(state.targetDamageTaken) or {}
@@ -257,7 +257,13 @@ function C:ApplyTargetModifier(state, action, targetFacts, sourceState, delivery
     if not state.targetResistance then state.targetResistance = {} end
     local armor = tonumber(targetFacts.targetArmorReduction)
     if armor then
-        if targetFacts.targetArmorPerCombo then armor = armor * (sourceState.combo or 0) end
+        if targetFacts.targetArmorPerCombo then
+            local points = XelAssist.Graph.ComboState
+                and XelAssist.Graph.ComboState:ConditionalExpected(
+                    sourceState, targetGUID)
+                or sourceState.combo or 0
+            armor = armor * points
+        end
         if action.facts.stackable and priorEffect then
             armor = (priorEffect.resistanceReduction[0] or 0) + armor
         end

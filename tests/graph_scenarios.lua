@@ -228,6 +228,9 @@ local function action(name, rank, kind, power, cost, extra)
             cooldownGroup = facts.testGroup, categoryCooldown = facts.testCategoryCooldown,
             minRange = facts.testMinRange, maxRange = facts.testMaxRange, school = facts.testSchool,
             duration = facts.testDuration, periodicInterval = facts.testPeriodicInterval,
+            durationBase = facts.testDurationBase,
+            durationMax = facts.testDurationMax,
+            durationComboScaled = facts.testDurationComboScaled,
             directDamage = facts.testDirectDamage, periodicDamage = facts.testPeriodicDamage,
             comboBonus = facts.testComboBonus,
             weaponCoefficient = facts.testWeaponCoefficient,
@@ -2302,6 +2305,25 @@ currentState = state("smart"); currentState.combo = 0
 scenarioActions = { action("Eviscerate", 1, "damage", 700, 35, { combo = true }),
     action("Sinister Strike", 1, "builder", 200, 45) }
 expect("rogue combo prerequisite", "Sinister Strike")
+
+currentState = state("smart")
+XelAssist.Graph.ComboState:Attach(currentState, 2, "other-target",
+    { selectedExact = true, globalExact = true, source = "test owner" })
+scenarioActions = { action("Target Finisher", 1, "damage", 700, 35,
+        { combo = true }),
+    action("Target Builder", 1, "builder", 200, 45) }
+expect("off-target combo ownership", "Target Builder")
+
+currentState = state("smart")
+XelAssist.Graph.ComboState:Attach(currentState, 2, "target-guid",
+    { selectedExact = true, globalExact = true, source = "test owner" })
+scenarioActions = { action("Duration Finisher", 1, "dot", 180, 25,
+    { combo = true, testDuration = 6, testDurationBase = 6,
+        testDurationMax = 16, testDurationComboScaled = true,
+        testPeriodicInterval = 2 }) }
+plan = expect("target-owned combo duration", "Duration Finisher")
+assert(plan.tooltip.duration == 10 and plan.tooltip.durationComboPoints == 2,
+    "a combo-scaled graph action must use the points owned by its target")
 
 currentState = state("smart"); currentState.combo = 5; XelAssistCharDB.graphDepth = 2
 scenarioActions = { action("Eviscerate", 1, "damage", 700, 35, { combo = true }),

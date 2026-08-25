@@ -103,8 +103,9 @@ never class rotations or ordered priority lists.
   `Graph/PlayerEngagement.lua` projects productive Attack starts;
   `Graph/StealthSetup.lua` owns target-pinned conditional stealth approach
   opportunities without projecting movement; `Graph/ComboState.lua`,
-  `ComboEffects.lua`, and `ComboScoring.lua` own probabilistic generic DBC combo
-  transitions and marginal efficiency; `Graph/SearchPolicy.lua` owns the
+  `ComboEffects.lua`, and `ComboScoring.lua` own target-owned probabilistic DBC
+  combo transitions, combo-scaled durations, and marginal efficiency;
+  `Graph/SearchPolicy.lua` owns the
   automatic time/state horizon independently of visible HUD rows, and
   `Graph/SearchBranches.lua` protects distinct immediate/setup beam branches;
   `Graph/PlanDiagnostics.lua` describes only the selected path's terminal gate

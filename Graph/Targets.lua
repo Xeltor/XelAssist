@@ -119,7 +119,7 @@ function T:Relevant(action, state, descriptor)
     end
     return support
 end
-local function policyBlocker(action, state, tooltip)
+local function policyBlocker(action, state, tooltip, descriptor)
     local facts = action.facts
     if action.actor == "pet" and not XelAssistCharDB.toggles.petActions then
         return "companion policy"
@@ -175,7 +175,8 @@ local function policyBlocker(action, state, tooltip)
     end
     if facts.combo or tooltip and tooltip.comboSpendAll then
         local available = XelAssist.Graph.ComboState
-            and XelAssist.Graph.ComboState:Availability(state)
+            and XelAssist.Graph.ComboState:Availability(
+                state, descriptor and descriptor.guid)
             or state.combo > 0 and 1 or 0
         if available <= 0 then return "combo points" end
     end
@@ -333,7 +334,7 @@ function T:Legal(action, state, descriptor)
         for key, value in pairs(descriptor) do projected[key] = value end
         projected.projectionOpen, descriptor = true, projected
     end
-    local blocker = policyBlocker(action, state, tooltip)
+    local blocker = policyBlocker(action, state, tooltip, descriptor)
     if blocker then return false, blocker end
     local target = descriptor.unit
     blocker = targetBlocker(action, state, descriptor, target)

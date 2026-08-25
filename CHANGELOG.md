@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.14
+
+- Made combo points target-owned throughout legality, power, scoring, and state
+  projection. Missed builders retain the prior owner, landed builders transfer
+  ownership to their target, and finishers consume only matching target branches.
+- Applied ClassicAPI SpellDuration endpoints to combo-scaled aura projections,
+  including conditional expected points after uncertain delivery. Wrong-target
+  finishers remain blocked instead of spending another unit's points.
+- Added runtime diagnostics and deterministic graph coverage for the exact
+  ClassicAPI bridge and conservative stock-API fallbacks.
+
 ## 0.8.13
 
 - Replaced an out-of-range terminal with a non-executable, target-pinned

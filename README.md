@@ -1,4 +1,4 @@
-# XelAssist 0.8.13
+# XelAssist 0.8.14
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -40,6 +40,8 @@ attack it.
 - OctoWoW's 1.12.1-compatible client
 - SuperWoW and its SuperAPI compatibility addon
 - Nampower 4.7.0 or newer; 4.7.1+ is recommended for exact on-swing generations
+- The matching ClassicAPI fork is optional but recommended for exact hidden
+  combo-point ownership and combo-scaled duration endpoints
 
 The addon uses Nampower's guarded DBC access when present for per-rank cast time,
 GCD/queue class, on-next-swing classification, cooldown, duration, cost, and
@@ -123,10 +125,10 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
 - group role, current target-of-target aggro, and relative action threat;
 - interrupts, proc/stance usability, combo points, buffs, debuffs, ranks,
   area policy, cooldown policy, and reagents;
-- generic DBC-discovered combo generation and finishing moves, including the
-  marginal value lost by spending a nonlethal direct-damage finisher too early,
-  plus probabilistic gain/spend state so a missed builder retains no invented
-  point and a missed finisher retains its prior points;
+- generic DBC-discovered combo generation and finishing moves, including
+  target-owned landed/missed branches and combo-scaled durations when exposed
+  by ClassicAPI, plus the marginal value lost by spending a nonlethal
+  direct-damage finisher too early;
 - session-only player energy timing learned from clean exact ticks, without a
   hardcoded server cadence or allowing a predicted tick to make the current
   macro press executable;

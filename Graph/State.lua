@@ -165,6 +165,11 @@ local function snapshotContext()
         and tonumber(onSwing.cost) or nil
     local playerResourceReserved = onSwing and onSwing.occupied
         and (onSwingCost or UnitMana("player") or 0) or 0
+    local comboObservation = XelAssist.Game.ComboMechanics
+        and XelAssist.Game.ComboMechanics:Observe(target.guid, target.hostile)
+        or { points = GetComboPoints and GetComboPoints() or 0,
+            ownerGUID = target.guid, selectedExact = true,
+            globalExact = false, source = "stock combo state" }
     return {
         actors = actors, encounter = encounter, inventory = inventory,
         friendlies = friendlies, target = target, healUnit = healUnit,
@@ -179,6 +184,7 @@ local function snapshotContext()
         playerStealthKnown = playerStealthKnown,
         playerStealthSource = playerStealthSource, onSwing = onSwing,
         onSwingCost = onSwingCost, playerResourceReserved = playerResourceReserved,
+        comboObservation = comboObservation,
     }
 end
 
@@ -204,7 +210,8 @@ local function newState(mode, context)
         resource = UnitMana("player") or 0,
         resourceMax = UnitManaMax("player") or 0,
         resourceType = UnitPowerType and UnitPowerType("player") or nil,
-        combo = GetComboPoints and GetComboPoints() or 0,
+        combo = context.comboObservation.points or 0,
+        comboTargetGUID = context.comboObservation.ownerGUID,
         moving = context.moving,
         pet = actors.pet ~= nil, petLifecycle = actors.petLifecycle,
         actors = actors, inventory = context.inventory,
@@ -264,7 +271,8 @@ function S:Snapshot(mode)
     local context = snapshotContext()
     local state = newState(mode, context)
     if XelAssist.Graph.ComboState then
-        XelAssist.Graph.ComboState:Attach(state, state.combo)
+        XelAssist.Graph.ComboState:Attach(state, state.combo,
+            state.comboTargetGUID, context.comboObservation)
     end
     attachPlayerResource(state, context.actors)
     if context.target.hostiles then self:SyncSelectedHostile(state) end
@@ -331,9 +339,9 @@ function S:Copy(state)
     out.absorbs = copyNested(state.absorbs or {}, 3, seen, nil, atomic)
     out.readyAt = copyNested(state.readyAt or {}, 2, seen, nil, atomic)
     out.actorReadyAt = copyNested(state.actorReadyAt or {}, 2, seen, nil, atomic)
-    if state.comboDistribution then
-        out.comboDistribution = copyNested(
-            state.comboDistribution, 2, seen, nil, atomic)
+    if state.comboBranches then
+        out.comboBranches = copyNested(
+            state.comboBranches, 3, seen, nil, atomic)
     end
     if state.actors then out.actors = copyNested(state.actors, 4, seen, nil, atomic) end
     if state.petLifecycle then

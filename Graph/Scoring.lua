@@ -19,15 +19,20 @@ local function legalityAndTiming(action, state, descriptor)
         Targets:Legal(action, state, descriptor)
     if not allowed then return nil, blocker end
     descriptor = resolved or descriptor
+    if XelAssist.Graph.ComboState then
+        tooltip = XelAssist.Graph.ComboState:TooltipFor(
+            state, descriptor and descriptor.guid, tooltip)
+    end
     local facts, power, estimated, powerEvidence = action.facts, nil, nil, nil
     local effectAction = Triggered and Triggered:ResultAction(action) or action
     local effectTooltip = Triggered and Triggered:EffectFacts(action, tooltip) or tooltip
     power, estimated, powerEvidence = XelAssist.Graph.ActionPower:Estimate(
-        effectAction, effectTooltip, state)
+        effectAction, effectTooltip, state, descriptor and descriptor.guid)
     local comboAvailability = 1
     if facts.combo or tooltip.comboSpendAll then
         comboAvailability = XelAssist.Graph.ComboState
-            and XelAssist.Graph.ComboState:Availability(state) or 1
+            and XelAssist.Graph.ComboState:Availability(
+                state, descriptor and descriptor.guid) or 1
         power = power * comboAvailability
         if comboAvailability < 1 then estimated = true end
     end
