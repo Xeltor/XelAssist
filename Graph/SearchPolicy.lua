@@ -3,13 +3,15 @@
 XelAssist.Graph.SearchPolicy = {}
 local P = XelAssist.Graph.SearchPolicy
 
-P.MIN_STATES = 192
-P.MAX_STATES = 384
-P.MIN_MS = 7
-P.MAX_MS = 12
+P.MIN_STATES = 256
+P.MEDIUM_STATES = 512
+P.MAX_STATES = 768
+P.MIN_MS = 8
+P.MEDIUM_MS = 12
+P.MAX_MS = 18
 P.WIDTH = 5
-P.MAX_DECISIONS = 12
-P.MAX_SECONDS = 20
+P.MAX_DECISIONS = 24
+P.MAX_SECONDS = 45
 P.DISCOUNT_SECONDS = 4.5
 
 function P:Depth()
@@ -27,9 +29,13 @@ function P:Limits(state)
     local ready = math.max(0,
         (tonumber(actor and actor.player) or time) - time)
     local slack = math.max(gcd, ready)
-    if state and (state.inCombat == false or slack >= 0.5) then
+    -- A running cast/GCD is usable planning time: the player cannot submit a
+    -- second normal action yet, so deepen the graph without delaying a ready
+    -- button. Keep the immediate lane below half of a 60 FPS frame.
+    if state and (state.inCombat == false or slack >= 1) then
         return self.MAX_STATES, self.MAX_MS
     end
+    if slack >= 0.35 then return self.MEDIUM_STATES, self.MEDIUM_MS end
     return self.MIN_STATES, self.MIN_MS
 end
 

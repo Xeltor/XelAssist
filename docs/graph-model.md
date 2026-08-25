@@ -230,10 +230,11 @@ action with positive wait is submitted only through Nampower's forced selected-
 target queue; exact-friendly, ground, and item paths hold until they are ready.
 Future nodes are predictions, not queued casts; every `/xa` press takes a fresh
 snapshot and may choose differently.
-The automatic horizon is twelve decisions or twenty modeled seconds, with a
-five-path beam. Immediately actionable states receive a 192-state/7 ms budget;
-out-of-combat states and observed cast/GCD slack receive up to 384 states/12 ms,
-beginning after the live snapshot. The first two decisions complete before the soft
+The automatic horizon is twenty-four decisions or forty-five modeled seconds,
+with a five-path beam. Immediately actionable states receive a 256-state/8 ms
+budget; short observed cast/GCD slack receives 512 states/12 ms; out-of-combat
+states and at least one second of observed cast/GCD slack receive up to 768
+states/18 ms, beginning after the live snapshot. The first two decisions complete before the soft
 budget can shorten later look-ahead. Utility is discounted by modeled elapsed
 time rather than layer number, so GCD, off-GCD, cast, and resource-wait edges
 pay their actual clock cost. The one-to-five HUD setting is presentation-only.

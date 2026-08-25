@@ -172,6 +172,7 @@ for path in production_lua_files(root):
     if lines > ceiling:
         raise SystemExit(f"{relative}: {lines} lines exceeds architecture ceiling {ceiling}")
 subprocess.run([sys.executable, str(root / "tests/evaluator_test.py")], check=True)
+subprocess.run(["lua", str(root / "tests/search_policy_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/spell_topology_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/capabilities_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/spell_power_test.lua")], cwd=root, check=True)

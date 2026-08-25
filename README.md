@@ -1,4 +1,4 @@
-# XelAssist 0.8.11
+# XelAssist 0.8.12
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -101,10 +101,11 @@ identity.
 
 ## Graph model
 
-The evaluator automatically explores up to twelve actions or twenty modeled
-seconds with a five-path beam. It expands 192 states under a 7 ms soft budget
-when an action is immediately due, and up to 384 states/12 ms while out of
-combat or while an observed cast/GCD already gives the graph safe compute slack.
+The evaluator automatically explores up to twenty-four actions or forty-five
+modeled seconds with a five-path beam. It expands 256 states under an 8 ms soft
+budget when an action is immediately due, 512 states/12 ms during short observed
+cast/GCD slack, and up to 768 states/18 ms out of combat or when at least one
+second of observed cast/GCD downtime gives the graph safe compute slack.
 The graph samples at 5 Hz and independently shows one to five requested steps.
 The first two decisions are completed before the soft limit can shorten the
 runway; an otherwise usable current action never becomes a budget HOLD. It accounts for:

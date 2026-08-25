@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.12
+
+- Doubled the automatic strategic horizon to twenty-four decisions and extended
+  modeled combat time to forty-five seconds, independently of the one-to-five
+  action rows selected for the HUD.
+- Added three compute lanes: a low-latency 256-state/8 ms lane when an action is
+  ready, a 512-state/12 ms lane during short cast/GCD slack, and a deep
+  768-state/18 ms lane out of combat or with at least one second of observed
+  downtime. The original urgency discount remains intact so deeper planning
+  cannot postpone an executable off-GCD action.
+- Published completed search depth and configured decision/time horizons with
+  each recommendation, and added deterministic coverage proving a tractable
+  state can complete all twenty-four future decisions.
+
 ## 0.8.11
 
 - Added live ordinary and normalized VMaNGOS weapon bases for melee and ranged

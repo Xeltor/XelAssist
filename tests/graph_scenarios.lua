@@ -2157,6 +2157,20 @@ scenarioActions = { action("All In", 1, "damage", 500, 1000),
 plan = expect("path lookahead", "Sustainable")
 assert(plan.follow[1] and plan.follow[1].name == "Sustainable", "beam should prefer the stronger complete path")
 
+-- The live automatic policy must reason materially farther than the five rows
+-- the HUD can show. A long-lived target and sustainable action make the full
+-- decision horizon observable without introducing a class priority list.
+currentState = state("smart")
+currentState.resource, currentState.resourceMax = 1000, 1000
+currentState.targetHealth, currentState.targetMax = 100000, 100000
+XelAssistCharDB.graphDepth = nil
+scenarioActions = { action("Long Run Filler", 1, "damage", 10, 0) }
+plan = expect("automatic deep lookahead", "Long Run Filler")
+assert(table.getn(plan.path) == 24 and plan.completedDepth == 24
+    and plan.decisionHorizon == 24 and plan.timeHorizon == 45,
+    "the automatic graph must complete a 24-decision runway when its state remains tractable")
+XelAssistCharDB.graphDepth = 2
+
 currentState = state("smart")
 scenarioActions = { action("Shared One", 1, "damage", 600, 20,
         { testGroup = 7, testCategoryCooldown = 8 }),
