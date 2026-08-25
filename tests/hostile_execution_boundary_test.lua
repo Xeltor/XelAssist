@@ -162,6 +162,7 @@ end } }
 XelAssist.Combat.Observations = { Submitted = function()
     effects.observation = effects.observation + 1
 end }
+dofile("Combat/AutoShotRange.lua")
 XelAssist.Combat.AutoShot = {
     Snapshot = function(_, evidence) return evidence end,
     CanStart = function()

@@ -260,7 +260,13 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   can suppress resource spending or consume a same-window pet trigger. Launched
   arrows and scheduled companion effects retain the opaque hostile GUID captured
   at launch/scheduling, so a later selected-target change cannot redirect them
-  into the selected-target compatibility mirror.
+  into the selected-target compatibility mirror. Auto Shot admission uses only
+  the exact numeric client range verdict; projectile timing separately requires
+  identity-bound center distance and live DBC speed. An observed launch whose
+  timing is unavailable remains session-persistent target-local uncertainty that
+  makes health and player-threat delta inexact rather than fabricating an impact.
+  The bounded ledger summarizes eviction as target-local or global uncertainty;
+  it never recovers certainty by forgetting an unresolved arrow.
 - Mutually exclusive effects use generic family metadata. Applying one of the
   player's Warlock curses replaces only that player's prior curse in projected
   state; an attributable curse from another Warlock is preserved. Ambient pet

@@ -33,19 +33,23 @@ local function friendlyRelation(relation)
         or relation == "self" or relation == "player" or relation == "pet"
 end
 
-local function autoShotEvidence()
+local function autoShotEvidence(expectedGuid, action)
     local capabilities = XelAssist.Game.Capabilities
     local hostile = Guard:CurrentGuid("target") ~= nil
         and not (UnitIsDead and UnitIsDead("target"))
         and UnitCanAttack and UnitCanAttack("player", "target") and true or false
-    local distance = capabilities:Distance(hostile and "target" or nil)
+    local distance, distanceKind = capabilities:Distance(
+        hostile and "target" or nil)
     local geometry = capabilities:Geometry("player", "target")
     local _, _, casting, _, channeling = capabilities:CurrentCast()
-    return { hostile = hostile, moving = PlayerIsMoving
+    return XelAssist.Combat.AutoShotRange:Evidence({
+        hostile = hostile, moving = PlayerIsMoving
             and PlayerIsMoving() or false,
         casting = casting and not channeling and true or false,
         channeling = channeling and true or false, distance = distance,
-        lineOfSight = geometry and geometry.lineOfSight }
+        distanceKind = distanceKind,
+        lineOfSight = geometry and geometry.lineOfSight },
+        expectedGuid, action and action.spellId)
 end
 
 local function duplicateApplication(owner, action, tooltip, unit, guid, casterGuid)

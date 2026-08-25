@@ -4,12 +4,13 @@ XelAssist.Graph.AutoShotEffects = {}
 local A = XelAssist.Graph.AutoShotEffects
 local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
+local Uncertainty = XelAssist.Graph.AutoShotUncertainty
 
 local MAX_HOSTILES = 5
 
 local function hasInFlight(observed)
-    return observed and observed.inFlight
-        and table.getn(observed.inFlight) > 0
+    return observed and (observed.inFlight
+        and table.getn(observed.inFlight) > 0 or Uncertainty:Has(observed))
 end
 
 local function hostileCollection(state)
@@ -79,7 +80,7 @@ local function hasCurrentInFlight(state, observed)
             return true
         end
     end
-    return false
+    return Uncertainty:Current(state, observed)
 end
 
 local function sameLiveTarget(state, observed)
@@ -100,11 +101,10 @@ end
 local function launchEligible(state, observed)
     if not (sameLiveTarget(state, observed) and observed.active
         and state.hostile) then return false end
-    if observed.active and observed.projectable == false then return false end
+    if observed.projectable ~= true then return false end
     if state.targetLineOfSight == false then return false end
-    local distance = tonumber(state.targetDistance)
-    if distance and (distance < 8 or distance > 35) then return false end
-    return true
+    return XelAssist.Combat.AutoShotRange:Projectable(
+        observed, observed.targetGuid, observed.spellId)
 end
 
 local function eligible(state, observed)
@@ -156,8 +156,8 @@ function A:ObserveLiveState(state)
 end
 
 local function flightTime(state, observed)
-    local distance = math.max(5, tonumber(state.targetDistance) or 5)
-    local speed = math.max(1, tonumber(observed.projectileSpeed) or 40)
+    local distance = math.max(5, tonumber(observed.projectileDistance))
+    local speed = tonumber(observed.projectileSpeed)
     return distance / speed
 end
 
@@ -274,7 +274,10 @@ local function buildEvents(source, projected)
         table.insert(events, { kind = "impact", offset = shot.impactOffset,
             shot = shot })
     end
-    local flight = flightTime(source, observed)
+    local flight
+    if table.getn(projected.plannedLaunchOffsets or {}) > 0 then
+        flight = flightTime(source, observed)
+    end
     for i = 1, table.getn(projected.plannedLaunchOffsets or {}) do
         local launch = projected.plannedLaunchOffsets[i]
         local shot = { launchOffset = launch, impactOffset = launch + flight,
@@ -361,6 +364,7 @@ local function prepareProjection(state, candidate)
     projected.active = state.autoShot.active and true or false
     projected.ammoCount = state.autoShot.ammoCount
     projected.inFlight = {}
+    projected.unknownInFlight = {}
     return projected
 end
 
@@ -370,6 +374,7 @@ function A:CreateTimeline(out, source, candidate, context)
     local projected = prepareProjection(source, candidate)
     if not projected then return nil end
     out.autoShot = projected
+    Uncertainty:Apply(out, source.autoShot)
     syncAmmo(out)
     local events, shots = buildEvents(source, projected)
     local i
@@ -388,10 +393,12 @@ end
 function A:FinishTimeline(out, timeline)
     if not timeline then return end
     storeInFlight(out, timeline.shots, timeline.windowEnd)
+    Uncertainty:Carry(out, timeline.observed, timeline.windowEnd)
 end
 
 function A:HealthBeforeImpact(state, candidate)
     if not state.targetHealthExact then return nil, 0, 0 end
+    if Uncertainty:Current(state, state.autoShot) then return nil, 0, 0 end
     local projected = prepareProjection(state, candidate)
     if not projected then return state.targetHealth, 0, 0 end
     local probe = State:Copy(state)

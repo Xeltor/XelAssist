@@ -38,6 +38,7 @@ XelAssist.Graph.Effects = {
     StateAtImpact = function(_, state) return XelAssist.Graph.State:Copy(state) end,
     Decision = function() return 1, 1 end,
 }
+dofile("Combat/AutoShotRange.lua")
 
 local guidA, guidB, guidC, guidDead, guidMissing =
     { opaque = true }, { opaque = true }, { opaque = true },
@@ -67,11 +68,16 @@ local function stateWith(shots)
         hostiles = { order = { keyA, keyB, keyC, keyDead },
             byKey = records, selectedKey = keyB, total = 4, capped = false },
         autoShot = { active = false, projectable = false,
-            targetGuid = guidB, projectileSpeed = 40,
+            rangeChecked = true, rangeVerdict = true,
+            rangeIdentityVerified = true, rangeTargetGuid = guidB,
+            rangeSpellId = 75,
+            targetGuid = guidB, projectileDistance = 20,
+            projectileDistanceKind = "center", projectileSpeed = 40,
             ammoKnown = true, ammoCount = 10, inFlight = shots },
         inventory = { ammo = { known = true, count = 10 } } }
 end
 
+dofile("Graph/AutoShotUncertainty.lua")
 dofile("Graph/AutoShotEffects.lua")
 local A = XelAssist.Graph.AutoShotEffects
 
@@ -187,5 +193,34 @@ legacyHealth, legacyImpacts = A:HealthBeforeImpact(legacy,
     { wait = 1, cast = 0, occupancy = 1, downtime = 2 })
 assert(legacyHealth == 150 and legacyImpacts == 1,
     "states without hostile records must preserve current-target behavior")
+
+records[keyA].health, records[keyA].healthExact = 100, true
+records[keyA].threat = { playerDelta = 0 }
+local uncertain = stateWith({})
+uncertain.autoShot.unknownInFlight = { { targetGuid = guidA, spellId = 75,
+    power = 40, timingUnknown = true } }
+local uncertainOut = XelAssist.Graph.State:Copy(uncertain)
+local uncertainTimeline = A:CreateTimeline(uncertainOut, uncertain, candidate)
+assert(uncertainTimeline
+    and uncertainOut.hostiles.byKey[keyA].healthExact == false
+    and uncertainOut.hostiles.byKey[keyA].autoShotImpactTimingUnknown
+    and uncertainOut.hostiles.byKey[keyA].threat.playerDeltaExact == false,
+    "an observed arrow with unknown timing must invalidate only its target's health and threat")
+A:FinishTimeline(uncertainOut, uncertainTimeline)
+assert(table.getn(uncertainOut.autoShot.unknownInFlight) == 1
+    and uncertainOut.autoShot.unknownInFlight[1].targetGuid == guidA,
+    "unknown projectile evidence must persist across graph windows")
+uncertain.autoShot.unknownInFlight[1].targetGuid = guidB
+assert(A:HealthBeforeImpact(uncertain, candidate) == nil,
+    "unknown impact ordering on the selected target must withhold exact health")
+
+local globalUncertain = stateWith({})
+globalUncertain.autoShot.flightOverflowGlobal = true
+local globalOut = XelAssist.Graph.State:Copy(globalUncertain)
+local globalTimeline = A:CreateTimeline(globalOut, globalUncertain, candidate)
+assert(globalTimeline and not globalOut.hostiles.byKey[keyA].healthExact
+    and not globalOut.hostiles.byKey[keyB].healthExact
+    and globalOut.hostiles.byKey[keyDead].healthExact,
+    "global projectile overflow must invalidate every living bounded hostile, never proven dead records")
 
 print("ok: hostile-local Auto Shot routing and conservative projectile retention")

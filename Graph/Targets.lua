@@ -272,6 +272,21 @@ end
 
 local function rangeBlocker(action, state, descriptor, target, tooltip)
     local facts = action.facts
+    if facts.autoRepeat then
+        local auto = state.autoShot
+        local expected = descriptor.guid or state.targetGUID
+        if not auto or auto.rangeChecked ~= true
+            or auto.rangeIdentityVerified ~= true
+            or expected == nil or auto.rangeTargetGuid ~= expected
+            or auto.rangeSpellId
+                ~= XelAssist.Combat.AutoShotRange:CanonicalSpellId(
+                    action.spellId) then
+            return "Auto Shot target evidence changed"
+        end
+        if auto.rangeVerdict == false then return "range" end
+        if auto.rangeVerdict ~= true then return "Auto Shot range unknown" end
+        return nil
+    end
     local liveRange
     local implicitPetTarget = XelAssist.Game.Pets and XelAssist.Game.Pets.Actions
         and XelAssist.Game.Pets.Actions:ImplicitTarget(action)

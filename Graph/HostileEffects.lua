@@ -139,7 +139,9 @@ local function secondaryThreatValue(context, effect, record)
     end
     if (state.groupSize or 0) > 0 or state.pet then
         if not state.tank then
-            return -threat * (record.hasPlayerAggro and 3 or 0.25)
+            local uncertain = record.threat
+                and record.threat.playerDeltaExact == false
+            return -threat * ((record.hasPlayerAggro or uncertain) and 3 or 0.25)
         end
     end
     return 0

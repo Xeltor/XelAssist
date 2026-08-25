@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.8.3
+
+- Replaced Auto Shot's fixed 8–35 yard admission with Nampower's exact numeric
+  `IsSpellInRange` verdict. Unsupported, missing, failed, or identity-raced
+  queries now hold; they cannot fall through to tooltip or hitbox geometry.
+- Separated range geometry from projectile geometry. Planned arrows use exact
+  `UnitDistanceSquared` center distance, the server's five-yard travel floor,
+  and the canonical spell's live Nampower DBC speed. Known long flights are not
+  truncated by an invented timeout, and graph-projected starts recompute their
+  executability from the carried target-bound evidence.
+- Preserved exact launches whose flight clock could not be observed as a
+  session-persistent, target-pinned uncertainty marker. A later measured launch
+  cannot erase them, and bounded-ledger eviction leaves target-local or global
+  overflow evidence instead of silently restoring certainty. Graph health and
+  player-threat deltas stay inexact until the session ledger is explicitly reset.
+- Split range, flight-ledger, and graph uncertainty behavior into focused Lua
+  modules. Added deterministic dead-zone, unknown/error, target-race,
+  center-distance, five-yard-floor, long-flight, spell-identity, carried-arrow,
+  overflow, target-local uncertainty, and conservative threat regressions.
+  Authenticated in-world Hunter validation remains pending and is not claimed.
+
 ## 0.8.2
 
 - Added a session-only, target-pinned controlled-companion main-hand swing

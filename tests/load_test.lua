@@ -224,7 +224,7 @@ assert(XelAssistCharDB.graphDepth == 3 and XelAssistCharDB.role == "auto", "char
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.2" and runtime.nampower == "4.6.2", "runtime versions missing")
+assert(runtime.version == "0.8.3" and runtime.nampower == "4.6.2", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(runtime.evidenceEvents.damage and runtime.evidenceEvents.miss,
@@ -1017,8 +1017,10 @@ resetCastState()
 queuedSpell, directlyCast, directUnit = nil, nil, "unchanged"
 local originalUnitClass, originalAutoRepeat, originalUnitCanAttack =
     UnitClass, IsAutoRepeatAction, UnitCanAttack
+local originalIsSpellInRange = IsSpellInRange
 UnitClass = function() return "Hunter", "HUNTER" end
 IsAutoRepeatAction = function() return false end
+IsSpellInRange = function(_, unit) return unit == "target" and 1 or nil end
 UnitCanAttack = function(_, unit) return unit == "target" end
 testTargetGUID = "hunter-auto-target"
 XelAssist.Combat.AutoShot:Reset(true)
@@ -1097,6 +1099,7 @@ GetCurrentCastingInfo, AttackTarget = XelAssistTestSavedCurrentCastingInfo,
     XelAssistTestSavedAttackTarget
 UnitClass, IsAutoRepeatAction, UnitCanAttack = originalUnitClass,
     originalAutoRepeat, originalUnitCanAttack
+IsSpellInRange = originalIsSpellInRange
 testTargetGUID = nil
 
 -- A Hunter command has two independently captured recipients: the player

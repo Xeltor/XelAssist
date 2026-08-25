@@ -6,6 +6,8 @@ table.getn = table.getn or function(value)
 end
 dofile("Combat/Knowledge.lua")
 dofile("Combat/TriggeredActions.lua")
+dofile("Combat/AutoShotRange.lua")
+dofile("Combat/AutoShotFlights.lua")
 dofile("Combat/AutoShot.lua")
 dofile("Combat/AutoShotProjection.lua")
 dofile("Combat/PetKnowledge.lua")
@@ -29,6 +31,7 @@ dofile("Graph/Targets.lua")
 dofile("Graph/Effects.lua")
 dofile("Graph/AreaRecipients.lua")
 dofile("Graph/HostileEffects.lua")
+dofile("Graph/AutoShotUncertainty.lua")
 dofile("Graph/AutoShotEffects.lua")
 dofile("Graph/CompanionTieScheduler.lua")
 dofile("Graph/CompanionResources.lua")
@@ -358,6 +361,18 @@ currentState = state("smart"); currentState.groupSize = 4; currentState.hasAggro
 scenarioActions = { action("Threat Slam", 1, "damage", 500, 0, { threat = 2 }),
     action("Careful Strike", 1, "damage", 300, 0, { threat = 0.5 }) }
 expect("aggro-aware damage", "Careful Strike")
+
+currentState = state("smart"); currentState.groupSize = 4
+scenarioActions = { action("Threat Slam", 1, "damage", 500, 0, { threat = 2 }),
+    action("Careful Strike", 1, "damage", 300, 0, { threat = 0.5 }) }
+expect("exact no-aggro damage", "Threat Slam")
+currentState.autoShot = { unknownInFlight = {
+    { targetGuid = currentState.targetGUID, timingUnknown = true } } }
+XelAssist.Graph.AutoShotUncertainty:Apply(currentState, currentState.autoShot)
+assert(not currentState.hasAggro
+    and currentState.targetPlayerThreatDeltaExact == false,
+    "an unresolved arrow must preserve the victim observation but invalidate threat certainty")
+expect("unknown projectile threat reserve", "Careful Strike")
 
 currentState = state("smart"); currentState.groupSize = 4; currentState.hasAggro = true
 scenarioActions = { action("Bolt", 1, "damage", 300, 30), action("Bolt", 5, "damage", 500, 100) }
@@ -874,15 +889,39 @@ XelAssist.Combat.Resistance = nil
 
 currentState = state("smart")
 currentState.actorReadyAt = { player = 0, pet = 0 }
+currentState.targetDistance, currentState.targetLineOfSight = 20, true
 currentState.autoShot = { supported = true, active = false,
+    rangeChecked = true, rangeVerdict = true,
+    rangeIdentityVerified = true, rangeTargetGuid = "target-guid",
+    rangeSpellId = 75,
+    projectileDistance = 20, projectileDistanceKind = "center",
+    projectileSpeed = 40,
     targetGuid = "target-guid", rangedSpeed = 2, ammoKnown = true,
     ammoCount = 10, shotDamage = 100 }
 currentState.inventory = { ammo = { known = true, count = 10 } }
 local autoStart = action("Auto Shot", 1, "autoRepeat", 0, 0,
     { autoRepeat = true, ambient = true, startOnly = true, cast = 0 })
+autoStart.spellId = 75
 autoStart.mock.gcd = 0
 local autoFiller = action("Low Filler", 1, "damage", 1, 0)
 autoFiller.mock.gcd = 2.5
+currentState.autoShot.rangeVerdict = nil
+scenarioActions = { autoStart }
+local unknownAutoRange = XelAssist.Graph:Evaluate("smart", true)
+assert(unknownAutoRange == nil,
+    "unknown exact Auto Shot range must not fall through to tooltip geometry")
+currentState.autoShot.rangeVerdict = true
+local alternateAuto = action("Auto Shot", 1, "autoRepeat", 0, 0,
+    { autoRepeat = true, ambient = true, startOnly = true, cast = 0 })
+alternateAuto.spellId, alternateAuto.mock.gcd = 52636, 0
+scenarioActions = { alternateAuto }
+assert(XelAssist.Graph:Evaluate("smart", true) == nil,
+    "range evidence for spell 75 must not admit an alternate Auto Shot spell")
+currentState.autoShot.rangeSpellId = 52636
+plan = expect("alternate Auto Shot range identity", "Auto Shot")
+assert(plan.action.spellId == 52636,
+    "matching alternate spell evidence must remain executable")
+currentState.autoShot.rangeSpellId = 75
 scenarioActions = { autoStart, autoFiller }
 XelAssistCharDB.graphDepth = 2
 plan = expect("Auto Shot ambient start", "Auto Shot")
@@ -974,6 +1013,10 @@ local function hunterAutoState(health, nextLaunch, distance)
     value.actorReadyAt = { player = 0, pet = 0 }
     value.autoShot = { supported = true, active = true,
         activeSource = "action bar repeat", spellId = 75,
+        rangeChecked = true, rangeVerdict = true,
+        rangeIdentityVerified = true, rangeTargetGuid = value.targetGUID,
+        rangeSpellId = 75,
+        projectileDistance = distance, projectileDistanceKind = "center",
         targetGuid = value.targetGUID, currentTargetGuid = value.targetGUID,
         nextLaunchIn = nextLaunch, rangedSpeed = 2,
         projectileSpeed = 40, projectable = true,
@@ -1037,6 +1080,7 @@ assert(carriedHealth == 100 and carriedImpacts == 0,
 -- impact must prevent the later chosen action and its resource cost.
 local priorUnitClass, priorUnitExists = UnitClass, UnitExists
 local priorRangedSpeed, priorAmmo = UnitRangedDamage, GetAmmo
+local priorCenterDistance, priorSpellRecord = UnitDistanceSquared, GetSpellRecField
 local priorRangedDamage = XelAssist.Game.Capabilities.RangedDamage
 local priorDistance = XelAssist.Game.Capabilities.Distance
 local liveClock = 100
@@ -1048,6 +1092,10 @@ UnitExists = function(unit)
     return false, nil
 end
 UnitRangedDamage = function() return 2 end
+UnitDistanceSquared = function() return 400 end
+GetSpellRecField = function(_, field)
+    if field == "speed" then return 40 end
+end
 GetAmmo = function() return 2516, 9 end
 XelAssist.Game.Capabilities.RangedDamage = function() return 60 end
 XelAssist.Game.Capabilities.Distance = function() return 20 end
@@ -1059,6 +1107,7 @@ local liveAuto = XelAssist.Combat.AutoShot:Snapshot({ hostile = true,
     distance = 20, lineOfSight = true })
 UnitClass, UnitExists = priorUnitClass, priorUnitExists
 UnitRangedDamage, GetAmmo = priorRangedSpeed, priorAmmo
+UnitDistanceSquared, GetSpellRecField = priorCenterDistance, priorSpellRecord
 XelAssist.Game.Capabilities.RangedDamage = priorRangedDamage
 XelAssist.Game.Capabilities.Distance = priorDistance
 GetTime = function() return 0 end
@@ -1097,6 +1146,7 @@ XelAssist.Combat.Resistance = {
 }
 currentState = hunterAutoState(500, 0.1, 20)
 currentState.autoShot.spellId = 52636
+currentState.autoShot.rangeSpellId = 52636
 currentState.autoShot.rangedSpeed = 1
 currentState.actors.pet = { health = 100, healthMax = 100,
     resource = 100, resourceMax = 100, targetExists = true,

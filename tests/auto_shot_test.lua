@@ -7,7 +7,9 @@ end
 
 local clock = 10
 local playerGuid, targetGuid = {}, {}
-local activeRepeat, ammo = false, 20
+local activeRepeat, ammo, exactRange = false, 20, true
+local centerSquared = 400
+local lastRangeSpell
 local slotAvailable, tooltipSlot = false, nil
 local registered = {}
 
@@ -19,6 +21,10 @@ UnitExists = function(unit)
     return false, nil
 end
 UnitRangedDamage = function() return 2.5 end
+UnitDistanceSquared = function() return centerSquared end
+GetSpellRecField = function(_, field)
+    if field == "speed" then return 40 end
+end
 IsAutoRepeatAction = function(slot) return slot == 7 and activeRepeat end
 GetActionTexture = function(slot)
     if slotAvailable and (slot == 7 or slot == 8 or slot == 9) then return "icon" end
@@ -50,8 +56,14 @@ CreateFrame = function(kind)
     }
 end
 XelAssist.Game.Capabilities = { RangedDamage = function() return 55 end,
-    Distance = function() return 20 end }
+    Distance = function() return 20, "hitbox" end,
+    InRange = function(_, spell)
+        lastRangeSpell = spell
+        return exactRange
+    end }
 
+dofile("Combat/AutoShotRange.lua")
+dofile("Combat/AutoShotFlights.lua")
 dofile("Combat/AutoShot.lua")
 dofile("Combat/AutoShotProjection.lua")
 local A = XelAssist.Combat.AutoShot
@@ -73,6 +85,35 @@ assert(idle.supported and idle.knownInactive and not idle.active
     "only an exact native, non-macro, non-equipped Auto Shot slot may prove inactivity")
 canStart, reason = A:CanStart(idle)
 assert(canStart and reason == nil, "an idle Hunter with ammo and a target may start Auto Shot")
+assert(lastRangeSpell == 75,
+    "Auto Shot range must use its numeric spell ID rather than a localized name")
+
+exactRange = false
+canStart, reason = A:CanStart(A:Snapshot({ hostile = true, distance = 20 }))
+assert(not canStart and reason == "range",
+    "an exact client out-of-range verdict must block Auto Shot")
+exactRange = nil
+canStart, reason = A:CanStart(A:Snapshot({ hostile = true, distance = 20 }))
+assert(not canStart and reason == "Auto Shot range unknown",
+    "unknown exact range must hold instead of borrowing fixed yard constants")
+exactRange = -1
+canStart, reason = A:CanStart(A:Snapshot({ hostile = true, distance = 20 }))
+assert(not canStart and reason == "Auto Shot range unknown",
+    "Nampower's unsupported range verdict must remain unknown")
+local savedRangeQuery = XelAssist.Game.Capabilities.InRange
+XelAssist.Game.Capabilities.InRange = function() error("range failed") end
+canStart, reason = A:CanStart(A:Snapshot({ hostile = true, distance = 20 }))
+assert(not canStart and reason == "Auto Shot range unknown",
+    "a failed exact range query must remain unknown")
+XelAssist.Game.Capabilities.InRange = nil
+canStart, reason = A:CanStart(A:Snapshot({ hostile = true, distance = 20 }))
+assert(not canStart and reason == "Auto Shot range unknown",
+    "a missing exact range query must remain unknown")
+XelAssist.Game.Capabilities.InRange = savedRangeQuery
+exactRange = true
+canStart, reason = A:CanStart(A:Snapshot({ hostile = true, distance = 50 }))
+assert(canStart and reason == nil,
+    "an exact client verdict must outrank a hardcoded maximum range")
 
 A:Submitted(targetGuid)
 local pending = A:Snapshot()
@@ -96,6 +137,10 @@ assert(table.getn(launched.inFlight) == 1
     and launched.inFlight[1].delivery == 1
     and math.abs(launched.inFlight[1].remaining - 0.5) < 0.0001,
     "an exact launch must expose its fixed target, outcome and remaining flight")
+assert(launched.projectileDistance == 20
+    and launched.projectileDistanceKind == "center"
+    and launched.projectileSpeed == 40,
+    "projectile timing must use exact center distance and DBC spell speed")
 assert(launched.nextLaunchIn > 2.49 and launched.nextLaunchIn < 2.51,
     "CAST, not START, must establish ranged phase")
 clock = 12.6
@@ -272,6 +317,51 @@ assert(not A:Snapshot().active and table.getn(A:Snapshot().inFlight) == 1,
 clock = 50.6
 assert(table.getn(A:Snapshot().inFlight) == 0,
     "a completed projectile must expire from the session ledger")
+
+clock, centerSquared, activeRepeat = 51, nil, true
+A:UnitCast(playerGuid, targetGuid, "CAST", 75)
+local timingUnknown = A:Snapshot()
+assert(table.getn(timingUnknown.inFlight) == 0
+    and table.getn(timingUnknown.unknownInFlight) == 1
+    and timingUnknown.launchTimingUnknown and not timingUnknown.projectable,
+    "a real launch without center distance must remain bounded uncertainty")
+clock, centerSquared = 51.1, 400
+A:UnitCast(playerGuid, targetGuid, "CAST", 75)
+local mixedFlights = A:Snapshot()
+assert(table.getn(mixedFlights.inFlight) == 1
+    and table.getn(mixedFlights.unknownInFlight) == 1
+    and mixedFlights.launchTimingUnknown,
+    "a later measured launch must not erase an earlier unknown projectile")
+clock = 53.01
+assert(table.getn(A:Snapshot().unknownInFlight) == 1,
+    "an uncorrelated projectile must stay uncertain until an explicit session reset")
+
+A:Reset(true)
+clock, centerSquared = 54, 1
+A:UnitCast(playerGuid, targetGuid, "CAST", 75)
+assert(math.abs(A:Snapshot().inFlight[1].remaining - 0.125) < 0.0001,
+    "the server five-yard floor must apply to exact projectile travel")
+A:Reset(true)
+clock, centerSquared = 55, 10000
+A:UnitCast(playerGuid, targetGuid, "CAST", 75)
+assert(math.abs(A:Snapshot().inFlight[1].remaining - 2.5) < 0.0001,
+    "an exact custom-server flight must not be truncated to an invented cap")
+A:Reset(true)
+
+clock, centerSquared, activeRepeat = 56, 400, false
+local stableTarget, swappedTarget = {}, {}
+targetGuid = stableTarget
+UnitDistanceSquared = function()
+    targetGuid = swappedTarget
+    return centerSquared
+end
+local raced = A:Snapshot({ hostile = true, lineOfSight = true })
+assert(not raced.rangeIdentityVerified and not raced.projectable
+    and raced.eligibilityReason == "Auto Shot target evidence changed",
+    "a target swap during range evidence must invalidate the whole observation")
+targetGuid, UnitDistanceSquared = stableTarget,
+    function() return centerSquared end
+
 clock = 60
 local i
 for i = 1, 10 do
@@ -280,8 +370,24 @@ for i = 1, 10 do
 end
 assert(table.getn(A:Snapshot().inFlight) == 8,
     "the live launch ledger must remain bounded")
+assert(table.getn(A:Snapshot().unknownInFlight) == 1
+    and A:Snapshot().unknownInFlight[1].overflow
+    and A:Snapshot().unknownInFlight[1].targetGuid == targetGuid,
+    "evicting a still-live projectile must leave target-local overflow uncertainty")
 A:Reset(true)
-assert(table.getn(A:InFlight()) == 0,
+assert(table.getn(A:InFlight()) == 0
+    and table.getn(A:UnknownInFlight()) == 0,
     "an explicit session reset must clear carried projectiles")
+
+clock = 61
+for i = 1, 18 do
+    clock, targetGuid = clock + 0.01, {}
+    A:UnitCast(playerGuid, targetGuid, "CAST", 75)
+end
+local globalOverflow = A:Snapshot()
+assert(globalOverflow.flightOverflowGlobal
+    and globalOverflow.launchTimingUnknown,
+    "more unique live projectile targets than the ledger can summarize must become global uncertainty")
+A:Reset(true)
 
 print("ok: Auto Shot idempotency, stock lifecycle, phase floor, identity and ammo")

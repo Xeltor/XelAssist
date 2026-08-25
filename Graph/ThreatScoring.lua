@@ -4,6 +4,10 @@
 XelAssist.Graph.ThreatScoring = {}
 local T = XelAssist.Graph.ThreatScoring
 
+local function playerThreatRisk(state)
+    return state.hasAggro or state.targetPlayerThreatDeltaExact == false
+end
+
 local function petThreatFactor(state)
     if not (XelAssist.Game.Pets and XelAssist.Game.Pets.Effects) then return 1 end
     return XelAssist.Game.Pets.Effects:ThreatMultiplier(
@@ -47,8 +51,12 @@ function T:Apply(context)
         context.value = context.value + (threat - threatPower) * 0.5
         context.reason = "builds threat"
     elseif (state.groupSize > 0 or state.pet) and not state.tank then
-        context.value = context.value - threat * (state.hasAggro and 3 or 0.25)
-        if state.hasAggro then context.reason = "limits additional threat"
+        -- Unknown future Auto Shot threat reserves additional threat without
+        -- pretending the live victim observation already says player aggro.
+        local risk = playerThreatRisk(state)
+        context.value = context.value - threat * (risk and 3 or 0.25)
+        if risk then context.reason = state.hasAggro
+            and "limits additional threat" or "limits threat while aggro is uncertain"
         elseif threat > threatPower * 1.2 then context.reason = "lower threat for the group" end
     end
     context.threat = threat

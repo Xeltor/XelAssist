@@ -2,17 +2,15 @@
 -- ambient attack, not an ordinary repeatable cast and not an encoded rotation.
 XelAssist.Combat.AutoShot = {}
 local A = XelAssist.Combat.AutoShot
+local Range = XelAssist.Combat.AutoShotRange
+local Flights = XelAssist.Combat.AutoShotFlights
 
 local AUTO_SHOT_ID = 75
 local AUTO_SHOT_IDS = { [75] = true, [1583] = true,
     [52636] = true, [52637] = true }
-local AUTO_SHOT_CANONICAL = { [1583] = 75, [52637] = 52636 }
 local ACTION_SLOTS = 120
 local START_GUARD = 1.5
 local RESUME_FLOOR = 0.5
-local PROJECTILE_SPEED = 40
-local MAX_IN_FLIGHT = 8
-local MAX_FLIGHT_SECONDS = 2
 local ACTION_TIP_NAME = "XelAssistAutoShotScanTooltip"
 local actionTip
 
@@ -41,23 +39,6 @@ local function arrayCount(values)
     return count
 end
 
-local function targetEligible(evidence)
-    if not evidence then return true, nil end
-    if evidence.hostile == false then return false, "hostile target" end
-    if evidence.lineOfSight == false then return false, "line of sight" end
-    local distance = tonumber(evidence.distance)
-    if distance and distance < 8 then return false, "minimum range" end
-    if distance and distance > 35 then return false, "range" end
-    return true, nil
-end
-
-local function startEligible(evidence)
-    local eligible, reason = targetEligible(evidence)
-    if not eligible then return false, reason end
-    if evidence and evidence.casting then return false, "casting" end
-    return true, nil
-end
-
 local function currentHostileGuid()
     local guid = unitGuid("target")
     if guid == nil then return nil end
@@ -73,10 +54,28 @@ function A:IsHunter()
 end
 
 function A:CanonicalSpellId(spellId)
-    spellId = tonumber(spellId)
-    if AUTO_SHOT_CANONICAL[spellId] then return AUTO_SHOT_CANONICAL[spellId] end
-    if AUTO_SHOT_IDS[spellId] then return spellId end
+    if AUTO_SHOT_IDS[tonumber(spellId)] then
+        return Range:CanonicalSpellId(spellId)
+    end
     return AUTO_SHOT_ID
+end
+
+function A:EvidenceSpellId()
+    if self.activeSpellId then return self:CanonicalSpellId(self.activeSpellId) end
+    local capabilities = XelAssist.Game and XelAssist.Game.Capabilities
+    local actions = capabilities and capabilities.Actions
+        and capabilities:Actions() or {}
+    local found, i, action = nil, nil, nil
+    for i = 1, arrayCount(actions) do
+        action = actions[i]
+        if action and action.facts and action.facts.autoRepeat
+            and tonumber(action.spellId) then
+            local canonical = self:CanonicalSpellId(action.spellId)
+            if found and found ~= canonical then return 0 end
+            found = canonical
+        end
+    end
+    return found or AUTO_SHOT_ID
 end
 
 function A:RangedSpeed()
@@ -148,36 +147,6 @@ function A:Ammo()
     return tonumber(itemId), math.max(0, total), true
 end
 
-local function launchDistance(owner, targetGuid)
-    if not matchingTarget(targetGuid, unitGuid("target")) then return 5 end
-    local distance
-    local capabilities = XelAssist.Game and XelAssist.Game.Capabilities
-    if capabilities and capabilities.Distance then
-        local ok, value = pcall(capabilities.Distance, capabilities, "target")
-        if ok then distance = tonumber(value) end
-    end
-    if not distance and owner.observedTargetGuid == targetGuid then
-        distance = tonumber(owner.observedTargetDistance)
-    end
-    return math.max(5, math.min(35, distance or 5))
-end
-
-function A:PruneInFlight(at)
-    at = tonumber(at) or now()
-    local kept, i, shot = {}, nil, nil
-    for i = 1, arrayCount(self.launchLedger or {}) do
-        shot = self.launchLedger[i]
-        local launchedAt, impactAt = tonumber(shot.launchedAt),
-            tonumber(shot.impactAt)
-        if launchedAt and impactAt and launchedAt <= at and impactAt > at
-            and impactAt - launchedAt <= MAX_FLIGHT_SECONDS then
-            table.insert(kept, shot)
-        end
-    end
-    self.launchLedger = kept
-    return kept
-end
-
 local function fixedLaunchOutcome(targetGuid, spellId)
     local capabilities = XelAssist.Game and XelAssist.Game.Capabilities
     local raw
@@ -202,35 +171,21 @@ function A:RecordLaunch(targetGuid, spellId, launchedAt)
     targetGuid = targetGuid or unitGuid("target")
     if targetGuid == nil then return nil end
     launchedAt = tonumber(launchedAt) or now()
-    local ledger = self:PruneInFlight(launchedAt)
     local canonical = self:CanonicalSpellId(spellId)
-    local prior = ledger[arrayCount(ledger)]
-    if prior and prior.launchedAt == launchedAt
-        and prior.targetGuid == targetGuid and prior.spellId == canonical then
-        return prior
-    end
-    while arrayCount(ledger) >= MAX_IN_FLIGHT do table.remove(ledger, 1) end
-    local flight = math.min(MAX_FLIGHT_SECONDS,
-        launchDistance(self, targetGuid) / PROJECTILE_SPEED)
+    local flight = Range:LaunchTiming(targetGuid, canonical)
     local power, delivery, raw = fixedLaunchOutcome(targetGuid, canonical)
-    local shot = { targetGuid = targetGuid, spellId = canonical,
-        launchedAt = launchedAt, impactAt = launchedAt + flight,
-        power = power, delivery = delivery, rawPower = raw }
-    table.insert(ledger, shot)
-    return shot
+    return Flights:Record(self, targetGuid, canonical, launchedAt, flight,
+        { power = power, delivery = delivery, rawPower = raw })
 end
 
 function A:InFlight(at)
     at = tonumber(at) or now()
-    local ledger, out, i, shot = self:PruneInFlight(at), {}, nil, nil
-    for i = 1, arrayCount(ledger) do
-        shot = ledger[i]
-        table.insert(out, { targetGuid = shot.targetGuid,
-            spellId = shot.spellId, power = shot.power,
-            delivery = shot.delivery, rawPower = shot.rawPower,
-            remaining = math.max(0, shot.impactAt - at) })
-    end
-    return out
+    return Flights:Known(self, at)
+end
+
+function A:UnknownInFlight(at)
+    at = tonumber(at) or now()
+    return Flights:Unknown(self, at)
 end
 
 function A:BlockPhase()
@@ -261,10 +216,9 @@ function A:Snapshot(evidence)
     if not self:IsHunter() then return { supported = false, active = false } end
     local at = now()
     local currentTargetGuid = unitGuid("target")
-    if currentTargetGuid and evidence and tonumber(evidence.distance) then
-        self.observedTargetGuid = currentTargetGuid
-        self.observedTargetDistance = tonumber(evidence.distance)
-    end
+    local evidenceSpellId = self.activeSpellId
+        or evidence and evidence.rangeSpellId or self:EvidenceSpellId()
+    evidence = Range:Evidence(evidence, currentTargetGuid, evidenceSpellId)
     local speed, speedSource = self:RangedSpeed()
     local activeSlot, repeatInactive = self:ActiveSlot()
     local submitPending = self.submittedAt
@@ -293,9 +247,12 @@ function A:Snapshot(evidence)
     elseif uncertain then source, confidence = "repeat state unknown", "unknown" end
     local targetGuid = self.activeTargetGuid
         or self.lastLaunchTargetGuid or self.submittedTargetGuid
-    local validTarget = targetEligible(evidence)
-    local _, eligibilityReason = startEligible(evidence)
+    local validTarget = Range:TargetEligible(
+        evidence, currentTargetGuid, evidenceSpellId)
+    local _, eligibilityReason = Range:StartEligible(
+        evidence, currentTargetGuid, evidenceSpellId)
     local projectable = active and validTarget
+        and Range:Projectable(evidence, currentTargetGuid, evidenceSpellId)
         and matchingTarget(targetGuid, currentTargetGuid)
     local nextLaunchIn
     if active then
@@ -315,20 +272,32 @@ function A:Snapshot(evidence)
         shotDamage = XelAssist.Game.Capabilities:RangedDamage()
     end
     return { supported = true,
-        spellId = self:CanonicalSpellId(self.activeSpellId),
+        spellId = self:CanonicalSpellId(evidenceSpellId),
         active = active, activeSource = source, confidence = confidence,
         stateUncertain = uncertain, knownInactive = self.knownInactive,
         actionSlot = activeSlot, targetGuid = targetGuid,
         currentTargetGuid = currentTargetGuid,
+        rangeChecked = evidence.rangeChecked,
+        rangeVerdict = evidence.rangeVerdict,
+        rangeIdentityVerified = evidence.rangeIdentityVerified,
+        rangeTargetGuid = evidence.rangeTargetGuid,
+        rangeSpellId = evidence.rangeSpellId,
+        distance = evidence.distance, distanceKind = evidence.distanceKind,
+        projectileDistance = evidence.projectileDistance,
+        projectileDistanceKind = evidence.projectileDistanceKind,
         projectable = projectable, eligibilityReason = eligibilityReason,
         blocked = self.phaseBlocked and true or false,
         lastLaunchAt = self.lastLaunchAt,
         lastLaunchTargetGuid = self.lastLaunchTargetGuid,
         nextLaunchIn = nextLaunchIn,
         rangedSpeed = speed, rangedSpeedSource = speedSource,
-        projectileSpeed = PROJECTILE_SPEED,
+        projectileSpeed = evidence.projectileSpeed,
+        projectileSpeedSource = evidence.projectileSpeedSource,
         ammoId = ammoId, ammoCount = ammoCount, ammoKnown = ammoKnown,
-        shotDamage = shotDamage, inFlight = self:InFlight(at) }
+        shotDamage = shotDamage, inFlight = self:InFlight(at),
+        unknownInFlight = self:UnknownInFlight(at),
+        launchTimingUnknown = self.launchTimingUnknown,
+        flightOverflowGlobal = self.flightOverflowGlobal }
 end
 
 function A:CanStart(snapshot)
@@ -394,8 +363,7 @@ function A:Reset(provenInactive, preserveInFlight)
     self.startConfirmed = nil
     self.assumedActive, self.activeBeforeSubmit = false, false
     self.phaseBlocked, self.resumeFloorUntil = nil, nil
-    self.observedTargetGuid, self.observedTargetDistance = nil, nil
-    if not preserveInFlight then self.launchLedger = {} end
+    Flights:Reset(self, preserveInFlight)
     self.knownInactive = provenInactive and true or false
 end
 
@@ -413,7 +381,7 @@ function A:OnEvent(name, a1, a2, a3, a4)
         end
     elseif name == "STOP_AUTOREPEAT_SPELL" then self:Reset(true, true)
     elseif name == "PLAYER_ENTERING_WORLD" then self:Reset(false)
-    elseif name == "PLAYER_REGEN_ENABLED" then self:PruneInFlight()
+    elseif name == "PLAYER_REGEN_ENABLED" then Flights:Prune(self, now())
     elseif name == "PLAYER_TARGET_CHANGED" then
         local guid = currentHostileGuid()
         if guid and (self.assumedActive or self.lastLaunchAt) then

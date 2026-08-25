@@ -1,4 +1,4 @@
-# XelAssist 0.8.2
+# XelAssist 0.8.3
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -119,8 +119,13 @@ a 3 ms hot-path budget. It accounts for:
   magnitude can be distributed without inventing damage or threat;
 - Auto Shot launch, projectile, impact, ammunition, movement/cast delay, and
   repeated-tap state on the shared event timeline with periodic ticks, companion
-  events, and the chosen action. The generic player Attack command is likewise
-  start-only and idempotent; its button press is never modeled as melee damage;
+  events, and the chosen action. Exact numeric spell-range evidence owns its
+  dead zone; center-to-center distance and live DBC projectile speed own flight
+  timing. A real launch with missing timing makes only its captured target's
+  health/threat inexact instead of becoming an invented or silently lost hit;
+  ledger overflow retains target-local or global uncertainty until session reset.
+  The generic player Attack command is likewise start-only and idempotent; its
+  button press is never modeled as melee damage;
 - equipped weapon durability and ammunition, plus opt-in immediate-use healing
   and mana consumables discovered conservatively from live bag tooltips;
 - future resource, health, target-health, aura, threat-drop, and cooldown state.

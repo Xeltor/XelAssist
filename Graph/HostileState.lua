@@ -67,6 +67,7 @@ local function sync(state, record)
     state.targetCastRemaining = record and (tonumber(record.castRemaining) or 0) or 0
     state.targetCastProbability = record and record.castProbability or nil
     if record and record.threat then
+        state.targetPlayerThreatDeltaExact = record.threat.playerDeltaExact ~= false
         if record.threat.projectedPlayerHasAggro ~= nil then
             state.hasAggro = record.threat.projectedPlayerHasAggro
         else state.hasAggro = record.threat.playerHasAggro end
@@ -77,7 +78,10 @@ local function sync(state, record)
             and state.actors and state.actors.pet then
             state.actors.pet.hasAggro = record.threat.projectedPetHasAggro
         end
-    else state.hasAggro = record and record.hasPlayerAggro end
+    else
+        state.hasAggro = record and record.hasPlayerAggro
+        state.targetPlayerThreatDeltaExact = true
+    end
     state.targetDistance = record and record.distance or nil
     state.targetDistanceKind = record and record.distanceKind or nil
     state.targetLineOfSight = record and record.lineOfSight
@@ -110,6 +114,7 @@ local function commit(state, record)
         -- Live victim evidence is immutable inside lookahead. Actions change a
         -- projected victim view, never the observation that seeded this state.
         record.threat.projectedPlayerHasAggro = state.hasAggro
+        record.threat.playerDeltaExact = state.targetPlayerThreatDeltaExact ~= false
     end
     if record.healthExact and tonumber(record.health) and record.health <= 0 then
         record.dead, record.projectedDefeated = true, true
@@ -285,7 +290,7 @@ function H:Enrich(hostiles)
                 victimGuid = record.victim and record.victim.guid or nil,
                 playerHasAggro = record.hasPlayerAggro,
                 petHasAggro = record.hasPetAggro,
-                playerDelta = 0, petDelta = 0 }
+                playerDelta = 0, playerDeltaExact = true, petDelta = 0 }
         end
     end
 end

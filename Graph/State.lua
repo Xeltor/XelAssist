@@ -99,13 +99,17 @@ local function currentPlayerCast()
 end
 
 local function autoShotState(inventory, hostile, moving, casting, channeling,
-    targetDistance, targetGeometry)
+    targetGuid, targetDistance, targetDistanceKind, targetGeometry)
     if not XelAssist.Combat.AutoShot then return nil end
-    local auto = XelAssist.Combat.AutoShot:Snapshot({
-        hostile = hostile and true or false, moving = moving,
+    local evidence = { hostile = hostile and true or false, moving = moving,
         casting = casting and not channeling and true or false,
         channeling = channeling and true or false, distance = targetDistance,
-        lineOfSight = targetGeometry.lineOfSight })
+        distanceKind = targetDistanceKind,
+        lineOfSight = targetGeometry.lineOfSight }
+    local evidenceSpellId = XelAssist.Combat.AutoShot:EvidenceSpellId()
+    evidence = XelAssist.Combat.AutoShotRange:Evidence(
+        evidence, targetGuid, evidenceSpellId)
+    local auto = XelAssist.Combat.AutoShot:Snapshot(evidence)
     if auto and inventory and inventory.ammo and inventory.ammo.known
         and not auto.ammoKnown then
         auto.ammoKnown, auto.ammoCount = true, inventory.ammo.count
@@ -138,7 +142,8 @@ function S:Snapshot(mode)
     local distance = target.hostile and target.distance or healDistance
     local distanceKind = target.hostile and target.distanceKind or healDistanceKind
     local autoShot = autoShotState(inventory, target.hostile, moving,
-        casting, channeling, target.distance, target.geometry)
+        casting, channeling, target.guid, target.distance,
+        target.distanceKind, target.geometry)
     local playerAttack = XelAssist.Game.PlayerAttack
         and XelAssist.Game.PlayerAttack:Snapshot() or nil
     local state = {
@@ -176,6 +181,7 @@ function S:Snapshot(mode)
         groupSize = (GetNumRaidMembers and GetNumRaidMembers() or 0)
             + (GetNumPartyMembers and GetNumPartyMembers() or 0),
         hasAggro = target.hasAggro,
+        targetPlayerThreatDeltaExact = true,
         tank = role == "tank" or (role == "auto" and inferredTank()), role = role,
         distance = distance, distanceKind = distanceKind,
         targetDistance = target.distance, targetDistanceKind = target.distanceKind,
@@ -191,6 +197,9 @@ function S:Snapshot(mode)
             pet = actors.pet and (actors.pet.castRemaining or 0) or 0 },
     }
     if target.hostiles then self:SyncSelectedHostile(state) end
+    if XelAssist.Graph.AutoShotUncertainty then
+        XelAssist.Graph.AutoShotUncertainty:Apply(state, autoShot)
+    end
     state.distance = state.hostile and state.targetDistance or healDistance
     state.distanceKind = state.hostile and state.targetDistanceKind or healDistanceKind
     return state

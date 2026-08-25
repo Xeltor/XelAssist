@@ -278,8 +278,8 @@ local function applyActorOrInventory(out, candidate, context)
             and XelAssist.Combat.AutoShot:CanonicalSpellId(action.spellId)
             or action.spellId or auto.spellId
         auto.rangedSpeed = tonumber(auto.rangedSpeed) or 2.8
-        auto.projectileSpeed = tonumber(auto.projectileSpeed) or 40
-        auto.nextLaunchIn = 0.5
+        auto.nextLaunchIn, auto.projectable = 0.5, XelAssist.Combat.AutoShotRange
+            :Projectable(auto, auto.targetGuid, auto.spellId)
         auto.blocked = out.moving and true or false
         out.autoShot = auto
     elseif facts.kind == "command" and out.actors and out.actors.pet then

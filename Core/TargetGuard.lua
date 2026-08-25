@@ -147,7 +147,7 @@ function G:ValidateAutoShotTarget(plan, evidenceFactory)
     local ref = plan.targetRef
     local guid, reason = self:ValidateSelectedHostile(plan, "target", ref)
     if not guid then return nil, reason end
-    local evidence = evidenceFactory()
+    local evidence = evidenceFactory(guid, plan.action)
     if not evidence.hostile then return nil, "hostile target required" end
     local finalGuid
     finalGuid, reason = self:ValidateSelectedHostile(plan, "target", ref)
