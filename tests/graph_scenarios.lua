@@ -25,6 +25,8 @@ dofile("Game/Capabilities.lua")
 dofile("Game/WeaponPower.lua")
 dofile("Game/PlayerAttack.lua")
 dofile("Game/Player/Engagement.lua")
+-- Live Warrior evidence is inert until State:Snapshot observes a player.
+dofile("Game/Player/Threat.lua")
 dofile("Game/Player/Resources.lua")
 dofile("Game/Pets/Resources.lua")
 dofile("Game/Pets/Actions.lua")
@@ -35,6 +37,7 @@ dofile("Game/Friendlies.lua")
 dofile("Combat/TargetModifiers.lua")
 dofile("Graph/HostileState.lua")
 dofile("Graph/State.lua")
+dofile("Graph/PlayerThreat.lua")
 dofile("Graph/HostileCastState.lua")
 dofile("Graph/IncomingConsequences.lua")
 dofile("Graph/HostileCastEvents.lua")
@@ -92,6 +95,7 @@ dofile("Graph/Timeline.lua")
 dofile("Graph/ActionPower.lua")
 dofile("Graph/SurvivalPressure.lua")
 dofile("Graph/PeriodicScoring.lua")
+dofile("Graph/Candidate.lua")
 dofile("Graph/Scoring.lua")
 dofile("Graph/Transitions.lua")
 dofile("Graph/SearchPolicy.lua")
@@ -266,6 +270,9 @@ local function action(name, rank, kind, power, cost, extra)
             cooldownGroup = facts.testGroup, categoryCooldown = facts.testCategoryCooldown,
             minRange = facts.testMinRange, maxRange = facts.testMaxRange, school = facts.testSchool,
             duration = facts.testDuration, periodicInterval = facts.testPeriodicInterval,
+            channelInterval = facts.testChannelInterval,
+            channelIntervalSource = facts.testChannelInterval
+                and "client DBC effectAmplitude" or nil,
             durationBase = facts.testDurationBase,
             durationMax = facts.testDurationMax,
             durationComboScaled = facts.testDurationComboScaled,
@@ -1259,6 +1266,14 @@ currentState.actorReadyAt.player = 0
 scenarioActions = { autoStart, autoFiller }
 
 XelAssistTestHunterAfterCastState = currentState
+XelAssistTestPriorGetCastInfo = GetCastInfo
+GetCastInfo = function()
+    if not (currentState and currentState.playerChanneling) then return nil end
+    local remaining = tonumber(currentState.castRemaining) or 0
+    return { spellId = currentState.playerCastSpellId, castType = 3,
+        castStartS = GetTime() - (3 - remaining),
+        castRemainingMs = remaining * 1000, castDurationMs = 3000 }
+end
 do
     currentState = state("smart")
     currentState.role = "damage"
@@ -1270,14 +1285,15 @@ do
     currentState.castRemaining = 2
     currentState.actorReadyAt = { player = 2, pet = 0 }
     local activeChannel = action("Mind Flay", 1, "damage", 600, 45,
-        { channel = true, cast = 3, testDuration = 3, ranged = true })
+        { channel = true, cast = 3, testDuration = 3,
+            testChannelInterval = 1, ranged = true })
     activeChannel.spellId = 15407
     local weakNuke = action("Weak Nuke", 1, "damage", 50, 0,
         { ranged = true })
     scenarioActions, XelAssistCharDB.graphDepth = { activeChannel, weakNuke }, 1
     plan = expect("valuable channel beats routine clip", "Continue Mind Flay")
     assert(plan.power == 400 and plan.action.executor == "instruction",
-        "continuation must price only the remaining fraction of the active channel")
+        "continuation must price only the two remaining channel ticks")
     local afterChannel = XelAssist.Graph.Transitions:Advance(
         currentState, plan.path[1])
     assert(afterChannel.targetHealth == 600
@@ -1318,7 +1334,7 @@ do
     currentState.actorReadyAt = { player = 2, pet = 0 }
     local mend = action("Mend Pet", 1, "petHeal", 600, 40,
         { channel = true, cast = 3, testDuration = 3,
-            pet = true, fixedTarget = "pet" })
+            testChannelInterval = 1, pet = true, fixedTarget = "pet" })
     mend.spellId = 136
     local weakShot = action("Weak recovery shot", 1, "damage", 20, 0,
         { ranged = true })
@@ -1333,6 +1349,8 @@ do
         and not recovered.actors.pet.retreatPassiveIssued,
         "continuing Mend Pet must heal both canonical companion health mirrors")
 end
+GetCastInfo = XelAssistTestPriorGetCastInfo
+XelAssistTestPriorGetCastInfo = nil
 currentState = XelAssistTestHunterAfterCastState
 XelAssistTestHunterAfterCastState = nil
 scenarioActions = { autoStart, autoFiller }

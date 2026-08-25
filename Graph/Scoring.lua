@@ -17,6 +17,7 @@ local Admission = XelAssist.Graph.ActionAdmission
 local SurvivalPressure = XelAssist.Graph.SurvivalPressure
 local IncomingScoring = XelAssist.Graph.IncomingScoring
 local PeriodicScoring = XelAssist.Graph.PeriodicScoring
+local Candidate = XelAssist.Graph.Candidate
 local function legalityAndTiming(action, state, descriptor)
     local allowed, blocker, tooltip, target, actionStart, resolved, targetState =
         Targets:Legal(action, state, descriptor)
@@ -347,75 +348,6 @@ local function applyActionAdjustments(context)
     end
 end
 
-local function candidate(context)
-    local descriptor, facts = context.descriptor, context.facts
-    return {
-        action = context.action, value = context.value, reason = context.reason,
-        effectAction = context.effectAction, effectTooltip = context.effectTooltip,
-        target = context.target, targetKey = descriptor and descriptor.key,
-        targetGUID = descriptor and descriptor.guid,
-        targetRelation = descriptor and descriptor.relation,
-        targetSource = descriptor and descriptor.source,
-        targetRef = descriptor and descriptor.targetRef,
-        castTarget = descriptor and descriptor.castUnit,
-        castTargetGUID = descriptor and descriptor.castGuid,
-        castTargetRelation = descriptor and descriptor.castRelation,
-        castTargetSource = descriptor and descriptor.castSource,
-        castTargetRef = descriptor and descriptor.castTargetRef,
-        targetPriority = descriptor and descriptor.record
-            and descriptor.record.priority,
-        cost = context.cost, costKnown = context.costKnown,
-        cast = context.cast, downtime = context.advanceDowntime,
-        valueDowntime = context.downtime,
-        threat = context.threat, estimated = context.estimated,
-        tooltip = context.tooltip, power = context.expectedPower,
-        powerEvidence = context.powerEvidence,
-        survival = context.survival,
-        comboAvailability = context.comboAvailability,
-        comboTargetGUID = context.comboTargetGUID,
-        comboAllOwners = context.comboAllOwners,
-        effectivePower = context.effectivePower, rawPower = context.power,
-        supportAoeUnknown = facts.aoe and context.friendlySupport and true or false,
-        resistance = context.resistance, effectDelivery = context.effectDelivery,
-        dotRawDirectPower = context.dotRawDirectPower,
-        dotRawPeriodicPower = context.dotRawPeriodicPower,
-        dotPeriodicExpectedPower = context.dotPeriodicExpectedPower,
-        wait = context.wait, occupancy = context.occupancy,
-        gcd = context.gcd, normalGcd = context.normalGcd,
-        actionStart = context.actionStart,
-        clipsChannel = XelAssist.Graph.ChannelCommitment
-            and context.clipsChannel and true or false,
-        preservesChannel = context.preservesChannel and true or false,
-        channelCommitment = (context.clipsChannel or context.preservesChannel)
-            and context.state.channelCommitment or nil,
-        channelOpportunityValue = context.channelOpportunityValue,
-        healthTransfer = context.healthTransfer,
-        recipientEffects = context.recipientEffects,
-        areaRecipientGroups = context.areaRecipientGroups,
-        areaUnknowns = context.areaUnknowns,
-        areaRecipientsUnknown = context.areaRecipientsUnknown,
-        areaDirectResolved = context.areaDirectResolved,
-        areaSelectedIncluded = context.areaSelectedIncluded,
-        totalExpectedPower = context.totalExpectedPower,
-        totalEffectivePower = context.totalEffectivePower,
-        collateralExpectedPower = context.collateralExpectedPower,
-        companionUnknowns = context.companionUnknowns,
-        onNextSwing = context.onNextSwing,
-        impactDelay = context.impactDelay,
-        displacedWhitePower = context.displacedWhitePower,
-        marginalPower = context.marginalPower,
-        marginalEffectivePower = context.marginalEffectivePower,
-        playerSwingUnknowns = context.playerSwingUnknowns,
-        startsPlayerAttack = context.startsPlayerAttack,
-        resourceGain = context.resourceGain, resourceGainSource = context.resourceGainSource,
-        soulShardOpportunity = context.soulShardOpportunity,
-        soulShardStockValue = context.soulShardStockValue,
-        soulShardStockCost = context.soulShardStockCost,
-        soulShardOvercapPenalty = context.soulShardOvercapPenalty,
-        confidence = descriptor and descriptor.projectionOpen and "partial data" or nil,
-        spatialConditions = descriptor and descriptor.spatialConditions, spatialConditionFingerprint = descriptor and descriptor.spatialConditionFingerprint, spatialConditionalOnly = descriptor and descriptor.spatialConditionalOnly,
-    }
-end
 function Scoring:Evaluate(action, state, descriptor)
     local context, blocker = legalityAndTiming(action, state, descriptor)
     if not context then return nil, blocker end
@@ -442,7 +374,7 @@ function Scoring:Evaluate(action, state, descriptor)
     if context.ambientDefeatsTarget then
         context.value, context.reason = -100000,
             "ambient attack resolves first"
-        return candidate(context)
+        return Candidate:Build(context)
     end
     scoreKindUtility(context)
     if XelAssist.Graph.SoulShardReserve then
@@ -455,5 +387,5 @@ function Scoring:Evaluate(action, state, descriptor)
     if XelAssist.Graph.ChannelCommitment then
         XelAssist.Graph.ChannelCommitment:Adjust(context)
     end
-    return candidate(context)
+    return Candidate:Build(context)
 end

@@ -216,6 +216,7 @@ XelAssist.Graph.ActionPower = {
     Estimate = function() return 100, false, "test power" end,
 }
 dofile("Graph/PeriodicScoring.lua")
+dofile("Graph/Candidate.lua")
 dofile("Graph/Scoring.lua")
 
 local execute = { name = "Shadowburn", actor = "player",

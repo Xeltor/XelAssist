@@ -58,6 +58,7 @@ XelAssist.Combat.Resistance = {
 }
 
 dofile("Graph/AreaRecipients.lua")
+dofile("Graph/PlayerThreat.lua")
 dofile("Graph/HostileEffects.lua")
 
 local topology = { available = true, area = true, effects = {
@@ -159,6 +160,25 @@ assert(applied and primaryRecord.health == 0 and dealt == 10
     and primaryRecord.projectedThreat.player == 10
     and primaryRecord.threat.playerDelta == 10,
     "earlier ambient damage must cap selected direct threat to damage still dealt")
+
+local stanceRecord = { key = a, guid = a, selected = true,
+    health = 100, healthExact = true, threat = { playerDeltaExact = true } }
+local stanceState = { targetHealth = 100, targetHealthExact = true,
+    actors = {}, playerThreat = { actor = "player", playerOnly = true,
+        exact = true, multiplier = 0.8, minimum = 0.8, maximum = 0.8 },
+    hostiles = { order = { a }, byKey = { [a] = stanceRecord },
+        selectedKey = a } }
+local stanceCandidate = { action = action, targetKey = a, targetGUID = a,
+    targetRelation = "hostile", power = 50, threat = 40,
+    playerThreatExact = true, playerThreatMultiplier = 0.8 }
+local stanceContext = { action = action, facts = action.facts,
+    appliedHostileDamage = 50 }
+XelAssist.Graph.HostileEffects:ApplyPrimaryThreat(
+    stanceState, stanceCandidate, stanceContext)
+assert(stanceRecord.projectedThreat.player == 40
+    and stanceRecord.threat.playerDelta == 40
+    and stanceRecord.threat.playerDeltaExact,
+    "transition damage must use the same exact player threat component as scoring")
 
 records[b].health, records[b].dead, records[b].projectedDefeated = 60, false, false
 records[b].projectedThreat, records[b].threat = nil, nil

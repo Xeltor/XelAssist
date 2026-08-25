@@ -5,6 +5,7 @@ local A = XelAssist.Graph.AutoShotEffects
 local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
 local Uncertainty = XelAssist.Graph.AutoShotUncertainty
+local PlayerThreat = XelAssist.Graph.PlayerThreat
 
 local MAX_HOSTILES = 5
 
@@ -168,14 +169,9 @@ local function syncAmmo(out)
     end
 end
 
-local function addImpactThreat(record, amount)
+local function addImpactThreat(record, state, amount)
     if not record or amount <= 0 then return end
-    record.projectedThreat = record.projectedThreat or {}
-    record.projectedThreat.player =
-        (tonumber(record.projectedThreat.player) or 0) + amount
-    record.threat = record.threat or {}
-    record.threat.playerDelta =
-        (tonumber(record.threat.playerDelta) or 0) + amount
+    PlayerThreat:Add(record, state, "player", amount)
 end
 
 local function applyLaunch(out, launchState, observed, shot)
@@ -219,7 +215,7 @@ local function applyImpact(out, shot)
         local priorHealth = tonumber(record.health)
         record.health = math.max(0, priorHealth
             - math.max(0, tonumber(shot.power) or 0))
-        addImpactThreat(record, priorHealth - record.health)
+        addImpactThreat(record, out, priorHealth - record.health)
         out.autoShot.impacts = (out.autoShot.impacts or 0) + 1
         table.insert(out.autoShot.impactOffsets, shot.impactOffset)
         if record.health <= 0 then

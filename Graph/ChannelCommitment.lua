@@ -4,6 +4,10 @@
 XelAssist.Graph.ChannelCommitment = {}
 local C = XelAssist.Graph.ChannelCommitment
 local HealthTransfer = XelAssist.Graph.HealthTransfer
+local SpellTiming = XelAssist.Game.SpellTiming
+
+local EXACT_CADENCE_SOURCE = "client DBC effectAmplitude"
+local MAX_CHANNEL_TICKS = 40
 
 local ACTION = { name = "Continue channel", rank = 0, actor = "player",
     executor = "instruction", facts = { kind = "channelContinuation",
@@ -38,6 +42,78 @@ local function duration(action, tooltip, remaining)
     return math.max(remaining, tonumber(tooltip and tooltip.duration) or 0,
         tonumber(facts.cast) or tonumber(tooltip and tooltip.cast) or 0,
         facts.channel and 3 or 0)
+end
+
+local function tickWindow(remaining, interval, nextTick)
+    remaining, interval, nextTick = tonumber(remaining), tonumber(interval),
+        tonumber(nextTick)
+    if not (remaining and remaining >= 0 and interval and interval > 0
+        and nextTick and nextTick >= 0) then
+        return nil
+    end
+    local ticks, at = 0, nextTick
+    while at <= remaining + 0.0001 and ticks < MAX_CHANNEL_TICKS do
+        ticks, at = ticks + 1, at + interval
+    end
+    if at <= remaining + 0.0001 then return nil end
+    return { remainingTicks = ticks,
+        nextTickIn = ticks > 0 and nextTick or nil, interval = interval }
+end
+
+local function observedChannel(action, remaining)
+    if type(GetCastInfo) ~= "function" or type(GetTime) ~= "function" then
+        return nil
+    end
+    local ok, info = pcall(GetCastInfo)
+    if not (ok and type(info) == "table"
+        and tonumber(info.castType) == 3
+        and tonumber(info.spellId) == tonumber(action and action.spellId)) then
+        return nil
+    end
+    local started, observedRemaining = tonumber(info.castStartS),
+        tonumber(info.castRemainingMs)
+    if not (started and observedRemaining and observedRemaining >= 0) then
+        return nil
+    end
+    observedRemaining = observedRemaining / 1000
+    if math.abs(observedRemaining - remaining) > 0.08 then return nil end
+    local elapsed = GetTime() - started
+    if elapsed < -0.0001 or elapsed > 60 then return nil end
+    return math.max(0, elapsed)
+end
+
+local function exactCadence(action, tooltip, remaining)
+    if not (tooltip and tooltip.channelIntervalSource
+        == EXACT_CADENCE_SOURCE and tonumber(tooltip.duration)
+        and SpellTiming and SpellTiming.TickCount and SpellTiming.Next) then
+        return nil
+    end
+    local interval, total = tonumber(tooltip.channelInterval),
+        tonumber(tooltip.duration)
+    local totalTicks = SpellTiming:TickCount(total, interval)
+    if not totalTicks or totalTicks > MAX_CHANNEL_TICKS then return nil end
+    local elapsed = observedChannel(action, remaining)
+    if elapsed == nil then return nil end
+    local nextTick = SpellTiming:Next(interval, elapsed)
+    local cadence = tickWindow(remaining, interval, nextTick)
+    if not cadence then return nil end
+    cadence.total, cadence.totalTicks, cadence.source = total, totalTicks,
+        tooltip.channelIntervalSource
+    cadence.rootRemaining, cadence.rootNextTickIn = remaining,
+        cadence.nextTickIn
+    return cadence
+end
+
+local function remainingCadence(cadence, remaining)
+    if not (cadence and tonumber(cadence.rootRemaining)
+        and tonumber(cadence.rootNextTickIn)) then return nil end
+    local progressed = cadence.rootRemaining - (tonumber(remaining) or -1)
+    if progressed < -0.0001 then return nil end
+    local nextTick = cadence.rootNextTickIn - math.max(0, progressed)
+    while nextTick <= 0.0001 do nextTick = nextTick + cadence.interval end
+    local timing = tickWindow(remaining, cadence.interval, nextTick)
+    if timing then timing.totalTicks = cadence.totalTicks end
+    return timing
 end
 
 local function continuationValue(state, kind, power, remaining, known, missing)
@@ -108,8 +184,15 @@ function C:Prepare(state, actions)
         raw, estimated = XelAssist.Graph.ActionPower:Estimate(
             match, tooltip, state, state.playerCastTargetGUID or state.targetGUID)
     end
-    local power = math.max(0, tonumber(raw) or 0)
-        * math.min(1, remaining / math.max(remaining, total))
+    local cadence = match and exactCadence(match, tooltip, remaining) or nil
+    local power = 0
+    if cadence then
+        cadence.tickPower = math.max(0, tonumber(raw) or 0)
+            / cadence.totalTicks
+        power = cadence.tickPower * cadence.remainingTicks
+    elseif match and not (match.facts and match.facts.healthFundedChannel) then
+        known, estimated = false, true
+    end
     local kind = match and match.facts.kind or "unknown"
     local selfChannel = match and match.facts.self and true or false
     local targetMatches = state.playerCastTargetGUID ~= nil
@@ -148,6 +231,7 @@ function C:Prepare(state, actions)
             or match and match.facts.fixedTarget,
         remaining = remaining, total = total, power = power,
         kind = kind, known = known, estimated = estimated,
+        cadence = cadence,
         value = value, healthTransferData = healthTransferData,
         healthTransferPlan = healthTransferPlan,
     }
@@ -181,9 +265,19 @@ function C:CurrentValue(state)
             commitment.healthTransferData, current, commitment.total)
         return plan and HealthTransfer:Value(state, plan) or 0
     end
-    local root = math.max(0.001, tonumber(commitment.remaining) or current)
-    return math.max(0, tonumber(commitment.value) or 0)
-        * math.min(1, current / root)
+    local cadence = commitment.known and commitment.cadence or nil
+    local timing = cadence and remainingCadence(cadence, current) or nil
+    if not timing then return current > 0 and 500 or 0 end
+    local power = math.max(0, tonumber(cadence.tickPower) or 0)
+        * timing.remainingTicks
+    local friendly = commitment.friendlyKey
+        and XelAssist.Graph.State:FriendlyByKey(
+            state, commitment.friendlyKey) or nil
+    local missing = friendly and math.max(0,
+        (tonumber(friendly.healthMax) or 0)
+            - (tonumber(friendly.health) or 0)) or nil
+    return continuationValue(state, commitment.kind, power,
+        current, true, missing)
 end
 
 function C:Adjust(context)
@@ -212,8 +306,10 @@ function C:Candidate(state)
         and HealthTransfer:ContinuationPlan(state,
             commitment.healthTransferData, current, commitment.total) or nil
     if commitment.healthTransferData and not transferPlan then return nil end
-    local fraction = math.min(1, current
-        / math.max(0.001, tonumber(commitment.remaining) or current))
+    local cadence = commitment.known and commitment.cadence or nil
+    local timing = cadence and remainingCadence(cadence, current) or nil
+    local projectedPower = timing and math.max(0,
+        tonumber(cadence.tickPower) or 0) * timing.remainingTicks or 0
     local action = {}
     local key, value
     for key, value in pairs(ACTION) do action[key] = value end
@@ -244,12 +340,16 @@ function C:Candidate(state)
         tooltip = { cost = 0, cast = 0, gcd = 0,
             source = "active channel" },
         power = transferPlan and transferPlan.rawHealing
-            or (commitment.power or 0) * fraction,
+            or projectedPower,
         rawPower = transferPlan and transferPlan.rawHealing
-            or (commitment.power or 0) * fraction,
+            or projectedPower,
         effectivePower = transferPlan and transferPlan.effectiveHealing
-            or (commitment.power or 0) * fraction, effectDelivery = 1,
+            or commitment.targetMatches and state.targetHealthExact
+                and math.min(projectedPower,
+                    math.max(0, tonumber(state.targetHealth) or 0))
+            or projectedPower, effectDelivery = 1,
         estimated = commitment.estimated, channelCommitment = commitment,
+        channelCadence = timing,
         healthTransfer = transferPlan }
 end
 

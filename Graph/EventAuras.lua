@@ -5,6 +5,7 @@ XelAssist.Graph.EventAuras = {}
 local A = XelAssist.Graph.EventAuras
 local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
+local PlayerThreat = XelAssist.Graph.PlayerThreat
 
 local MAX_HOSTILES = 5
 local LOCAL = {}
@@ -166,17 +167,12 @@ local function refreshRecord(state, key, record, changed)
     end
 end
 
-function A:ApplyPeriodicThreat(record, aura, dealt)
+function A:ApplyPeriodicThreat(record, aura, dealt, state)
     local actor = aura and aura.periodicThreatActor
     local multiplier = aura and tonumber(aura.periodicThreatMultiplier)
     if not (record and actor and multiplier and dealt > 0) then return end
     local amount = dealt * multiplier
-    record.projectedThreat = record.projectedThreat or {}
-    record.projectedThreat[actor] =
-        (tonumber(record.projectedThreat[actor]) or 0) + amount
-    record.threat = record.threat or {}
-    local field = actor == "pet" and "petDelta" or "playerDelta"
-    record.threat[field] = (tonumber(record.threat[field]) or 0) + amount
+    PlayerThreat:Add(record, state, actor, amount)
 end
 
 function A:Damage(aura, state, span)
@@ -307,7 +303,7 @@ local function applyDamage(self, aura, view, span, record, health, exact)
         or not health or health <= 0 then return health end
     local beforeHealth = health
     health = math.max(0, health - self:Damage(aura, view, span))
-    self:ApplyPeriodicThreat(record, aura, beforeHealth - health)
+    self:ApplyPeriodicThreat(record, aura, beforeHealth - health, view)
     return health
 end
 

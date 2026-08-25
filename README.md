@@ -1,4 +1,4 @@
-# XelAssist 0.8.32
+# XelAssist 0.8.33
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action

@@ -111,6 +111,12 @@ function C:ConditionalExpected(state, targetGUID, allOwners)
     return expected / available
 end
 
+function C:AvailabilityForAction(state, facts, tooltip, descriptor)
+    local targetGUID, allOwners =
+        self:ActionOwner(state, facts, tooltip, descriptor)
+    return self:Availability(state, targetGUID, allOwners)
+end
+
 -- A self-recipient finisher still uses points owned by a hostile unit. Keep
 -- that resource owner separate from the effect recipient. When a projected
 -- branch has multiple possible owners, a self finisher consumes whichever

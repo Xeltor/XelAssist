@@ -77,7 +77,9 @@ local function scoreDamageThreat(state, power, value, reason)
         value = value, reason = reason, estimated = false }
     local scoring = XelAssist.Graph.ThreatScoring
     if scoring then scoring:Apply(context) end
-    return context.value, context.threat or power, context.reason
+    return context.value, context.threat or power, context.reason,
+        context.estimated, context.playerThreatExact,
+        context.playerThreatMultiplier
 end
 
 function W:Candidate(state)
@@ -93,7 +95,8 @@ function W:Candidate(state)
     if state.targetHealthExact then
         power = math.min(power, math.max(0, tonumber(state.targetHealth) or 0))
     end
-    local value, threat, reason = scoreDamageThreat(state, power,
+    local value, threat, reason, estimated, threatExact, threatMultiplier =
+        scoreDamageThreat(state, power,
         power * 4 / speed + (finishes and 700 or 0),
         finishes and "finishes the target with the next wand shot"
             or "continues sustained wand attacks without spending mana")
@@ -108,7 +111,10 @@ function W:Candidate(state)
             source = "active wand repeat" },
         power = power, rawPower = tonumber(wand.damage) or 0,
         effectivePower = power, expectedPower = power,
-        effectDelivery = delivery, threat = threat, wandCommitment = wand }
+        effectDelivery = delivery, threat = threat,
+        estimated = estimated, playerThreatExact = threatExact,
+        playerThreatMultiplier = threatMultiplier,
+        wandCommitment = wand }
 end
 
 function W:Apply(out, candidate)

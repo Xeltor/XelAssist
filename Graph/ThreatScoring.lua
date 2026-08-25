@@ -3,6 +3,7 @@
 -- explicit graph evidence instead of incidental scoring branches.
 XelAssist.Graph.ThreatScoring = {}
 local T = XelAssist.Graph.ThreatScoring
+local PlayerThreat = XelAssist.Graph.PlayerThreat
 
 local function playerThreatRisk(state)
     return state.hasAggro or state.targetPlayerThreatDeltaExact == false
@@ -72,6 +73,7 @@ function T:Apply(context)
     end
     local actor = facts.damageActor or facts.effectActor
         or facts.healingThreatActor or context.action.actor
+    local playerThreatExact, playerThreatMultiplier = true, 1
     if actor == "pet" then
         threat = threat * (facts.deferredFlatThreat and 1 or 0.9)
             * petThreatFactor(state)
@@ -83,11 +85,22 @@ function T:Apply(context)
         elseif groupSize > 0 then
             context.value = context.value - valueThreat * 0.25
         end
-    elseif state.tank and valueThreat > valueThreatPower then
+    else
+        if PlayerThreat then
+            threat, playerThreatExact, playerThreatMultiplier =
+                PlayerThreat:Scale(state, actor, threat)
+            valueThreat = valueThreat * playerThreatMultiplier
+        end
+        context.playerThreatExact = playerThreatExact
+        context.playerThreatMultiplier = playerThreatMultiplier
+        if playerThreatExact == false then context.estimated = true end
+    end
+    if actor ~= "pet" and state.tank and valueThreat > valueThreatPower then
         context.value = context.value
             + (valueThreat - valueThreatPower) * 0.5
         context.reason = "builds threat"
-    elseif (groupSize > 0 or state.pet) and not state.tank then
+    elseif actor ~= "pet" and (groupSize > 0 or state.pet)
+        and not state.tank then
         -- Unknown future Auto Shot threat reserves additional threat without
         -- pretending the live victim observation already says player aggro.
         local risk = playerThreatRisk(state)

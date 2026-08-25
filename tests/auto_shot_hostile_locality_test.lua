@@ -84,6 +84,7 @@ local function stateWith(shots)
 end
 
 dofile("Graph/AutoShotUncertainty.lua")
+dofile("Graph/PlayerThreat.lua")
 dofile("Graph/AutoShotEffects.lua")
 local A = XelAssist.Graph.AutoShotEffects
 
@@ -145,6 +146,19 @@ assert(selectedOut.hostiles.byKey[keyB].health == 150
     and selectedOut.targetHealth == 150 and syncs == 1
     and selectedOut.hostiles.byKey[keyB].projectedThreat.player == 50,
     "only an impact that changes the selected record may sync its mirror")
+
+local stanceSource = stateWith({
+    { targetGuid = guidB, power = 50, delivery = 1,
+        rawPower = 50, spellId = 75, remaining = 0.1 },
+})
+stanceSource.playerThreat = { actor = "player", playerOnly = true,
+    exact = true, multiplier = 0.8, minimum = 0.8, maximum = 0.8 }
+local stanceOut = XelAssist.Graph.State:Copy(stanceSource)
+local stanceTimeline = A:CreateTimeline(stanceOut, stanceSource, candidate)
+A:ApplyTimelineEvent(stanceOut, stanceTimeline, stanceTimeline.events[1])
+assert(stanceOut.hostiles.byKey[keyB].projectedThreat.player == 40
+    and stanceOut.hostiles.byKey[keyB].threat.playerDelta == 40,
+    "Auto Shot impacts must use the player threat component at transition time")
 
 local lethalSource = stateWith({
     { targetGuid = guidA, power = 150, delivery = 1,

@@ -53,6 +53,8 @@ local eventDomains = {
 
 local registered = {
     "PLAYER_TARGET_CHANGED",
+    "UPDATE_SHAPESHIFT_FORM",
+    "UPDATE_SHAPESHIFT_FORMS",
     "UNIT_HEALTH",
     "UNIT_MANA",
     "UNIT_RAGE",
@@ -96,6 +98,11 @@ function E:Observe(name, first)
     end
     if name == "SPELLS_CHANGED" or name == "CHARACTER_POINTS_CHANGED" then
         R:Hard("player action catalog changed")
+        return true
+    end
+    if name == "UPDATE_SHAPESHIFT_FORM"
+        or name == "UPDATE_SHAPESHIFT_FORMS" then
+        R:Hard("player combat form changed")
         return true
     end
     if name == "UNIT_PET" and (first == nil or first == "player") then

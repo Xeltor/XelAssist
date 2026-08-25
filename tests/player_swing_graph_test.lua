@@ -47,6 +47,7 @@ XelAssist.Graph.AutoShotUncertainty = {
 
 dofile("Graph/CompanionTargets.lua")
 dofile("Graph/PlayerRage.lua")
+dofile("Graph/PlayerThreat.lua")
 dofile("Graph/PlayerSwings.lua")
 dofile("Graph/PlayerSwingScoring.lua")
 dofile("Game/SpellClassification.lua")
@@ -219,6 +220,7 @@ XelAssist.Graph.ThreatScoring = { Apply = function() end }
 XelAssist.Game.Capabilities.BonusDamage = function() return 0 end
 dofile("Graph/ActionPower.lua")
 dofile("Graph/PeriodicScoring.lua")
+dofile("Graph/Candidate.lua")
 dofile("Graph/Scoring.lua")
 dofile("Graph/PlayerAttackCommitment.lua")
 

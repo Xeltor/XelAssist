@@ -155,6 +155,7 @@ dofile("Graph/CompanionScheduler.lua")
 dofile("Graph/CompanionCastRuntime.lua")
 dofile("Graph/CompanionSwings.lua")
 dofile("Graph/CompanionEvents.lua")
+dofile("Graph/PlayerThreat.lua")
 dofile("Graph/EventAuras.lua")
 local C = XelAssist.Graph.CompanionEvents
 local EventAuras = XelAssist.Graph.EventAuras

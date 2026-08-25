@@ -3,7 +3,6 @@
 -- stringified, parsed, persisted, or exposed as unit labels.
 XelAssist.Graph.State = {}
 local S = XelAssist.Graph.State
-
 function S:FriendlyByKey(state, key)
     if key == nil or not state or not state.friendlies
         or not state.friendlies.byKey then return nil end
@@ -314,6 +313,8 @@ end
 function S:Snapshot(mode)
     local context = snapshotContext()
     local state = newState(mode, context)
+    local threat = XelAssist.Game.Player and XelAssist.Game.Player.Threat
+    if threat then state.playerThreat = threat:Snapshot() end
     if XelAssist.Graph.ComboState then
         XelAssist.Graph.ComboState:Attach(state, state.combo,
             state.comboTargetGUID, context.comboObservation)
@@ -329,7 +330,6 @@ function S:Snapshot(mode)
         or context.healDistanceKind
     return state
 end
-
 local function identityField(field)
     if type(field) ~= "string" then return false end
     local lower = string.lower(field)

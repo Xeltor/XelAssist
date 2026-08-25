@@ -15,7 +15,8 @@ local names = {}
 local frame = { RegisterEvent = function(_, name) names[name] = true end }
 assert(Events:Register(frame) and names.PLAYER_TARGET_CHANGED
     and names.UNIT_HEALTH and names.UNIT_AURA
-    and names.SPELL_UPDATE_COOLDOWN and names.UNIT_TARGET,
+    and names.SPELL_UPDATE_COOLDOWN and names.UNIT_TARGET
+    and names.UPDATE_SHAPESHIFT_FORM and names.UPDATE_SHAPESHIFT_FORMS,
     "the runtime must subscribe to graph-relevant stock evidence")
 
 local initial = Revision:Snapshot()
@@ -50,5 +51,10 @@ assert(Revision:HardChanged(beforeEquipment)
     and table.concat(Revision:ChangedDomains(beforeEquipment), ",")
         == "inventory",
     "equipment changes must invalidate action power and inventory evidence")
+
+local beforeForm = Revision:Snapshot()
+Events:Observe("UPDATE_SHAPESHIFT_FORM")
+assert(Revision:HardChanged(beforeForm),
+    "stance or form changes must invalidate player threat evidence")
 
 print("combat revision event tests passed")

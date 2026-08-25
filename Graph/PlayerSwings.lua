@@ -7,6 +7,7 @@ local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
 local Targets = XelAssist.Graph.CompanionTargets
 local PlayerRage = XelAssist.Graph.PlayerRage
+local PlayerThreat = XelAssist.Graph.PlayerThreat
 
 local MAX_EVENTS = 8
 local READY_DELAY = 0.05
@@ -252,14 +253,9 @@ local function refreshRecord(out, record)
     end
 end
 
-local function applyThreat(record, amount)
+local function applyThreat(record, state, amount)
     if not record or amount <= 0 then return end
-    record.projectedThreat = record.projectedThreat or {}
-    record.projectedThreat.player =
-        (tonumber(record.projectedThreat.player) or 0) + amount
-    record.threat = record.threat or {}
-    record.threat.playerDelta =
-        (tonumber(record.threat.playerDelta) or 0) + amount
+    PlayerThreat:Add(record, state, "player", amount)
 end
 
 local function applyKnown(target, record, action, tooltip, rawPower,
@@ -288,7 +284,8 @@ local function applyKnown(target, record, action, tooltip, rawPower,
         dealt = before - target.targetHealth
         if target.targetHealth <= 0 then target.hostile = false end
     else return nil end
-    applyThreat(record, dealt * (tonumber(threatMultiplier) or 1))
+    applyThreat(record, target,
+        dealt * (tonumber(threatMultiplier) or 1))
     return dealt
 end
 

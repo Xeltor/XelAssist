@@ -429,6 +429,7 @@ XelAssist.Graph.HostileEffects = {
     FinalizeSelected = function() end,
 }
 dofile("Graph/Effects.lua")
+dofile("Graph/PlayerThreat.lua")
 dofile("Graph/EventAuras.lua")
 dofile("Graph/ReadinessEffects.lua")
 dofile("Graph/ActionConsumption.lua")

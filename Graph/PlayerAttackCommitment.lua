@@ -7,6 +7,7 @@ local C = XelAssist.Graph.PlayerAttackCommitment
 local Targets = XelAssist.Graph.CompanionTargets
 local Swings = XelAssist.Graph.PlayerSwings
 local Rage = XelAssist.Graph.PlayerRage
+local PlayerThreat = XelAssist.Graph.PlayerThreat
 
 local ACTION = { name = "Continue Attack", rank = 0, actor = "player",
     executor = "instruction", texture = "Interface\\Icons\\Ability_MeleeDamage",
@@ -134,6 +135,11 @@ function C:Candidate(state)
         reason = "continues melee attacks toward " .. tostring(threshold) .. " rage"
     end
     local ref = record and record.targetRef or state.targetRef
+    local threat, threatExact, threatMultiplier = power, true, 1
+    if PlayerThreat then
+        threat, threatExact, threatMultiplier =
+            PlayerThreat:Scale(state, "player", power)
+    end
     return { action = ACTION, value = 0.01, reason = reason,
         target = "target", targetKey = key, targetGUID = round.targetGuid,
         targetRelation = "hostile", targetSource = "active melee attack",
@@ -147,8 +153,10 @@ function C:Candidate(state)
                 or "exact player main-hand clock" },
         power = power, rawPower = tonumber(round.power) * count,
         effectivePower = power, expectedPower = power,
-        effectDelivery = delivery, threat = power,
-        estimated = Rage and Rage:Is(state) and true or false,
+        effectDelivery = delivery, threat = threat,
+        playerThreatExact = threatExact,
+        playerThreatMultiplier = threatMultiplier,
+        estimated = Rage and Rage:Is(state) or threatExact == false,
         projectedRage = ragePerHit * count,
         playerAttackCommitment = true }
 end

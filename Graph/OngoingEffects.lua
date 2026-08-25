@@ -304,7 +304,7 @@ local function applyPeriodic(out, source, candidate, context, entry)
         record.health = math.max(0, beforeHealth - damage)
         if EventAuras and EventAuras.ApplyPeriodicThreat then
             EventAuras:ApplyPeriodicThreat(
-                record, entry.aura, beforeHealth - record.health)
+                record, entry.aura, beforeHealth - record.health, out)
         end
         if record.health <= 0 then
             record.dead, record.projectedDefeated = true, true

@@ -6,6 +6,7 @@ local H = XelAssist.Graph.HostileEffects
 local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
 local Recipients = XelAssist.Graph.AreaRecipients
+local PlayerThreat = XelAssist.Graph.PlayerThreat
 
 local function activeTarget(state)
     if State.ActiveHostile then return State:ActiveHostile(state) end
@@ -92,12 +93,17 @@ local function recipientEffect(context, key, record, primary, collateral)
     local factor = context.facts.threat or 1
     local actor = context.facts.damageActor or context.facts.effectActor
         or context.action.actor or "player"
-    local threatMultiplier = factor
+    local threatMultiplier, playerThreatExact = factor, true
     if actor == "pet" then
         local pet = context.state.actors and context.state.actors.pet
         local multiplier = XelAssist.Game.Pets and XelAssist.Game.Pets.Effects
             and XelAssist.Game.Pets.Effects:ThreatMultiplier(pet) or 1
         threatMultiplier = threatMultiplier * 0.9 * multiplier
+    else
+        local _, exact, multiplier = PlayerThreat:Scale(
+            context.state, actor, 1)
+        threatMultiplier = threatMultiplier * multiplier
+        playerThreatExact = exact
     end
     local threat = effective * threatMultiplier
     return { key = key, guid = record.guid, unit = record.unit,
@@ -107,6 +113,7 @@ local function recipientEffect(context, key, record, primary, collateral)
         expectedPower = expected, effectivePower = effective,
         resistance = resistance, delivery = delivery, threat = threat,
         threatMultiplier = threatMultiplier,
+        playerThreatExact = playerThreatExact,
         healthAtImpact = health, healthExact = exact,
         defeated = exact and tonumber(health) and health > 0
             and expected >= health or false }
@@ -145,8 +152,8 @@ local function secondaryThreatValue(context, effect, record)
         if state.groupSize and state.groupSize > 0 then return -threat * 0.25 end
         return 0
     end
-    if state.tank and (context.facts.threat or 1) > 1 then
-        return threat * 0.5
+    if state.tank and threat > (effect.effectivePower or 0) then
+        return (threat - (effect.effectivePower or 0)) * 0.5
     end
     if (state.groupSize or 0) > 0 or state.pet then
         if not state.tank then
@@ -305,17 +312,11 @@ function H:Apply(out, candidate)
                 else
                     record.projectedThreatTimingUnknown = true
                 end
-                record.projectedThreat = record.projectedThreat or {}
                 local actor = candidate.action.facts.damageActor
                     or candidate.action.facts.effectActor
                     or candidate.action.actor or "player"
-                record.projectedThreat[actor] =
-                    (record.projectedThreat[actor] or 0)
-                    + projectedThreat
-                record.threat = record.threat or {}
-                local field = actor == "pet" and "petDelta" or "playerDelta"
-                record.threat[field] = (tonumber(record.threat[field]) or 0)
-                    + projectedThreat
+                PlayerThreat:AddScaled(record, actor, projectedThreat,
+                    effect.playerThreatExact)
                 if effect.collateral then record.projectedCollateralHit = true end
             end
         end
@@ -353,11 +354,12 @@ function H:ApplyPrimaryThreat(out, candidate, context)
             and not baseFlatThreat) then
         return
     end
+    local actor = context.facts.damageActor or context.facts.effectActor
+        or context.action.actor or "player"
     local amount = math.max(0, tonumber(candidate.threat) or 0)
+    local playerThreatExact = candidate.playerThreatExact ~= false
     if (kind == "damage" or kind == "dot" or kind == "builder")
         and context.appliedHostileDamage ~= nil then
-        local actor = context.facts.damageActor or context.facts.effectActor
-            or context.action.actor or "player"
         amount = math.max(0, context.appliedHostileDamage)
             * (context.facts.threat or 1)
         if actor == "pet" then
@@ -365,23 +367,19 @@ function H:ApplyPrimaryThreat(out, candidate, context)
             amount = amount * 0.9 * (XelAssist.Game.Pets
                 and XelAssist.Game.Pets.Effects
                 and XelAssist.Game.Pets.Effects:ThreatMultiplier(pet) or 1)
+        else
+            amount, playerThreatExact = PlayerThreat:Scale(
+                out, actor, amount)
         end
     end
     if amount <= 0 then return end
     local record = activeTarget(out)
     if not record or candidate.targetGUID ~= nil
         and record.guid ~= candidate.targetGUID then return end
-    local actor = context.facts.damageActor or context.facts.effectActor
-        or context.action.actor or "player"
-    record.projectedThreat = record.projectedThreat or {}
-    record.projectedThreat[actor] =
-        (tonumber(record.projectedThreat[actor]) or 0) + amount
+    PlayerThreat:AddScaled(record, actor, amount, playerThreatExact)
     if kind == "dot" and context.appliedHostileDamage == nil then
         record.projectedThreatTimingUnknown = true
     end
-    record.threat = record.threat or {}
-    local field = actor == "pet" and "petDelta" or "playerDelta"
-    record.threat[field] = (tonumber(record.threat[field]) or 0) + amount
     if baseFlatThreat then
         record.threat.playerDeltaExact = false
         record.threat.containsEstimatedBaseThreat = true

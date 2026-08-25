@@ -5,12 +5,27 @@ local T = XelAssist.Game.SpellTiming
 
 local APPLY_AURA = 6
 local PERIODIC_DAMAGE = 3
+local MAX_EXACT_TICKS = 80
 
 local function array(spellId, field)
     if not (spellId and GetSpellRecField) then return nil end
     local ok, value = pcall(GetSpellRecField, spellId, field, 1)
     if ok and type(value) == "table" then return value end
     return nil
+end
+
+local function exactCoverage(duration, interval)
+    duration, interval = tonumber(duration), tonumber(interval)
+    if not (duration and duration > 0 and interval and interval > 0) then
+        return nil
+    end
+    local covered, ticks = 0, 0
+    while covered + interval <= duration + 0.0001
+        and ticks < MAX_EXACT_TICKS do
+        covered, ticks = covered + interval, ticks + 1
+    end
+    if ticks <= 0 or math.abs(covered - duration) > 0.0001 then return nil end
+    return ticks
 end
 
 function T:DamageInterval(action)
@@ -35,18 +50,46 @@ function T:DamageInterval(action)
     return interval
 end
 
+-- Channeled spells can deliver damage, healing, leech, triggered missiles or
+-- other periodic effects.  Their shared effectAmplitude is authoritative for
+-- cadence even when the individual aura type differs.  Conflicting positive
+-- amplitudes fail closed rather than inventing one clock.
+function T:ChannelInterval(action)
+    if not (action and action.spellId and action.facts
+        and action.facts.channel == true) then return nil end
+    local amplitudes = array(action.spellId, "effectAmplitude")
+    if not amplitudes then return nil end
+    local interval, i
+    for i = 1, table.getn(amplitudes) do
+        local amplitude = tonumber(amplitudes[i])
+        if amplitude and amplitude > 0 then
+            local seconds = amplitude / 1000
+            if interval and math.abs(interval - seconds) > 0.0001 then
+                return nil
+            end
+            interval = seconds
+        end
+    end
+    return interval
+end
+
+function T:TickCount(duration, interval)
+    return exactCoverage(duration, interval)
+end
+
 function T:Apply(action, facts)
     if not facts then return end
     local interval = self:DamageInterval(action)
     local duration = tonumber(facts.duration)
-    if not (interval and duration and duration > 0) then return end
-    local covered = 0
-    while covered + interval <= duration + 0.0001 do
-        covered = covered + interval
+    if interval and exactCoverage(duration, interval) then
+        facts.periodicInterval = interval
+        facts.periodicIntervalSource = "client DBC effectAmplitude"
     end
-    if math.abs(covered - duration) > 0.0001 then return end
-    facts.periodicInterval = interval
-    facts.periodicIntervalSource = "client DBC effectAmplitude"
+    local channelInterval = self:ChannelInterval(action)
+    if channelInterval and exactCoverage(duration, channelInterval) then
+        facts.channelInterval = channelInterval
+        facts.channelIntervalSource = "client DBC effectAmplitude"
+    end
 end
 
 function T:Next(interval, elapsed)
