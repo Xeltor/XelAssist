@@ -319,6 +319,7 @@ function S:Snapshot(mode)
             state.comboTargetGUID, context.comboObservation)
     end
     attachPlayerResource(state, context.actors)
+    if XelAssist.Graph.HostileCastState then XelAssist.Graph.HostileCastState:Attach(state, GetTime and GetTime() or 0) end
     if context.target.hostiles then self:SyncSelectedHostile(state) end
     if XelAssist.Graph.AutoShotUncertainty then
         XelAssist.Graph.AutoShotUncertainty:Apply(state, context.autoShot)
@@ -438,6 +439,8 @@ function S:Copy(state)
         out.playerResourceClock = copyNested(
             state.playerResourceClock, 2, seen, nil, atomic)
     end
+    if state.hostileCasts and XelAssist.Graph.HostileCastState then out.hostileCasts =
+        XelAssist.Graph.HostileCastState:Copy(state.hostileCasts, out) end
     if out.hostiles then
         if state.targetContextKey ~= nil then
             XelAssist.Graph.HostileState:SyncContext(out, state.targetContextKey)

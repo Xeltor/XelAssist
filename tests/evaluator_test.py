@@ -194,7 +194,7 @@ assert "function C:BonusDamage" in capabilities and "function C:RangedDamage" in
 assert "function C:TalentPoints" in capabilities
 assert "function C:InferKnowledge" in capabilities and "IsPassiveSpell" in capabilities
 assert 'event == "CHARACTER_POINTS_CHANGED"' in core
-assert 'XelAssist.Combat.Resistance:IsOwnedCaster(arg1)' in core
+assert "resistance:IsOwnedCaster(casterGuid)" in core
 assert re.search(r"SpellMiss\(\s*arg3, arg2, arg4, arg1\)", core)
 assert 'NP_EnableAuraCastEvents' in core
 assert 'NP_EnableSpellStartEvents' in core and 'NP_EnableSpellGoEvents' in core

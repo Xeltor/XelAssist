@@ -140,6 +140,9 @@ assert(snapshot.order[1] == enemyA and snapshot.order[2] == enemyB
     and snapshot.order[3] == enemyC and snapshot.order[4] == enemyD
     and snapshot.order[5] == enemyE and not snapshot.byKey[enemyF],
     "hostile priority must be selected, mouseover, companion, then group targets")
+assert(H:ProvesGuid(enemyA) and H:ProvesGuid(enemyE)
+    and not H:ProvesGuid(enemyF) and not H:ProvesGuid("ally-1"),
+    "cast admission must prove only retained or directly addressable hostiles")
 
 local selected = snapshot.byKey[enemyA]
 assert(selected.unit == "target" and selected.source == "selected"
@@ -272,5 +275,8 @@ assert(raid.total == 2 and raid.byKey[raidEnemy]
     and raid.byUnit.raid2target == enemyA
     and raid.byUnit.party1target == nil,
     "raid targets must be observed instead of stale party target tokens")
+H:ResetObserved()
+assert(H:ProvesGuid(enemyA) and not H:ProvesGuid(raidEnemy),
+    "reset must discard cached group identities while direct hostility remains provable")
 
 print("ok: capped identity-safe hostile observation and conservative evidence")

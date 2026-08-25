@@ -2,6 +2,7 @@ local XA = XelAssist
 local PlayerNormalQueue = XelAssist.Core.PlayerNormalQueue
 local PlayerQueueEvents = XelAssist.Core.PlayerQueueEvents
 local PlayerOnSwingEvents = XelAssist.Game.Player.OnSwingEvents
+local CastEventRouter = XelAssist.Core.CastEventRouter
 local function msg(text, r, g, b)
     DEFAULT_CHAT_FRAME:AddMessage("XelAssist: " .. text, r or 0.35, g or 0.85, b or 1)
 end
@@ -193,11 +194,13 @@ ev:SetScript("OnEvent", function()
     if event == "ADDON_LOADED" and arg1 == "XelAssist" then
         PlayerNormalQueue:Reset()
         PlayerOnSwingEvents:Reset("addon loaded")
+        CastEventRouter:Reset()
         XA:Init()
     end
     if event == "PLAYER_ENTERING_WORLD" then
         PlayerNormalQueue:Reset()
         PlayerOnSwingEvents:Reset("world transition")
+        CastEventRouter:Reset()
     end
     if event == "SPELL_ON_SWING_STATE" then
         PlayerOnSwingEvents:Handle(event, arg1, arg2, arg3, arg4)
@@ -253,13 +256,8 @@ ev:SetScript("OnEvent", function()
             XA:MarkPendingFailure(arg1, playerGuid)
         end
     end
-    if event == "SPELL_FAILED_OTHER" and XelAssist.Combat.Resistance
-        and XelAssist.Combat.Resistance:IsOwnedCaster(arg1) then
-        local current = XA.currentPendingAuras and XA.currentPendingAuras[arg1]
-        if current and tonumber(current.spellId) == tonumber(arg2) then
-            XA:ClearAuraPending(current.name, current.target, arg1)
-        end
-        XA:ClearPetCast(arg2, arg1)
+    if event == "SPELL_FAILED_OTHER" then
+        CastEventRouter:HandleNampower(XA, event, arg1, arg2)
     end
     if event == "SPELL_QUEUE_EVENT" then
         PlayerOnSwingEvents:Handle(event, arg1, arg2)
@@ -284,44 +282,17 @@ ev:SetScript("OnEvent", function()
         PlayerOnSwingEvents:Handle(event, arg1, arg2, arg3, arg4, arg5)
         PlayerNormalQueue:ServerResult(arg1, arg2, arg3, arg4, arg5)
     end
-    if (event == "SPELL_START_SELF" or event == "SPELL_START_OTHER")
-        and XelAssist.Combat.Resistance and XelAssist.Combat.Resistance:IsOwnedCaster(arg3) then
-        local routeEvidence = true
-        if arg3 == XA:PlayerGUID() then
-            routeEvidence = PlayerQueueEvents:Allows(arg2,
-                PlayerNormalQueue:ServerAccepted(arg2, arg4))
-        end
-        local castSeconds = math.max(0, tonumber(arg6) or 0) / 1000
-        local channelSeconds = math.max(0, tonumber(arg7) or 0) / 1000
-        local duration = castSeconds + channelSeconds
-        if routeEvidence then
-            XA:TouchPendingSpell(arg2, "started", duration + 2, arg3, arg4)
-        end
-        local _, petGuid = UnitExists("pet")
-        if arg3 == petGuid then
-            XA.petCastGuid, XA.petCastSpellId = arg3, arg2
-            XA.petCastUntil = GetTime() + math.max(0.05, duration)
-            XA.petCastChannel = tonumber(arg8) == 1 and true or false
-        end
+    if event == "SPELL_START_SELF" or event == "SPELL_START_OTHER" then
+        CastEventRouter:HandleNampower(XA, event,
+            arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
     end
     if event == "SPELL_GO_SELF" then
         PlayerOnSwingEvents:Handle(event,
             arg1, arg2, arg3, arg4, arg5, arg6)
     end
-    if (event == "SPELL_GO_SELF" or event == "SPELL_GO_OTHER")
-        and XelAssist.Combat.Resistance and XelAssist.Combat.Resistance:IsOwnedCaster(arg3) then
-        local routeEvidence = true
-        if arg3 == XA:PlayerGUID() then
-            routeEvidence = PlayerQueueEvents:Allows(arg2,
-                PlayerNormalQueue:ServerAccepted(arg2, arg4))
-        end
-        if routeEvidence then
-            XA:TouchPendingSpell(arg2, "go", 2, arg3, arg4)
-        end
-        if XA.petCastGuid == arg3 and tonumber(XA.petCastSpellId) == tonumber(arg2)
-            and not XA.petCastChannel then
-            XA:ClearPetCast(arg2, arg3)
-        end
+    if event == "SPELL_GO_SELF" or event == "SPELL_GO_OTHER" then
+        CastEventRouter:HandleNampower(XA, event,
+            arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
     end
     if event == "SPELL_MISS_SELF" then
         PlayerOnSwingEvents:Handle(event, arg1, arg2, arg3, arg4)
@@ -395,56 +366,6 @@ ev:SetScript("OnEvent", function()
         -- but cannot confirm or clear our player/pet submission safely.
     end
     if event == "UNIT_CASTEVENT" then
-        local _, targetGUID = UnitExists("target")
-        local _, playerGUID = UnitExists("player")
-        if targetGUID and arg1 == targetGUID then
-            if arg3 == "START" or arg3 == "CHANNEL" then
-                XA.targetCastUntil = GetTime() + ((arg5 or 1500) / 1000)
-                XA.targetCastGUID = targetGUID
-            elseif arg3 == "CAST" or arg3 == "FAIL" then
-                XA.targetCastUntil = nil; XA.targetCastGUID = nil
-            end
-        end
-        if playerGUID and arg1 == playerGUID then
-            local castSpell = SpellInfo and SpellInfo(arg4) or nil
-            local matched
-            if arg3 == "START" or arg3 == "CHANNEL" or arg3 == "CAST" then
-                matched = PlayerNormalQueue:ServerAccepted(arg4, arg2)
-            elseif arg3 == "FAIL" then
-                matched = PlayerNormalQueue:ServerFailure(arg4, arg2)
-            end
-            local routeEvidence = PlayerQueueEvents:Allows(arg4, matched)
-            if castSpell and routeEvidence then
-                XA:UpdateDecisionStatus(arg4, "player", arg3)
-            end
-            if arg3 == "START" or arg3 == "CHANNEL" then
-                XA.Game.Player.ChannelRuntime:Start(
-                    arg4, arg2, arg5, arg3 == "CHANNEL")
-            elseif arg3 == "CAST" or arg3 == "FAIL" then
-                XA.Game.Player.ChannelRuntime:Clear()
-            end
-            if castSpell and routeEvidence and arg3 == "CAST" then
-                XA:TouchPendingSpell(arg4, "go", 2, playerGUID, arg2)
-            elseif castSpell and routeEvidence and arg3 == "FAIL" then
-                XA:MarkPendingFailure(arg4, playerGUID, arg2)
-            end
-        end
-        local _, petGUID = UnitExists("pet")
-        if petGUID and arg1 == petGUID then
-            XA:UpdateDecisionStatus(arg4, "pet", arg3)
-            if arg3 == "START" or arg3 == "CHANNEL" then
-                XA.petCastGuid, XA.petCastSpellId = petGUID, arg4
-                XA.petCastUntil = GetTime() + ((arg5 or 1500) / 1000)
-                XA.petCastChannel = arg3 == "CHANNEL"
-                XA:TouchPendingSpell(arg4, "started", (arg5 or 1500) / 1000 + 2,
-                    petGUID, arg2)
-            elseif arg3 == "CAST" then
-                XA:ClearPetCast(arg4, petGUID)
-                XA:TouchPendingSpell(arg4, "go", 2, petGUID, arg2)
-            elseif arg3 == "FAIL" then
-                XA:ClearPetCast(arg4, petGUID)
-                XA:ClearPendingBySpell(arg4, petGUID, arg2)
-            end
-        end
+        CastEventRouter:HandleUnitCast(XA, arg1, arg2, arg3, arg4, arg5)
     end
 end)

@@ -15,6 +15,7 @@ local Triggered = XelAssist.Combat.TriggeredActions
 local ComboScoring = XelAssist.Graph.ComboScoring
 local Admission = XelAssist.Graph.ActionAdmission
 local SurvivalPressure = XelAssist.Graph.SurvivalPressure
+local IncomingScoring = XelAssist.Graph.IncomingScoring
 local function legalityAndTiming(action, state, descriptor)
     local allowed, blocker, tooltip, target, actionStart, resolved, targetState =
         Targets:Legal(action, state, descriptor)
@@ -76,6 +77,7 @@ local function resolveTargetNeed(context)
             and State:Missing(context.friendly)
             or context.target == "player"
                 and math.max(0, state.healthMax - state.health) or 0
+        if IncomingScoring then IncomingScoring:AdjustTargetNeed(context) end
     end
 end
 
@@ -237,13 +239,12 @@ local function scoreDamageAndHealing(context)
         if state.role == "healer" then context.value = context.value * 1.25
         elseif state.role == "damage" then context.value = context.value * 0.85 end
     elseif kind == "absorb" then
-        local incoming = context.friendly
-            and context.friendly.targetedByCurrentEnemy
-            or context.target == "player" and state.hasAggro
-        context.value = power * 3 / math.max(0.5, context.downtime)
-            + (incoming and 900 or 0)
-        context.reason = incoming and "absorbs expected incoming damage"
-            or "adds a protective buffer"
+        if IncomingScoring then
+            context.value, context.reason = IncomingScoring:AbsorbValue(context)
+        else
+            context.value = power * 3 / math.max(0.5, context.downtime)
+            context.reason = "adds a protective buffer"
+        end
     else return false end
     return true
 end
@@ -319,11 +320,14 @@ local function applyActionAdjustments(context)
         and context.descriptor.relation ~= "hostile"
         and (kind == "heal" or kind == "hot"
             or kind == "absorb" or kind == "buff")
-    if facts.interrupt and state.targetCasting then
-        local probability = state.targetCastProbability
-        if probability == nil then probability = 1 end
-        context.value, context.reason = context.value
-            + 4500 * probability * context.effectDelivery, "stops the current cast"
+    if facts.interrupt and kind ~= "interrupt" then
+        local events = XelAssist.Graph.HostileCastEvents
+        local value, reason
+        if events then value, reason = events:InterruptValue(context) end
+        if value then
+            context.value = context.value + value
+            if value > 0 then context.reason = reason end
+        end
     end
     if facts.execute and (not context.areaDirectResolved
         or context.areaSelectedIncluded) and state.targetMax > 0

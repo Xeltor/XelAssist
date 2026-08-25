@@ -8,6 +8,9 @@ XelAssistCharDB = { petThreat = "tank" }
 
 local syncs, resistanceTargets, consumed, removedModifiers = 0, {}, {}, {}
 XelAssist.Graph.State = {
+    FriendlyByKey = function(_, state, key)
+        return state.friendlies and state.friendlies.byKey[key]
+    end,
     HostileContext = function(_, state, key)
         local record = state.hostiles and state.hostiles.byKey[key]
         if not record then return nil end
@@ -1139,9 +1142,11 @@ laterSource.hostiles.byKey[keyA].projectedAuras.Poison = laterAura
 laterOut.hostiles.byKey[keyA].projectedAuras.Poison = periodicAura(10, 4)
 laterOut.hostiles.byKey[keyA].projectedAuras.Poison.periodicThreatActor = "pet"
 laterOut.hostiles.byKey[keyA].projectedAuras.Poison.periodicThreatMultiplier = 0.9
+local laterPersistent = O:PersistentAuraSnapshot(laterOut)
 local laterEvents = O:Prepare(laterOut, laterSource,
     { downtime = 2, targetKey = keyB, targetGUID = guidB }, context)
 assert(table.getn(laterEvents) == 1)
+O:AdvanceState(laterOut, laterEvents[1].offset, laterPersistent)
 O:ApplyEvent(laterOut, laterSource, candidate, context, laterEvents[1])
 assert(laterOut.hostiles.byKey[keyA].health == 80
     and math.abs(laterOut.hostiles.byKey[keyA].projectedThreat.pet - 18) < 0.001,
@@ -1159,20 +1164,50 @@ outA.modifierEffects.Curse = { active = true }
 outA.targetAuras.Observed = { remaining = 1 }
 local ongoingCandidate = { downtime = 2, targetKey = keyB,
     targetGUID = guidB }
+local ongoingPersistent = O:PersistentAuraSnapshot(ongoingOut)
 local ongoingEvents = O:Prepare(
     ongoingOut, ongoingSource, ongoingCandidate, context)
 assert(table.getn(ongoingEvents) == 1
     and ongoingEvents[1].targetKey == keyA
-    and ongoingEvents[1].targetGuid == guidA,
-    "pre-existing periodic events must retain stable hostile identity")
+    and ongoingEvents[1].targetGuid == guidA
+    and ongoingOut.time == 0 and outA.projectedAuras.Poison
+    and outA.projectedAuras.Curse and outA.targetAuras.Observed,
+    "event collection must retain identity without pre-aging graph state")
+O:AdvanceState(ongoingOut, ongoingEvents[1].offset, ongoingPersistent)
 O:ApplyEvent(ongoingOut, ongoingSource, ongoingCandidate,
     context, ongoingEvents[1])
-assert(outA.health == 80 and ongoingOut.targetHealth == 200
+assert(ongoingOut.time == 2 and outA.health == 80
+    and ongoingOut.targetHealth == 200
     and not outA.projectedAuras.Poison
     and not outA.projectedAuras.Curse
     and not outA.targetAuras.Observed
     and removedModifiers[table.getn(removedModifiers)].guid == guidA,
     "off-selected periodic damage, expiration, and modifier removal must stay local")
+
+local causalState = { time = 10, playerCasting = true,
+    playerChanneling = true, playerCastName = "Test Channel",
+    castRemaining = 2, auras = {}, targetAuras = {
+        Observed = { remaining = 1 } }, actors = {},
+    friendlies = { order = { "ally" }, byKey = { ally = {
+        health = 50, healthMax = 100,
+        auras = { Renew = { remaining = 4, periodicHealRate = 10 } },
+        absorbs = { Shield = { remaining = 1 } } } } } }
+local causalPersistent = O:PersistentAuraSnapshot(causalState)
+O:AdvanceState(causalState, 0.5, causalPersistent)
+assert(causalState.time == 10.5 and causalState.castRemaining == 1.5
+    and causalState.friendlies.byKey.ally.health == 55
+    and causalState.friendlies.byKey.ally.auras.Renew.remaining == 3.5
+    and causalState.friendlies.byKey.ally.absorbs.Shield.remaining == 0.5
+    and causalState.targetAuras.Observed.remaining == 0.5,
+    "the persistent graph clock must expose state at each event boundary")
+O:AdvanceState(causalState, 1.5, causalPersistent)
+assert(causalState.time == 12 and not causalState.playerCasting
+    and not causalState.playerChanneling and not causalState.playerCastName
+    and causalState.friendlies.byKey.ally.health == 70
+    and causalState.friendlies.byKey.ally.auras.Renew.remaining == 2
+    and not causalState.friendlies.byKey.ally.absorbs.Shield
+    and not causalState.targetAuras.Observed,
+    "segmented advancement must equal the final persistent state")
 
 local dynamic = targetLocalState(guidA, false)
 dynamic.actors.pet.autocasts = { autocasts()[2] }
@@ -1223,5 +1258,62 @@ assert(unknownRecord.health == nil and not unknownRecord.dead
     and unknownHealth.hostiles.byKey[keyB].health == 200
     and unknownHealth.targetHealth == 200,
     "unknown off-target health must not borrow selected certainty or health")
+
+-- A chosen friendly HoT is created at its application event. Its remaining
+-- occupancy is then advanced by the shared clock, so application must not
+-- pre-age the same healing interval.
+XelAssist.Graph.State.PrimaryFriendly = function(_, value)
+    local friendlies = value.friendlies
+    return friendlies and friendlies.byKey[friendlies.primaryKey]
+end
+XelAssist.Graph.State.FriendlyByUnit = function() return nil end
+XelAssist.Graph.HostileEffects = {
+    Apply = function() return false end,
+    ApplyPrimaryThreat = function() end,
+    FinalizeSelected = function() end,
+}
+XelAssist.Graph.ReadinessEffects = { Apply = function() end }
+XelAssist.Graph.DotProjection = {
+    Candidate = function() return 0, 0, 1, 0 end,
+}
+XelAssist.Graph.ResourceExchange = { Apply = function() return false end }
+XelAssist.Graph.WandCommitment = {
+    Apply = function() return false end,
+    Advance = function() end,
+    AfterAction = function() end,
+}
+XelAssist.Graph.ComboEffects = { Apply = function() end }
+XelAssist.Graph.CompanionThreat = { Apply = function() return false end }
+XelAssist.Graph.CompanionEventThreat = nil
+XelAssist.Graph.ActionConsumption = { Consume = function() return true end }
+XelAssist.Game.Pets.Effects.Apply = function() return false end
+XelAssist.Graph.AutoShotEffects = {
+    CreateTimeline = function() return nil end,
+    FinishTimeline = function() end,
+}
+dofile("Graph/ActionEffects.lua")
+dofile("Graph/Timeline.lua")
+
+local hotTarget = { key = "ally", unit = "party1", guid = "ally-guid",
+    health = 450, healthMax = 1000, exact = true, auras = {}, absorbs = {} }
+local hotState = { time = 0, hostile = false, health = 100, healthMax = 100,
+    resource = 100, resourceMax = 100, targetHealth = 0,
+    targetHealthExact = false, auras = {}, targetAuras = {}, actors = {},
+    actorReadyAt = { player = 0 }, absorbs = {},
+    friendlies = { order = { "ally" }, primaryKey = "ally",
+        byKey = { ally = hotTarget } } }
+local hotAction = { name = "Causal Renew", actor = "player",
+    facts = { kind = "hot" } }
+local hotCandidate = { action = hotAction, target = "party1",
+    targetKey = "ally", targetGUID = "ally-guid", targetRelation = "friendly",
+    wait = 0, cast = 0, occupancy = 1.5, downtime = 1.5,
+    cost = 0, power = 600, actionStart = 0,
+    tooltip = { duration = 12 } }
+local hotContext = XelAssist.Graph.ActionEffects:Context(
+    hotState, hotCandidate)
+XelAssist.Graph.Timeline:Run(hotState, hotState, hotCandidate, hotContext)
+assert(hotTarget.health == 525
+    and hotTarget.auras[hotAction.name].remaining == 10.5,
+    "a chosen friendly HoT must heal and age exactly once after application")
 
 print("ok: exact target-local passive companion events and aura clocks")

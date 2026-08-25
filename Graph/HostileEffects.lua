@@ -401,7 +401,10 @@ end
 
 function H:FinalizeSelected(out, candidate, facts)
     local target = activeTarget(out)
-    if (facts.kind == "interrupt" or facts.interrupt)
+    local castEvents = XelAssist.Graph.HostileCastEvents
+    local exactInterrupt = castEvents and castEvents:Interrupt(
+        out, candidate, facts) or false
+    if not exactInterrupt and (facts.kind == "interrupt" or facts.interrupt)
         and out.targetCasting then
         local prior = out.targetCastProbability
         if prior == nil then prior = 1 end
@@ -414,7 +417,9 @@ function H:FinalizeSelected(out, candidate, facts)
                 out.targetCasting
         end
     end
-    if out.targetCasting and out.targetCastRemaining
+    local exactCast = XelAssist.Graph.HostileCastState
+        and XelAssist.Graph.HostileCastState:Find(out, out.targetGUID)
+    if not exactCast and out.targetCasting and out.targetCastRemaining
         and out.time >= out.targetCastRemaining then
         out.targetCasting, out.targetCastProbability = false, 0
         if target then target.casting, target.castProbability = false, 0 end

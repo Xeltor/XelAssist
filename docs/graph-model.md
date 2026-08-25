@@ -443,10 +443,17 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   weapon bases are decomposed before scoring. Triggered child spells, absorbs,
   and server-scripted modifiers can still remain estimated; those recommendations
   are visibly marked `estimated` and logged.
-- Future movement, target swaps, discrete incoming-damage events, other players'
-  casts, proc arrivals, and shared cooldown categories cannot be predicted.
-  Recent exact all-source health loss provides probabilistic survival pressure,
-  not a claim that the same future events will recur. The independent
+- A currently observed hostile cast can become one discrete incoming damage or
+  healing event only when exact caster, recipient, deadline, caster level, and
+  one unambiguous direct single-target DBC effect are all available. Unknown
+  live absorbs, channels, scripted/mixed effects, missing recipients, future
+  movement, target swaps, casts not yet started, proc arrivals, and shared
+  cooldown categories cannot be predicted. A non-owned caster enters the
+  session ledger only while an exact current hostile observation proves that
+  identity; unknown and friendly casters are discarded. DBC magnitude remains
+  an estimated, partial health projection even when recipient and topology are
+  exact. Recent exact all-source health loss provides probabilistic survival
+  pressure, not a claim that the same future events will recur. The independent
   producer continuously publishes fresh complete plans; each physical press
   consumes at most one publication and never starts graph work itself.
 - Combo gain and spend transitions retain probabilistic landed/missed outcomes.

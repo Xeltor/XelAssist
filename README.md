@@ -1,4 +1,4 @@
-# XelAssist 0.8.21
+# XelAssist 0.8.22
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -45,6 +45,15 @@ combo builders, reactive procs, area/ground actions, and fixed or indirect
 effects remain selected-only. An engaged cast must be ready now; identity,
 hostility, death, engagement, and reach are revalidated immediately before one
 GUID-pinned queue submission.
+
+Active hostile casts use a bounded, session-only exact-GUID ledger fed by
+Nampower and corroborated by SuperWoW. When the installed DBC proves one direct
+single-target damage or healing effect and its exact recipient is retained, the
+graph schedules that consequence at the observed deadline. Known projected
+shields absorb damage first, incoming damage can increase pre-heal and absorb
+value, and interrupts compete on the consequence they actually prevent. Mixed,
+scripted, periodic, area, channel, missing-recipient, and unknown-level spells
+remain explicit uncertainty with one bounded interrupt fallback.
 
 ## Requirements
 

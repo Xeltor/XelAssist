@@ -222,7 +222,7 @@ local function hasFallback(view)
     return false
 end
 
-local function ageAuraSet(out, candidate, key, record)
+local function ageAuraSet(out, elapsed, roots, key, record)
     local view = key ~= nil and State.HostileContext
         and State:HostileContext(out, key) or out
     if not view then return false end
@@ -231,17 +231,18 @@ local function ageAuraSet(out, candidate, key, record)
     else auras = out.auras or {} end
     local changed, name, aura = false, nil, nil
     for name, aura in pairs(auras) do
-        if type(aura) == "table" and aura.remaining then
-            local elapsed = math.min(aura.remaining, candidate.downtime)
+        if type(aura) == "table" and aura.remaining
+            and (not roots or roots[aura]) then
+            local active = math.min(aura.remaining, elapsed)
             local interval = tonumber(aura.periodicInterval)
             local nextTick = tonumber(aura.periodicNextIn)
             if interval and interval > 0 and nextTick then
-                while nextTick <= elapsed do
+                while nextTick <= active do
                     nextTick = nextTick + interval
                 end
-                aura.periodicNextIn = math.max(0, nextTick - elapsed)
+                aura.periodicNextIn = math.max(0, nextTick - active)
             end
-            EventAuras:AgeBranches(aura, candidate.downtime)
+            EventAuras:AgeBranches(aura, elapsed)
             aura.remaining = math.max(0, aura.remaining - elapsed)
             if aura.remaining <= 0 and not EventAuras:PromoteBranch(aura) then
                 if aura.targetModifier then
@@ -249,24 +250,24 @@ local function ageAuraSet(out, candidate, key, record)
                 end
                 auras[name] = nil
             end
-            changed = elapsed > 0 or changed
+            changed = active > 0 or changed
         end
     end
     local fallback = hasFallback(view)
-    Effects:AdvanceModifierFallbacks(view, candidate.downtime)
+    Effects:AdvanceModifierFallbacks(view, elapsed)
     return changed or fallback
 end
 
-local function advanceAuraDurations(out, candidate)
+local function advanceAuraDurations(out, elapsed, roots)
     local hostiles = hostilesOf(out)
-    if not hostiles then ageAuraSet(out, candidate) return end
+    if not hostiles then ageAuraSet(out, elapsed, roots) return end
     local i, count = nil, math.min(table.getn(hostiles.order), MAX_HOSTILES)
     for i = 1, count do
         local key, record = hostiles.order[i]
         record = hostiles.byKey[key]
         if record then
             syncLocal(out, key, record,
-                ageAuraSet(out, candidate, key, record))
+                ageAuraSet(out, elapsed, roots, key, record))
         end
     end
 end
@@ -356,13 +357,36 @@ function O:Events(out, source, candidate, context)
 end
 
 function O:Prepare(out, source, candidate, context)
-    local events = self:Events(out, source, candidate, context)
-    out.time = out.time + candidate.downtime
-    advancePlayerCast(out, candidate.downtime)
-    advanceFriendlies(out, candidate.downtime)
-    advanceAuraDurations(out, candidate)
-    advanceObservedTargetAuras(out, candidate.downtime)
-    return events
+    return self:Events(out, source, candidate, context) end
+
+-- Capture only auras that existed at the start of this timeline. Auras
+-- created or replaced by an event use EventAuras' damage-aware causal clock.
+function O:PersistentAuraSnapshot(state)
+    local snapshot, hostiles = {}, hostilesOf(state)
+    if not hostiles then
+        local _, aura
+        for _, aura in pairs(state.auras or {}) do snapshot[aura] = true end
+        return snapshot
+    end
+    local i, count = nil, math.min(table.getn(hostiles.order), MAX_HOSTILES)
+    for i = 1, count do
+        local record = hostiles.byKey[hostiles.order[i]]
+        local _, aura
+        for _, aura in pairs(record and record.projectedAuras or {}) do
+            snapshot[aura] = true
+        end
+    end
+    return snapshot
+end
+
+function O:AdvanceState(out, elapsed, persistentAuras)
+    elapsed = math.max(0, tonumber(elapsed) or 0)
+    if elapsed <= 0 then return end
+    out.time = (tonumber(out.time) or 0) + elapsed
+    advancePlayerCast(out, elapsed)
+    advanceFriendlies(out, elapsed)
+    advanceAuraDurations(out, elapsed, persistentAuras)
+    advanceObservedTargetAuras(out, elapsed)
 end
 
 function O:ApplyEvent(out, source, candidate, context, entry)
@@ -381,10 +405,8 @@ function O:ApplyEvent(out, source, candidate, context, entry)
     end
 end
 
--- Root auras present at Prepare time have already been aged across the full
--- candidate window. Keep a separate clock only for auras created or replaced
--- by later ambient events, so those records can advance causally without
--- aging the pre-existing records twice.
+-- Auras created or replaced after the persistent snapshot keep a separate
+-- damage-aware clock, avoiding both front-loaded state and double aging.
 function O:AuraSnapshot(state)
     return EventAuras:Snapshot(state)
 end
@@ -398,13 +420,24 @@ function O:AdvanceEventAuras(state, tracked, elapsed)
 end
 
 function O:Advance(out, source, candidate, context)
+    local persistent = self:PersistentAuraSnapshot(out)
     local events = self:Prepare(out, source, candidate, context)
     table.sort(events, function(left, right)
         if left.offset ~= right.offset then return left.offset < right.offset end
         return left.priority < right.priority
     end)
-    local i
+    local tracked, elapsed, i = {}, 0, nil
     for i = 1, table.getn(events) do
-        self:ApplyEvent(out, source, candidate, context, events[i])
+        local entry = events[i]
+        local step = entry.offset - elapsed
+        self:AdvanceState(out, step, persistent)
+        self:AdvanceEventAuras(out, tracked, step)
+        local before = self:AuraSnapshot(out)
+        self:ApplyEvent(out, source, candidate, context, entry)
+        self:TrackEventAuras(out, before, tracked)
+        elapsed = entry.offset
     end
+    local remainder = candidate.downtime - elapsed
+    self:AdvanceState(out, remainder, persistent)
+    self:AdvanceEventAuras(out, tracked, remainder)
 end

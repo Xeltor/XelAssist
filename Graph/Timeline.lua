@@ -10,6 +10,8 @@ local Companion = XelAssist.Graph.CompanionEvents
 local CompanionResources = XelAssist.Graph.CompanionResources
 local PlayerSwings = XelAssist.Graph.PlayerSwings
 local WandCommitment = XelAssist.Graph.WandCommitment
+local EventAuras = XelAssist.Graph.EventAuras
+local HostileCasts = XelAssist.Graph.HostileCastEvents
 
 local function syncCandidateTarget(state, candidate)
     if not (candidate and candidate.targetRelation == "hostile"
@@ -22,7 +24,10 @@ local function syncCandidateTarget(state, candidate)
     end
 end
 
-local function append(events, entry, order)
+local function append(events, entry, order, window)
+    if window and (tonumber(entry.offset) or math.huge) > window then
+        return order
+    end
     entry.order = order
     if not entry.priority then
         if entry.owner == "action" then entry.priority = 20
@@ -50,6 +55,22 @@ local function hostileDefeated(out, candidate)
     return not out.hostile
 end
 
+local function actorDefeated(out, candidate)
+    local action = candidate and candidate.action or {}
+    local actorName = action.actor == "pet" and "pet" or "player"
+    local actor = out.actors and out.actors[actorName]
+    if actor and actor.dead then return true end
+    local health = actor and tonumber(actor.health)
+    local exact = actor and actor.healthExact
+    if exact == nil and actor then exact = actor.exact end
+    if health ~= nil and exact ~= false then return health <= 0 end
+    if actorName == "player" then
+        return out.dead == true or tonumber(out.health) ~= nil
+            and out.health <= 0
+    end
+    return false
+end
+
 local function advancePetEffects(out, elapsed)
     if elapsed <= 0 then return end
     if XelAssist.Game.Pets and XelAssist.Game.Pets.Effects then
@@ -67,21 +88,52 @@ local function advanceWand(out, elapsed)
     if WandCommitment then WandCommitment:Advance(out, elapsed) end
 end
 
-local function collectEvents(out, source, candidate, context, advanceWindow)
+local function advanceState(out, elapsed, persistentAuras, eventAuras)
+    if elapsed <= 0 then return end
+    advancePetEffects(out, elapsed)
+    advancePlayerResources(out, elapsed)
+    advanceWand(out, elapsed)
+    Ongoing:AdvanceState(out, elapsed, persistentAuras)
+    Ongoing:AdvanceEventAuras(out, eventAuras, elapsed)
+    if HostileCasts then HostileCasts:Advance(out, elapsed) end
+end
+
+local function finishPetReadyAt(out, candidate, actionApplied)
+    local action = candidate and candidate.action
+    local pet = out.actors and out.actors.pet
+    if not (actionApplied and action and action.actor == "pet" and pet
+        and pet.actionReadyIn) then return end
+    out.actorReadyAt = out.actorReadyAt or {}
+    out.actorReadyAt.pet = math.max(tonumber(out.actorReadyAt.pet) or 0,
+        (tonumber(out.time) or 0) + math.max(0, pet.actionReadyIn))
+end
+
+local function finishChosenBranches(out, candidate, context)
+    local aura = out.auras and candidate.action
+        and out.auras[candidate.action.name]
+    if aura and EventAuras then
+        EventAuras:AgeBranches(aura, context.applicationElapsed or 0)
+    end
+end
+
+local function collectEvents(out, source, candidate, context)
     local events, order = {}, 1
-    local ongoingEvents
-    if advanceWindow then
-        ongoingEvents = Ongoing:Prepare(out, source, candidate, context)
-    else ongoingEvents = Ongoing:Events(out, source, candidate, context) end
+    local window = math.max(0, tonumber(candidate.downtime) or 0)
+    local ongoingEvents = Ongoing:Prepare(out, source, candidate, context)
     local i
     for i = 1, table.getn(ongoingEvents) do
-        order = append(events, ongoingEvents[i], order)
+        order = append(events, ongoingEvents[i], order, window)
+    end
+    local hostileEvents = HostileCasts
+        and HostileCasts:Events(out, candidate) or {}
+    for i = 1, table.getn(hostileEvents) do
+        order = append(events, hostileEvents[i], order, window)
     end
     local autoTimeline = AutoShot
         and AutoShot:CreateTimeline(out, source, candidate, context)
     for i = 1, table.getn(autoTimeline and autoTimeline.events or {}) do
         if autoTimeline.events[i].offset <= autoTimeline.windowEnd then
-            order = append(events, autoTimeline.events[i], order)
+            order = append(events, autoTimeline.events[i], order, window)
         end
     end
     local action = candidate.action
@@ -89,17 +141,17 @@ local function collectEvents(out, source, candidate, context, advanceWindow)
         and (tonumber(candidate.cast) or 0) > 0 then
         order = append(events, { owner = "action", kind = "chosenActionStart",
             offset = math.max(0, tonumber(candidate.wait) or 0),
-            priority = 20 }, order)
+            priority = 20 }, order, window)
     end
     append(events, { owner = "action", kind = "chosenAction",
         offset = context.applicationOffset,
-        priority = candidate.ambientActionPriority or 20 }, order)
+        priority = candidate.ambientActionPriority or 20 }, order, window)
     sortEvents(events)
     return events, autoTimeline
 end
 
 local function startChosen(out, candidate, context)
-    if hostileDefeated(out, candidate) then
+    if hostileDefeated(out, candidate) or actorDefeated(out, candidate) then
         context.actionStartFailed = true
         return false
     end
@@ -111,10 +163,11 @@ local function startChosen(out, candidate, context)
 end
 
 local function applyPassive(out, source, candidate, context, entry)
-    if entry.kind == "petAutocastTimelineCap" and Companion then
-        return Companion:Apply(out, source, candidate, context, entry)
-    end
     local beforeAuras = Ongoing:AuraSnapshot(out)
+    if entry.kind == "petAutocastTimelineCap" and Companion then
+        Companion:Apply(out, source, candidate, context, entry)
+        return beforeAuras
+    end
     Ongoing:ApplyEvent(out, source, candidate, context, entry)
     return beforeAuras
 end
@@ -124,18 +177,15 @@ end
 function L:BeforeAction(source, candidate)
     local out = State:Copy(source)
     local context = Actions:Context(source, candidate)
-    local events, autoTimeline = collectEvents(
-        out, source, candidate, context, false)
+    local persistentAuras = Ongoing:PersistentAuraSnapshot(out)
+    local events, autoTimeline = collectEvents(out, source, candidate, context)
     local eventAuras = {}
     local elapsed, damageEvents, i = 0, 0, nil
     for i = 1, table.getn(events) do
         local entry = events[i]
         local prior = out.targetHealth
         local step = entry.offset - elapsed
-        advancePetEffects(out, step)
-        advancePlayerResources(out, step)
-        advanceWand(out, step)
-        Ongoing:AdvanceEventAuras(out, eventAuras, step)
+        advanceState(out, step, persistentAuras, eventAuras)
         if out.targetHealthExact and out.targetHealth < prior then
             damageEvents = damageEvents + 1
         end
@@ -152,9 +202,13 @@ function L:BeforeAction(source, candidate)
             if entry.kind == "chosenActionStart" then
                 startChosen(out, candidate, context)
             elseif entry.kind == "petAutocastTimelineCap" then
-                applyPassive(out, source, candidate, context, entry)
+                local beforeAuras = applyPassive(
+                    out, source, candidate, context, entry)
+                Ongoing:TrackEventAuras(out, beforeAuras, eventAuras)
             elseif entry.owner == "autoShot" then
                 AutoShot:ApplyTimelineEvent(out, autoTimeline, entry)
+            elseif entry.owner == "hostileCast" then
+                HostileCasts:Apply(out, entry)
             else
                 local beforeAuras = Ongoing:AuraSnapshot(out)
                 Ongoing:ApplyEvent(out, source, candidate, context, entry)
@@ -195,17 +249,14 @@ function L:BeforePlayerSwing(source, candidate, impactDelay)
 end
 
 function L:Run(out, source, candidate, context)
-    local events, autoTimeline = collectEvents(
-        out, source, candidate, context, true)
+    local persistentAuras = Ongoing:PersistentAuraSnapshot(out)
+    local events, autoTimeline = collectEvents(out, source, candidate, context)
     local eventAuras = {}
     local actionApplied, elapsed, i = false, 0, nil
     for i = 1, table.getn(events) do
         local entry = events[i]
         local step = entry.offset - elapsed
-        advancePetEffects(out, step)
-        advancePlayerResources(out, step)
-        advanceWand(out, step)
-        Ongoing:AdvanceEventAuras(out, eventAuras, step)
+        advanceState(out, step, persistentAuras, eventAuras)
         elapsed = entry.offset
         if entry.kind == "chosenActionStart" then
             syncCandidateTarget(out, candidate)
@@ -218,6 +269,7 @@ function L:Run(out, source, candidate, context)
                 and (tonumber(candidate.cast) or 0) > 0
             local castStarted = not needsStart or context.actionStarted
             if castStarted and not hostileDefeated(out, candidate)
+                and not actorDefeated(out, candidate)
                 and Actions:Consume(out, candidate, context) then
                 if PlayerSwings and PlayerSwings:Is(
                     candidate.action, candidate.tooltip) then
@@ -226,13 +278,18 @@ function L:Run(out, source, candidate, context)
                     context.petEventContext = { applicationElapsed = 0 }
                     Actions:Apply(out, source, candidate, context)
                     context.petEventContext = nil
+                    finishChosenBranches(out, candidate, context)
                     actionApplied = true
                 end
             end
         elseif entry.owner == "autoShot" then
             AutoShot:ApplyTimelineEvent(out, autoTimeline, entry)
+        elseif entry.owner == "hostileCast" then
+            HostileCasts:Apply(out, entry)
         elseif entry.kind == "petAutocastTimelineCap" then
-            applyPassive(out, source, candidate, context, entry)
+            local beforeAuras = applyPassive(
+                out, source, candidate, context, entry)
+            Ongoing:TrackEventAuras(out, beforeAuras, eventAuras)
         else
             local beforeAuras = Ongoing:AuraSnapshot(out)
             Ongoing:ApplyEvent(out, source, candidate, context, entry)
@@ -240,10 +297,8 @@ function L:Run(out, source, candidate, context)
         end
     end
     local remainder = candidate.downtime - elapsed
-    advancePetEffects(out, remainder)
-    advancePlayerResources(out, remainder)
-    advanceWand(out, remainder)
-    Ongoing:AdvanceEventAuras(out, eventAuras, remainder)
+    advanceState(out, remainder, persistentAuras, eventAuras)
+    finishPetReadyAt(out, candidate, actionApplied)
     if autoTimeline then AutoShot:FinishTimeline(out, autoTimeline) end
     syncCandidateTarget(out, candidate)
     out.chosenActionPrevented = not actionApplied and true or nil

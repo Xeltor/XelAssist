@@ -55,9 +55,10 @@ never class rotations or ordered priority lists.
   keeps unresolved talent/aura contributions explicit.
   `Game/Hostiles.lua` owns bounded GUID-deduplicated hostile observation and
   `Game/HostileEngagement.lua` owns exact victim-linked active-fight evidence,
-  while
-  `Game/TargetSurvival.lua` owns bounded session-only exact-health trend
-  evidence without persisting or rendering opaque identity, and
+  while `Game/HostileCasts.lua` owns the bounded session-only cast ledger and
+  `Game/HostileSpellFacts.lua` admits only conservative direct single-recipient
+  DBC consequences. `Game/TargetSurvival.lua` owns bounded session-only
+  exact-health trend evidence without persisting or rendering opaque identity, and
   `Game/SpellTopology.lua` translates installed-client DBC effect-target and
   radius fields without deciding which action is useful. The session-only
   `Game/Pets/EffectRuntime.lua` ledger correlates confirmed casts, observable
@@ -96,6 +97,11 @@ never class rotations or ordered priority lists.
 - `Graph/State.lua` is the live observation boundary for planning, and
   `Graph/HostileState.lua` owns target-local copies, context switching, and
   commits back to the canonical bounded hostile collection.
+  `Graph/HostileCastState.lua` isolates live cast generations per graph branch;
+  `Graph/IncomingConsequences.lua` owns exact-recipient damage, healing, and
+  projected-absorb consumption; `Graph/HostileCastEvents.lua` owns completion
+  ordering and interrupt cancellation; and `Graph/IncomingScoring.lua` exposes
+  those consequences to healing and absorb value without broadening admission.
   `Graph/SurvivalPressure.lua` converts learned target pressure into bounded
   cast, channel, and periodic expected output without defining class strategy.
   `Graph/DotProjection.lua` owns the direct/periodic transition split and keeps
@@ -171,6 +177,8 @@ never class rotations or ordered priority lists.
   identity; it does not merge on-swing or non-GCD queue classes.
   `Core/PlayerQueueEvents.lua` gates queue evidence before it can change graph
   reservations, keeping same-spell attempt generations isolated.
+  `Core/CastEventRouter.lua` normalizes Nampower and SuperWoW cast lifecycles
+  before routing them to the hostile ledger or existing owned actor lanes.
   Cast, queue, item, pet-command, and any future target-changing APIs must remain
   on that boundary.
 
@@ -194,7 +202,6 @@ Current migration debt is deliberately bounded:
 | --- | --- |
 | `Combat/Resistance.lua` | identity/store, learning, estimator, summary |
 | `Game/Capabilities.lua` | spellbook, spell facts, units/range, equipment |
-| `Core/Runtime.lua` | startup/commands versus combat-event routing |
 | `UI/HUD.lua` | formatting, tooltip, layout, recommendation presenter |
 
 ## Enforcement

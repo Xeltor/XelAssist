@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.8.22
+
+- Added a bounded, session-only hostile-cast ledger from exact Nampower and
+  SuperWoW caster, target, spell, generation, and deadline evidence. Player and
+  companion casts stay on their existing owned lanes; names and GUIDs are never
+  persisted or rendered.
+- Admitted only DBC-proven direct single-target damage and healing into graph
+  consequences. Mixed, triggered, scripted, periodic, area, channel,
+  unknown-level, and unresolved-recipient spells stay explicit unknowns. DBC
+  magnitudes remain estimated: they cannot claim exact death or earn an exact
+  lethal interrupt bonus.
+- Made hostile impacts causal timeline events. Exact-deadline impacts resolve
+  before the chosen action, graph-cancelled generations cannot deliver, known
+  projected absorbs are consumed first, and exact player, pet, ally, or hostile
+  health mirrors stay recipient-local.
+- Replaced the duplicated flat interrupt bonuses with prevented-consequence
+  value plus one bounded unsupported-cast fallback. Active incoming damage now
+  informs pre-healing and absorb value without claiming unknown live shields.
+- Reworked persistent cast, friendly effect, and hostile aura advancement from
+  full-window pre-aging into event-step clocks. Intermediate events now observe
+  the state at their actual time without double-aging event-created auras.
+- Extracted cast routing from the runtime monolith into a dedicated module while
+  preserving player queue, channel, companion, and pending-application behavior.
+  Only owned or currently proven-hostile casters enter either lane; unrelated
+  friendly and unknown casts cannot consume hostile ledger capacity.
+
 ## 0.8.21
 
 - Added a default-off, character-specific engaged-enemy lane for ordinary

@@ -35,11 +35,16 @@ function A:Score(context)
         end
     end
     if kind == "interrupt" then
-        local probability = state.targetCastProbability
-        if probability == nil then probability = state.targetCasting and 1 or 0 end
-        context.value = state.targetCasting and 5000 * probability or -1000
-        context.reason = context.action.actor == "pet"
-            and "companion stops the current cast" or "stops the current cast"
+        local events = XelAssist.Graph.HostileCastEvents
+        if events then
+            context.value, context.reason = events:InterruptValue(context)
+        else
+            local probability = state.targetCastProbability
+            if probability == nil then probability = state.targetCasting and 1 or 0 end
+            context.value = state.targetCasting and 2600 * probability or -1000
+            context.reason = state.targetCasting and "stops an unresolved current cast"
+                or "no active cast to interrupt"
+        end
     elseif kind == "taunt" then
         context.value, context.reason = state.hasAggro and not state.tank
             and 3800 or 900, "companion takes unwanted aggro"

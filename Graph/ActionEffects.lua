@@ -117,14 +117,11 @@ local function applyFriendlyTarget(out, candidate, context)
     elseif kind == "hot" then
         local duration = math.max(1,
             tonumber(candidate.tooltip.duration) or 12)
-        local active = math.min(duration, context.applicationElapsed)
         local rate = candidate.power / duration
-        target.health = math.min(target.healthMax,
-            target.health + rate * active)
         target.auras = target.auras or {}
         target.auras[context.action.name] = {
             duration = duration,
-            remaining = math.max(0, duration - active),
+            remaining = duration,
             mine = true,
             periodicHealRate = rate,
             applicationProbability = 1,

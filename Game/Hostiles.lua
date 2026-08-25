@@ -8,6 +8,8 @@ local Engagement = XelAssist.Game.HostileEngagement
 
 H.MAX_TARGETS = 5
 
+local DIRECT_PROOF_UNITS = { "target", "mouseover", "pettarget" }
+
 local SOURCE_PRIORITY = {
     selected = 1, mouseover = 2, companion = 3, raid = 4, party = 4,
 }
@@ -245,6 +247,25 @@ local function candidates()
     return out
 end
 
+-- Cast transports expose opaque caster GUIDs but no trustworthy reaction.
+-- Admit one only when the current unit-token snapshot, or one of the three
+-- immediately addressable hostile tokens, proves that exact identity hostile.
+-- The cache is bounded to retained snapshot records and is never persisted.
+function H:ProvesGuid(guid)
+    if guid == nil then return false end
+    if self.observedGuids and self.observedGuids[guid] then return true end
+    local i
+    for i = 1, table.getn(DIRECT_PROOF_UNITS) do
+        local unit = DIRECT_PROOF_UNITS[i]
+        if identity(unit) == guid and hostile(unit) then return true end
+    end
+    return false
+end
+
+function H:ResetObserved()
+    self.observedGuids = {}
+end
+
 function H:Snapshot()
     local working, discovery, selectedGuid = {}, {}, identity("target")
     local engagementContext = Engagement and Engagement:ObservationContext()
@@ -302,6 +323,10 @@ function H:Snapshot()
             snapshot.byUnit[alias] = record.key
         end
         if record.selected then snapshot.selectedKey = record.key end
+    end
+    self.observedGuids = {}
+    for i = 1, table.getn(snapshot.order) do
+        self.observedGuids[snapshot.order[i]] = true
     end
     return snapshot
 end

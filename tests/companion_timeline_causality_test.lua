@@ -35,17 +35,24 @@ XelAssist.Graph.CompanionEvents = {
     end,
 }
 XelAssist.Graph.OngoingEffects = {
-    Prepare = function(_, out, _, candidate)
-        out.time = out.time + candidate.downtime
-        return candidate.testEvents or {}
-    end,
+    Prepare = function(_, _, _, candidate) return candidate.testEvents or {} end,
     Events = function(_, _, _, candidate) return candidate.testEvents or {} end,
+    PersistentAuraSnapshot = function() return {} end,
+    AdvanceState = function(_, out, elapsed)
+        out.time = out.time + elapsed
+    end,
     AuraSnapshot = function() return {} end,
     TrackEventAuras = function() end,
     AdvanceEventAuras = function() end,
     ApplyEvent = function(_, out, _, _, _, entry)
         if entry.kind == "testTargetDeath" then
+            out.testEventTime = out.time
             out.targetHealth, out.hostile = 0, false
+        elseif entry.kind == "testActorDeath" then
+            out.testEventTime = out.time
+            out.actors.pet.health, out.actors.pet.dead = 0, true
+        elseif entry.kind == "testLateEvent" then
+            out.testLateEventTime = out.time
         end
     end,
 }
@@ -94,8 +101,28 @@ interruptedCandidate.testEvents = { { owner = "ongoing",
     kind = "testTargetDeath", offset = 1, priority = 10 } }
 run(interrupted, interruptedCandidate)
 assert(interrupted.actors.pet.resource == 70 and not interrupted.applied
-    and interrupted.chosenActionPrevented,
-    "target death during a paid pet cast must suppress only its effect")
+    and interrupted.chosenActionPrevented and interrupted.testEventTime == 1
+    and interrupted.time == 2,
+    "target death must see its causal time while final state reaches the full window")
+
+local actorKilled = state(100)
+local actorKilledCandidate = petCandidate(50, true)
+actorKilledCandidate.testEvents = { { owner = "ongoing",
+    kind = "testActorDeath", offset = 1, priority = 10 } }
+run(actorKilled, actorKilledCandidate)
+assert(actorKilled.actors.pet.resource == 70 and not actorKilled.applied
+    and actorKilled.chosenActionPrevented and actorKilled.testEventTime == 1
+    and actorKilled.time == 2,
+    "a pet killed after paying at cast start must not resolve its chosen effect")
+
+local bounded = state(100)
+local boundedCandidate = petCandidate(0, true)
+boundedCandidate.testEvents = { { owner = "ongoing",
+    kind = "testLateEvent", offset = 2.00005, priority = 10 } }
+run(bounded, boundedCandidate)
+assert(bounded.applied == 1 and not bounded.testLateEventTime
+    and bounded.time == 2,
+    "an epsilon-admitted event must not advance beyond the candidate window")
 
 local deadAtStart = state(100)
 deadAtStart.hostile, deadAtStart.targetHealth = false, 0
