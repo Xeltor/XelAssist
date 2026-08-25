@@ -8,12 +8,28 @@ local ACTION = { name = "Continue channel", rank = 0, actor = "player",
     executor = "instruction", facts = { kind = "channelContinuation",
         channelContinuation = true, gcd = 0 } }
 
+local function actionFacts(state, action)
+    local root = XelAssist.Graph.RootObservation
+    if root and root.Facts then
+        local facts, status = root:Facts(state, action)
+        if status == "known" then return facts end
+        if status ~= "absent" then return {} end
+    end
+    return XelAssist.Game.Actors:Facts(action) or {}
+end
+
 local function sameSpell(state, action)
     if not action or (action.actor or "player") ~= "player" then return false end
     if state.playerCastSpellId and action.spellId then
         return state.playerCastSpellId == action.spellId
     end
     return state.playerCastName ~= nil and action.name == state.playerCastName
+end
+
+function C:IsActive(state, action)
+    return state and state.playerChanneling == true
+        and (tonumber(state.castRemaining) or 0) > 0
+        and sameSpell(state, action)
 end
 
 local function duration(action, tooltip, remaining)
@@ -34,7 +50,7 @@ local function continuationValue(state, kind, power, remaining, known, missing)
         if state.role == "damage" then value = value * 1.15
         elseif state.role == "healer" then value = value * 0.85 end
         return value
-    elseif kind == "heal" or kind == "hot" then
+    elseif kind == "heal" or kind == "hot" or kind == "petHeal" then
         missing = math.max(0, tonumber(missing) or 0)
         local effective = math.min(power, missing)
         local value = effective * 5 / math.max(0.5, remaining)
@@ -48,6 +64,20 @@ local function continuationValue(state, kind, power, remaining, known, missing)
     return math.max(500, power * 2 / math.max(0.5, remaining))
 end
 
+local function friendlyTarget(state, guid, match)
+    if guid == nil then return nil end
+    local target = XelAssist.Graph.State:FriendlyByKey(state, guid)
+    if target then return target end
+    local key, record
+    for key, record in pairs(state.friendlies and state.friendlies.byKey or {}) do
+        if record.guid == guid then return record end
+    end
+    local fixed = match and match.facts and match.facts.fixedTarget
+    target = fixed and XelAssist.Graph.State:FriendlyByUnit(state, fixed) or nil
+    if target and target.guid == guid then return target end
+    return nil
+end
+
 function C:Prepare(state, actions)
     state.channelCommitment = nil
     local remaining = math.max(0, tonumber(state.castRemaining) or 0)
@@ -57,7 +87,7 @@ function C:Prepare(state, actions)
     for i = 1, table.getn(actions or {}) do
         if sameSpell(state, actions[i]) then
             match = actions[i]
-            tooltip = XelAssist.Game.Actors:Facts(match) or {}
+            tooltip = actionFacts(state, match)
             break
         end
     end
@@ -74,15 +104,14 @@ function C:Prepare(state, actions)
     local selfChannel = match and match.facts.self and true or false
     local targetMatches = state.playerCastTargetGUID ~= nil
         and state.playerCastTargetGUID == state.targetGUID
-    local friendly = state.playerCastTargetGUID
-        and XelAssist.Graph.State:FriendlyByKey(
-            state, state.playerCastTargetGUID) or nil
+    local friendly = friendlyTarget(state, state.playerCastTargetGUID, match)
     local friendlyMissing = friendly and math.max(0,
         (tonumber(friendly.healthMax) or 0) - (tonumber(friendly.health) or 0))
     if (kind == "damage" or kind == "builder" or kind == "dot")
         and not targetMatches then
         power, known = 0, false
-    elseif (kind == "heal" or kind == "hot") and not friendly then
+    elseif (kind == "heal" or kind == "hot" or kind == "petHeal")
+        and not friendly then
         power, known = 0, false
     end
     state.channelCommitment = {
@@ -168,6 +197,7 @@ function C:Candidate(state)
         targetGUID = commitment.targetMatches and state.targetGUID
             or friendly and commitment.targetGUID or nil,
         targetRelation = commitment.targetMatches and "hostile"
+            or friendly and commitment.friendlyUnit == "pet" and "pet"
             or friendly and "ally" or "self",
         targetSource = "active channel", cost = 0, costKnown = true,
         cast = 0, wait = 0, occupancy = current,
@@ -193,6 +223,17 @@ function C:Apply(out, candidate)
         elseif commitment.kind == "resource" then
             out.resource = math.min(out.resourceMax or 0,
                 (out.resource or 0) + math.max(0, tonumber(candidate.power) or 0))
+        elseif commitment.kind == "petHeal" and out.actors
+            and out.actors.pet then
+            local amount = math.max(0, tonumber(candidate.power) or 0)
+            out.actors.pet.health = math.min(out.actors.pet.healthMax,
+                out.actors.pet.health + amount)
+            XelAssist.Graph.CompanionCommandPolicy:UpdateRecovery(
+                out.actors.pet)
+            local target = commitment.friendlyKey
+                and XelAssist.Graph.State:FriendlyByKey(
+                    out, commitment.friendlyKey) or nil
+            if target then target.health = out.actors.pet.health end
         elseif commitment.kind == "heal" or commitment.kind == "hot" then
             local target = commitment.friendlyKey
                 and XelAssist.Graph.State:FriendlyByKey(

@@ -258,17 +258,27 @@ function G:DispatchPet(plan, action, actorRef)
     local valid
     valid, reason = self:ValidatePetTarget(plan)
     if not valid then return false, reason end
+    local commandState = XelAssist.Game.Pets
+        and XelAssist.Game.Pets.CommandState
+    if action.executor == "petCommand" and commandState then
+        reason = commandState:LiveBlocker(action, actorRef.guid)
+        if reason then return false, reason end
+    end
+    local function commandSubmitted()
+        if commandState then commandState:Submitted(actorRef.guid, action.command) end
+        return true
+    end
     if action.executor == "petAbility" and action.actionSlot and CastPetAction then
         CastPetAction(action.actionSlot); return true
     end
     if action.executor == "petCommand" and action.command == "attack" and PetAttack then
-        PetAttack(); return true
+        PetAttack(); return commandSubmitted()
     end
     if action.executor == "petCommand" and action.command == "follow" and PetFollow then
-        PetFollow(); return true
+        PetFollow(); return commandSubmitted()
     end
     if action.executor == "petCommand" and action.command == "passive" and PetPassiveMode then
-        PetPassiveMode(); return true
+        PetPassiveMode(); return commandSubmitted()
     end
     return false, "pet action unavailable"
 end

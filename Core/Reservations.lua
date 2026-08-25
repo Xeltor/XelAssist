@@ -318,6 +318,10 @@ function XA:HandlePetIdentityChange()
     if XelAssist.Game.Pets and XelAssist.Game.Pets.EffectRuntime then
         XelAssist.Game.Pets.EffectRuntime:IdentityChanged(self.lastPetGuid, petGuid)
     end
+    if XelAssist.Game.Pets and XelAssist.Game.Pets.CommandState then
+        XelAssist.Game.Pets.CommandState:IdentityChanged(
+            self.lastPetGuid, petGuid)
+    end
     self.lastPetGuid = petGuid
 end
 

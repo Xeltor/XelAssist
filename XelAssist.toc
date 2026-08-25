@@ -2,13 +2,15 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.24
+## Version: 0.8.25
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
 
 # Foundation and live game state
 Core\Bootstrap.lua
+Core\CombatRevision.lua
+Core\CombatRevisionEvents.lua
 Game\SpellTiming.lua
 Game\SpellTopology.lua
 Game\SpellClassification.lua
@@ -40,6 +42,7 @@ Game\Pets\FocusEvents.lua
 Game\Pets\Resources.lua
 Game\Pets\State.lua
 Game\Pets\Actions.lua
+Game\Pets\CommandState.lua
 Game\Pets\Effects.lua
 Game\Pets\EffectRuntime.lua
 Combat\Delivery.lua
@@ -77,6 +80,7 @@ Graph\IncomingScoring.lua
 Graph\ResourceExchange.lua
 Graph\ComboState.lua
 Graph\CompanionTargets.lua
+Graph\CompanionCommandPolicy.lua
 Graph\HostileTargetPolicy.lua
 Graph\TargetSelection.lua
 Graph\CompanionThreat.lua
@@ -127,6 +131,9 @@ Graph\SearchPolicy.lua
 Graph\SearchBranches.lua
 Graph\PlanDiagnostics.lua
 Graph\PlanBuilder.lua
+Graph\RootObservation.lua
+Graph\SearchLifecycle.lua
+Graph\SearchPreparation.lua
 Graph\SearchSession.lua
 Graph\Engine.lua
 
@@ -148,6 +155,7 @@ Core\AuraApplicationReservations.lua
 Core\TargetGuard.lua
 Core\ExecutionReach.lua
 Core\DispatchReadiness.lua
+Core\PublicationGuard.lua
 Core\WandExecution.lua
 Core\DecisionLog.lua
 Core\Diagnostics.lua

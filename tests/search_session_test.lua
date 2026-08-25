@@ -1,4 +1,4 @@
-XelAssist = { Game = {}, Graph = {} }
+XelAssist = { Core = {}, Game = {}, Graph = {} }
 XelAssistCharDB = { graphDepth = 3 }
 table.getn = table.getn or function(values) return #values end
 
@@ -69,6 +69,8 @@ XelAssist.Graph.PlanBuilder = {
 }
 
 dofile("Graph/SearchPolicy.lua")
+dofile("Core/CombatRevision.lua")
+dofile("Graph/SearchLifecycle.lua")
 local maxStates, maxMilliseconds = 1000, 1000
 XelAssist.Graph.SearchPolicy.Limits = function()
     return maxStates, maxMilliseconds
@@ -101,6 +103,7 @@ while not complete do
     if not complete then
         assert(plan == nil and reason == nil,
             "an incomplete slice must never expose a partial plan")
+        XelAssist.Core.CombatRevision:Touch("health", "test damage")
         clock = clock + 1000
     end
 end
@@ -114,6 +117,8 @@ assert(plan.slices == session.slices and plan.maxSliceMs == session.maxSliceMs,
     "completed plans must retain slice telemetry for live stutter diagnosis")
 assert(plan.elapsed < 50,
     "inter-frame idle time must not consume or appear in active graph time")
+assert(session.softChanged,
+    "ordinary combat drift must be retained without starving completion")
 
 -- The two mandatory levels and aggregate state bound must stop at exactly the
 -- same accepted frontier whether that work is continuous or frame-sliced.
@@ -170,5 +175,19 @@ assert(complete and plan == nil and reason == "cancelled"
     "a cancelled evaluation must never reach PlanBuilder")
 assert(not XelAssist.Graph:CancelEvaluation(cancelled),
     "cancellation must be idempotent for an already terminal session")
+
+local stale = XelAssist.Graph:BeginEvaluation("smart", false, 127)
+local staleDone = XelAssist.Graph:ResumeEvaluation(stale, 0.1)
+assert(not staleDone, "the hard-change fixture must pause between slices")
+local buildsBeforeHardChange = buildCalls
+XelAssist.Core.CombatRevision:Hard("target topology changed")
+local stalePlan, staleReason
+staleDone, stalePlan, staleReason =
+    XelAssist.Graph:ResumeEvaluation(stale, 0.1)
+assert(staleDone and stalePlan == nil and stale.status == "stale"
+    and stale.stale and staleReason ==
+        "combat topology changed during evaluation"
+    and buildCalls == buildsBeforeHardChange,
+    "a hard revision must terminate old work without reaching PlanBuilder")
 
 print("search session tests passed")

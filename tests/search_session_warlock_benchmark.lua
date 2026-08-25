@@ -1,0 +1,301 @@
+-- Deterministic sliced-search benchmark over the production graph modules.
+-- Client APIs are fixture boundaries, while Targets, Scoring, Timeline,
+-- Transitions, SearchSession and PlanBuilder remain the shipped code.
+XelAssistGraphScenarioSetupOnly = true
+local Fixture = dofile("tests/graph_scenarios.lua")
+XelAssistGraphScenarioSetupOnly = nil
+
+local SLICE_MS = 3
+local FRAME_IDLE_MS = 16.667
+local EPSILON = 0.0001
+local profilerClock = 0
+local metrics
+
+GetTime = function() return 100 end
+debugprofilestop = function() return profilerClock end
+
+local function charge(kind, milliseconds)
+    if not metrics then return end
+    profilerClock = profilerClock + milliseconds
+    metrics.active = metrics.active + milliseconds
+    metrics.calls[kind] = (metrics.calls[kind] or 0) + 1
+    if milliseconds > metrics.maxAtomic then metrics.maxAtomic = milliseconds end
+end
+
+local productionTargets = XelAssist.Graph.Targets.Targets
+XelAssist.Graph.Targets.Targets = function(owner, action, source)
+    local result = productionTargets(owner, action, source)
+    charge("targets", 0.04)
+    return result
+end
+
+local productionScoring = XelAssist.Graph.Scoring.Evaluate
+XelAssist.Graph.Scoring.Evaluate = function(owner, action, source, target)
+    local candidate, blocker = productionScoring(owner, action, source, target)
+    charge("scoring", 0.34)
+    return candidate, blocker
+end
+
+local productionTransition = XelAssist.Graph.Transitions.Advance
+XelAssist.Graph.Transitions.Advance = function(owner, source, candidate)
+    local result = productionTransition(owner, source, candidate)
+    charge("transition", 0.18)
+    return result
+end
+
+local productionActorActions = XelAssist.Game.Actors.Actions
+XelAssist.Game.Actors.Actions = function(owner)
+    local result = productionActorActions(owner)
+    charge("actor actions", 0.08)
+    return result
+end
+
+local productionFacts = XelAssist.Game.Actors.Facts
+XelAssist.Game.Actors.Facts = function(owner, action)
+    local result = productionFacts(owner, action)
+    charge("action facts", 0.16)
+    return result
+end
+
+local productionRange = XelAssist.Game.Range.SpellVerdict
+XelAssist.Game.Range.SpellVerdict = function(owner, ...)
+    local result = productionRange(owner, ...)
+    charge("root range", 0.07)
+    return result
+end
+
+GetSpellCooldown = function()
+    charge("spell cooldown", 0.04)
+    return 0, 0, 1
+end
+GetPetActionCooldown = function()
+    charge("pet cooldown", 0.04)
+    return 0, 0, 1
+end
+GetPetActionsUsable = function()
+    charge("pet usability", 0.03)
+    return true
+end
+IsSpellUsable = function()
+    charge("spell usability", 0.03)
+    return 1, 0
+end
+
+local productionItemActions = XelAssist.Game.Inventory.Actions
+XelAssist.Game.Inventory.Actions = function(owner)
+    local result = productionItemActions(owner)
+    charge("item actions", 0.03)
+    return result
+end
+
+local productionBuild = XelAssist.Graph.PlanBuilder.Build
+XelAssist.Graph.PlanBuilder.Build = function(owner, ...)
+    local result = productionBuild(owner, ...)
+    charge("plan build", 0.12)
+    metrics.builds = metrics.builds + 1
+    return result
+end
+
+local function approximately(left, right)
+    return math.abs((left or 0) - (right or 0)) <= EPSILON
+end
+
+local function pathSignature(plan)
+    local parts, index = {}, nil
+    for index = 1, table.getn(plan.path or {}) do
+        local step = plan.path[index]
+        table.insert(parts, table.concat({
+            tostring(step.action and step.action.actor or "player"),
+            tostring(step.action and step.action.name or ""),
+            tostring(step.action and step.action.rank or 0),
+            tostring(step.targetKey or step.target or ""),
+            string.format("%.6f", tonumber(step.value) or 0),
+        }, ":"))
+    end
+    return table.concat(parts, "|") .. ";expanded=" .. tostring(plan.expanded)
+        .. ";depth=" .. tostring(plan.completedDepth)
+        .. ";limited=" .. tostring(plan.budgetLimited and true or false)
+end
+
+local function newMetrics()
+    return { active = 0, idle = 0, resumes = 0, builds = 0,
+        maxAtomic = 0, calls = {} }
+end
+
+local function configure(depth)
+    XelAssistCharDB.graphDepth = depth
+    XelAssistCharDB.role = "damage"
+    XelAssistCharDB.petThreat = "tank"
+    XelAssistCharDB.allowAoe = false
+    XelAssistCharDB.toggles.cooldowns = true
+    XelAssistCharDB.toggles.reagents = true
+    XelAssistCharDB.toggles.petActions = true
+    XelAssistCharDB.toggles.petControl = false
+    XelAssistCharDB.toggles.engagedTargets = false
+end
+
+local function prepare(case)
+    local source, actions = case.Build()
+    local index
+    for index = 1, table.getn(actions) do
+        if (actions[index].actor or "player") == "player"
+            and not actions[index].executor then
+            actions[index].executor = "playerSpell"
+        end
+    end
+    case.actionCount = table.getn(actions)
+    Fixture:Use(source, actions)
+    configure(case.depth)
+end
+
+local function synchronous(case)
+    prepare(case)
+    profilerClock, metrics = 0, newMetrics()
+    local plan, reason = XelAssist.Graph:Evaluate("smart", true, 100)
+    assert(plan, case.name .. " synchronous: " .. tostring(reason))
+    assert(metrics.builds == 1,
+        case.name .. " synchronous evaluation must build exactly once")
+    local result = { plan = plan, metrics = metrics,
+        signature = pathSignature(plan), wall = profilerClock }
+    metrics = nil
+    return result
+end
+
+local function sliced(case)
+    prepare(case)
+    profilerClock, metrics = 0, newMetrics()
+    local session = XelAssist.Graph:BeginEvaluation("smart", true, 100)
+    local complete, plan, reason, fallback = false, nil, nil, nil
+    local measuredActive = 0
+    while not complete do
+        local before = profilerClock
+        metrics.resumes = metrics.resumes + 1
+        complete, plan, reason, fallback =
+            XelAssist.Graph:ResumeEvaluation(session, SLICE_MS)
+        measuredActive = measuredActive + profilerClock - before
+        if not complete then
+            assert(plan == nil and reason == nil and fallback == nil,
+                case.name .. " pending slice exposed partial output")
+            profilerClock = profilerClock + FRAME_IDLE_MS
+            metrics.idle = metrics.idle + FRAME_IDLE_MS
+        end
+    end
+    assert(plan and reason == nil and fallback == false,
+        case.name .. " sliced completion did not publish one final plan")
+    assert(metrics.builds == 1,
+        case.name .. " sliced evaluation must build exactly once")
+    assert(metrics.resumes == session.slices and session.slices > 1,
+        case.name .. " did not genuinely span multiple slices")
+    assert(approximately(measuredActive, metrics.active)
+        and approximately(plan.elapsed, metrics.active),
+        case.name .. " active CPU accounting included an idle frame")
+    assert(profilerClock > plan.elapsed + FRAME_IDLE_MS,
+        case.name .. " wall time did not remain separate from active time")
+    assert(plan.maxSliceMs <= SLICE_MS + metrics.maxAtomic + EPSILON,
+        case.name .. " exceeded slice plus indivisible-call bound: "
+            .. tostring(plan.maxSliceMs) .. " > "
+            .. tostring(SLICE_MS + metrics.maxAtomic))
+
+    local builds = metrics.builds
+    local again, samePlan, sameReason, sameFallback =
+        XelAssist.Graph:ResumeEvaluation(session, SLICE_MS)
+    assert(again and samePlan == plan and sameReason == nil
+        and sameFallback == false and metrics.builds == builds,
+        case.name .. " completed Resume was not idempotent")
+
+    local result = { plan = plan, metrics = metrics, session = session,
+        signature = pathSignature(plan), wall = profilerClock }
+    metrics = nil
+    return result
+end
+
+local function levelSevenWarlock()
+    local source = Fixture.State("smart")
+    source.inCombat = true
+    source.resource, source.resourceMax = 293, 293
+    source.actors.player.resource, source.actors.player.resourceMax = 293, 293
+    source.targetHealth, source.targetMax = 80, 80
+    source.targetDistance, source.distance = 20, 20
+    source.targetDistanceKind, source.distanceKind = "hitbox", "hitbox"
+    source.targetAuras = {}
+    source.pet = true
+    source.actors.pet = {
+        health = 105, healthMax = 105, resource = 100, resourceMax = 100,
+        targetExists = true, targetGuid = source.targetGUID,
+        targetsCurrent = true, hasAggro = true, distance = 20,
+        distanceKind = "hitbox", lineOfSight = true, behind = false,
+        autocasts = { {
+            name = "Firebolt", actor = "pet", kind = "damage",
+            facts = { kind = "damage", damageActor = "pet", ranged = true },
+            power = 8.5, cost = 10, cooldown = 2, readyIn = 0.35,
+            tooltip = { school = 2, cost = 10, cast = 0 },
+        } },
+    }
+    return source, {
+        Fixture.Action("Corruption", 1, "dot", 40, 35,
+            { cast = 1.5, testDuration = 12,
+                testPeriodicInterval = 3, testSchool = 5 }),
+        Fixture.Action("Immolate", 1, "dot", 30.4, 25,
+            { cast = 2, testDuration = 15, testPeriodicInterval = 3,
+                testDirectDamage = 10.4, testPeriodicDamage = 20,
+                testSchool = 2 }),
+        Fixture.Action("Shadow Bolt", 1, "damage", 15.6, 25,
+            { cast = 1.7, testSchool = 5 }),
+    }
+end
+
+local function rankHeavyWarlock()
+    local source = Fixture.State("smart")
+    source.inCombat = true
+    source.resource, source.resourceMax = 1000, 1000
+    source.actors.player.resource, source.actors.player.resourceMax = 1000, 1000
+    source.targetHealth, source.targetMax = 2000, 2000
+    source.targetDistance, source.distance = 20, 20
+    source.targetDistanceKind, source.distanceKind = "hitbox", "hitbox"
+    source.targetAuras = {}
+    source.pet, source.actors.pet = false, nil
+    local actions, rank = {}, nil
+    for rank = 1, 48 do
+        table.insert(actions, Fixture.Action("Shadow Bolt", rank, "damage",
+            rank * 2, 5, { cast = 1.7, testSchool = 5 }))
+    end
+    table.insert(actions, Fixture.Action("Corruption", 1, "dot", 400, 35,
+        { cast = 1.5, testDuration = 12,
+            testPeriodicInterval = 3, testSchool = 5 }))
+    return source, actions
+end
+
+local cases = {
+    { name = "level-7 Warlock pet and DoTs", depth = 4,
+        Build = levelSevenWarlock, expected = "Corruption" },
+    { name = "rank-heavy Warlock", depth = 3,
+        Build = rankHeavyWarlock, expected = "Corruption" },
+}
+
+local index
+for index = 1, table.getn(cases) do
+    local case = cases[index]
+    local sync = synchronous(case)
+    local split = sliced(case)
+    assert(sync.signature == split.signature,
+        case.name .. " sync/sliced plan mismatch:\n" .. sync.signature
+            .. "\n" .. split.signature)
+    assert(sync.metrics.active == split.metrics.active,
+        case.name .. " slicing changed production operation cost")
+    assert(sync.metrics.calls.scoring == split.metrics.calls.scoring
+        and sync.metrics.calls.transition == split.metrics.calls.transition,
+        case.name .. " slicing repeated or skipped a graph edge")
+    assert(split.metrics.calls["action facts"] == case.actionCount
+        and split.metrics.calls["spell cooldown"] == case.actionCount
+        and split.metrics.calls["spell usability"] == case.actionCount
+        and split.metrics.calls["root range"] == case.actionCount,
+        case.name .. " performed a mutable root query after sealing evidence")
+    assert(split.plan.action.name == case.expected,
+        case.name .. " fixture drifted to " .. tostring(split.plan.action.name))
+    print(string.format(
+        "ok: %s slices=%d active=%.2fms wall=%.2fms max-slice=%.2fms expanded=%d",
+        case.name, split.session.slices, split.plan.elapsed, split.wall,
+        split.plan.maxSliceMs, split.plan.expanded))
+end
+
+print("search session Warlock production benchmark passed")

@@ -20,6 +20,16 @@ local function outOfMeleeRange(state, tooltip)
     return distance ~= nil and maximum ~= nil and distance > maximum
 end
 
+local function actionFacts(state, action)
+    local root = XelAssist.Graph.RootObservation
+    if root and root.Facts then
+        local facts, status = root:Facts(state, action)
+        if status == "known" then return facts end
+        if status ~= "absent" then return {} end
+    end
+    return XelAssist.Game.Actors:Facts(action) or {}
+end
+
 -- Stealth is a setup edge, so its value must come from another discovered
 -- action. A true stealth prerequisite always qualifies. Against an aggressive
 -- target, Stealth may also enable an undetected approach for a rear melee
@@ -36,7 +46,7 @@ function S:Prepare(state, actions)
         action = actions[i]
         facts = action and action.facts or {}
         if playerAction(action) and not facts.self then
-            tooltip = XelAssist.Game.Actors:Facts(action) or {}
+            tooltip = actionFacts(state, action)
             reason = nil
             if tooltip.requiresStealth == true or facts.requiresStealth == true then
                 reason = "unlocks " .. tostring(action.name)

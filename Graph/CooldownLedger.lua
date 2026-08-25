@@ -108,6 +108,22 @@ function L:PreobservedPet(state, action)
             or "root pet autocast readiness" }
 end
 
+function L:PreobservedRoot(state, action)
+    local root = XelAssist.Graph.RootObservation
+    if not (root and root.ActionRecord) then return nil, false end
+    local observed, status = root:ActionRecord(state, action)
+    if status == "absent" then return nil, false end
+    local cooldown = observed and observed.cooldown
+    if status ~= "known" or type(cooldown) ~= "table"
+        or not cooldown.applicable then
+        return { known = false,
+            source = "root cooldown observation unavailable" }, true
+    end
+    return { known = cooldown.known and true or false,
+        remaining = tonumber(cooldown.remaining),
+        source = cooldown.reason or "sealed root cooldown" }, true
+end
+
 function L:Prepare(state, actions, observedAt)
     observedAt = tonumber(observedAt)
         or (type(GetTime) == "function" and tonumber(GetTime()) or 0) or 0
@@ -120,9 +136,12 @@ function L:Prepare(state, actions, observedAt)
         if self:Supports(action) then
             local key = self:ActionKey(action)
             if ledger.records[key] == nil then
-                local record = actor(action) == "pet"
-                    and self:PreobservedPet(state, action) or nil
-                if not record then record = self:Capture(action, observedAt) end
+                local record, rootHandled = self:PreobservedRoot(state, action)
+                if not rootHandled then
+                    record = actor(action) == "pet"
+                        and self:PreobservedPet(state, action) or nil
+                    if not record then record = self:Capture(action, observedAt) end
+                end
                 record.key, record.actor = key, actor(action)
                 ledger.records[key] = record
                 table.insert(ledger.order, key)

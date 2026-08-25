@@ -13,7 +13,20 @@ local function comboPower(action, tooltip, state, targetGUID)
         * points
 end
 
-local function weaponBasis(action, tooltip)
+local function observedPower(action, state)
+    local root = XelAssist.Graph.RootObservation
+    if not root then return nil, "absent" end
+    return root:Power(state, action)
+end
+
+local function weaponBasis(action, tooltip, observed, status)
+    if status ~= "absent" then
+        if status == "known" and observed.weaponBasisCaptured then
+            return observed.weaponBasis, observed.weaponEvidence
+        end
+        return nil, { exact = false, unknown = true,
+            gap = "weapon power observation missing" }
+    end
     if XelAssist.Game.WeaponPower and XelAssist.Game.WeaponPower.Basis then
         return XelAssist.Game.WeaponPower:Basis(action, tooltip)
     end
@@ -24,10 +37,11 @@ local function weaponBasis(action, tooltip)
     return value, { exact = false, gap = "weapon power model" }
 end
 
-local function dbcWeaponPower(action, tooltip, state, targetGUID)
+local function dbcWeaponPower(action, tooltip, state, targetGUID,
+    observed, status)
     local coefficient = tonumber(tooltip.weaponCoefficient)
     if coefficient == nil then return nil end
-    local basis, evidence = weaponBasis(action, tooltip)
+    local basis, evidence = weaponBasis(action, tooltip, observed, status)
     local weapon = tonumber(basis)
     if weapon == nil then return nil end
     local points = XelAssist.Graph.ComboState
@@ -55,6 +69,11 @@ local function unresolvedWeaponPower(action, tooltip, state, targetGUID)
 end
 
 function P:Estimate(action, tooltip, state, targetGUID)
+    local observed, observationStatus = observedPower(action, state)
+    if observationStatus ~= "absent" and observationStatus ~= "known" then
+        return 0, true, { unknown = true,
+            gap = "action power observation missing" }
+    end
     local combo = comboPower(action, tooltip, state, targetGUID)
     local base, estimated, evidence = nil, nil, nil
     if action.facts.healthConversion and tooltip.resourceGain then
@@ -64,7 +83,8 @@ function P:Estimate(action, tooltip, state, targetGUID)
         base, estimated = Triggered:ScriptedPower(action, state)
     end
     if not base then
-        base, evidence = dbcWeaponPower(action, tooltip, state, targetGUID)
+        base, evidence = dbcWeaponPower(action, tooltip, state, targetGUID,
+            observed, observationStatus)
         if base ~= nil then estimated = true end
     end
     if not base and tooltip.weaponCoefficient ~= nil then
@@ -88,10 +108,15 @@ function P:Estimate(action, tooltip, state, targetGUID)
         base, estimated = tooltip.average + combo, false
     end
     if not base and tooltip.dbcAverage then
-        local weapon = action.facts.melee
-            and XelAssist.Game.Capabilities:WeaponDamage() or 0
-        if action.facts.ranged and tooltip.school == 0 then
-            weapon = XelAssist.Game.Capabilities:RangedDamage() or weapon
+        local weapon
+        if observationStatus == "known" then
+            weapon = observed.dbcWeaponCaptured and observed.dbcWeapon or 0
+        else
+            weapon = action.facts.melee
+                and XelAssist.Game.Capabilities:WeaponDamage() or 0
+            if action.facts.ranged and tooltip.school == 0 then
+                weapon = XelAssist.Game.Capabilities:RangedDamage() or weapon
+            end
         end
         base, estimated = tooltip.dbcAverage + combo + (weapon or 0), true
     end
@@ -106,7 +131,9 @@ function P:Estimate(action, tooltip, state, targetGUID)
     end
     if (action.facts.kind == "damage" or action.facts.kind == "dot")
         and action.actor ~= "pet" then
-        local bonus = XelAssist.Game.Capabilities:BonusDamage(tooltip.school)
+        local bonus = observationStatus == "known"
+            and (observed.bonusCaptured and observed.bonusDamage or 0)
+            or XelAssist.Game.Capabilities:BonusDamage(tooltip.school)
         if bonus > 0 then
             local coefficient
             if action.facts.kind == "dot" then

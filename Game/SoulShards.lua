@@ -142,7 +142,7 @@ local function excludedCreature(evidence)
         or creatureType == "non-combat pet" or creatureType == "wild pet"
 end
 
-function S:TargetEligibility(state, descriptor)
+function S:TargetEligibility(state, descriptor, observed)
     if not descriptor or descriptor.relation ~= "hostile" then
         return false, "not a hostile target"
     end
@@ -161,7 +161,15 @@ function S:TargetEligibility(state, descriptor)
     if targetLevel > 0 and targetLevel <= self:GrayLevel(playerLevel) then
         return false, "target is too low level to yield experience"
     end
-    if unit and UnitIsTapped then
+    if observed then
+        if not observed.tapKnown then return false, "target tap evidence unavailable" end
+        if observed.tapped and not observed.tapOwnerKnown then
+            return false, "target tap ownership unavailable"
+        end
+        if observed.tapped and not observed.tappedByPlayer then
+            return false, "target is tapped by another player"
+        end
+    elseif unit and UnitIsTapped then
         local tapped, tappedKnown = safeCall(UnitIsTapped, unit)
         if tappedKnown and truthy(tapped) and UnitIsTappedByPlayer then
             local ours, oursKnown = safeCall(UnitIsTappedByPlayer, unit)

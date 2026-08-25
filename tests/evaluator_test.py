@@ -231,4 +231,6 @@ assert "XelAssist.Graph = {}" not in graph, "graph modules must extend the boots
 assert len(engine.splitlines()) <= 450, "graph facade/search regressed into a monolith"
 
 subprocess.run(["lua", str(ROOT / "tests/graph_scenarios.lua")], cwd=ROOT, check=True)
+subprocess.run(["lua", str(ROOT / "tests/search_session_warlock_benchmark.lua")],
+    cwd=ROOT, check=True)
 print("ok: semantic action graph contracts and Lua scenarios")

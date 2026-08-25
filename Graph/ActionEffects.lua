@@ -204,6 +204,7 @@ local function applyDamageOrSupport(out, source, candidate, context,
     elseif facts.kind == "petHeal" and out.actors and out.actors.pet then
         out.actors.pet.health = math.min(out.actors.pet.healthMax,
             out.actors.pet.health + candidate.power)
+        XelAssist.Graph.CompanionCommandPolicy:UpdateRecovery(out.actors.pet)
         return true
     elseif facts.kind == "taunt" and out.actors and out.actors.pet then
         local delivery = math.max(0, math.min(1,
@@ -256,32 +257,8 @@ local function applyActorOrInventory(out, candidate, context)
         auto.blocked = out.moving and true or false
         out.autoShot = auto
     elseif facts.kind == "command" and out.actors and out.actors.pet then
-        if action.command == "passive" then
-            out.actors.pet.stance = "passive"
-            out.actors.pet.attackActive = false
-            out.actors.pet.attackActiveKnown = true
-            if out.actors.pet.attackRound then
-                out.actors.pet.attackRound.projectable = false
-                out.actors.pet.attackRound.phaseKnown = false
-            end
-        else
-            out.actors.pet.targetExists = action.command == "attack"
-            out.actors.pet.targetsCurrent = action.command == "attack"
-            if action.command == "attack" then
-                out.actors.pet.targetGuid = candidate.targetGUID or out.targetGUID
-                out.actors.pet.attackActive = true
-                out.actors.pet.attackActiveKnown = true
-                if out.actors.pet.attackRound then
-                    out.actors.pet.attackRound.projectable = false
-                    out.actors.pet.attackRound.phaseKnown = false
-                    out.actors.pet.attackRound.reason =
-                        "attack command submitted; awaiting resolved swing"
-                end
-            else
-                out.actors.pet.attackActive = false
-                out.actors.pet.attackActiveKnown = true
-            end
-        end
+        XelAssist.Graph.CompanionCommandPolicy:Apply(out.actors.pet,
+            action, candidate.targetGUID or out.targetGUID)
     elseif ResourceExchange and ResourceExchange:Apply(out, candidate) then
         return
     elseif facts.kind == "resource" and facts.consumable then

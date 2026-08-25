@@ -13,6 +13,16 @@ local DAMAGE_FACTS = { kind = "damage" }
 local DAMAGE_ACTION = { name = "Wand shot", actor = "player",
     facts = DAMAGE_FACTS }
 
+local function actionFacts(state, action)
+    local root = XelAssist.Graph.RootObservation
+    if root and root.Facts then
+        local facts, status = root:Facts(state, action)
+        if status == "known" then return facts end
+        if status ~= "absent" then return {} end
+    end
+    return XelAssist.Game.Actors:Facts(action) or {}
+end
+
 local function sameTarget(state, wand)
     return state.hostile and wand.targetGuid ~= nil
         and wand.targetGuid == state.targetGUID
@@ -45,7 +55,7 @@ function W:Prepare(state, actions)
     end
     if action then
         wand.action = action
-        wand.tooltip = XelAssist.Game.Actors:Facts(action) or {}
+        wand.tooltip = actionFacts(state, action)
     end
 end
 

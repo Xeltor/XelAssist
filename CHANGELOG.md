@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.8.25
+
+- Added a frame-sliced, evaluation-owned root observation contract. The graph
+  now seals cloned action metadata plus exact usability, cooldown, power,
+  recipient aura, pending-application, range, ownership, inventory, and config
+  evidence before search; migrated admission, potency, targeting, spatial,
+  channel, stealth, wand, cooldown, and Soul Shard readers cannot fall back to
+  mutable client APIs when that sealed evidence is present.
+- Split combat changes into hard topology revisions and soft health, resource,
+  aura, cast, pet, threat, engagement, readiness, and inventory domains. Hard
+  changes cancel an obsolete continuation, while ordinary combat traffic is
+  recorded without repeatedly starving frame-sliced work. Observation age now
+  begins at the actual captured snapshot rather than the UI request.
+- Added a bounded final publication guard for the selected action's actor and
+  recipient identities, current resource and reagent availability, and pending
+  applications. A stale completion is rejected and replaced without exposing a
+  half-built or unsafe recommendation.
+- Added deterministic production-graph Warlock benchmarks. A level-7 Imp and
+  DoT workload completes in three slices with a 3.10 ms maximum test slice; a
+  deliberately abusive 48-rank catalogue remains sliced and preserves exact
+  synchronous plan parity.
+- Removed the low-health companion command cycle that could alternate Passive,
+  Follow, and Attack forever. Recovery now has a 25% entry and 35% release
+  threshold, retreat commands are acknowledged and submitted once, nested pet
+  attack-state evidence is honored, and the final dispatch boundary rejects a
+  stale re-engage command while the companion is recovering. Active Consume
+  Shadows is preserved instead of interrupted by its own retreat loop, while
+  pending and continuing Mend Pet-style channels retain their remaining heal.
+
 ## 0.8.24
 
 - Replaced synchronous HUD graph evaluation with a Lua 5.0-compatible search

@@ -297,9 +297,24 @@ local function positionBlocker(action, state, descriptor, tooltip)
     return nil
 end
 
+function S:CaptureRoot(action, state, descriptor, target, tooltip)
+    if isFuture(state) then return "root range evidence unknown" end
+    return rangeBlocker(action, state, descriptor, target, tooltip)
+end
+
 function S:Blocker(action, state, descriptor, target, tooltip)
     if action.facts and action.facts.movementSetup then return nil end
     local blocker = positionBlocker(action, state, descriptor, tooltip)
     if blocker then return blocker end
+    if not isFuture(state) and XelAssist.Graph.RootObservation then
+        local evidence, status = XelAssist.Graph.RootObservation:Recipient(
+            state, action, descriptor)
+        if status ~= "absent" then
+            if status ~= "known" or not evidence.rangeKnown then
+                return "range evidence unknown"
+            end
+            return evidence.rangeBlocker
+        end
+    end
     return rangeBlocker(action, state, descriptor, target, tooltip)
 end

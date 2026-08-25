@@ -105,4 +105,27 @@ end
 assert(spellCalls[10] == callsBefore,
     "graph expansion must not perform any additional live cooldown reads")
 
+local spellCallsBeforeRoot, petCallsBeforeRoot = spellCalls[10], petCalls[5]
+XelAssist.Graph.RootObservation = {
+    ActionRecord = function(_, _, value)
+        if value.slot == 10 then
+            return { cooldown = { applicable = true, known = true,
+                remaining = 2 } }, "known"
+        end
+        if value.slot == 11 then
+            return { cooldown = { applicable = true, known = true,
+                remaining = 0 } }, "known"
+        end
+        return { cooldown = { applicable = true, known = false,
+            reason = "sealed unknown" } }, "known"
+    end,
+}
+local rootState = { time = 0, readyAt = {}, rootObservation = {},
+    actors = { pet = { autocasts = {} } } }
+L:Prepare(rootState, actions)
+assert(spellCalls[10] == spellCallsBeforeRoot
+    and petCalls[5] == petCallsBeforeRoot
+    and L:ReadyAt(rootState, shadowOne) == 2,
+    "a sealed root observation must prevent all later cooldown API reads")
+
 print("ok: evaluation-local exact-rank cooldown ledger")

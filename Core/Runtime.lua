@@ -3,6 +3,7 @@ local PlayerNormalQueue = XelAssist.Core.PlayerNormalQueue
 local PlayerQueueEvents = XelAssist.Core.PlayerQueueEvents
 local PlayerOnSwingEvents = XelAssist.Game.Player.OnSwingEvents
 local CastEventRouter = XelAssist.Core.CastEventRouter
+local CombatRevisionEvents = XelAssist.Core.CombatRevisionEvents
 local function msg(text, r, g, b)
     DEFAULT_CHAT_FRAME:AddMessage("XelAssist: " .. text, r or 0.35, g or 0.85, b or 1)
 end
@@ -192,7 +193,9 @@ ev:RegisterEvent("AUTO_ATTACK_OTHER")
 ev:RegisterEvent("AURA_CAST_ON_SELF")
 ev:RegisterEvent("AURA_CAST_ON_OTHER")
 ev:RegisterEvent("DEBUFF_ADDED_OTHER")
+if CombatRevisionEvents then CombatRevisionEvents:Register(ev) end
 ev:SetScript("OnEvent", function()
+    if CombatRevisionEvents then CombatRevisionEvents:Observe(event, arg1) end
     if event == "ADDON_LOADED" and arg1 == "XelAssist" then
         PlayerNormalQueue:Reset()
         PlayerOnSwingEvents:Reset("addon loaded")

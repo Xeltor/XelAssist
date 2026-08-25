@@ -1,4 +1,4 @@
-XelAssist = { Game = {}, Combat = {}, Graph = {}, UI = {} }
+XelAssist = { Core = {}, Game = {}, Combat = {}, Graph = {}, UI = {} }
 table.getn = table.getn or function(value)
     local count = 0
     while value[count + 1] ~= nil do count = count + 1 end
@@ -26,6 +26,7 @@ dofile("Game/Player/Engagement.lua")
 dofile("Game/Player/Resources.lua")
 dofile("Game/Pets/Resources.lua")
 dofile("Game/Pets/Actions.lua")
+dofile("Game/Pets/CommandState.lua")
 dofile("Game/Pets/Effects.lua")
 dofile("Game/Actors.lua")
 dofile("Game/Friendlies.lua")
@@ -39,6 +40,7 @@ dofile("Graph/IncomingScoring.lua")
 dofile("Graph/ResourceExchange.lua")
 dofile("Graph/ComboState.lua")
 dofile("Graph/CompanionTargets.lua")
+dofile("Graph/CompanionCommandPolicy.lua")
 dofile("Graph/HostileTargetPolicy.lua")
 dofile("Graph/TargetSelection.lua")
 dofile("Graph/CompanionThreat.lua")
@@ -88,6 +90,12 @@ dofile("Graph/SearchPolicy.lua")
 dofile("Graph/SearchBranches.lua")
 dofile("Graph/PlanDiagnostics.lua")
 dofile("Graph/PlanBuilder.lua")
+if XelAssistGraphScenarioSetupOnly then
+    dofile("Core/CombatRevision.lua")
+    dofile("Graph/RootObservation.lua")
+    dofile("Graph/SearchLifecycle.lua")
+    dofile("Graph/SearchPreparation.lua")
+end
 dofile("Graph/SearchSession.lua")
 dofile("Graph/Engine.lua")
 
@@ -294,6 +302,28 @@ local function expect(name, wanted)
     assert(plan, name .. ": " .. tostring(err))
     assert(plan.action.name == wanted, name .. ": got " .. plan.action.name .. ", wanted " .. wanted)
     return plan
+end
+
+-- The sliced-search benchmark reuses this production-graph fixture without
+-- executing the scenario catalogue below. Keep the small interface here so
+-- the benchmark cannot drift into a second copy of this already-large setup.
+if XelAssistGraphScenarioSetupOnly then
+    return {
+        State = state,
+        Action = action,
+        PetAction = petAction,
+        Use = function(_, source, actions, items)
+            currentState = source
+            scenarioActions = actions or {}
+            scenarioItems = items or {}
+            pendingAura, dispelTarget = nil, nil
+            reagentAvailable = true
+            rangeQueries = {}
+            XelAssist.Graph.testDelivery = nil
+            XelAssist.Graph.testRangeBlocked = nil
+            XelAssist.Graph.testRangeUnknown = nil
+        end,
+    }
 end
 
 do
@@ -1260,6 +1290,39 @@ do
     assert(not afterClip.playerCasting and not afterClip.playerChanneling
         and afterClip.castRemaining == 0,
         "a chosen clipping action must release the projected channel commitment")
+end
+do
+    currentState = state("smart")
+    currentState.role = "damage"
+    currentState.actors.pet = { guid = "pet-guid", health = 100,
+        healthMax = 1000, resource = 100, resourceMax = 100,
+        targetExists = false, targetsCurrent = false, recovering = true,
+        retreatFollowIssued = true, retreatPassiveIssued = true }
+    setFriendlies(currentState, {
+        friendly("pet", "pet-guid", 100, 1000, 0),
+        friendly("player", "player-guid", 1000, 1000, 0),
+    })
+    currentState.playerCasting, currentState.playerChanneling = true, true
+    currentState.playerCastName, currentState.playerCastSpellId = "Mend Pet", 136
+    currentState.playerCastTargetGUID = "pet-guid"
+    currentState.castRemaining = 2
+    currentState.actorReadyAt = { player = 2, pet = 0 }
+    local mend = action("Mend Pet", 1, "petHeal", 600, 40,
+        { channel = true, cast = 3, testDuration = 3,
+            pet = true, fixedTarget = "pet" })
+    mend.spellId = 136
+    local weakShot = action("Weak recovery shot", 1, "damage", 20, 0,
+        { ranged = true })
+    scenarioActions, XelAssistCharDB.graphDepth = { mend, weakShot }, 1
+    plan = expect("pet-heal channel commitment", "Continue Mend Pet")
+    local recovered = XelAssist.Graph.Transitions:Advance(
+        currentState, plan.path[1])
+    assert(recovered.actors.pet.health == 500
+        and XelAssist.Graph.State:FriendlyByUnit(recovered, "pet").health == 500
+        and not recovered.actors.pet.recovering
+        and not recovered.actors.pet.retreatFollowIssued
+        and not recovered.actors.pet.retreatPassiveIssued,
+        "continuing Mend Pet must heal both canonical companion health mirrors")
 end
 currentState = XelAssistTestHunterAfterCastState
 XelAssistTestHunterAfterCastState = nil
@@ -2844,6 +2907,67 @@ scenarioActions = { { name = "Pet Passive", rank = 1, actor = "pet", executor = 
         mock = { cost = 0, cast = 0, gcd = 0 } },
     action("Shadow Bolt", 1, "damage", 300, 20) }
 expect("endangered companion stance", "Pet Passive")
+
+currentState.actors.pet.stance = "defensive"
+currentState.actors.pet.attackActive = true
+currentState.actors.pet.attackActiveKnown = true
+currentState.actors.pet.attackRound = { attackActive = true,
+    attackActiveKnown = true, projectable = false, phaseKnown = false }
+XelAssistCharDB.graphDepth = 6
+XelAssistTestRecoveryAttack = { name = "Pet Attack", rank = 1, actor = "pet",
+    executor = "petCommand", command = "attack",
+    facts = { kind = "command", petCommand = true },
+    mock = { cost = 0, cast = 0, gcd = 0 } }
+XelAssistTestRecoveryFollow = { name = "Pet Follow", rank = 1, actor = "pet",
+    executor = "petCommand", command = "follow",
+    facts = { kind = "command", petCommand = true },
+    mock = { cost = 0, cast = 0, gcd = 0 } }
+XelAssistTestRecoveryPassive = { name = "Pet Passive", rank = 1, actor = "pet",
+    executor = "petCommand", command = "passive",
+    facts = { kind = "command", petCommand = true },
+    mock = { cost = 0, cast = 0, gcd = 0 } }
+scenarioActions = { XelAssistTestRecoveryAttack, XelAssistTestRecoveryFollow,
+    XelAssistTestRecoveryPassive,
+    action("Recovery Shadow Bolt", 1, "damage", 50, 20) }
+plan = expect("endangered companion recovery path", "Pet Passive")
+for XelAssistTestRecoveryIndex = 1, table.getn(plan.path or {}) do
+    assert(plan.path[XelAssistTestRecoveryIndex].action.name ~= "Pet Attack",
+        "a recovery path must never retreat and immediately re-engage the pet")
+end
+assert(plan.follow[1] and plan.follow[1].name == "Pet Follow",
+    "the graph should complete the endangered companion retreat once")
+
+currentState.actors.pet.stance = "passive"
+currentState.actors.pet.recovering = true
+currentState.actors.pet.retreatPassiveIssued = true
+currentState.actors.pet.retreatFollowIssued = true
+currentState.actors.pet.attackActive = nil
+currentState.actors.pet.attackActiveKnown = nil
+currentState.actors.pet.attackRound.attackActive = false
+currentState.actors.pet.attackRound.attackActiveKnown = true
+XelAssistCharDB.graphDepth = 1
+expect("acknowledged companion recovery is stable", "Recovery Shadow Bolt")
+
+currentState.actors.pet.retreatPassiveIssued = false
+currentState.actors.pet.retreatFollowIssued = false
+currentState.actors.pet.stance = "defensive"
+currentState.actors.pet.targetExists = true
+currentState.actors.pet.channeling = true
+currentState.actors.pet.castSpellId = 17767
+currentState.actors.pet.ownerClass = "WARLOCK"
+expect("active Consume Shadows recovery is preserved", "Recovery Shadow Bolt")
+
+currentState = state("smart"); currentState.pet = true
+currentState.actors.pet = { health = 1000, healthMax = 1000,
+    resource = 300, resourceMax = 300, targetExists = true,
+    targetsCurrent = false, attackActive = true, attackActiveKnown = true,
+    distance = 3 }
+XelAssistCharDB.graphDepth = 2
+scenarioActions = { XelAssistTestRecoveryAttack, XelAssistTestRecoveryFollow,
+    action("Retarget filler", 1, "damage", 50, 20) }
+plan = expect("healthy companion retargets directly", "Pet Attack")
+assert(not (plan.follow[1] and plan.follow[1].name == "Pet Follow"),
+    "a healthy off-target companion must not bounce through Follow before Attack")
 
 currentState = state("smart"); currentState.pet = true; currentState.hasAggro = true
 currentState.actors.pet = { health = 1000, healthMax = 1000, resource = 300, resourceMax = 300,

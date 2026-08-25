@@ -19,6 +19,15 @@ local function dependencyError()
 end
 
 local function validatePlan(plan, err)
+    local publication = XelAssist.Core and XelAssist.Core.PublicationGuard
+    if plan and plan.liveSnapshot == true and publication
+        and publication.Validate then
+        local valid, reason = publication:Validate(plan)
+        if not valid then
+            return nil, "State changed during evaluation: "
+                .. tostring(reason or "live evidence changed"), true
+        end
+    end
     local reach = XelAssist.Core and XelAssist.Core.ExecutionReach
     if plan and plan.liveSnapshot == true and plan.action
         and plan.action.executor ~= "instruction"
@@ -156,6 +165,17 @@ function Controller:Resume(owner)
     if not complete then return true end
     owner.activeEvaluation = nil
     if active.session and active.session.cancelled then return false end
+    if active.session and active.session.stale then
+        owner.refreshRequested, owner.elapsed = true, POLL_SECONDS
+        if owner.SetUpdating then
+            owner:SetUpdating(err or "combat state changed; recalculating")
+        end
+        return false
+    end
+    local snapshotAt = active.session and active.session.snapshotAt
+        or active.observedAt
+    active.observedAt = snapshotAt
+    if active.ticket then active.ticket.observedAt = snapshotAt end
     local age = GetTime() - (tonumber(active.observedAt) or 0)
     if age < 0 or age > RecommendationSnapshot.MAX_AGE then
         self:Invalidate(owner,

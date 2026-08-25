@@ -13,6 +13,8 @@ local Diagnostics = G.PlanDiagnostics
 local MovementSetup = G.MovementSetup
 local PlanBuilder = G.PlanBuilder
 local Timeline = G.Timeline
+local Lifecycle = G.SearchLifecycle
+local Preparation = G.SearchPreparation
 
 local function stringField(value)
     if type(value) == "string" then return value end
@@ -341,6 +343,7 @@ end
 
 local function advance(session)
     if session.phase == "snapshot" then
+        if Lifecycle and Lifecycle.Observe then Lifecycle:Observe(session) end
         session.state = G:Snapshot(session.mode)
         session.observed = PlanBuilder:ObservedState(session.state)
         startBudget(session)
@@ -351,17 +354,27 @@ local function advance(session)
             Policy:Limits(session.state)
         session.phase = "actions"
     elseif session.phase == "actions" then
-        session.actions = availableActions()
-        session.prepareStage, session.phase = 1, "prepare"
+        if Preparation then Preparation:Begin(session, availableActions())
+        else
+            session.actions = availableActions()
+            session.prepareStage, session.phase = 1, "prepare"
+        end
+    elseif session.phase == "observe" then
+        Preparation:Advance(session)
     elseif session.phase == "prepare" then
         advancePreparation(session)
     elseif session.phase == "build" then
+        if Lifecycle and Lifecycle.RecordSoftChanges then
+            Lifecycle:RecordSoftChanges(session)
+        end
         if not session.path.steps[1] then
             session.reason = Diagnostics:Reason(
                 session.state, session.counter.blockers)
         else
             session.plan = PlanBuilder:Build(session.state, session.observed,
                 session.path, session.counter, session, session.observedAt)
+            session.plan.softChanged = session.softChanged
+            session.plan.changedDomains = session.changedDomains
         end
         session.fallback, session.status, session.phase = false, "complete", "done"
     else
@@ -397,6 +410,11 @@ function S:Resume(session, sliceMs)
     end
     if session.status == "complete" then
         return true, session.plan, session.reason, session.fallback
+    end
+    if Lifecycle and Lifecycle.HardChanged
+        and Lifecycle:HardChanged(session) then
+        Lifecycle:AbortHardChange(session)
+        return true, nil, session.reason, false
     end
     local limit = sliceMs
     if limit == nil then limit = Policy.SLICE_MS end

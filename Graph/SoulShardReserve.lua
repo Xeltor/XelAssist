@@ -30,6 +30,19 @@ function R:Relevant(actions)
     return false
 end
 
+local function targetEligibility(state, descriptor)
+    local root = XelAssist.Graph.RootObservation
+    if root then
+        local observed, status = root:Target(state, descriptor)
+        if status == "known" then
+            return Shards:TargetEligibility(state, descriptor, observed)
+        end
+        if status ~= "absent" then return false,
+            "target tap evidence unavailable" end
+    end
+    return Shards:TargetEligibility(state, descriptor)
+end
+
 function R:Prepare(state)
     state.soulShards = Shards:Snapshot(state.inventory)
     state.soulShards.targets = {}
@@ -41,7 +54,7 @@ function R:Prepare(state)
             if record then
                 local descriptor = { unit = record.unit, relation = "hostile",
                     key = key, guid = record.guid, record = record }
-                local eligible, reason = Shards:TargetEligibility(state, descriptor)
+                local eligible, reason = targetEligibility(state, descriptor)
                 state.soulShards.targets[key] = {
                     eligible = eligible, reason = reason }
             end
@@ -56,7 +69,7 @@ local function eligibility(state, descriptor)
     local cached = ledger and ledger.targets and key ~= nil
         and ledger.targets[key] or nil
     if cached then return cached.eligible, cached.reason end
-    return Shards:TargetEligibility(state, descriptor)
+    return targetEligibility(state, descriptor)
 end
 
 local function forecast(context, health, wait, duration)

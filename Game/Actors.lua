@@ -95,14 +95,16 @@ function A:PetIdentity(ref)
     local ownerClass = playerClass()
     local familyKnowledge = XelAssist.Combat.PetKnowledge
         and XelAssist.Combat.PetKnowledge:Family(nil, family, ownerClass) or nil
-    local stance, i
+    local stance, following, followingKnown, i
     if GetPetActionInfo then
         for i = 1, (NUM_PET_ACTION_SLOTS or 10) do
             local name, _, _, isToken, active = GetPetActionInfo(i)
-            if name and isToken and active then
-                if string.find(name, "PASSIVE") then stance = "passive"
-                elseif string.find(name, "DEFENSIVE") then stance = "defensive"
-                elseif string.find(name, "AGGRESSIVE") then stance = "aggressive" end
+            if name and isToken then
+                if string.find(name, "FOLLOW") then
+                    followingKnown, following = true, active and true or false
+                elseif active and string.find(name, "PASSIVE") then stance = "passive"
+                elseif active and string.find(name, "DEFENSIVE") then stance = "defensive"
+                elseif active and string.find(name, "AGGRESSIVE") then stance = "aggressive" end
             end
         end
     end
@@ -124,6 +126,7 @@ function A:PetIdentity(ref)
         familySkillLine = familyKnowledge and familyKnowledge.skillLine,
         familyKnowledgeSource = familyKnowledge and familyKnowledge.source,
         ownerClass = ownerClass, creatureType = creature, stance = stance,
+        following = following, followingKnown = followingKnown,
         level = UnitLevel and UnitLevel("pet") or nil,
         health = UnitHealth("pet") or 0, healthMax = UnitHealthMax("pet") or 0,
         resource = UnitMana("pet") or 0, resourceMax = UnitManaMax("pet") or 0,
@@ -315,6 +318,9 @@ function A:Snapshot()
         if XelAssist.Game.AttackRounds then
             pet = XelAssist.Game.AttackRounds:Attach(pet)
         end
+        if XelAssist.Game.Pets and XelAssist.Game.Pets.CommandState then
+            pet = XelAssist.Game.Pets.CommandState:Attach(pet)
+        end
         pet.autocasts = {}
         local actions = self.petActions and self.petActionsGuid == pet.guid
             and self.petActions or self:BuildPetActions(pet.actorRef)
@@ -338,6 +344,8 @@ function A:Snapshot()
         end
         actors.pet = pet
         table.insert(actors.controlled, pet)
+    elseif XelAssist.Game.Pets and XelAssist.Game.Pets.CommandState then
+        XelAssist.Game.Pets.CommandState:Absent()
     end
     return actors
 end

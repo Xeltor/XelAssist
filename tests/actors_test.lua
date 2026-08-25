@@ -46,6 +46,7 @@ GetTime = function() return 10 end
 GetPetActionInfo = function(slot)
     if slot == 1 then return "Attack", nil, "attack-icon", true, false, false, false end
     if slot == 2 then return "PET_MODE_DEFENSIVE", nil, "defensive-icon", true, true, false, false end
+    if slot == 3 then return "PET_ACTION_FOLLOW", nil, "follow-icon", true, false, false, false end
     if ownerClass == "HUNTER" then
         if slot == 4 then return "Bite", "Rank 8", "bite-icon", false, false, true, false end
         if slot == 5 then return "Growl", "Rank 7", "growl-icon", false, false, true, false end
@@ -136,7 +137,8 @@ assert(not XelAssist.Combat.PetKnowledge:Facts(2649, "Growl", "WARLOCK"),
     "known owner class must prevent cross-class pet semantics")
 
 local pet = XelAssist.Game.Actors:PetIdentity()
-assert(pet and pet.family == "Felhunter" and pet.creatureType == "Demon" and pet.stance == "defensive")
+assert(pet and pet.family == "Felhunter" and pet.creatureType == "Demon"
+    and pet.stance == "defensive" and pet.followingKnown and not pet.following)
 assert(pet.resource == 220 and pet.resourceMax == 300 and pet.targetsCurrent
     and pet.targetGuid == targetGuid and pet.targetGuidKnown,
     "every controlled companion must retain its exact hostile target identity")

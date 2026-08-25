@@ -375,7 +375,7 @@ assert(XelAssistCharDB.schema == 5
     and XelAssistCharDB.toggles.engagedTargets == false,
     "saved-variable schema did not migrate with safe hostile-target defaults")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.24" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.25" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(not runtime.apis.comboOwner and not runtime.apis.comboDuration,
@@ -593,6 +593,10 @@ do
         assert(session and not session.cancelled,
             "a cancelled graph job must never be resumed")
         async.resumed, session.resumes = async.resumed + 1, session.resumes + 1
+        if session.forceStale then
+            session.stale = true
+            return true, nil, "combat topology changed during evaluation"
+        end
         if session.resumes < 2 then return false, nil, nil end
         return true, session.plan, nil
     end
@@ -702,6 +706,24 @@ do
         and async.snapshot.plan.action == estimatedFollowAction
         and async.renderCalls == 2,
         "forced buff mode may publish only after its graph job completes")
+    async.generationBeforeStale = async.snapshot.generation
+    XelAssist.UI.HUD:RequestRefresh(false, "buff")
+    arg1 = 0; driver.OnUpdate()
+    async.staleEvaluation = XelAssist.UI.HUD.activeEvaluation
+    async.staleEvaluation.session.forceStale = true
+    arg1 = 0.01; driver.OnUpdate()
+    assert(XelAssist.UI.HUD.activeEvaluation == nil
+        and XelAssist.UI.HUD.refreshRequested
+        and async.snapshot.generation == async.generationBeforeStale
+        and async.snapshot.plan.action == estimatedFollowAction
+        and async.renderCalls == 2,
+        "hard-stale graph work must schedule replacement without publishing or erasing the last complete plan")
+    arg1 = 0; driver.OnUpdate()
+    assert(async.begun == 5 and XelAssist.UI.HUD.activeEvaluation
+        and XelAssist.UI.HUD.activeEvaluation.session == async.sessions[5],
+        "hard-stale work must begin one replacement on the next frame")
+    XelAssist.UI.RecommendationController:CancelActive(
+        XelAssist.UI.HUD, "stale fixture complete")
     async.savedReach = XelAssist.Core.ExecutionReach.Validate
     XelAssist.Core.ExecutionReach.Validate = function() return false, "range" end
     async.rejectedPlan = async.PlanFor("buff", mockTime)
@@ -725,6 +747,9 @@ XelAssist.Graph.Evaluate = savedEvaluatorForTooltip
 
 XelAssistTestSavedReachValidate =
     XelAssist.Core.ExecutionReach.Validate
+XelAssistTestSavedPublicationValidate =
+    XelAssist.Core.PublicationGuard.Validate
+XelAssist.Core.PublicationGuard.Validate = function() return true end
 XelAssist.Core.ExecutionReach.Validate = function()
     return false, "range"
 end
@@ -747,6 +772,8 @@ assert(XelAssistTestObservedAt == mockTime
     "a range-stale live graph plan must be rejected before publication")
 XelAssist.Core.ExecutionReach.Validate =
     XelAssistTestSavedReachValidate
+XelAssist.Core.PublicationGuard.Validate =
+    XelAssistTestSavedPublicationValidate
 XelAssist.Graph.Evaluate = function() return displayPlan, nil, false end
 XelAssist.UI.HUD:Refresh(true)
 assert(actionFrame.route:GetText() == "You -> Target",

@@ -41,6 +41,9 @@ function A:Start(action, state, tooltip)
     local actor = action.actor or "player"
     local playerSwings = XelAssist.Graph.PlayerSwings
     local channel = XelAssist.Graph.ChannelCommitment
+    if channel and channel:IsActive(state, action) then
+        return nil, "channel already active"
+    end
     local immediate = kind == "command"
         or playerSwings and playerSwings:Is(action, tooltip)
         or facts.autoRepeat and state.playerChanneling
@@ -78,6 +81,30 @@ function A:Start(action, state, tooltip)
     return at, nil
 end
 
+local function observedCooldown(action, state, actionStart)
+    local root = XelAssist.Graph.RootObservation
+    if not root then return nil, false end
+    local record, status = root:ActionRecord(state, action)
+    if status == "absent" then return nil, false end
+    if status ~= "known" or type(record.cooldown) ~= "table" then
+        return "cooldown evidence unknown", true
+    end
+    local cooldown = record.cooldown
+    if cooldown.applicable and not cooldown.known then
+        return cooldown.reason or "cooldown evidence unknown", true
+    end
+    local rootReady = cooldown.applicable
+        and math.max(0, tonumber(cooldown.remaining) or 0) or 0
+    local ledger = XelAssist.Graph.CooldownLedger
+    local projected = ledger and ledger.ReadyAt
+        and tonumber(ledger:ReadyAt(state, action)) or 0
+    local readyAt = math.max(rootReady, projected or 0)
+    if readyAt <= (tonumber(actionStart) or 0) then return nil, true end
+    if projected and projected > rootReady then return "future cooldown", true end
+    if action.executor == "item" then return "item cooldown", true end
+    return action.actor == "pet" and "pet cooldown" or "cooldown", true
+end
+
 function A:Readiness(action, state, tooltip, actionStart)
     local facts, actor = action.facts, action.actor or "player"
     local resource = state.resource
@@ -99,13 +126,15 @@ function A:Readiness(action, state, tooltip, actionStart)
     if resource < (tooltip.cost or 0) then
         return action.actor == "pet" and "pet resource" or "resource"
     end
-    local handled
-    if action.executor == "item" then
+    local handled, blocker = false, nil
+    blocker, handled = observedCooldown(action, state, actionStart)
+    if handled then
+        if blocker then return blocker end
+    elseif action.executor == "item" then
         local remaining = XelAssist.Game.Inventory:Cooldown(action)
         if remaining and remaining > actionStart then return "item cooldown" end
     else
         local ledger = XelAssist.Graph.CooldownLedger
-        local blocker
         if ledger and ledger:IsPrepared(state) then
             blocker, handled = ledger:Blocker(state, action, actionStart)
         end
@@ -117,7 +146,7 @@ function A:Readiness(action, state, tooltip, actionStart)
         elseif not XelAssist.Game.Capabilities:IsReady(action.name,
             actionStart) then return "cooldown" end
     end
-    if not handled and state.readyAt[actor .. ":" .. action.name]
+    if state.readyAt[actor .. ":" .. action.name]
         and state.readyAt[actor .. ":" .. action.name] > actionStart then
         return "future cooldown"
     end
