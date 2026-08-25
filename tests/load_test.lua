@@ -350,7 +350,7 @@ assert(XelAssistCharDB.visibleSteps == 3 and XelAssistCharDB.graphDepth == nil
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.16" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.17" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(not runtime.apis.comboOwner and not runtime.apis.comboDuration,
@@ -629,6 +629,48 @@ assert(secondFollow:IsShown() and secondFollow:GetHeight() == 24
     and secondFollow.action == estimatedFollowAction
     and secondFollow.candidate == displayPlan.path[3],
     "estimated future row must remain visibly distinct without relying on color")
+do
+local currentRevision = actionFrame.xelCurrentRenderRevision
+local firstRevision = firstFollow.xelRenderRevision
+local secondRevision = secondFollow.xelRenderRevision
+local revisedCondition = { action = followAction, target = "target",
+    reason = "future exploit", downtime = 1.5, resistance = tooltipResistance,
+    spatialConditionFingerprint = "range:effect:pet:target:remain::25",
+    spatialConditions = { { kind = "range",
+        detail = "effect remains within 25 yd" } } }
+local conditionPlan = { action = tooltipAction, target = "target",
+    reason = "test resistance", confidence = "partial data", value = 1,
+    threat = 1, downtime = 1.5, observed = {}, resistance = tooltipResistance,
+    rootBlockers = displayPlan.rootBlockers,
+    follow = { followAction, estimatedFollowAction }, path = {
+        displayPlan.path[1], revisedCondition, displayPlan.path[3] } }
+XelAssist.Graph.Evaluate = function() return conditionPlan, nil, false end
+XelAssist.UI.HUD:Refresh(false)
+assert(actionFrame.xelCurrentRenderRevision == currentRevision
+    and firstFollow.xelRenderRevision == firstRevision
+    and firstFollow.candidate == revisedCondition,
+    "new condition evidence with the same visible IF contract must update the tooltip without repainting the current card or row")
+
+local replacementFollow = { name = "Fire Blast", rank = 1, actor = "player",
+    facts = { kind = "damage" } }
+local branchPlan = { action = tooltipAction, target = "target",
+    reason = "test resistance", confidence = "partial data", value = 1,
+    threat = 1, downtime = 1.5, observed = {}, resistance = tooltipResistance,
+    rootBlockers = displayPlan.rootBlockers,
+    follow = { followAction, replacementFollow }, path = {
+        displayPlan.path[1], revisedCondition,
+        { action = replacementFollow, target = "target", reason = "new branch",
+            downtime = 1.5, estimated = true } } }
+XelAssist.Graph.Evaluate = function() return branchPlan, nil, false end
+XelAssist.UI.HUD:Refresh(false)
+assert(actionFrame.xelCurrentRenderRevision == currentRevision
+    and firstFollow.xelRenderRevision == firstRevision
+    and secondFollow.xelRenderRevision == secondRevision + 1
+    and secondFollow.name:GetText() == "Fire Blast",
+    "a future-only branch change must repaint only the changed slot")
+XelAssist.Graph.Evaluate = function() return displayPlan, nil, false end
+XelAssist.UI.HUD:Refresh(true)
+end
 assert(firstFollow.iconFrame.texture[1] == 0.72
     and secondFollow.iconFrame.texture[1] == RAID_CLASS_COLORS.MAGE.r,
     "the single icon frame must preserve companion violet versus player class color")

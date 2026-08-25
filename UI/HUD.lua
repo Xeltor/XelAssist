@@ -3,7 +3,7 @@ local UI = XelAssist.UI.HUD
 local Theme = XelAssist.UI.Theme
 local HUDCooldown = XelAssist.UI.HUDCooldown
 local RecommendationController = XelAssist.UI.RecommendationController
-local RunwayPlaceholder = XelAssist.UI.RunwayPlaceholder
+local RunwayRenderer = XelAssist.UI.RunwayRenderer
 local setFittedText = Theme.SetFittedText
 local FALLBACK_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 local BASE_HEIGHT = 76
@@ -297,6 +297,7 @@ function UI:Build()
     local f = CreateFrame("Frame", "XelAssistFrame", UIParent)
     local pos = XelAssistDB.ui.position
     self.frameHeight = BASE_HEIGHT
+    f.xelCurrentRenderKey, f.xelCurrentRenderRevision = false, 0
     f:SetWidth(372); f:SetHeight(BASE_HEIGHT)
     Theme:ApplyInstrumentBackdrop(f)
     f:SetFrameStrata("MEDIUM")
@@ -427,6 +428,7 @@ function UI:Build()
     for i = 1, 4 do
         local pip = CreateFrame("Frame", nil, f)
         pip:SetWidth(360); pip:SetHeight(STEP_HEIGHT)
+        pip.xelRenderKey, pip.xelRenderRevision = false, 0
         pip:SetPoint("TOPLEFT", f, "TOPLEFT", 6, -(BASE_HEIGHT + ((i - 1) * STEP_HEIGHT)))
         pip.background = pip:CreateTexture(nil, "BACKGROUND")
         pip.background:SetAllPoints(pip)
@@ -478,102 +480,65 @@ function UI:Refresh(force, evaluationMode)
         local action = plan.action
         local petAction = (action.actor or "player") == "pet"
         local classR, classG, classB = Theme:ClassColor()
-        setFittedText(f.route, routeCopy(action, plan.target, plan.targetRef), 210)
-        f.route:SetTextColor(petAction and 0.72 or classR,
-            petAction and 0.48 or classG, petAction and 0.92 or classB)
         local certainty, cr, cg, cb = certaintyCopy(plan, nil)
         local first = plan.path and plan.path[1]
-        f.status:SetText(timeCopy(first and first.actionStart or plan.wait) .. " · " .. certainty)
-        f.status:SetTextColor(cr, cg, cb)
-        if petAction then f.actorBar:Show() else f.actorBar:Hide() end
-        f.main.icon:SetTexture(iconFor(action))
-        Theme:SetIconActor(f.main.iconFrame, petAction and "pet" or "player")
-        if f.main.icon.SetDesaturated then f.main.icon:SetDesaturated(false) end
-        f.main:SetAlpha(1)
-        if action.executor == "instruction" then f.main:Disable()
-        else f.main:Enable() end
-        setFittedText(f.name, actionName(action), 286)
-        setFittedText(f.reason, plan.reason .. " · " .. plan.confidence, 225)
+        local routeText = routeCopy(action, plan.target, plan.targetRef)
+        local statusText = timeCopy(first and first.actionStart or plan.wait)
+            .. " · " .. certainty
+        local nameText = actionName(action)
+        local reasonText = plan.reason .. " · " .. plan.confidence
+        local icon = iconFor(action)
+        local count = action.executor == "item" and tostring(action.count or "") or ""
+        local rootKey = table.concat({ routeText, statusText, nameText, reasonText,
+            tostring(icon or ""), petAction and "pet" or "player",
+            tostring(action.executor or ""), count }, "\031")
+        if f.xelCurrentRenderKey ~= rootKey then
+            f.xelCurrentRenderKey = rootKey
+            f.xelCurrentRenderRevision = f.xelCurrentRenderRevision + 1
+            setFittedText(f.route, routeText, 210)
+            f.route:SetTextColor(petAction and 0.72 or classR,
+                petAction and 0.48 or classG, petAction and 0.92 or classB)
+            f.status:SetText(statusText); f.status:SetTextColor(cr, cg, cb)
+            if petAction then f.actorBar:Show() else f.actorBar:Hide() end
+            f.main.icon:SetTexture(icon)
+            Theme:SetIconActor(f.main.iconFrame, petAction and "pet" or "player")
+            if f.main.icon.SetDesaturated then f.main.icon:SetDesaturated(false) end
+            f.main:SetAlpha(1)
+            if action.executor == "instruction" then f.main:Disable()
+            else f.main:Enable() end
+            setFittedText(f.name, nameText, 286)
+            setFittedText(f.reason, reasonText, 225)
+            f.main.count:SetText(count)
+        end
         if HUDCooldown then HUDCooldown:Update(f.main, action) end
-        f.main.count:SetText(action.executor == "item" and tostring(action.count or "") or "")
-        self.lastReason = actionName(action) .. " — " .. plan.reason
-        local i, visible, placeholderShown = nil, 0, false
+        self.lastReason = nameText .. " — " .. plan.reason
         local requested = math.max(0, math.min(4,
             (tonumber(XelAssistCharDB.visibleSteps)
                 or tonumber(XelAssistCharDB.graphDepth) or 1) - 1))
-        local pathTime = math.max(0, tonumber(plan.downtime) or 0)
-        for i = 1, 4 do
-            local follow = plan.follow and plan.follow[i]
-            local pip = f.follow[i]
-            if follow and i <= requested and not placeholderShown then
-                pip.icon:SetTexture(iconFor(follow)); pip:Show()
-                if pip.icon.SetDesaturated then pip.icon:SetDesaturated(false) end
-                visible = visible + 1
-                Theme:SetIconActor(pip.iconFrame, follow.actor or "player")
-                pip.action = follow
-                pip.candidate = plan.path and plan.path[i + 1] or nil
-                pip.placeholder = nil
-                pip.stepIndex = i + 1
-                setFittedText(pip.route,
-                    routeCopy(follow, pip.candidate and pip.candidate.target,
-                        pip.candidate and pip.candidate.targetRef), 112)
-                pip.route:SetTextColor(follow.actor == "pet" and 0.72 or 0.64,
-                    follow.actor == "pet" and 0.48 or 0.69,
-                    follow.actor == "pet" and 0.92 or 0.76)
-                setFittedText(pip.name, actionName(follow), 112)
-                local start = pip.candidate and tonumber(pip.candidate.actionStart) or pathTime
-                pip.time:SetText(timeCopy(start))
-                local label, rr, rg, rb = certaintyCopy(nil, pip.candidate)
-                pip.certainty:SetText(label); pip.certainty:SetTextColor(rr, rg, rb)
-                if pip.candidate then
-                    pathTime = math.max(pathTime, start or pathTime)
-                        + math.max(0, tonumber(pip.candidate.downtime) or 0)
-                end
-            elseif i <= requested and not placeholderShown then
-                placeholderShown = true; visible = visible + 1
-                pip.action = nil; pip.candidate = nil; pip.placeholder = true
-                pip.stepIndex = i + 1
-                local route, name, detail = RunwayPlaceholder:Describe(plan)
-                pip.placeholderReason = detail
-                pip.icon:SetTexture(FALLBACK_ICON)
-                if pip.icon.SetDesaturated then pip.icon:SetDesaturated(true) end
-                Theme:SetIconActor(pip.iconFrame, "placeholder")
-                pip.route:SetText(route)
-                pip.route:SetTextColor(0.48, 0.52, 0.58)
-                setFittedText(pip.name, name, 112)
-                pip.time:SetText("--")
-                pip.certainty:SetText("OPEN"); pip.certainty:SetTextColor(0.95, 0.73, 0.34)
-                pip:Show()
-            else
-                pip.action = nil; pip.candidate = nil; pip.placeholder = nil
-                pip.route:SetText(""); pip.name:SetText(""); pip.time:SetText("")
-                pip.certainty:SetText(""); pip:Hide()
-            end
-        end
+        local visible = RunwayRenderer:Render(f, plan, requested, {
+            iconFor = iconFor, actionName = actionName, routeCopy = routeCopy,
+            timeCopy = timeCopy, certaintyCopy = certaintyCopy,
+            setFittedText = setFittedText, fallbackIcon = FALLBACK_ICON })
         self:SetVisiblePredictions(visible)
     else
-        f.route:SetText(string.upper(XelAssist.mode or "smart") .. " · "
-            .. string.upper(XelAssistCharDB.role or "auto"))
-        f.route:SetTextColor(0.60, 0.64, 0.70)
-        f.status:SetText("HOLD"); f.status:SetTextColor(0.95, 0.73, 0.34)
-        f.actorBar:Hide()
         local title, detail = emptyCopy(err)
-        f.main.icon:SetTexture(FALLBACK_ICON)
-        Theme:SetIconActor(f.main.iconFrame, "placeholder")
-        if f.main.icon.SetDesaturated then f.main.icon:SetDesaturated(true) end
-        f.main:SetAlpha(0.52); f.main:Disable()
-        f.main.count:SetText("")
-        if HUDCooldown then HUDCooldown:Update(f.main, nil) end
-        setFittedText(f.name, title, 286); setFittedText(f.reason, detail, 225)
-        local i
-        for i = 1, 4 do
-            f.follow[i].action = nil; f.follow[i].candidate = nil
-            f.follow[i].placeholder = nil
-            f.follow[i].route:SetText(""); f.follow[i].name:SetText("")
-            f.follow[i].time:SetText(""); f.follow[i].certainty:SetText("")
-            f.follow[i]:Hide()
+        local routeText = string.upper(XelAssist.mode or "smart") .. " · "
+            .. string.upper(XelAssistCharDB.role or "auto")
+        local rootKey = table.concat({ "hold", routeText, title, detail }, "\031")
+        if f.xelCurrentRenderKey ~= rootKey then
+            f.xelCurrentRenderKey = rootKey
+            f.xelCurrentRenderRevision = f.xelCurrentRenderRevision + 1
+            f.route:SetText(routeText); f.route:SetTextColor(0.60, 0.64, 0.70)
+            f.status:SetText("HOLD"); f.status:SetTextColor(0.95, 0.73, 0.34)
+            f.actorBar:Hide()
+            f.main.icon:SetTexture(FALLBACK_ICON)
+            Theme:SetIconActor(f.main.iconFrame, "placeholder")
+            if f.main.icon.SetDesaturated then f.main.icon:SetDesaturated(true) end
+            f.main:SetAlpha(0.52); f.main:Disable(); f.main.count:SetText("")
+            setFittedText(f.name, title, 286); setFittedText(f.reason, detail, 225)
         end
-        self:SetVisiblePredictions(0)
+        if HUDCooldown then HUDCooldown:Update(f.main, nil) end
+        self:SetVisiblePredictions(RunwayRenderer:Clear(f))
         self.lastReason = title .. " — " .. detail
         self.lastPlan = nil
     end

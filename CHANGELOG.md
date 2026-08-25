@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.17
+
+- Made runway painting incremental: a changed future branch updates only its
+  affected slot, while identical visible conditional rows refresh their tooltip
+  evidence without flashing the current card or stable prefix.
+
 ## 0.8.16
 
 - Replaced the hard player-channel lock with competing continuation and clip

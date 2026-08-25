@@ -267,7 +267,10 @@ time, and evidence state. Only the current step is clickable; graph errors and
 dependency holds disable it and remove stale future rows.
 The presenter publishes only material path/target/evidence changes. A compatible
 budget-short prefix may retain an already validated suffix, but a changed branch
-can never splice old future steps. Cooldown timers are rewritten only when their
+can never splice old future steps. Presentation painting is slot-local: a new
+future branch does not repaint the current card or an unchanged visible prefix,
+and an unchanged `IF` row can receive newer tooltip evidence without visual
+churn. Cooldown timers are rewritten only when their
 timer tuple changes. Blocking movement/range/LOS/behind evidence applies at
 once; recovery must remain positive for 150 ms. Transient live-only facts are
 authoritative at the root and marked OPEN rather than frozen into future nodes.

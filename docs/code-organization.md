@@ -125,7 +125,9 @@ never class rotations or ordered priority lists.
   `UI/RecommendationController.lua` keeps its UIParent-owned producer alive even
   while the visual frame is hidden and publishes complete plans after target
   changes settle. `UI/RunwayPlaceholder.lua` distinguishes path-local gates,
-  graph time, and bounded search without inventing future actions.
+  graph time, and bounded search without inventing future actions, while
+  `UI/RunwayRenderer.lua` incrementally paints only visibly changed future
+  slots and refreshes their underlying tooltip contracts independently.
   `UI/HUDCooldown.lua`
   suppresses duplicate native timer writes, while
   `UI/RecommendationStability.lua` atomically publishes material compatible
