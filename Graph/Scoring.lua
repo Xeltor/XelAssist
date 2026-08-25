@@ -115,7 +115,6 @@ local function estimateResistance(context)
         end
     end
 end
-
 local function projectPeriodicDamage(context)
     local resistance = context.resistance
     if not (XelAssist.Combat.Resistance and resistance) then return end
@@ -300,6 +299,7 @@ local function scoreStateUtility(context)
 end
 
 local function scoreKindUtility(context)
+    if XelAssist.Graph.Charge and XelAssist.Graph.Charge:Score(context) then return end
     if scoreDamageAndHealing(context) then return end
     if ActorScoring:Score(context) then return end
     scoreStateUtility(context)
@@ -398,6 +398,7 @@ local function candidate(context)
         marginalEffectivePower = context.marginalEffectivePower,
         playerSwingUnknowns = context.playerSwingUnknowns,
         startsPlayerAttack = context.startsPlayerAttack,
+        resourceGain = context.resourceGain, resourceGainSource = context.resourceGainSource,
         soulShardOpportunity = context.soulShardOpportunity,
         soulShardStockValue = context.soulShardStockValue,
         soulShardStockCost = context.soulShardStockCost,

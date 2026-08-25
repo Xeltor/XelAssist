@@ -265,7 +265,44 @@ local function rankHeavyWarlock()
     return source, actions
 end
 
+local function levelFourWarrior()
+    local source = Fixture.State("smart")
+    source.inCombat = false
+    source.resource, source.resourceMax, source.resourceType = 0, 100, 1
+    source.actors.player.resource, source.actors.player.resourceMax = 0, 100
+    source.targetHealth, source.targetMax = 200, 200
+    source.targetDistance, source.distance = 15, 15
+    source.targetDistanceKind, source.distanceKind = "hitbox", "hitbox"
+    source.playerBehindTarget = false
+    source.playerAttack = { supported = true, active = false,
+        activeKnown = true, pending = false, clockKnown = true }
+    AttackTarget = function() end
+    local facts, key, value = {}, nil, nil
+    for key, value in pairs(XelAssist.Combat.Knowledge.Charge) do
+        facts[key] = value
+    end
+    facts.testMinRange, facts.testMaxRange = 8, 25
+    facts.testCategoryCooldown, facts.testGroup = 15, 44
+    local charge = Fixture.Action("Charge", 1, "engage", 0, 0, facts)
+    charge.executor, charge.spellId = "playerSpell", 100
+    local attack = Fixture.Action("Attack", 1, "command", 0, 0,
+        { playerAttack = true, ambient = true, startOnly = true,
+            recovery = true, melee = true, whiteAttack = true,
+            weaponHand = "main", gcd = 0, effectMaxRange = 5,
+            effectRangeHitbox = true })
+    attack.executor, attack.spellId = "playerSpell", 6603
+    local rend = Fixture.Action("Rend", 1, "dot", 45, 10,
+        { melee = true, testMinRange = 0, testMaxRange = 5,
+            testDuration = 9, testPeriodicInterval = 3 })
+    rend.executor, rend.spellId = "playerSpell", 772
+    return source, { charge, attack, rend }
+end
+
 local cases = {
+    { name = "level-4 Warrior Charge", depth = 3,
+        Build = levelFourWarrior, expected = "Charge",
+        maxFactCalls = 3, rootRangeCalls = 2,
+        maxSlices = 3, maxActive = 10, maxSlice = 3.6, maxExpanded = 20 },
     { name = "level-7 Warlock pet and DoTs", depth = 4,
         Build = levelSevenWarlock, expected = "Corruption" },
     { name = "rank-heavy Warlock", depth = 3,
@@ -285,17 +322,39 @@ for index = 1, table.getn(cases) do
     assert(sync.metrics.calls.scoring == split.metrics.calls.scoring
         and sync.metrics.calls.transition == split.metrics.calls.transition,
         case.name .. " slicing repeated or skipped a graph edge")
-    assert(split.metrics.calls["action facts"] == case.actionCount
+    local factCalls = split.metrics.calls["action facts"] or 0
+    local factsBounded = case.maxFactCalls
+        and factCalls >= case.actionCount and factCalls <= case.maxFactCalls
+        or factCalls == case.actionCount
+    local rangeCalls = split.metrics.calls["root range"] or 0
+    local rangeExpected = case.rootRangeCalls or case.actionCount
+    assert(factsBounded
         and split.metrics.calls["spell cooldown"] == case.actionCount
         and split.metrics.calls["spell usability"] == case.actionCount
-        and split.metrics.calls["root range"] == case.actionCount,
-        case.name .. " performed a mutable root query after sealing evidence")
+        and rangeCalls == rangeExpected,
+        case.name .. " performed a mutable root query after sealing evidence: facts="
+            .. tostring(factCalls) .. " cooldown="
+            .. tostring(split.metrics.calls["spell cooldown"]) .. " usability="
+            .. tostring(split.metrics.calls["spell usability"]) .. " range="
+            .. tostring(split.metrics.calls["root range"]) .. " actions="
+            .. tostring(case.actionCount))
     assert(split.plan.action.name == case.expected,
         case.name .. " fixture drifted to " .. tostring(split.plan.action.name))
+    if case.maxSlices then
+        assert(split.session.slices <= case.maxSlices
+            and split.plan.elapsed <= case.maxActive
+            and split.plan.maxSliceMs <= case.maxSlice
+            and split.plan.expanded <= case.maxExpanded,
+            case.name .. " exceeded its low-level performance ceiling: slices="
+                .. tostring(split.session.slices) .. " active="
+                .. tostring(split.plan.elapsed) .. " max="
+                .. tostring(split.plan.maxSliceMs) .. " expanded="
+                .. tostring(split.plan.expanded))
+    end
     print(string.format(
         "ok: %s slices=%d active=%.2fms wall=%.2fms max-slice=%.2fms expanded=%d",
         case.name, split.session.slices, split.plan.elapsed, split.wall,
         split.plan.maxSliceMs, split.plan.expanded))
 end
 
-print("search session Warlock production benchmark passed")
+print("search session production graph benchmark passed")

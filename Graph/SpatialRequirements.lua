@@ -6,6 +6,7 @@ local S = XelAssist.Graph.SpatialRequirements
 local Range = XelAssist.Game.Range
 local StealthSetup = XelAssist.Graph.StealthSetup
 local MovementSetup = XelAssist.Graph.MovementSetup
+local Charge = XelAssist.Graph.Charge
 
 local function isFuture(state)
     return (tonumber(state and state.time) or 0) > 0
@@ -92,6 +93,13 @@ end
 
 local function projectedRangeVerdict(action, state, descriptor, verdict,
     reason, record)
+    if Charge and Charge:CanReach(action, state, descriptor, record.maximum) then
+        record.assumption = "charge"
+        record.chargeArrival = true
+        record.detail = "available after Charge reaches this target's melee band"
+        addCondition(descriptor, record)
+        return nil
+    end
     if MovementSetup
         and MovementSetup:CanApproach(action, state, descriptor) then
         record.assumption, record.conditionalOnly = "move", true

@@ -163,7 +163,7 @@ local function advanceTop(session)
             elseif blocker then
                 session.counter.blockers[blocker] =
                     (session.counter.blockers[blocker] or 0) + 1
-                Diagnostics:Record(top.blockers, blocker, action, target)
+                Diagnostics:Record(top.blockers, blocker, action, target, top.state)
             end
         end
     elseif top.stage == "flatten" then

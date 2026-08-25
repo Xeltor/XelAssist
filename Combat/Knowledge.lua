@@ -23,6 +23,13 @@ XelAssist.Combat.Knowledge = {
         effectMaxRange = 5, effectRangeHitbox = true },
 
     -- Warrior
+    ["Charge"] = { kind = "engage", chargeMovement = true,
+        outOfCombat = true, requiresExactUsability = true,
+        submissionGuarded = true,
+        resourceType = "rage", stanceMask = 65536,
+        chargeStunSpellId = 7922, chargeStunDuration = 1,
+        rageGainBySpellId = { [100] = 9, [6178] = 12, [11578] = 15 },
+        spellIds = { 100, 6178, 11578 }, gcd = 0 },
     ["Execute"] = { kind = "damage", execute = 20, melee = true, threat = 1.0 },
     ["Overpower"] = { kind = "damage", melee = true, reactive = true },
     ["Revenge"] = { kind = "damage", melee = true, reactive = true, threat = 1.6 },

@@ -1,4 +1,4 @@
-# XelAssist 0.8.29
+# XelAssist 0.8.30
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -80,6 +80,15 @@ ability instead of ending at a resource horizon. The wait coalesces swings up
 to the next learned rage threshold or target defeat. On-next-swing replacements
 still suppress the displaced white hit and its rage, and raw DBC rage costs are
 normalized to the same displayed units as live player power.
+
+Charge is also a causal graph edge rather than a scripted opener. Its exact
+installed-client rank produces 9, 12, or 15 rage and proves only arrival in the
+selected hostile's ordinary melee band. It does not invent damage, threat,
+facing, a white swing, an active Attack state, or value for its one-second stun.
+The root snapshot must prove the action usable and outside combat, and the live
+dispatch boundary checks both facts again before accepting a macro press. A
+target-scoped in-flight reservation prevents repeated fresh publications from
+resubmitting it while combat and cooldown evidence catch up.
 
 ## Requirements
 

@@ -208,6 +208,8 @@ subprocess.run(["lua", str(root / "tests/hunter_combat_semantics_test.lua")], cw
 subprocess.run(["lua", str(root / "tests/attack_rounds_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/player_attack_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/player_engagement_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/warrior_charge_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/dispatch_readiness_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/combo_classification_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/combo_mechanics_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/combo_state_test.lua")], cwd=root, check=True)

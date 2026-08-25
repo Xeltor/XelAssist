@@ -9,6 +9,7 @@ local PlayerNormalQueue = XelAssist.Core.PlayerNormalQueue
 local PlayerOnSwing = XelAssist.Game.Player
     and XelAssist.Game.Player.OnSwing
 local function applicationGuarded(facts, tooltip)
+    if facts and facts.submissionGuarded then return true end
     local kind = facts and facts.kind
     if kind == "dot" or kind == "debuff" or kind == "crowdControl"
         or kind == "buff" or kind == "hot" or kind == "absorb" then return true end
@@ -35,7 +36,6 @@ local function friendlyRelation(relation)
     return relation == "ally" or relation == "friendly"
         or relation == "self" or relation == "player" or relation == "pet"
 end
-
 local function autoShotEvidence(expectedGuid, action)
     local capabilities = XelAssist.Game.Capabilities
     local hostile = Guard:CurrentGuid("target") ~= nil
@@ -206,9 +206,10 @@ end
 
 local function validatePlayerContext(owner, plan, context)
     local action, facts = context.action, context.facts
-    if (tonumber(plan.wait) or 0) > 0 and not (context.usesSelfQueue
+    local usesNormalQueue = context.normalQueue and (context.usesSelfQueue
         or context.usesHostileQueue
-            and context.hostilePlan and plan.targetSource ~= "engaged") then
+            and context.hostilePlan and plan.targetSource ~= "engaged")
+    if (tonumber(plan.wait) or 0) > 0 and not usesNormalQueue then
         return rejectPlayer(owner, context.friendly and "ally action not ready"
             or "action not ready")
     end
@@ -243,7 +244,7 @@ local function validatePlayerContext(owner, plan, context)
         and not XelAssist.Game.Capabilities:SameUnitRef(context.castRef) then
         return rejectPlayer(owner, "ally changed")
     end
-    reason = DispatchReadiness:Player(action, context.usesHostileQueue or context.usesSelfQueue)
+    reason = DispatchReadiness:Player(action, usesNormalQueue)
     if reason then return rejectPlayer(owner, reason) end
     if facts.requiresHunterCritical then
         local usable, usableReason = XelAssist.Game.Capabilities:Usable(action)

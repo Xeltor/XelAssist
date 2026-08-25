@@ -21,12 +21,16 @@ local function setupValue(candidate)
 end
 
 function B:Retain(candidates, width, before)
-    local setup, bestSetup, movement, wandStart, sustained, melee, exchange, earliest,
-        earliestAt, i = nil, 0, nil, nil, nil, nil, nil, nil, nil
+    local setup, bestSetup, movement, charge, wandStart, sustained, melee, exchange,
+        earliest, earliestAt, i = nil, 0, nil, nil, nil, nil, nil, nil, nil, nil
     for i = 1, table.getn(candidates) do
         if candidates[i].action and candidates[i].action.facts
             and candidates[i].action.facts.movementSetup then
             movement = candidates[i]
+        end
+        if candidates[i].action and candidates[i].action.facts
+            and candidates[i].action.facts.chargeMovement then
+            charge = candidates[i]
         end
         if candidates[i].action and candidates[i].action.facts
             and candidates[i].action.facts.wandContinuation then
@@ -55,6 +59,7 @@ function B:Retain(candidates, width, before)
     local required = {}
     if setup then required[setup] = true end
     if movement then required[movement] = true end
+    if charge then required[charge] = true end
     if wandStart then required[wandStart] = true end
     if sustained then required[sustained] = true end
     if melee then required[melee] = true end

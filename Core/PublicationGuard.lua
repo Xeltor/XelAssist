@@ -10,6 +10,7 @@ local function friendly(relation)
 end
 
 local function guardedApplication(facts, tooltip)
+    if facts and facts.submissionGuarded then return true end
     local kind = facts and facts.kind
     if kind == "dot" or kind == "debuff" or kind == "crowdControl"
         or kind == "buff" or kind == "hot" or kind == "absorb" then

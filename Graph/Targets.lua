@@ -321,7 +321,8 @@ local function effectBlocker(owner, action, state, descriptor, target,
     local pendingTarget = (facts.deferredUntilPetMelee
         or facts.petCombatBuff or facts.petCombatEffects)
         and descriptor.castGuid or descriptor.guid or target
-    if (kind == "dot" or kind == "debuff" or kind == "crowdControl"
+    if (facts.submissionGuarded or kind == "dot" or kind == "debuff"
+        or kind == "crowdControl"
         or kind == "buff" or kind == "hot" or kind == "absorb"
         or kind == "resource" or kind == "petHeal")
         and (state.time or 0) <= 0 then
@@ -423,6 +424,9 @@ function T:Legal(action, state, descriptor)
     if blocker then return false, blocker end blocker = usabilityBlocker(
         action, state, descriptor, target, tooltip)
     if blocker then return false, blocker end blocker = contextBlocker(action, state)
+    if blocker then return false, blocker end
+    blocker = XelAssist.Graph.Charge
+        and XelAssist.Graph.Charge:Blocker(action, state, descriptor)
     if blocker then return false, blocker end
     local actionStart
     actionStart, blocker = Admission:Start(action, state, tooltip)

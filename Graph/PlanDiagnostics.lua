@@ -9,6 +9,16 @@ local resourceNames = {
     [0] = "Mana", [1] = "Rage", [2] = "Focus", [3] = "Energy",
 }
 
+local function actionFacts(state, action)
+    local root = XelAssist.Graph.RootObservation
+    if root and root.Facts then
+        local facts, status = root:Facts(state, action)
+        if status == "known" then return facts end
+        if status ~= "absent" then return nil end
+    end
+    return XelAssist.Game.Actors:Facts(action)
+end
+
 local function recordActionBlocker(blockers, reason, action)
     if not action then return end
     if not blockers.byAction then blockers.byAction = {} end
@@ -24,7 +34,7 @@ local function recordActionBlocker(blockers, reason, action)
     row.reasons[reason] = (row.reasons[reason] or 0) + 1
 end
 
-function D:Record(blockers, reason, action, descriptor)
+function D:Record(blockers, reason, action, descriptor, state)
     blockers[reason] = (blockers[reason] or 0) + 1
     if descriptor then
         blockers.targetAware = true
@@ -37,7 +47,7 @@ function D:Record(blockers, reason, action, descriptor)
     end
     recordActionBlocker(blockers, reason, action)
     if reason ~= "resource" or not action or action.actor == "pet" then return end
-    local tooltip = XelAssist.Game.Actors:Facts(action)
+    local tooltip = actionFacts(state, action)
     local cost = tonumber(tooltip and tooltip.cost)
     if not cost then blockers.resourceCostUnknown = true; return end
     if not blockers.resourceRequired or cost < blockers.resourceRequired then

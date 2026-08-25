@@ -31,6 +31,7 @@ end
 function M:Apply(state, candidate)
     if not (candidate and candidate.action
         and candidate.action.facts.movementSetup) then return false end
+    state.chargeMeleeTargetGUID = nil
     state.movementSetupTargetGUID = candidate.targetGUID or state.targetGUID
     return true
 end

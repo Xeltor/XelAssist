@@ -21,6 +21,14 @@ function R:Player(action, usesNormalQueue)
     if facts.playerAttack or facts.autoRepeat then return nil end
     local usable, reason = XelAssist.Game.Capabilities:Usable(action)
     if usable == false then return reason or "action unavailable" end
+    if facts.requiresExactUsability and usable ~= true then
+        return reason or "action availability unknown"
+    end
+    if facts.outOfCombat and UnitAffectingCombat then
+        local ok, inCombat = pcall(UnitAffectingCombat, "player")
+        if not ok then return "combat state unknown" end
+        if inCombat == true or inCombat == 1 then return "combat state" end
+    end
     if action.slot and not usesNormalQueue
         and not XelAssist.Game.Capabilities:IsReady(action.name, 0) then
         return "action on cooldown"

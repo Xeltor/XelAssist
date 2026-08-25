@@ -13,4 +13,7 @@ function S:Apply(out, candidate)
     if XelAssist.Graph.MovementSetup then
         XelAssist.Graph.MovementSetup:Apply(out, candidate)
     end
+    if XelAssist.Graph.Charge then
+        XelAssist.Graph.Charge:Apply(out, candidate)
+    end
 end

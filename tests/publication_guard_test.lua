@@ -64,6 +64,13 @@ corruption.cost, playerResource, auraPending = 10, 100, true
 valid, reason = Guard:Validate(corruption)
 assert(not valid and reason == "application already pending",
     "a newly pending application must not be republished")
+local charge = plan({ name = "Charge", actor = "player",
+    executor = "playerSpell", facts = { kind = "engage",
+        submissionGuarded = true } })
+charge.cost, charge.costKnown = 0, true
+valid, reason = Guard:Validate(charge)
+assert(not valid and reason == "application already pending",
+    "a pending off-GCD engage submission must not be republished")
 auraPending, hostileValid = false, false
 valid, reason = Guard:Validate(corruption)
 assert(not valid and reason == "selected target defeated",

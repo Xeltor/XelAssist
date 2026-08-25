@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.30
+
+- Added Warrior Charge as an exact causal engage edge. The installed rank
+  generates 9, 12, or 15 rage and grants only same-target ordinary melee reach;
+  it does not invent damage, threat, a rear arc, a white swing, or Attack state.
+- Required sealed positive usability and an out-of-combat root state before
+  Charge can enter the graph, then revalidated live usability and combat state
+  at dispatch so a stale recommendation cannot fire after combat begins. A
+  target-scoped in-flight reservation closes the off-GCD repeat-tap latency
+  window, and later movement invalidates old Charge-arrival evidence.
+- Added zero-rage level-4 runway, rank/cap/cooldown, range, target identity,
+  dispatch-race, and no-invented-effects regressions. The production benchmark
+  completes the new low-level workload in three slices under 10 ms active time
+  while reading each action's mutable facts only during root observation.
+
 ## 0.8.29
 
 - Added an exact-phase player melee continuation edge so a running Warrior

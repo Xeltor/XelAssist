@@ -175,7 +175,10 @@ XelAssist.Game.Capabilities = {
         return true
     end,
     Usable = function() return true end,
-    IsReady = function() return true end,
+    IsReady = function()
+        if hooks.ready ~= nil then return hooks.ready end
+        return true
+    end,
     Distance = function()
         if hooks.distance then hooks.distance() end
         return playerDistance, playerDistanceKind
@@ -282,8 +285,11 @@ XelAssist.PendingAuraKey = function()
     if hooks.pendingKey then hooks.pendingKey() end
     return "pending-key"
 end
-XelAssist.MarkAuraPending = function()
+XelAssist.MarkAuraPending = function(name, seconds, guid, spellId, casterGuid)
     effects.pending = effects.pending + 1
+    if hooks.markPending then
+        hooks.markPending(name, seconds, guid, spellId, casterGuid)
+    end
 end
 C_Spell = { IsSpellInRange = function(name, unit)
     if hooks.inRange then hooks.inRange(name, unit) end
@@ -339,6 +345,35 @@ assert(effects.queue == 1 and effects.queueGuid == selectedGuid
     and effects.observation == 1 and effects.observationTarget == "target"
     and effects.observationGuid == nil,
     "a selected-hostile queue submission must pin its validated GUID")
+
+-- An off-GCD engage still needs one target-scoped submission owner. Fresh
+-- graph publications must not repeat it while combat/cooldown evidence lags.
+resetEffects()
+UnitAffectingCombat = function() return false end
+currentPlan = hostilePlan(playerAction("Charge", { kind = "engage", gcd = 0,
+    outOfCombat = true, requiresExactUsability = true,
+    submissionGuarded = true }))
+currentPlan.action.spellId, currentPlan.action.slot,
+    currentPlan.tooltip.gcd = 100, 1, 0
+hooks.markPending = function()
+    XelAssist.pendingAuras["pending-key"] = true
+end
+XelAssist:Execute()
+XelAssist:Execute()
+assert(effects.queue == 1 and effects.pending == 1 and effects.log == 1
+    and string.find(XelAssist.lastReason or "", "already pending", 1, true),
+    "repeated fresh Charge publications must retain one in-flight submission")
+
+resetEffects()
+currentPlan = hostilePlan(playerAction("Charge", { kind = "engage", gcd = 0,
+    outOfCombat = true, requiresExactUsability = true,
+    submissionGuarded = true }))
+currentPlan.action.spellId, currentPlan.action.slot,
+    currentPlan.tooltip.gcd = 100, 1, 0
+hooks.ready = false
+XelAssist:Execute()
+assertNoExecution(
+    "an off-GCD hostile transport must still revalidate its live cooldown")
 
 -- Shoot is a distinct client repeat boundary. It must never pass through the
 -- Hunter Auto Shot validator, and macro tapping must not toggle it off.
