@@ -9,9 +9,11 @@ local ACTION = { name = "Move into range", rank = 0, actor = "player",
         movementSetup = true, gcd = 0 } }
 
 function M:Candidate(state, blockers)
+    local range = blockers and blockers.range
+    if blockers and blockers.targetAware then range = blockers.selectedRange end
     if not state or state.hostile ~= true or state.targetGUID == nil
         or state.movementSetupTargetGUID == state.targetGUID
-        or not blockers or (blockers.range or 0) <= 0 then return nil end
+        or (range or 0) <= 0 then return nil end
     return { action = ACTION, value = 1,
         reason = "closes distance for the next action",
         target = "target", targetKey = state.targetGUID,

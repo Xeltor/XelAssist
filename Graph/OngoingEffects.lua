@@ -26,26 +26,10 @@ local function localRecord(state, key, guid)
     return record
 end
 
-local function isSelected(state, key, record)
-    local hostiles = hostilesOf(state)
-    if not hostiles then return false end
-    if hostiles.selectedKey ~= nil then return hostiles.selectedKey == key end
-    return record and record.selected == true
-end
-
 local function syncLocal(state, key, record, changed)
-    if not changed or not isSelected(state, key, record) then return end
-    if State.SyncSelectedHostile then State:SyncSelectedHostile(state) end
-    local threat = record and record.threat
-    if threat and threat.projectedPlayerHasAggro ~= nil then
-        state.hasAggro = threat.projectedPlayerHasAggro
+    if changed and record and State.RefreshHostileRecord then
+        State:RefreshHostileRecord(state, key)
     end
-    if threat and threat.projectedPetHasAggro ~= nil
-        and state.actors and state.actors.pet then
-        state.actors.pet.hasAggro = threat.projectedPetHasAggro
-    end
-    if record.dead == true and state.autoShot then state.autoShot.active = false end
-    if record.dead == true and state.wand then state.wand.active = false end
 end
 
 local function candidateTargets(candidate, key, guid)

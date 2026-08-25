@@ -405,7 +405,9 @@ function A:Apply(out, source, candidate, context)
     end
     if CompanionEventThreat then
         local record = candidate.targetRelation == "hostile"
-            and State.SelectedHostile and State:SelectedHostile(out) or nil
+            and State.ActiveHostile and State:ActiveHostile(out)
+            or candidate.targetRelation == "hostile"
+                and State.SelectedHostile and State:SelectedHostile(out) or nil
         CompanionEventThreat:ConsumeMelee(out, out, context.action,
             candidate.targetGUID, candidate.effectDelivery, record, true)
     elseif XelAssist.Game.Pets and XelAssist.Game.Pets.Effects then

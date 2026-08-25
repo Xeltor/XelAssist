@@ -33,6 +33,7 @@ dofile("Graph/State.lua")
 dofile("Graph/ResourceExchange.lua")
 dofile("Graph/ComboState.lua")
 dofile("Graph/CompanionTargets.lua")
+dofile("Graph/HostileTargetPolicy.lua")
 dofile("Graph/TargetSelection.lua")
 dofile("Graph/CompanionThreat.lua")
 dofile("Graph/CompanionEventThreat.lua")
@@ -106,9 +107,11 @@ XelAssist.Game.Inventory = {
     Blocker = function() return nil end,
     Cooldown = function() return 0 end
 }
-XelAssistCharDB = { toggles = { cooldowns = true, reagents = true, petActions = true, petControl = false },
+XelAssistCharDB = { toggles = { cooldowns = true, reagents = true,
+    petActions = true, petControl = false, engagedTargets = false },
     graphDepth = 1, role = "damage", allowAoe = false }
 GetTime = function() return 0 end
+QueueSpellByName = function() end
 
 local scenarioActions = {}
 XelAssist.Game.Capabilities.Actions = function() return scenarioActions end

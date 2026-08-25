@@ -1,4 +1,4 @@
-# XelAssist 0.8.20
+# XelAssist 0.8.21
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -37,9 +37,14 @@ action. Their resource, cooldown, damage, and threat occur at the verified
 main-hand round rather than when the button is pressed. Non-GCD actions remain
 independent and can be evaluated inside the shared-GCD window without resetting it.
 Explicit party, mouseover, self, and ground targets retain SuperWoW's unit-targeted cast path.
-Hostile recommendations remain pinned to the captured selected-target GUID at
-dispatch; observing another enemy never gives XelAssist permission to target or
-attack it.
+Hostile actions remain selected-only by default. A per-character, default-off
+`Cast at engaged enemies` policy may let ordinary single-target player spells
+address an observed enemy whose exact victim is the player, companion, or group.
+It never changes the selected target. Pets, Attack/Auto Shot/Shoot, melee and
+combo builders, reactive procs, area/ground actions, and fixed or indirect
+effects remain selected-only. An engaged cast must be ready now; identity,
+hostility, death, engagement, and reach are revalidated immediately before one
+GUID-pinned queue submission.
 
 ## Requirements
 
@@ -70,7 +75,8 @@ for module ownership, Lua 5.0 constraints, review limits, and migration debt.
 3. Create a macro containing `/xa` and bind it, or bind **Smart Execute** under
    the XelAssist heading in Key Bindings.
 4. Right-click the minimap button or use `/xa config` to set this character's
-   role, optional-action policy, intent, and number of predicted actions.
+   role, optional-action policy, Soul Shard reserve, intent, and number of
+   predicted actions.
 
 The primary recommendation is also clickable. A click consumes the same fresh,
 one-shot publication as `/xa` and performs at most one action; it never starts
@@ -80,9 +86,10 @@ hostile target and never casts from an update handler.
 ## Character and global settings
 
 Decision policy is stored per character: Smart/Single/Area/Support intent, role,
-visible decision steps, area-action permission, cooldown/reagent/consumable permission, companion
-actions, crowd-control permission, and companion threat posture. Display scale,
-position, lock state, and visibility are global.
+visible decision steps, area-action permission, cooldown/reagent/consumable
+permission, engaged-enemy casting, companion actions, crowd-control permission,
+companion threat posture, and a Warlock Soul Shard reserve (default three).
+Display scale, position, lock state, and visibility are global.
 Finite consumables are always opt-in per character and default disabled.
 
 Smart mode reacts to live need. It can prefer an interrupt, unwanted-aggro escape,
@@ -93,7 +100,7 @@ ordering spells.
 ## Commands
 
 `/xa` executes once. Other commands are `why`, `smart`, `single`, `aoe`,
-`support`, `cooldowns`, `reagents`, `consumables`, `resistance`, `diagnostics`, `log`,
+`support`, `cooldowns`, `reagents`, `consumables`, `engaged`, `resistance`, `diagnostics`, `log`,
 `clearlog`, `config`, `show`, and `hide`.
 
 The per-character decision log keeps the latest 200 attempted recommendations and
@@ -240,10 +247,12 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
 - target-local in-flight events: Auto Shot projectiles and companion autocasts
   retain the opaque hostile GUID captured at launch/scheduling across a later
   selected-target change instead of damaging the new selected-target mirror;
-- a final selected-hostile dispatch guard that rechecks identity, relation,
-  hostility, death state, player/pet command and effect reach, behind state,
-  movement, and companion dual-target requirements before any
-  hostile queue, Auto Shot, pet ability, or attack command can execute. Pet
+- a final hostile dispatch guard that rechecks identity, relation, hostility,
+  death state, engagement authority, player/pet command and effect reach,
+  behind state, movement, and companion dual-target requirements before any
+  hostile queue, Auto Shot, pet ability, or attack command can execute. The
+  optional engaged-enemy lane is exact-GUID, ready-now, and never changes the
+  selected target. Pet
   Attack remains an approach command and therefore does not pretend the pet is
   already in effect range.
 

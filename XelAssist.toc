@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.20
+## Version: 0.8.21
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -57,6 +57,7 @@ Combat\Resistance.lua
 Game\Actors.lua
 Game\Friendlies.lua
 Game\TargetSurvival.lua
+Game\HostileEngagement.lua
 Game\Hostiles.lua
 Combat\Observations.lua
 Game\Inventory.lua
@@ -68,6 +69,7 @@ Graph\State.lua
 Graph\ResourceExchange.lua
 Graph\ComboState.lua
 Graph\CompanionTargets.lua
+Graph\HostileTargetPolicy.lua
 Graph\TargetSelection.lua
 Graph\CompanionThreat.lua
 Graph\CompanionEventThreat.lua
@@ -140,5 +142,6 @@ Core\Diagnostics.lua
 Core\PlayerNormalQueue.lua
 Core\PlayerQueueEvents.lua
 Core\Executor.lua
+Core\EngagedTargetConfig.lua
 Core\Runtime.lua
 Bindings.xml

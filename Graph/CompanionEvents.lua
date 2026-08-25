@@ -256,19 +256,10 @@ local function applyTaunt(target, out, source, candidate, context, entry,
         target, out, ambient, record, selected, delivery)
 end
 
-local function syncSelected(out, record, selected)
-    if not (record and selected) then return end
-    if State.SyncSelectedHostile then State:SyncSelectedHostile(out) end
-    if record.threat then
-        if record.threat.projectedPlayerHasAggro ~= nil then
-            out.hasAggro = record.threat.projectedPlayerHasAggro
-        end
-        if out.actors and out.actors.pet
-            and record.threat.projectedPetHasAggro ~= nil then
-            out.actors.pet.hasAggro = record.threat.projectedPetHasAggro
-        end
+local function refreshRecord(out, record, changed)
+    if record and changed and State.RefreshHostileRecord then
+        State:RefreshHostileRecord(out, record.key)
     end
-    if record.dead == true and out.autoShot then out.autoShot.active = false end
 end
 local function tiedHostileValid(out, pet, entry)
     if not entry.pendingCompletion then
@@ -295,7 +286,7 @@ local function applyWhiteSwing(out, source, candidate, context, entry, pet)
     if not target then return false end
     local changed = applyUnknownWhiteOutcome(target, out, source, candidate,
         context, entry, entry.ambient, pet, record, selected, true)
-    syncSelected(out, record, selected and changed)
+    refreshRecord(out, record, changed)
     return changed and true or false
 end
 
@@ -312,7 +303,7 @@ local function applyTiedReservation(out, source, candidate, context, entry, pet)
     pet.resourceUnknownReason = "companion melee order"
     pet.companionTimelineExact = false
     pet.companionTimelineUnknownReason = "companion melee order"
-    syncSelected(out, record, selected)
+    refreshRecord(out, record, true)
     return reserved
 end
 
@@ -326,7 +317,7 @@ local function applyUnknownAutocast(out, source, candidate, context,
         pet.resourceUnknownReason = "companion melee order"
         pet.companionTimelineExact = false
         pet.companionTimelineUnknownReason = "companion melee order"
-        syncSelected(out, record, selected)
+        refreshRecord(out, record, true)
     end
     return true
 end
@@ -398,7 +389,7 @@ function C:Apply(out, source, candidate, context, entry)
         changed = applyTaunt(target, out, source, candidate, context, entry,
             ambient, record, selected)
     end
-    syncSelected(out, record, selected and changed)
+    refreshRecord(out, record, changed)
     if not record and out.targetHealthExact and out.targetHealth <= 0 then
         out.hostile = false
         if out.autoShot then out.autoShot.active = false end

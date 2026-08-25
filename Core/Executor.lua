@@ -141,7 +141,7 @@ local function dispatchPlayer(action, plan, castName, friendly, capturedGuid, un
         guid, reason, hostile = Guard:ValidateHostileEffect(plan)
         hostile = true
     else
-        guid, reason, hostile = Guard:ValidateSelectedHostile(plan, unit, castRef)
+        guid, reason, hostile = Guard:ValidateHostile(plan, unit, castRef)
     end
     if hostile and not guid then return false, reason end
     if action.facts.playerAttack then
@@ -157,7 +157,7 @@ local function dispatchPlayer(action, plan, castName, friendly, capturedGuid, un
     elseif action.facts.petLifecycle then CastSpellByName(castName)
     elseif action.facts.ground then CastSpellByName(castName, "CLICK")
     elseif friendly then CastSpellByName(castName, capturedGuid)
-    elseif unit == "target" and QueueSpellByName then
+    elseif hostile and QueueSpellByName then
         QueueSpellByName(castName, guid)
     elseif unit then CastSpellByName(castName, unit)
     elseif QueueSpellByName then QueueSpellByName(castName, guid)
@@ -195,7 +195,6 @@ local function playerContext(plan)
             or ((not facts.ground) and "target" or nil) }
     context.usesHostileQueue = not facts.playerAttack and not facts.autoRepeat
         and not facts.petLifecycle and not facts.ground and not context.friendly
-        and (not plan.target or plan.target == "target")
         and QueueSpellByName ~= nil
     context.normalQueue = not facts.playerAttack and not facts.autoRepeat
         and PlayerNormalQueue:MayOccupy(action, plan.tooltip)
@@ -203,14 +202,14 @@ local function playerContext(plan)
         and PlayerOnSwing:Is(action, plan.tooltip) and true or false
     local reason
     context.hostileGuid, reason, context.hostilePlan =
-        Guard:SelectedHostileAnchor(plan, context.unit, castRef)
+        Guard:HostileAnchor(plan, context.unit, castRef)
     return context
 end
 
 local function validatePlayerContext(owner, plan, context)
     local action, facts = context.action, context.facts
-    if (tonumber(plan.wait) or 0) > 0
-        and not (context.usesHostileQueue and context.hostilePlan) then
+    if (tonumber(plan.wait) or 0) > 0 and not (context.usesHostileQueue
+        and context.hostilePlan and plan.targetSource ~= "engaged") then
         return rejectPlayer(owner, context.friendly and "ally action not ready"
             or "action not ready")
     end
@@ -224,7 +223,7 @@ local function validatePlayerContext(owner, plan, context)
     end
     local reason
     context.hostileGuid, reason, context.hostilePlan =
-        Guard:ValidateSelectedHostile(plan, context.unit, context.castRef)
+        Guard:PreflightHostile(plan, context.unit, context.castRef)
     if context.hostilePlan and not context.hostileGuid then
         return rejectPlayer(owner, reason)
     end
@@ -357,15 +356,16 @@ local function recordPlayerSubmission(owner, plan, selected, context)
     if XelAssist.Combat.Observations and not facts.playerAttack
         and not facts.autoRepeat
         and not context.onSwing then
-        local observedAction = facts.effectTarget == "target"
-            and not facts.deferredUntilPetMelee
+        local observedAction = facts.effectTarget == "target" and not facts.deferredUntilPetMelee
             and (plan.effectAction or action) or action
         local observedTooltip = facts.effectTarget == "target"
             and not facts.deferredUntilPetMelee
             and (plan.effectTooltip or plan.tooltip) or plan.tooltip
-        XelAssist.Combat.Observations:Submitted(observedAction,
-            facts.effectTarget == "target" and not facts.deferredUntilPetMelee
-                and "target" or context.friendly and context.capturedGuid
+        local observations, engaged = XelAssist.Combat.Observations, plan.targetSource == "engaged"
+        local submit = engaged and observations.SubmittedGuid or observations.Submitted
+        submit(observations, observedAction, engaged and context.applicationGuid
+            or facts.effectTarget == "target" and not facts.deferredUntilPetMelee and "target"
+                or context.friendly and context.capturedGuid
                 or plan.target, observedTooltip)
     end
     if applicationGuarded(facts, plan.tooltip) then

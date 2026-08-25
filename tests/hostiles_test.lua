@@ -128,6 +128,7 @@ UnitChannelInfo = UnitCastingInfo
 XelAssist.targetCastGUID, XelAssist.targetCastUntil = enemyA, 104
 
 dofile("Game/TargetSurvival.lua")
+dofile("Game/HostileEngagement.lua")
 dofile("Game/Hostiles.lua")
 local H = XelAssist.Game.Hostiles
 local snapshot = H:Snapshot()
@@ -142,7 +143,8 @@ assert(snapshot.order[1] == enemyA and snapshot.order[2] == enemyB
 
 local selected = snapshot.byKey[enemyA]
 assert(selected.unit == "target" and selected.source == "selected"
-    and selected.selected and selected.executable
+    and selected.selected and selected.selectedExecutable
+    and selected.addressable and not selected.engagedAddressable
     and selected.targetRef.guid == enemyA
     and selected.targetRef.relation == "hostile"
     and selected.targetRef.priority == 1 and snapshot.selectedKey == enemyA,
@@ -163,6 +165,9 @@ assert(selected.cast.available and selected.cast.active
 assert(selected.victim.available and selected.victim.guid == "player-guid"
     and selected.hasPlayerAggro and selected.hasPetAggro == false,
     "the exact hostile victim must drive actor-local aggro evidence")
+assert(selected.engaged and selected.engagement.unit == "target"
+    and selected.engagement.reason == "selected hostile",
+    "selected-hostile engagement evidence must remain explicit")
 assert(selected.distance == 8 and selected.distanceKind == "test-hitbox"
     and selected.lineOfSight and selected.behind == false
     and selected.geometry.pet.distance == 4
@@ -178,14 +183,18 @@ assert(snapshot.location.zone == "Test Depths"
     "raw encounter location evidence was not preserved")
 
 local mouseover = snapshot.byKey[enemyB]
-assert(not mouseover.selected and not mouseover.executable
+assert(not mouseover.selected and not mouseover.selectedExecutable
+    and mouseover.engagedAddressable and mouseover.addressable
     and mouseover.healthExact == false and mouseover.lineOfSight == nil
     and mouseover.helpfulAuras.available == false
     and not mouseover.cast.available and mouseover.cast.active == nil,
-    "off-target evidence must remain non-executable and preserve unknowns")
+    "off-target evidence must retain explicit engaged addressability and unknowns")
 assert(mouseover.selectedDistance == 9
     and mouseover.selectedDistanceKind == "selected-hitbox",
     "target-centered area geometry must be captured in the live snapshot")
+assert(mouseover.engaged and mouseover.engagement.reason == "attacking group"
+    and mouseover.engagement.unit == "mouseover",
+    "an enemy attacking an exact group member must be marked engaged")
 local companionTarget = snapshot.byKey[enemyC]
 assert(companionTarget.guid == enemyC and companionTarget.unit == "pettarget"
     and companionTarget.aliases.pettarget
@@ -200,6 +209,9 @@ assert(not companionTarget.cast.available and companionTarget.cast.active == nil
 assert(companionTarget.victim.targetsPet and companionTarget.hasPetAggro
     and companionTarget.hasPlayerAggro == false,
     "companion aggro must be attached to the hostile it is fighting")
+assert(companionTarget.engaged
+    and companionTarget.engagement.reason == "attacking companion",
+    "companion-victim evidence must qualify the exact hostile as engaged")
 assert(snapshot.byKey[enemyC] and snapshot.byKey[enemyC].guid == enemyC
     and snapshot.order[3] == enemyC,
     "opaque identities must remain exact table keys and ordered values")

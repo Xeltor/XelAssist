@@ -24,8 +24,17 @@ local function recordActionBlocker(blockers, reason, action)
     row.reasons[reason] = (row.reasons[reason] or 0) + 1
 end
 
-function D:Record(blockers, reason, action)
+function D:Record(blockers, reason, action, descriptor)
     blockers[reason] = (blockers[reason] or 0) + 1
+    if descriptor then
+        blockers.targetAware = true
+        if descriptor.source ~= "engaged"
+            and (reason == "range" or reason == "minimum range") then
+            local key = reason == "range" and "selectedRange"
+                or "selectedMinimumRange"
+            blockers[key] = (blockers[key] or 0) + 1
+        end
+    end
     recordActionBlocker(blockers, reason, action)
     if reason ~= "resource" or not action or action.actor == "pet" then return end
     local tooltip = XelAssist.Game.Actors:Facts(action)
@@ -37,8 +46,12 @@ function D:Record(blockers, reason, action)
 end
 
 function D:Reason(state, blockers)
-    if (blockers["minimum range"] or 0) > 0 then return "Move farther away" end
-    if (blockers.range or 0) > 0 then return "Move into range" end
+    local minimum, range = blockers["minimum range"], blockers.range
+    if blockers.targetAware then
+        minimum, range = blockers.selectedMinimumRange, blockers.selectedRange
+    end
+    if (minimum or 0) > 0 then return "Move farther away" end
+    if (range or 0) > 0 then return "Move into range" end
     if (blockers.moving or 0) > 0 then return "Finish moving" end
     if (blockers.resource or 0) > 0 then return "Not enough resources" end
     if (blockers.cooldown or 0) > 0 then return "Waiting for cooldown" end

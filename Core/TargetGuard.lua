@@ -1,9 +1,11 @@
--- Last-dispatch identity boundary for selected-hostile and companion actions.
--- Planning may observe many enemies, but executable harm remains pinned to the
--- selected `target` token and the opaque GUID captured by the graph.
+-- Last-dispatch identity boundary for selected, explicitly engaged, and
+-- companion hostile actions. Every mutation remains pinned to the opaque GUID
+-- and live evidence captured by the graph; this module never changes targets.
 XelAssist.Core = XelAssist.Core or {}
 XelAssist.Core.TargetGuard = {}
 local G = XelAssist.Core.TargetGuard
+local HostilePolicy = XelAssist.Graph.HostileTargetPolicy
+local HostileEngagement = XelAssist.Game.HostileEngagement
 
 local HOSTILE_KINDS = { damage = true, dot = true, debuff = true,
     crowdControl = true, interrupt = true, builder = true, taunt = true,
@@ -98,6 +100,63 @@ function G:ValidateSelectedHostile(plan, unit, castRef)
         return nil, "selected hostile changed", true
     end
     return guid, nil, true
+end
+
+-- Pure graph-publication boundary for the narrow GUID-directed hostile lane.
+-- Selected-only mechanics never reach this path.
+function G:GuidHostileAnchor(plan, unit, castRef)
+    local action, ref = plan.action or {}, plan.targetRef
+    if not (HostilePolicy and HostilePolicy:Enabled()
+        and not HostilePolicy:SelectedOnly(action)) then
+        return nil, "hostile target must remain selected", true
+    end
+    if plan.targetSource ~= "engaged" or plan.targetRelation ~= "hostile"
+        or plan.target == nil or not ref or ref.guid == nil
+        or ref.unit ~= plan.target or ref.relation ~= "hostile"
+        or ref.source ~= "engaged" then
+        return nil, "engaged hostile reference unavailable", true
+    end
+    if plan.targetGUID ~= nil and plan.targetGUID ~= ref.guid then
+        return nil, "engaged hostile identity conflict", true
+    end
+    if unit ~= ref.unit or not castRef or castRef.unit ~= ref.unit
+        or castRef.guid ~= ref.guid or castRef.relation ~= "hostile"
+        or plan.castTargetGUID ~= nil and plan.castTargetGUID ~= ref.guid
+        or plan.castTargetRelation ~= nil
+            and plan.castTargetRelation ~= "hostile" then
+        return nil, "engaged hostile cast recipient changed", true
+    end
+    return ref.guid, nil, true
+end
+
+function G:HostileAnchor(plan, unit, castRef)
+    local guid, reason, hostile = self:SelectedHostileAnchor(plan, unit, castRef)
+    if not hostile or guid then return guid, reason, hostile end
+    return self:GuidHostileAnchor(plan, unit, castRef)
+end
+
+function G:ValidateHostile(plan, unit, castRef)
+    local guid, reason, hostile = self:SelectedHostileAnchor(plan, unit, castRef)
+    if not hostile then return guid, reason, hostile end
+    if guid then return self:ValidateSelectedHostile(plan, unit, castRef) end
+    guid, reason, hostile = self:GuidHostileAnchor(plan, unit, castRef)
+    if not guid then return nil, reason, true end
+    if not HostileEngagement then
+        return nil, "engaged hostile validation unavailable", true
+    end
+    local liveGuid
+    liveGuid, reason = HostileEngagement:Validate(castRef)
+    if not liveGuid or liveGuid ~= guid then
+        return nil, reason or "engaged enemy changed", true
+    end
+    return guid, nil, true
+end
+
+function G:PreflightHostile(plan, unit, castRef)
+    if plan.targetSource == "engaged" then
+        return self:HostileAnchor(plan, unit, castRef)
+    end
+    return self:ValidateHostile(plan, unit, castRef)
 end
 
 function G:ValidateHostileEffect(plan)

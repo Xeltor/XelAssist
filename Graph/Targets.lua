@@ -54,7 +54,8 @@ function T:AuraActive(action, state, descriptor)
         end
     end
     local aura = state.targetAuras and state.targetAuras[action.name]
-    if not aura and (state.time or 0) <= 0 then
+    if not aura and descriptor and descriptor.unit == "target"
+        and (state.time or 0) <= 0 then
         return XelAssist.Game.Capabilities:TargetHasDebuff(action.name)
     end
     if not aura then return false end
@@ -318,7 +319,8 @@ local function effectBlocker(owner, action, state, descriptor, target,
         and facts.requiresCreature ~= state.targetCreatureType then
         return "creature immunity"
     end
-    if kind == "crowdControl" and (state.time or 0) <= 0
+    if kind == "crowdControl" and descriptor.unit == "target"
+        and (state.time or 0) <= 0
         and XelAssist.Game.Capabilities:TargetHasDebuff(action.name) then
         return "already controlled"
     end
@@ -335,6 +337,16 @@ end
 
 function T:Legal(action, state, descriptor)
     if not descriptor or not descriptor.unit then return false, "target" end
+    if descriptor.relation == "hostile" and state.hostiles then
+        local targeted
+        if descriptor.source == "engaged" and descriptor.key ~= nil
+            and S.HostileContext then
+            targeted = S:HostileContext(state, descriptor.key)
+        elseif state.targetContextKey ~= nil and S.SelectedHostileContext then
+            targeted = S:SelectedHostileContext(state)
+        end
+        if targeted then state = targeted end
+    end
     if not self:Relevant(action, state, descriptor) then return false, "intent" end
     local tooltip = XelAssist.Game.Actors:Facts(action)
     if (state.time or 0) > 0 then
@@ -365,5 +377,5 @@ function T:Legal(action, state, descriptor)
     blocker = XelAssist.Graph.ResourceExchange
         and XelAssist.Graph.ResourceExchange:Blocker(action, state, tooltip)
     if blocker then return false, blocker end
-    return true, nil, tooltip, target, actionStart, descriptor
+    return true, nil, tooltip, target, actionStart, descriptor, state
 end

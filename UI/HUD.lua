@@ -39,6 +39,7 @@ local function targetCopy(target, targetRef)
         local ok, name = pcall(UnitName, targetRef.unit)
         if ok and name and name ~= "" then return name end
     end
+    if targetRef and targetRef.source == "engaged" then return "Engaged enemy" end
     if not target or target == "target" then return "Target" end
     if type(target) == "string" and string.find(target, "party", 1, true) == 1 then return "Party " .. string.sub(target, 6) end
     if type(target) == "string" and string.find(target, "raid", 1, true) == 1 then return "Raid " .. string.sub(target, 5) end
@@ -353,10 +354,15 @@ function UI:Build()
         else
             GameTooltip:SetText("Execute recommendation")
             GameTooltip:AddLine("Consumes one fresh publication and performs at most one action.", 0.72, 0.82, 1)
-            GameTooltip:AddLine(routeCopy(plan.action, plan.target),
+            GameTooltip:AddLine(routeCopy(plan.action, plan.target, plan.targetRef),
                 plan.actor == "pet" and 0.72 or 0.82,
                 plan.actor == "pet" and 0.52 or 0.84,
                 plan.actor == "pet" and 0.92 or 0.88)
+            if plan.targetSource == "engaged" then
+                GameTooltip:AddLine("Exact active-fight evidence · "
+                    .. tostring(plan.targetRef and plan.targetRef.engagement
+                        or "live victim link"), 0.62, 0.82, 1)
+            end
             GameTooltip:AddLine(UI.lastReason or "No recommendation yet", 1, 1, 1)
             GameTooltip:AddLine(string.format("Downtime %.1fs · threat %d", plan.downtime or 0,
                 math.floor(plan.threat or 0)), 0.72, 0.75, 0.82)

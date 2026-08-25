@@ -38,7 +38,7 @@ local function markRecord(record)
 end
 
 function U:Apply(out, observed)
-    local changedSelected, i, marker = false, nil, nil
+    local changed, i, marker = {}, nil, nil
     if observed and observed.flightOverflowGlobal then
         if out.hostiles and out.hostiles.order and out.hostiles.byKey then
             local count = math.min(table.getn(out.hostiles.order), MAX_HOSTILES)
@@ -47,8 +47,7 @@ function U:Apply(out, observed)
                 local record = out.hostiles.byKey[key]
                 if record and record.dead ~= true then
                     markRecord(record)
-                    if key == out.hostiles.selectedKey
-                        or record.selected == true then changedSelected = true end
+                    changed[key] = true
                 end
             end
         else
@@ -62,16 +61,18 @@ function U:Apply(out, observed)
         local key, record = hostileForGuid(out, marker.targetGuid)
         if record and record.dead ~= true then
             markRecord(record)
-            if out.hostiles and (key == out.hostiles.selectedKey
-                or record.selected == true) then changedSelected = true end
+            changed[key] = true
         elseif not out.hostiles and marker.targetGuid == out.targetGUID then
             out.targetHealthExact = false
             out.autoShotImpactTimingUnknown = true
             out.targetPlayerThreatDeltaExact = false
         end
     end
-    if changedSelected and XelAssist.Graph.State.SyncSelectedHostile then
-        XelAssist.Graph.State:SyncSelectedHostile(out)
+    local key
+    for key in pairs(changed) do
+        if XelAssist.Graph.State.RefreshHostileRecord then
+            XelAssist.Graph.State:RefreshHostileRecord(out, key)
+        end
     end
 end
 

@@ -229,12 +229,9 @@ function S:StillCurrent(state, entry)
     return Targets:Resolve(state, entry) ~= nil
 end
 
-local function syncSelected(out, record, selected)
-    if record and selected and State.SyncSelectedHostile then
-        State:SyncSelectedHostile(out)
-    end
-    if record and record.dead == true and selected and out.autoShot then
-        out.autoShot.active = false
+local function refreshRecord(out, record)
+    if record and State.RefreshHostileRecord then
+        State:RefreshHostileRecord(out, record.key)
     end
 end
 
@@ -358,6 +355,6 @@ function S:Apply(out, entry)
                 "ordinary player swing outcome magnitude unavailable")
         end
     end
-    syncSelected(out, record, selected)
+    refreshRecord(out, record)
     return true
 end

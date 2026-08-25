@@ -118,10 +118,13 @@ graph_files = sorted((ROOT / "Graph").glob("*.lua"))
 graph = "\n".join(path.read_text() for path in graph_files)
 engine = (ROOT / "Graph/Engine.lua").read_text()
 core = "\n".join(path.read_text() for path in sorted((ROOT / "Core").glob("*.lua")))
+engaged_target_config = (ROOT / "Core/EngagedTargetConfig.lua").read_text()
+target_guard = (ROOT / "Core/TargetGuard.lua").read_text()
 capabilities = (ROOT / "Game/Capabilities.lua").read_text()
 resistance = (ROOT / "Combat/Resistance.lua").read_text()
 target_modifiers = (ROOT / "Combat/TargetModifiers.lua").read_text()
 delivery = (ROOT / "Combat/Delivery.lua").read_text()
+hostile_target_policy = (ROOT / "Graph/HostileTargetPolicy.lua").read_text()
 
 assert not (ROOT / "XelAssist_Profiles.lua").exists(), "typed rotations must not remain"
 assert "XelAssistProfiles" not in graph + actions
@@ -173,8 +176,14 @@ assert "ClearTarget(" not in graph + core
 assert 'CastSpellByName(castName, "CLICK")' in core
 assert "QueueSpellByName(castName, guid)" in core
 assert "QueueSpellByName(castName)" not in core
-assert "context.usesHostileQueue and context.hostilePlan" in core
-assert 'plan.target == "target")' in core and "QueueSpellByName ~= nil" in core
+assert "context.usesHostileQueue" in core and "context.hostilePlan" in core
+assert 'context.hostilePlan and plan.targetSource ~= "engaged"' in core
+assert "XelAssistCharDB.toggles.engagedTargets = false" in engaged_target_config
+assert "XelAssistCharDB.toggles.engagedTargets == true" in hostile_target_policy
+assert "QueueSpellByName ~= nil" in hostile_target_policy
+assert "function G:GuidHostileAnchor" in target_guard
+assert "HostileEngagement:Validate(castRef)" in target_guard
+assert 'plan.targetSource ~= "engaged"' in target_guard
 assert "fallback=conservative hold" in core
 assert "function XA:RuntimeAudit" in core and "function XA:RecordError" in core
 assert "function UI:Refresh" not in core

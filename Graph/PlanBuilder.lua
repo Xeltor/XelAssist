@@ -19,6 +19,10 @@ function B:ObservedState(state)
 end
 
 local function targetObservation(state, best, observed)
+    observed.targetHealth, observed.targetMax = state.targetHealth,
+        state.targetMax
+    observed.targetHealthExact = state.targetHealthExact
+    observed.hasAggro = state.hasAggro
     if best.targetRelation == "hostile" then
         observed.distance, observed.distanceKind =
             state.targetDistance, state.targetDistanceKind
@@ -29,6 +33,15 @@ local function targetObservation(state, best, observed)
         observed.distance, observed.distanceKind = friendly and friendly.distance,
             friendly and friendly.distanceKind
     end
+end
+
+local function stateForBest(state, best)
+    if best and best.targetRelation == "hostile"
+        and best.targetSource == "engaged" and best.targetKey ~= nil
+        and state.hostiles and State.HostileContext then
+        return State:HostileContext(state, best.targetKey) or state
+    end
+    return state
 end
 
 local function addResistanceUnknowns(best, unknowns)
@@ -125,9 +138,10 @@ function B:Build(state, observed, path, counter, started, observedAt)
     for i = 2, table.getn(path.steps) do
         table.insert(follow, path.steps[i].action)
     end
-    targetObservation(state, best, observed)
-    local unknowns = recommendationUnknowns(state, best)
-    applyResistanceContrast(state, best)
+    local targetState = stateForBest(state, best)
+    targetObservation(targetState, best, observed)
+    local unknowns = recommendationUnknowns(targetState, best)
+    applyResistanceContrast(targetState, best)
     local confidence = table.getn(unknowns) > 0 and "partial data"
         or (best.estimated and "estimated" or "client data")
     local terminal = Diagnostics:Terminal(path.state, path.terminalBlockers)

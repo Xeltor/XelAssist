@@ -46,6 +46,13 @@ function H:Selected(state)
     return nil
 end
 
+function H:Active(state)
+    if state and state.targetContextKey ~= nil then
+        return self:ByKey(state, state.targetContextKey)
+    end
+    return self:Selected(state)
+end
+
 local function sync(state, record)
     state.hostile = record ~= nil and record.dead ~= true
         and (record.selected ~= false or state.targetContextKey ~= nil) or false
@@ -135,7 +142,9 @@ end
 function H:SyncSelected(state)
     if not state or not state.hostiles then return state end
     state.targetContextKey = nil
-    sync(state, self:Selected(state))
+    local record = self:Selected(state)
+    sync(state, record)
+    state.encounter = record and record.context or state.encounter
     return state
 end
 
@@ -145,6 +154,47 @@ function H:SyncContext(state, key)
     state.targetContextKey = key
     sync(state, record)
     state.encounter = record.context or state.encounter
+    return state
+end
+
+function H:SyncActive(state)
+    if not state or not state.hostiles then return state end
+    if state.targetContextKey ~= nil then
+        return self:SyncContext(state, state.targetContextKey)
+    end
+    return self:SyncSelected(state)
+end
+
+local function pinnedGuid(value)
+    return value and (value.targetGuid
+        or value.attackRound and value.attackRound.targetGuid) or nil
+end
+
+local function stopPinned(state, record, field)
+    local value = state and state[field]
+    if not (value and record and record.dead == true) then return end
+    local guid = pinnedGuid(value)
+    if guid == record.guid or guid == nil and record.selected == true then
+        value.active = false
+        value.activeKnown = true
+    end
+end
+
+-- Record-local ambient events may update any observed enemy. Refresh only the
+-- compatibility view that was already active; never switch targets as a side
+-- effect of a selected-target swing, projectile, pet event, or periodic tick.
+function H:RefreshRecord(state, key)
+    local record = self:ByKey(state, key)
+    if not record then return state end
+    stopPinned(state, record, "autoShot")
+    stopPinned(state, record, "wand")
+    stopPinned(state, record, "playerAttack")
+    if state.targetContextKey ~= nil then
+        if state.targetContextKey == key then self:SyncContext(state, key) end
+        return state
+    end
+    local selected = self:Selected(state)
+    if selected and selected.key == key then self:SyncSelected(state) end
     return state
 end
 
@@ -173,9 +223,7 @@ function H:CommitActive(state)
     return self:CommitSelected(state)
 end
 
-function H:Context(state, key)
-    local record = self:ByKey(state, key)
-    if not record then return nil end
+local function contextView(state, record)
     local out, field, value = {}, nil, nil
     for field, value in pairs(state) do out[field] = value end
     if state.actors then
@@ -195,7 +243,19 @@ function H:Context(state, key)
             end
         end
     end
-    return self:SyncContext(out, key)
+    return out
+end
+
+function H:Context(state, key)
+    local record = self:ByKey(state, key)
+    if not record then return nil end
+    return self:SyncContext(contextView(state, record), key)
+end
+
+function H:SelectedContext(state)
+    local record = self:Selected(state)
+    if not record then return nil end
+    return self:SyncSelected(contextView(state, record))
 end
 
 function H:AuraState(encounter)

@@ -11,6 +11,17 @@ local CompanionResources = XelAssist.Graph.CompanionResources
 local PlayerSwings = XelAssist.Graph.PlayerSwings
 local WandCommitment = XelAssist.Graph.WandCommitment
 
+local function syncCandidateTarget(state, candidate)
+    if not (candidate and candidate.targetRelation == "hostile"
+        and state.hostiles) then return end
+    if candidate.targetSource == "engaged" and candidate.targetKey ~= nil
+        and State.SyncHostileContext then
+        State:SyncHostileContext(state, candidate.targetKey)
+    elseif State.SyncSelectedHostile then
+        State:SyncSelectedHostile(state)
+    end
+end
+
 local function append(events, entry, order)
     entry.order = order
     if not entry.priority then
@@ -129,7 +140,10 @@ function L:BeforeAction(source, candidate)
             damageEvents = damageEvents + 1
         end
         elapsed = entry.offset
-        if entry.owner == "action" and entry.kind == "chosenAction" then break end
+        if entry.owner == "action" and entry.kind == "chosenAction" then
+            syncCandidateTarget(out, candidate)
+            break
+        end
         local excluded = candidate.ambientExcludedKind == entry.kind
             and candidate.ambientExcludedOffset
             and math.abs(entry.offset - candidate.ambientExcludedOffset) < 0.0001
@@ -194,8 +208,10 @@ function L:Run(out, source, candidate, context)
         Ongoing:AdvanceEventAuras(out, eventAuras, step)
         elapsed = entry.offset
         if entry.kind == "chosenActionStart" then
+            syncCandidateTarget(out, candidate)
             startChosen(out, candidate, context)
         elseif entry.owner == "action" then
+            syncCandidateTarget(out, candidate)
             local action = candidate.action
             local needsStart = action.actor == "pet"
                 and action.executor == "petAbility"
@@ -229,6 +245,7 @@ function L:Run(out, source, candidate, context)
     advanceWand(out, remainder)
     Ongoing:AdvanceEventAuras(out, eventAuras, remainder)
     if autoTimeline then AutoShot:FinishTimeline(out, autoTimeline) end
+    syncCandidateTarget(out, candidate)
     out.chosenActionPrevented = not actionApplied and true or nil
     return out
 end

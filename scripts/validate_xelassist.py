@@ -218,6 +218,7 @@ subprocess.run(["lua", str(root / "tests/friendlies_test.lua")], cwd=root, check
 subprocess.run(["lua", str(root / "tests/hostiles_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/target_survival_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/hostile_state_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/engaged_hostile_targets_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/area_recipients_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/hostile_effects_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/hostile_execution_boundary_test.lua")], cwd=root, check=True)

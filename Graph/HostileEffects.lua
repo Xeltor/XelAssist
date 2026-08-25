@@ -7,6 +7,17 @@ local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
 local Recipients = XelAssist.Graph.AreaRecipients
 
+local function activeTarget(state)
+    if State.ActiveHostile then return State:ActiveHostile(state) end
+    return State.SelectedHostile and State:SelectedHostile(state) or nil
+end
+
+local function syncActive(state)
+    if State.SyncActiveHostile then return State:SyncActiveHostile(state) end
+    if State.SyncSelectedHostile then return State:SyncSelectedHostile(state) end
+    return state
+end
+
 local function appendUnique(list, seen, value)
     if not value or seen[value] then return end
     seen[value] = true
@@ -309,12 +320,12 @@ function H:Apply(out, candidate)
             end
         end
     end
-    if State.SyncSelectedHostile then State:SyncSelectedHostile(out) end
+    syncActive(out)
     return true
 end
 
 function H:ApplySelectedDamage(out, amount)
-    local target = State.SelectedHostile and State:SelectedHostile(out)
+    local target = activeTarget(out)
     if target then
         if not target.healthExact then return false, nil end
         local beforeHealth = tonumber(target.health) or 0
@@ -323,7 +334,7 @@ function H:ApplySelectedDamage(out, amount)
         if target.health <= 0 then
             target.dead, target.projectedDefeated = true, true
         end
-        if State.SyncSelectedHostile then State:SyncSelectedHostile(out) end
+        syncActive(out)
         return true, beforeHealth - target.health
     end
     if not out.targetHealthExact then return false, nil end
@@ -354,7 +365,7 @@ function H:ApplyPrimaryThreat(out, candidate, context)
         end
     end
     if amount <= 0 then return end
-    local record = State.SelectedHostile and State:SelectedHostile(out)
+    local record = activeTarget(out)
     if not record or candidate.targetGUID ~= nil
         and record.guid ~= candidate.targetGUID then return end
     local actor = context.facts.damageActor or context.facts.effectActor
@@ -371,7 +382,7 @@ function H:ApplyPrimaryThreat(out, candidate, context)
 end
 
 function H:ProjectPetTaunt(out, candidate, action)
-    local record = State.SelectedHostile and State:SelectedHostile(out)
+    local record = activeTarget(out)
     local pet = out and out.actors and out.actors.pet
     if not (record and record.threat and pet) then return end
     local delivery = math.max(0, math.min(1,
@@ -389,7 +400,7 @@ function H:ProjectPetTaunt(out, candidate, action)
 end
 
 function H:FinalizeSelected(out, candidate, facts)
-    local target = State.SelectedHostile and State:SelectedHostile(out)
+    local target = activeTarget(out)
     if (facts.kind == "interrupt" or facts.interrupt)
         and out.targetCasting then
         local prior = out.targetCastProbability
@@ -411,9 +422,11 @@ function H:FinalizeSelected(out, candidate, facts)
     if target and target.healthExact and target.health <= 0 then
         target.dead, target.projectedDefeated = true, true
     end
-    if target and State.SyncSelectedHostile then State:SyncSelectedHostile(out) end
+    if target then syncActive(out) end
     if out.targetHealthExact and out.targetHealth <= 0 then
         out.hostile = false
-        if out.autoShot then out.autoShot.active = false end
+        if target and State.RefreshHostileRecord then
+            State:RefreshHostileRecord(out, target.key)
+        end
     end
 end

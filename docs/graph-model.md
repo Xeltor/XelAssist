@@ -136,6 +136,16 @@ state commit back to that record before another hostile becomes the active
 planning context. The collection is an observation boundary, not a claim that
 every nearby or nameplate-visible enemy has been discovered.
 
+Selected-target execution is the default. When the character explicitly enables
+engaged-enemy casts, exact victim links may add an observed hostile attacking the
+player, companion, or group as a recipient for an ordinary single-target player
+spell. This expands recipient edges, not a priority list and not target
+acquisition. Correlated combat flags alone are insufficient. Builders, combo and
+reactive actions, pets, Attack/Auto Shot/Shoot, area/ground, fixed-target, and
+indirect effects remain selected-only. The alternate action must be ready now
+and its exact GUID, hostility, living state, engagement, and reach are checked
+again immediately before dispatch.
+
 When ClassicAPI aura data is available, target auras retain spell ID, stacks,
 duration, remaining time, source unit/GUID, player ownership, dispel type,
 stealability, and boss-aura flags. Unknown expiration or ownership remains
@@ -385,11 +395,12 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   verdict exists. Reactive abilities require an explicit usable result.
 - Major cooldowns, including unknown actions whose client record reports at
   least 30 seconds, reagents, and incidental area damage remain character opt-ins.
-- Hostile dispatch remains selected-target-only. `Core/TargetGuard.lua`
-  rechecks the captured GUID, relation, hostility, and death state immediately
-  before dispatch and again around mutable actor/range evidence. Pet abilities,
-  attack commands, Auto Shot, and Hunter dual-recipient effects cannot use an
-  observed off-target hostile as implicit authority to change targets.
+- Hostile dispatch remains selected-target-only unless the character explicitly
+  enables the narrow engaged-enemy policy above. `Core/TargetGuard.lua` rechecks
+  the captured GUID, relation, hostility, living state, engagement, and reach
+  immediately before the one queue submission. Pet abilities, attack commands,
+  Auto Shot/Shoot, reactive abilities, builders, and Hunter dual-recipient
+  effects cannot use an observed off-target hostile or change the selected target.
 - Pet nodes come from the live pet spellbook plus executable action-bar slots.
   Autocast-enabled abilities become actor-owned timed future transitions and are
   not redundantly recommended for manual execution. Each simulated path copies

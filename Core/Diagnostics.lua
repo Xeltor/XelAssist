@@ -29,6 +29,9 @@ function D:Audit(owner)
     if type(XelAssistCharDB.runtime) ~= "table" then XelAssistCharDB.runtime = {} end
     local runtime = XelAssistCharDB.runtime
     runtime.version, runtime.schema = owner.version, XelAssistCharDB.schema
+    runtime.hostileTargetPolicy = XelAssist.Graph.HostileTargetPolicy
+        and XelAssist.Graph.HostileTargetPolicy:Describe()
+        or "selected enemy only"
     runtime.loadedAt = time and time() or 0
     runtime.superWoW = SUPERWOW_VERSION and tostring(SUPERWOW_VERSION) or nil
     runtime.nampower = versionOfNampower()
@@ -97,7 +100,8 @@ function D:Print(owner)
         .. ", graph=utility, horizon=auto, shown="
         .. (XelAssistCharDB.visibleSteps or 3)
         .. ", nodes=" .. (runtime.actions or 0) .. ", inferred=" .. (runtime.inferred or 0)
-        .. ", fallback=conservative hold, schema=" .. (runtime.schema or 4) .. ".")
+        .. ", hostile targets=" .. runtime.hostileTargetPolicy
+        .. ", fallback=conservative hold, schema=" .. (runtime.schema or 5) .. ".")
     msg("SuperWoW=" .. (runtime.superWoW or "missing") .. ", Nampower="
         .. (runtime.nampower or (runtime.apis.queue and "present" or "missing"))
         .. ", DBC=" .. (runtime.apis.spellRecords and "yes" or "no")

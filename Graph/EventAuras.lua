@@ -160,25 +160,10 @@ function A:PriorStacks(prior, source, name, offset)
         live and (live.expectedStacks or live.stacks or 1) or 0)
 end
 
-local function selected(state, key, record)
-    local hostiles = hostilesOf(state)
-    if not hostiles then return false end
-    if hostiles.selectedKey ~= nil then return hostiles.selectedKey == key end
-    return record and record.selected == true
-end
-
-local function syncSelected(state, key, record, changed)
-    if not changed or not selected(state, key, record) then return end
-    if State.SyncSelectedHostile then State:SyncSelectedHostile(state) end
-    local threat = record and record.threat
-    if threat and threat.projectedPlayerHasAggro ~= nil then
-        state.hasAggro = threat.projectedPlayerHasAggro
+local function refreshRecord(state, key, record, changed)
+    if changed and record and State.RefreshHostileRecord then
+        State:RefreshHostileRecord(state, key)
     end
-    if threat and threat.projectedPetHasAggro ~= nil
-        and state.actors and state.actors.pet then
-        state.actors.pet.hasAggro = threat.projectedPetHasAggro
-    end
-    if record.dead == true and state.autoShot then state.autoShot.active = false end
 end
 
 function A:ApplyPeriodicThreat(record, aura, dealt)
@@ -384,7 +369,7 @@ local function advanceSet(self, state, tracked, elapsed, key, record)
             if state.autoShot then state.autoShot.active = false end
         end
     end
-    if record then syncSelected(state, key, record, changed) end
+    if record then refreshRecord(state, key, record, changed) end
 end
 
 function A:Advance(state, tracked, elapsed)

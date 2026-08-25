@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.21
+
+- Added a default-off, character-specific engaged-enemy lane for ordinary
+  single-target player spells. Exact hostile victim evidence may expose another
+  enemy to graph scoring without changing the selected target; melee/builders,
+  combo actions, reactive procs, pets, repeats, area/ground, and indirect actions stay
+  selected-only.
+- Kept every hostile's health, auras, resistance, threat, cast, encounter, and
+  death projection target-local across scoring, ambient events, transitions,
+  future selected/off-selected switches, and final plan publication.
+- Hardened execution around exact GUID, relation, hostility, death, engagement,
+  and range revalidation. Off-selected casts must be ready immediately and get
+  one final live validation immediately before their GUID-pinned queue call.
+- Precomputed bounded group engagement identities once per snapshot, withheld
+  correlation-only combat guesses, suppressed movement advice for the wrong
+  target, labeled engaged recipients in the HUD, and reported the policy in
+  diagnostics.
+
 ## 0.8.20
 
 - Modeled Warlock Life Tap as a graph-native atomic health-to-mana exchange.

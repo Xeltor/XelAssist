@@ -49,13 +49,13 @@ end
 function Config:Build()
     if self.frame then return end
     local f = CreateFrame("Frame", "XelAssistConfigFrame", UIParent)
-    f:SetWidth(360); f:SetHeight(570); f:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
+    f:SetWidth(360); f:SetHeight(620); f:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
     f:SetFrameStrata("DIALOG"); f:EnableMouse(true); f:SetMovable(true)
     Theme:ApplyInstrumentBackdrop(f)
     f.classStripe = Theme:AddClassStripe(f)
     f.sectionRails = { Theme:AddSectionRail(f, -101),
-        Theme:AddSectionRail(f, -199), Theme:AddSectionRail(f, -305),
-        Theme:AddSectionRail(f, -369) }
+        Theme:AddSectionRail(f, -229), Theme:AddSectionRail(f, -335),
+        Theme:AddSectionRail(f, -399) }
 
     local title = label(f, "XelAssist", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", f, "TOPLEFT", 22, -20)
@@ -98,14 +98,28 @@ function Config:Build()
     f.consumables = makeCheck(f, "Use consumables", "consumables", "toggle")
     f.consumables:SetPoint("TOPLEFT", f, "TOPLEFT", 188, -173)
 
+    f.engagedTargets = makeCheck(f, "Cast at engaged enemies",
+        "engagedTargets", "toggle")
+    f.engagedTargets:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -203)
+    f.engagedTargets:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Exact engaged-enemy casts")
+        GameTooltip:AddLine("Allows ordinary single-target spells to use a live enemy GUID without changing your selected target.",
+            0.72, 0.82, 1)
+        GameTooltip:AddLine("Only enemies visibly fighting you, your companion, or your group qualify. Selected-target mechanics remain selected-only.",
+            0.72, 0.82, 1)
+        GameTooltip:Show()
+    end)
+    f.engagedTargets:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
     local companion = label(f, "This character · companion", "GameFontNormal")
-    companion:SetPoint("TOPLEFT", f, "TOPLEFT", 22, -207)
+    companion:SetPoint("TOPLEFT", f, "TOPLEFT", 22, -237)
     f.petActions = makeCheck(f, "Use companion actions", "petActions", "toggle")
-    f.petActions:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -226)
+    f.petActions:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -256)
     f.petControl = makeCheck(f, "Allow crowd control", "petControl", "toggle")
-    f.petControl:SetPoint("TOPLEFT", f, "TOPLEFT", 188, -226)
+    f.petControl:SetPoint("TOPLEFT", f, "TOPLEFT", 188, -256)
     local petThreat = label(f, "Companion threat", "GameFontHighlightSmall")
-    petThreat:SetPoint("TOPLEFT", f, "TOPLEFT", 22, -260)
+    petThreat:SetPoint("TOPLEFT", f, "TOPLEFT", 22, -290)
     local threatModes = { { "Auto", "auto" }, { "Tank", "tank" },
         { "Assist", "assist" }, { "Avoid", "avoid" } }
     f.petThreats = {}
@@ -114,12 +128,12 @@ function Config:Build()
         local button = makeButton(f, entry[1], 72, function()
             XelAssistCharDB.petThreat = this.petThreat; Config:Refresh(); XelAssist.UI.HUD:Refresh(true)
         end)
-        button:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + ((i - 1) * 76), -276)
+        button:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + ((i - 1) * 76), -306)
         button.petThreat = entry[2]; f.petThreats[i] = button
     end
 
     local role = label(f, "Character role", "GameFontNormal")
-    role:SetPoint("TOPLEFT", f, "TOPLEFT", 22, -313)
+    role:SetPoint("TOPLEFT", f, "TOPLEFT", 22, -343)
     local roles = { { "Auto", "auto" }, { "Tank", "tank" }, { "Damage", "damage" }, { "Healer", "healer" } }
     f.roles = {}
     for i = 1, table.getn(roles) do
@@ -127,21 +141,21 @@ function Config:Build()
         local button = makeButton(f, entry[1], 75, function()
             XelAssistCharDB.role = this.role; Config:Refresh(); XelAssist.UI.HUD:Refresh(true)
         end)
-        button:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + ((i - 1) * 79), -334)
+        button:SetPoint("TOPLEFT", f, "TOPLEFT", 22 + ((i - 1) * 79), -364)
         button.role = entry[2]; f.roles[i] = button
     end
 
     local display = label(f, "All characters · display", "GameFontNormal")
-    display:SetPoint("TOPLEFT", f, "TOPLEFT", 22, -377)
+    display:SetPoint("TOPLEFT", f, "TOPLEFT", 22, -407)
     f.locked = makeCheck(f, "Lock position", "locked", "global")
-    f.locked:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -398)
+    f.locked:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -428)
     f.shown = makeCheck(f, "Show recommendations", "shown", "global")
-    f.shown:SetPoint("TOPLEFT", f, "TOPLEFT", 188, -398)
+    f.shown:SetPoint("TOPLEFT", f, "TOPLEFT", 188, -428)
     f.minimap = makeCheck(f, "Show minimap button", "minimap", "global")
-    f.minimap:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -426)
+    f.minimap:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -456)
 
     local slider = CreateFrame("Slider", "XelAssistScaleSlider", f, "OptionsSliderTemplate")
-    slider:SetWidth(125); slider:SetHeight(16); slider:SetPoint("TOPLEFT", f, "TOPLEFT", 185, -430)
+    slider:SetWidth(125); slider:SetHeight(16); slider:SetPoint("TOPLEFT", f, "TOPLEFT", 185, -460)
     slider:SetMinMaxValues(0.7, 1.5); slider:SetValueStep(0.1)
     getglobal(slider:GetName() .. "Low"):SetText("70%")
     getglobal(slider:GetName() .. "High"):SetText("150%")
@@ -150,7 +164,7 @@ function Config:Build()
     f.slider = slider
 
     local depth = CreateFrame("Slider", "XelAssistDepthSlider", f, "OptionsSliderTemplate")
-    depth:SetWidth(125); depth:SetHeight(16); depth:SetPoint("TOPLEFT", f, "TOPLEFT", 25, -474)
+    depth:SetWidth(125); depth:SetHeight(16); depth:SetPoint("TOPLEFT", f, "TOPLEFT", 25, -504)
     depth:SetMinMaxValues(1, 5); depth:SetValueStep(1)
     getglobal(depth:GetName() .. "Low"):SetText("1")
     getglobal(depth:GetName() .. "High"):SetText("5")
@@ -163,14 +177,14 @@ function Config:Build()
     f.depthHelp = label(f,
         "1 = current only. Higher values request reliable future steps.",
         "GameFontHighlightSmall")
-    f.depthHelp:SetPoint("TOPLEFT", f, "TOPLEFT", 22, -506)
+    f.depthHelp:SetPoint("TOPLEFT", f, "TOPLEFT", 22, -536)
     f.depthHelp:SetWidth(145); f.depthHelp:SetJustifyH("LEFT")
     f.depthHelp:SetTextColor(0.55, 0.58, 0.64)
 
     local shards = CreateFrame("Slider", "XelAssistSoulShardSlider", f,
         "OptionsSliderTemplate")
     shards:SetWidth(125); shards:SetHeight(16)
-    shards:SetPoint("TOPLEFT", f, "TOPLEFT", 185, -474)
+    shards:SetPoint("TOPLEFT", f, "TOPLEFT", 185, -504)
     shards:SetMinMaxValues(0, 10); shards:SetValueStep(1)
     getglobal(shards:GetName() .. "Low"):SetText("0")
     getglobal(shards:GetName() .. "High"):SetText("10")
@@ -188,10 +202,10 @@ function Config:Build()
     shards:Hide()
 
     local macroLabel = label(f, "Fixed execute macro", "GameFontNormalSmall")
-    macroLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 185, -511)
+    macroLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 185, -541)
     local macro = CreateFrame("Frame", nil, f)
     macro:SetWidth(125); macro:SetHeight(22)
-    macro:SetPoint("TOPLEFT", f, "TOPLEFT", 185, -528)
+    macro:SetPoint("TOPLEFT", f, "TOPLEFT", 185, -558)
     macro.command = "/xa"
     macro.background = macro:CreateTexture(nil, "BACKGROUND")
     macro.background:SetAllPoints(macro)
@@ -236,7 +250,8 @@ function Config:Refresh()
         local selected = f.petThreats[i].petThreat == (XelAssistCharDB.petThreat or "auto")
         f.petThreats[i]:SetButtonState(selected and "PUSHED" or "NORMAL", selected)
     end
-    f.cooldowns.Refresh(); f.reagents.Refresh(); f.consumables.Refresh(); f.petActions.Refresh(); f.petControl.Refresh()
+    f.cooldowns.Refresh(); f.reagents.Refresh(); f.consumables.Refresh()
+    f.engagedTargets.Refresh(); f.petActions.Refresh(); f.petControl.Refresh()
     f.aoe.Refresh(); f.locked.Refresh(); f.shown.Refresh(); f.minimap.Refresh()
     f.slider:SetValue(XelAssistDB.ui.scale or 1)
     f.depth:SetValue(XelAssistCharDB.visibleSteps or 3)

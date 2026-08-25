@@ -4,6 +4,7 @@
 XelAssist.Game.Hostiles = {}
 local H = XelAssist.Game.Hostiles
 local TargetSurvival = XelAssist.Game.TargetSurvival
+local Engagement = XelAssist.Game.HostileEngagement
 
 H.MAX_TARGETS = 5
 
@@ -154,27 +155,6 @@ local function castState(record)
     return cast
 end
 
-local function sameUnit(first, second, firstGuid, secondGuid)
-    local equal = truthy(UnitIsUnit, first, second)
-    if equal ~= nil then return equal end
-    return firstGuid ~= nil and secondGuid ~= nil and firstGuid == secondGuid
-end
-
-local function victimState(record)
-    local token = record.unit .. "target"
-    local guid = identity(token)
-    if guid == nil then
-        return { available = false, unit = token, guid = nil,
-            targetsPlayer = nil, targetsPet = nil }
-    end
-    local playerGuid, petGuid = identity("player"), identity("pet")
-    local targetsPet
-    if petGuid then targetsPet = sameUnit(token, "pet", guid, petGuid) end
-    return { available = true, unit = token, guid = guid,
-        targetsPlayer = sameUnit(token, "player", guid, playerGuid),
-        targetsPet = targetsPet }
-end
-
 local function unitContext(record)
     local encounter = XelAssist.Game.Encounter
     local unitRecord
@@ -193,10 +173,9 @@ local function unitContext(record)
     return out
 end
 
-local function enrich(record, selectedGuid)
+local function enrich(record, selectedGuid, engagementContext)
     record.selected = record.guid == selectedGuid
-    record.executable = record.selected and record.dead == false
-    record.executableSource = record.executable and "selected hostile target" or nil
+    record.selectedExecutable = record.selected and record.dead == false
     record.health, record.healthMax, record.healthExact, record.healthAvailable =
         healthState(record.unit)
     record.survival = TargetSurvival and TargetSurvival:Observe(record.guid,
@@ -209,7 +188,7 @@ local function enrich(record, selectedGuid)
     record.distanceKind = record.geometry.player.distanceKind
     record.lineOfSight = record.geometry.player.lineOfSight
     record.behind = record.geometry.player.behind
-    if identity("pet") then
+    if engagementContext and engagementContext.petGuid then
         record.geometry.pet = actorGeometry("pet", record.unit)
     end
     if selectedGuid then
@@ -223,7 +202,20 @@ local function enrich(record, selectedGuid)
         record.selectedDistance = record.geometry.selected.distance
         record.selectedDistanceKind = record.geometry.selected.distanceKind
     end
-    record.victim = victimState(record)
+    record.engagement = Engagement and Engagement:Observe(
+        record, engagementContext)
+        or { engaged = false, reason = "engagement capability unavailable" }
+    record.engaged = record.engagement.engaged == true
+    record.engagementUnit = record.engagement.unit
+    record.engagedAddressable = not record.selected and record.dead == false
+        and record.engaged
+    record.addressable = record.selectedExecutable or record.engagedAddressable
+    record.addressableSource = record.selectedExecutable
+        and "selected hostile target" or record.engagedAddressable
+            and record.engagement.reason or nil
+    record.victim = record.engagement.victim
+        or { available = false, targetsPlayer = nil, targetsPet = nil,
+            targetsGroup = nil }
     record.hasPlayerAggro = record.victim.targetsPlayer
     record.hasPetAggro = record.victim.targetsPet
     record.cast = castState(record)
@@ -255,6 +247,7 @@ end
 
 function H:Snapshot()
     local working, discovery, selectedGuid = {}, {}, identity("target")
+    local engagementContext = Engagement and Engagement:ObservationContext()
     local observed, i = candidates(), nil
     for i = 1, table.getn(observed) do
         local candidate = observed[i]
@@ -268,7 +261,7 @@ function H:Snapshot()
                 record = { key = guid, guid = guid, unit = candidate.unit,
                     source = candidate.source, sourcePriority = priority,
                     discoveryOrder = i, dead = dead,
-                    aliases = {}, sources = {}, aliasSources = {},
+                    aliases = {}, aliasOrder = {}, sources = {}, aliasSources = {},
                     targetRef = { unit = candidate.unit, guid = guid,
                         relation = "hostile", source = candidate.source } }
                 working[guid] = record
@@ -278,6 +271,9 @@ function H:Snapshot()
                 record.sourcePriority, record.discoveryOrder = priority, i
                 record.targetRef.unit, record.targetRef.source =
                     candidate.unit, candidate.source
+            end
+            if not record.aliases[candidate.unit] then
+                table.insert(record.aliasOrder, candidate.unit)
             end
             record.aliases[candidate.unit] = true
             record.sources[candidate.source] = true
@@ -296,7 +292,7 @@ function H:Snapshot()
     local count = math.min(total, self.MAX_TARGETS)
     for i = 1, count do
         local record = discovery[i]
-        enrich(record, selectedGuid)
+        enrich(record, selectedGuid, engagementContext)
         record.priority = i
         record.targetRef.priority = i
         snapshot.byKey[record.key] = record

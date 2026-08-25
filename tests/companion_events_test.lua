@@ -32,6 +32,12 @@ XelAssist.Graph.State = {
     end,
     Copy = function(_, state) return state end,
 }
+XelAssist.Graph.State.RefreshHostileRecord = function(self, state, key)
+    if state.targetContextKey == nil and key == state.hostiles.selectedKey then
+        return self:SyncSelectedHostile(state)
+    end
+    return state
+end
 XelAssist.Graph.Effects = {
     StateAtImpact = function(_, state) return state end,
     Decision = function(_, estimate)

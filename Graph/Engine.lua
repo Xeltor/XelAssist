@@ -107,7 +107,8 @@ local function topCandidates(state, counter, actions)
             elseif blocker then
                 counter.blockers[blocker] =
                     (counter.blockers[blocker] or 0) + 1
-                Diagnostics:Record(blockers, blocker, actions[i])
+                Diagnostics:Record(
+                    blockers, blocker, actions[i], targets[targetIndex])
             end
         end
     end

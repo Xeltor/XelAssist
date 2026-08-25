@@ -53,7 +53,9 @@ never class rotations or ordered priority lists.
   level-scaled target-yield evidence without prescribing a Warlock sequence.
   `Game/HitBonuses.lua` owns the capability-gated equipped-hit snapshot and
   keeps unresolved talent/aura contributions explicit.
-  `Game/Hostiles.lua` owns bounded GUID-deduplicated hostile observation, while
+  `Game/Hostiles.lua` owns bounded GUID-deduplicated hostile observation and
+  `Game/HostileEngagement.lua` owns exact victim-linked active-fight evidence,
+  while
   `Game/TargetSurvival.lua` owns bounded session-only exact-health trend
   evidence without persisting or rendering opaque identity, and
   `Game/SpellTopology.lua` translates installed-client DBC effect-target and
@@ -107,6 +109,8 @@ never class rotations or ordered priority lists.
   captures exact-rank readiness
   once at the root and supplies pure projected clocks to descendants.
   `Graph/AreaRecipients.lua` resolves conservative per-effect recipient sets;
+  `Graph/HostileTargetPolicy.lua` owns the default-off exclusions and authority
+  for ordinary GUID-addressed engaged-enemy spells;
   `Graph/HostileEffects.lua` applies eligible hostile-local effects without
   spending one action more than once. `Graph/AutoShotEffects.lua` and
   `Graph/CompanionEvents.lua` own target-pinned ambient events;
@@ -159,8 +163,9 @@ never class rotations or ordered priority lists.
   live player/companion usability check before dispatch.
   `Core/DecisionLog.lua` owns bounded privacy-safe history and event status
   correlation; `Core/Diagnostics.lua` owns the durable capability/evidence audit.
-  `Core/TargetGuard.lua` pins hostile dispatch to the captured selected-target
-  identity and revalidates it around actor/range checks.
+  `Core/TargetGuard.lua` pins selected and explicitly engaged hostile dispatch
+  to the captured identity and revalidates exact live authority after actor and
+  range checks without changing the selected target.
   `Core/PlayerNormalQueue.lua` owns session-only evidence for Nampower's single
   normal-GCD queue slot and consumes Nampower 4.7.0+'s opaque attempt-result
   identity; it does not merge on-swing or non-GCD queue classes.

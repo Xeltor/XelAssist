@@ -16,9 +16,10 @@ local ComboScoring = XelAssist.Graph.ComboScoring
 local Admission = XelAssist.Graph.ActionAdmission
 local SurvivalPressure = XelAssist.Graph.SurvivalPressure
 local function legalityAndTiming(action, state, descriptor)
-    local allowed, blocker, tooltip, target, actionStart, resolved =
+    local allowed, blocker, tooltip, target, actionStart, resolved, targetState =
         Targets:Legal(action, state, descriptor)
     if not allowed then return nil, blocker end
+    state = targetState or state
     descriptor = resolved or descriptor
     if XelAssist.Graph.ComboState then
         tooltip = XelAssist.Graph.ComboState:TooltipFor(
@@ -409,14 +410,17 @@ end
 function Scoring:Evaluate(action, state, descriptor)
     local context, blocker = legalityAndTiming(action, state, descriptor)
     if not context then return nil, blocker end
+    local targetState = context.state
     resolveTargetNeed(context)
     projectDamageAndResistance(context)
     PlayerSwingScoring:Project(context)
     projectAmbientTargetHealth(context)
     if SurvivalPressure then SurvivalPressure:Adjust(context) end
-    if action.facts.execute and state.targetMax > 0
-        and (context.targetHealthAtImpact or state.targetHealth) * 100
-            / state.targetMax > action.facts.execute then return nil, "execute range" end
+    if action.facts.execute and targetState.targetMax > 0
+        and (context.targetHealthAtImpact or targetState.targetHealth) * 100
+            / targetState.targetMax > action.facts.execute then
+        return nil, "execute range"
+    end
     if context.ambientDefeatsTarget then
         context.value, context.reason = -100000,
             "ambient attack resolves first"

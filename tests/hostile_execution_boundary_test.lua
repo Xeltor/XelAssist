@@ -1,4 +1,5 @@
 XelAssist = { Core = {}, Game = {}, Combat = {}, Graph = {}, UI = {} }
+XelAssistCharDB = { toggles = { engagedTargets = false } }
 table.getn = table.getn or function(value)
     local count = 0
     while value[count + 1] ~= nil do count = count + 1 end
@@ -8,6 +9,7 @@ end
 local selectedGuid, otherGuid, petGuid, playerGuid, allyGuid = {}, {}, {}, {}, {}
 local currentPlan
 local units = {}
+local deadStateMode
 local function resetUnits()
     units = {
         player = { guid = playerGuid }, pet = { guid = petGuid },
@@ -31,7 +33,11 @@ UnitCanAssist = function(_, unit)
     return units[unit] and not units[unit].hostile
         and not units[unit].unassistable and true or false
 end
-UnitIsDead = function(unit) return units[unit] and units[unit].dead and true or false end
+UnitIsDead = function(unit)
+    if deadStateMode == "nil" then return nil end
+    if deadStateMode == "error" then error("dead state unavailable") end
+    return units[unit] and units[unit].dead and true or false
+end
 UnitIsUnit = function(first, second)
     return units[first] and units[second]
         and units[first].guid == units[second].guid and true or false
@@ -51,7 +57,10 @@ XelAssist.Graph.State = {
     end,
 }
 XelAssist.Game.Friendlies = { TargetKeys = function() return {} end }
-XelAssist.Game.Actors = { DispelTarget = function() return nil end }
+XelAssist.Game.Actors = { DispelTarget = function() return nil end,
+    Facts = function(_, action) return action.mock or {} end }
+dofile("Game/HostileEngagement.lua")
+dofile("Graph/HostileTargetPolicy.lua")
 dofile("Graph/TargetSelection.lua")
 
 local selectedRecord = { key = selectedGuid, guid = selectedGuid,
@@ -106,6 +115,7 @@ local function resetEffects()
     playerBehind, petBehind = nil, nil
     spellRangeVerdict = true
     wandPending = false
+    deadStateMode = nil
     resetUnits()
     XelAssist.pendingAuras = {}
     if XelAssist.Core.PlayerNormalQueue then
@@ -183,6 +193,7 @@ XelAssist.Game.Capabilities = {
     CurrentCast = function() return nil, 0, false, 0, false end,
 }
 XelAssist.Game.Actors = {
+    Facts = function(_, action) return action.mock or {} end,
     ValidateActorRef = function(_, ref)
         if hooks.actorValidation then hooks.actorValidation() end
         local exists, guid = UnitExists("pet")
@@ -205,9 +216,16 @@ XelAssist.Game.Inventory = { Execute = function(action)
     if hooks.item then hooks.item(action) end
     return true
 end }
-XelAssist.Combat.Observations = { Submitted = function()
-    effects.observation = effects.observation + 1
-end }
+XelAssist.Combat.Observations = {
+    Submitted = function(_, _, target)
+        effects.observation = effects.observation + 1
+        effects.observationTarget = target
+    end,
+    SubmittedGuid = function(_, _, guid)
+        effects.observation = effects.observation + 1
+        effects.observationGuid = guid
+    end,
+}
 dofile("Combat/AutoShotRange.lua")
 XelAssist.Combat.AutoShot = {
     Snapshot = function(_, evidence) return evidence end,
@@ -314,7 +332,8 @@ currentPlan = hostilePlan(playerAction("Shadow Bolt"))
 XelAssist:Execute()
 assert(effects.queue == 1 and effects.queueGuid == selectedGuid
     and effects.direct == 0 and effects.log == 1
-    and effects.observation == 1,
+    and effects.observation == 1 and effects.observationTarget == "target"
+    and effects.observationGuid == nil,
     "a selected-hostile queue submission must pin its validated GUID")
 
 -- Shoot is a distinct client repeat boundary. It must never pass through the
@@ -594,6 +613,115 @@ for i = 1, table.getn(forgedTokens) do
     XelAssist:Execute()
     assertNoExecution("an off-selected hostile cast recipient reached a player API")
 end
+
+-- The opt-in GUID lane can execute one ordinary hostile spell without a
+-- target switch, but only while the exact observed enemy remains engaged.
+resetEffects()
+XelAssistCharDB.toggles.engagedTargets = true
+units.mouseovertarget = { guid = playerGuid }
+currentPlan = hostilePlan(playerAction("Engaged Bolt"))
+currentPlan.target, currentPlan.targetGUID = "mouseover", otherGuid
+currentPlan.targetSource = "engaged"
+currentPlan.targetRef = { unit = "mouseover", guid = otherGuid,
+    relation = "hostile", source = "engaged",
+    engagement = "attacking player" }
+XelAssist:Execute()
+assert(effects.queue == 1 and effects.queueGuid == otherGuid
+    and effects.direct == 0 and effects.log == 1
+    and effects.playerAttack == 0 and effects.observation == 1
+    and effects.observationGuid == otherGuid
+    and effects.observationTarget == nil,
+    "an exact engaged hostile spell must use one GUID-pinned queue call")
+
+local deadModes = { "nil", "error" }
+local deadIndex
+for deadIndex = 1, table.getn(deadModes) do
+    resetEffects()
+    units.mouseovertarget = { guid = playerGuid }
+    deadStateMode = deadModes[deadIndex]
+    currentPlan = hostilePlan(playerAction("Uncertain-life Engaged Bolt"))
+    currentPlan.target, currentPlan.targetGUID = "mouseover", otherGuid
+    currentPlan.targetSource = "engaged"
+    currentPlan.targetRef = { unit = "mouseover", guid = otherGuid,
+        relation = "hostile", source = "engaged" }
+    XelAssist:Execute()
+    assertNoExecution("an engaged target with unavailable life state reached the queue")
+end
+
+resetEffects()
+units.mouseovertarget = { guid = playerGuid }
+currentPlan = hostilePlan(playerAction("Victim-race Engaged Bolt"))
+currentPlan.target, currentPlan.targetGUID = "mouseover", otherGuid
+currentPlan.targetSource = "engaged"
+currentPlan.targetRef = { unit = "mouseover", guid = otherGuid,
+    relation = "hostile", source = "engaged" }
+hooks.inRange = function() units.mouseovertarget.guid = selectedGuid end
+XelAssist:Execute()
+assertNoExecution("an enemy that left the active fight reached the queue")
+
+resetEffects()
+units.mouseovertarget = { guid = playerGuid }
+currentPlan = hostilePlan(playerAction("Engaged Reactive Strike",
+    { kind = "damage", reactive = true }))
+currentPlan.target, currentPlan.targetGUID = "mouseover", otherGuid
+currentPlan.targetSource = "engaged"
+currentPlan.targetRef = { unit = "mouseover", guid = otherGuid,
+    relation = "hostile", source = "engaged" }
+XelAssist:Execute()
+assertNoExecution("a reactive action reached the engaged GUID lane")
+
+resetEffects()
+units.mouseovertarget = { guid = playerGuid }
+currentPlan = hostilePlan(playerAction("Future Engaged Bolt"))
+currentPlan.target, currentPlan.targetGUID = "mouseover", otherGuid
+currentPlan.targetSource, currentPlan.wait = "engaged", 0.75
+currentPlan.targetRef = { unit = "mouseover", guid = otherGuid,
+    relation = "hostile", source = "engaged" }
+XelAssist:Execute()
+assertNoExecution("an engaged plan with future wait time reached the queue")
+
+resetEffects()
+units.mouseovertarget = { guid = playerGuid }
+currentPlan = hostilePlan(playerAction("Racing Engaged Bolt"))
+currentPlan.target, currentPlan.targetGUID = "mouseover", otherGuid
+currentPlan.targetSource = "engaged"
+currentPlan.targetRef = { unit = "mouseover", guid = otherGuid,
+    relation = "hostile", source = "engaged" }
+hooks.inRange = function() units.mouseover.guid = selectedGuid end
+XelAssist:Execute()
+assertNoExecution("an engaged-hostile GUID race reached the queue")
+
+resetEffects()
+currentPlan = hostilePlan(playerAction("Unengaged Bolt"))
+currentPlan.target, currentPlan.targetGUID = "mouseover", otherGuid
+currentPlan.targetSource = "engaged"
+currentPlan.targetRef = { unit = "mouseover", guid = otherGuid,
+    relation = "hostile", source = "engaged" }
+XelAssist:Execute()
+assertNoExecution("an observed but unengaged hostile reached the queue")
+
+resetEffects()
+units.mouseovertarget = { guid = playerGuid }
+currentPlan = hostilePlan(playerAction("Off-target Builder",
+    { kind = "builder", melee = true }))
+currentPlan.target, currentPlan.targetGUID = "mouseover", otherGuid
+currentPlan.targetSource = "engaged"
+currentPlan.targetRef = { unit = "mouseover", guid = otherGuid,
+    relation = "hostile", source = "engaged" }
+XelAssist:Execute()
+assertNoExecution("a selected-only builder reached the engaged GUID lane")
+
+resetEffects()
+units.mouseovertarget = { guid = playerGuid }
+currentPlan = hostilePlan(playerAction("Off-target Melee Strike",
+    { kind = "damage", melee = true }))
+currentPlan.target, currentPlan.targetGUID = "mouseover", otherGuid
+currentPlan.targetSource = "engaged"
+currentPlan.targetRef = { unit = "mouseover", guid = otherGuid,
+    relation = "hostile", source = "engaged" }
+XelAssist:Execute()
+assertNoExecution("a selected-only melee action reached the engaged GUID lane")
+XelAssistCharDB.toggles.engagedTargets = false
 
 resetEffects()
 currentPlan = hostilePlan(playerAction("Aliased Reference"))

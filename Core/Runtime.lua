@@ -45,7 +45,6 @@ function XA:EnableEvidenceEvents()
         onSwingExact = type(GetOnSwingInfo) == "function" }
     return self.evidenceEvents
 end
-
 function XA:Init()
     if type(XelAssistDB.ui) ~= "table" then XelAssistDB.ui = {} end
     if type(XelAssistCharDB.toggles) ~= "table" then
@@ -54,6 +53,7 @@ function XA:Init()
     if XelAssistCharDB.toggles.petControl == nil then XelAssistCharDB.toggles.petControl = false end
     if XelAssistCharDB.toggles.petActions == nil then XelAssistCharDB.toggles.petActions = true end
     if XelAssistCharDB.toggles.consumables == nil then XelAssistCharDB.toggles.consumables = false end
+    XelAssist.Core.EngagedTargetConfig:Initialize()
     if type(XelAssistLog) ~= "table" then XelAssistLog = {} end
     if XelAssistDB.ui.locked == nil then XelAssistDB.ui.locked = false end
     if XelAssistDB.ui.scale == nil then XelAssistDB.ui.scale = 1 end
@@ -66,7 +66,6 @@ function XA:Init()
     if XelAssistCharDB.petThreat == nil then XelAssistCharDB.petThreat = "auto" end
     if XelAssistCharDB.mode then self.mode = XelAssistCharDB.mode end
     XelAssistCharDB.fallback = nil
-    XelAssistCharDB.schema = 4
     self:CheckDependencies()
     self:EnableEvidenceEvents()
     local petExists, petGuid = UnitExists("pet")
@@ -109,6 +108,7 @@ function XA:Command(text)
         msg(cmd .. " " .. (not current and "enabled" or "disabled") .. ".")
         return
     end
+    if XelAssist.Core.EngagedTargetConfig:Command(cmd) then return end
     if cmd == "diagnostics" then
         XelAssist.Core.Diagnostics:Print(self); return
     end
@@ -143,7 +143,7 @@ function XA:Command(text)
     if cmd == "config" or cmd == "ui" then XelAssist.UI.Settings:Toggle(); return end
     if cmd == "show" then XelAssist.UI.HUD.frame:Show(); XelAssistDB.ui.shown = true; return end
     if cmd == "hide" then XelAssist.UI.HUD.frame:Hide(); XelAssistDB.ui.shown = false; return end
-    msg("commands: execute, why, smart, single, aoe, support, buffs, cooldowns, reagents, consumables, resistance, diagnostics, log, clearlog, config, show, hide")
+    msg("commands: execute, why, smart, single, aoe, support, buffs, cooldowns, reagents, consumables, engaged, resistance, diagnostics, log, clearlog, config, show, hide")
 end
 
 SLASH_XELASSIST1 = "/xassist"

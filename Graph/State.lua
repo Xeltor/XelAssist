@@ -34,8 +34,24 @@ function S:SelectedHostile(state)
     return XelAssist.Graph.HostileState:Selected(state)
 end
 
+function S:ActiveHostile(state)
+    return XelAssist.Graph.HostileState:Active(state)
+end
+
 function S:SyncSelectedHostile(state)
     return XelAssist.Graph.HostileState:SyncSelected(state)
+end
+
+function S:SyncHostileContext(state, key)
+    return XelAssist.Graph.HostileState:SyncContext(state, key)
+end
+
+function S:SyncActiveHostile(state)
+    return XelAssist.Graph.HostileState:SyncActive(state)
+end
+
+function S:RefreshHostileRecord(state, key)
+    return XelAssist.Graph.HostileState:RefreshRecord(state, key)
 end
 
 function S:CommitSelectedHostile(state)
@@ -52,6 +68,10 @@ end
 
 function S:HostileContext(state, key)
     return XelAssist.Graph.HostileState:Context(state, key)
+end
+
+function S:SelectedHostileContext(state)
+    return XelAssist.Graph.HostileState:SelectedContext(state)
 end
 
 function S:Missing(record)

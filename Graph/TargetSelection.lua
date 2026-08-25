@@ -3,6 +3,7 @@
 XelAssist.Graph.TargetSelection = {}
 local T = XelAssist.Graph.TargetSelection
 local S = XelAssist.Graph.State
+local HostilePolicy = XelAssist.Graph.HostileTargetPolicy
 
 local function friendlyDescriptor(state, record)
     if not record then return nil end
@@ -42,6 +43,39 @@ local function hostileDescriptor(state)
         relation = "hostile", source = "selected", priority = priority } or nil
     return { unit = "target", relation = "hostile", source = "selected",
         guid = guid, key = key, record = record, targetRef = ref }
+end
+
+local function observedHostileDescriptor(record)
+    local engagement = record and record.engagement
+    local unit = engagement and engagement.unit or record and record.unit
+    if not (record and unit and record.guid ~= nil) then return nil end
+    local ref = { key = record.key, unit = unit, guid = record.guid,
+        relation = "hostile", source = "engaged",
+        observedSource = record.source,
+        engagement = engagement and engagement.reason,
+        priority = record.priority }
+    return { unit = unit, relation = "hostile", source = "engaged",
+        guid = record.guid, key = record.key, record = record, targetRef = ref }
+end
+
+local function hostileDescriptors(action, state, selected)
+    local out = {}
+    selected = selected or hostileDescriptor(state)
+    if selected and selected.guid ~= nil then table.insert(out, selected) end
+    local snapshot = state and state.hostiles
+    if not (HostilePolicy and snapshot and snapshot.order
+        and snapshot.byKey) then return out end
+    local i
+    for i = 1, table.getn(snapshot.order) do
+        local key, record = snapshot.order[i], nil
+        record = snapshot.byKey[key]
+        if record and not record.selected
+            and HostilePolicy:Eligible(action, state, record) then
+            local descriptor = observedHostileDescriptor(record)
+            if descriptor then table.insert(out, descriptor) end
+        end
+    end
+    return out
 end
 
 local function unitDescriptor(state, unit, relation, source)
@@ -130,6 +164,10 @@ end
 function T:Targets(action, state)
     if not self:VariableFriendlyAction(action) then
         local fixed = self:Fixed(action, state)
+        if fixed and fixed.relation == "hostile" then
+            local hostile = hostileDescriptors(action, state, fixed)
+            if table.getn(hostile) > 0 then return hostile end
+        end
         return fixed and { fixed } or {}
     end
     local out, i, order = {}, nil,

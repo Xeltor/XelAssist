@@ -225,11 +225,8 @@ local function applyImpact(out, shot)
         if record.health <= 0 then
             record.dead, record.projectedDefeated = true, true
         end
-        local _, selectedKey, selected = selectedHostile(out)
-        if record.health ~= priorHealth
-            and (key == selectedKey or record == selected) then
-            if State.SyncSelectedHostile then State:SyncSelectedHostile(out) end
-            if record.health <= 0 then out.autoShot.active = false end
+        if record.health ~= priorHealth and State.RefreshHostileRecord then
+            State:RefreshHostileRecord(out, key)
         end
         return true
     end
