@@ -157,8 +157,10 @@ exact only when the hostile-unit API proves its bonus/current term. White
 dual-wield swings alone receive the additional miss term, and an equipped but
 broken off hand does not activate it. If off-hand durability cannot be proved,
 that white-swing prior remains unknown rather than silently choosing a table.
-Additive +hit is not yet part of the analytic prior and remains explicitly
-unknown.
+Exact equipped item/enchant +hit is added to the analytic prior when the
+matching ClassicAPI aggregate is available and partitions learned outcomes.
+Talent and non-equipment aura +hit remain explicitly unknown rather than being
+silently folded into the gear-only number.
 Physical hit, miss, dodge, parry, block, and deflect evidence is keyed by actor,
 hand, current skill, target Defense, actual-skill mode, relevant weapon/form,
 white-versus-yellow table, white dual-wield state, and proven front/behind
@@ -236,8 +238,12 @@ instruction rather than terminating the runway. The graph may continue through
 that edge, but measured distance is never changed: every downstream action is
 marked conditional on the player actually reaching its range band. Pressing
 `/xa` on the movement row safely holds and never executes a predicted row.
-Stealth similarly requires a concrete hostile setup target and prices its
-movement-speed penalty instead of behaving like free indefinite maintenance.
+Stealth similarly requires a concrete hostile setup target and a discovered
+dependent edge: either an action whose live spell facts require Stealth, or an
+out-of-range rear opener whose approach to an aggressive target materially
+benefits from remaining undetected. A neutral target with only ordinary
+Backstab does not qualify. Eligible Stealth paths still price their movement-
+speed penalty instead of behaving like free indefinite maintenance.
 The automatic horizon is twenty-four decisions or forty-five modeled seconds,
 with a five-path beam. Immediately actionable states receive a 256-state/8 ms
 budget; short observed cast/GCD slack receives 512 states/12 ms; out-of-combat
@@ -475,10 +481,11 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   ability that needs a friendly recipient is therefore legal only when that
   recipient is the selected target; off-target pet buffs and dispels hold until
   a native GUID-addressed pet-action capability is available.
-- Equipment/talent/aura +hit is not yet sourced analytically. Matching exact
-  outcomes refine delivery statistically, while diagnostics state that +hit was
-  excluded from the prior. White-swing outcomes are exact but post-resolution,
-  so their weapon, hand, and position fingerprint is sampled when the packet is
+- Equipped item/enchant +hit is sourced analytically through ClassicAPI and
+  included in physical and spell delivery priors. Talent and non-equipment aura
+  +hit remain explicit gaps; matching exact outcomes refine those omitted terms
+  statistically. White-swing outcomes are exact but post-resolution,
+so their weapon, hand, and position fingerprint is sampled when the packet is
   received. Yellow abilities are sampled when submitted; for a queued or
   cast-time ability that snapshot can precede the server's launch-time roll, so
   an intervening weapon swap or move makes attribution approximate even though

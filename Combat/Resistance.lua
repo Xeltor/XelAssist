@@ -6,6 +6,7 @@ XelAssist.Combat.Resistance = { schema = 4, maxProfiles = 256, identities = {},
     submissions = {}, recentSubmissions = {}, ownedCasters = {},
     unitResistanceProven = false, nampowerResistanceProven = false }
 local R = XelAssist.Combat.Resistance
+local HitDelivery = XelAssist.Combat.HitDelivery
 local submissionLedger = XelAssist.Combat.ResistanceSubmissions:New(R)
 
 local SCHOOL_NAMES = { [0] = "Physical", [1] = "Holy", [2] = "Fire", [3] = "Nature",
@@ -307,6 +308,8 @@ function R:CasterContext(casterGuid, school, state, action, targetGuid)
         end
     end
     local rounded = known and math.floor((tonumber(penetration) or 0) / 5 + 0.5) * 5
+    local hitBonuses = HitDelivery:Bonuses(state, actor)
+    local hitToken = HitDelivery:Token(hitBonuses)
     local behind, positionSource
     if state then
         if actor == "pet" then
@@ -325,14 +328,17 @@ function R:CasterContext(casterGuid, school, state, action, targetGuid)
         end
     end
     return { actor = actor, level = tonumber(level), penetration = tonumber(penetration),
+        hitBonuses = hitBonuses,
         behindTarget = behind, positionKnown = type(behind) == "boolean",
         positionSource = positionSource or "position unavailable",
         penetrationKnown = known, key = actor .. ":l" .. tostring(level or 0)
-            .. ":p" .. (rounded and tostring(rounded) or "?") }
+            .. ":p" .. (rounded and tostring(rounded) or "?")
+            .. (hitToken and ":h" .. hitToken or "") }
 end
 
 function R:PhaseContext(context, phase)
     return { actor = context.actor, level = context.level, penetration = context.penetration,
+        hitBonuses = context.hitBonuses,
         penetrationKnown = context.penetrationKnown, deliveryModel = context.deliveryModel,
         deliveryModelKnown = context.deliveryModelKnown,
         deliveryModelSource = context.deliveryModelSource,
@@ -362,6 +368,7 @@ function R:ModifierContext(context, reduction)
     if not token then return context end
     return { actor = context.actor, level = context.level,
         penetration = context.penetration, penetrationKnown = context.penetrationKnown,
+        hitBonuses = context.hitBonuses,
         deliveryModel = context.deliveryModel,
         deliveryModelKnown = context.deliveryModelKnown,
         deliveryModelSource = context.deliveryModelSource,
@@ -1556,7 +1563,10 @@ function R:Estimate(action, target, tooltip, state, componentCall)
             priorHit = physicalContext and physicalContext.hitChance
                 or basePhysicalHit(attackerLevel, targetLevel, identity and identity.isPlayer)
         end
-    else priorHit = baseSpellHit(attackerLevel, targetLevel, identity and identity.isPlayer) end
+    else
+        priorHit = HitDelivery:MagicPrior(baseSpellHit(attackerLevel, targetLevel,
+            identity and identity.isPlayer), context.hitBonuses)
+    end
     local learnedOrdinaryLanding, deliverySamples = learnedDelivery(deliveryRecord, priorHit)
     local spellDeliveryKey = action and action.spellId
         and tostring(action.spellId) .. ":" .. currentDeliveryKey
@@ -1593,28 +1603,11 @@ function R:Estimate(action, target, tooltip, state, componentCall)
     result.deliveryModelKnown = deliveryModelKnown
     result.deliveryModelSource = deliveryModelSource
     result.deliverySubtype = physicalSubtype
+    if deliveryModel == "magic" then
+        HitDelivery:ApplyMagicResult(result, context.hitBonuses)
+    end
     if physicalContext then
-        result.weaponHand = physicalContext.hand
-        result.weaponSkill = physicalContext.weaponSkill
-        result.weaponSkillKnown = physicalContext.weaponSkillKnown
-        result.weaponSkillSource = physicalContext.weaponSkillSource
-        result.usesActualWeaponSkill = physicalContext.usesWeaponSkill
-        result.targetDefense = physicalContext.targetDefense
-        result.targetDefenseKnown = physicalContext.targetDefenseKnown
-        result.targetDefenseSource = physicalContext.targetDefenseSource
-        result.weaponMissChance = physicalContext.missChance
-        result.hitBonusKnown = physicalContext.hitBonusKnown
-        result.hitBonusSource = physicalContext.hitBonusSource
-        result.attackPosition = physicalContext.attackPosition
-        result.positionKnown = physicalContext.positionKnown
-        result.positionRelevant = physicalContext.positionRelevant
-        result.positionSource = physicalContext.positionSource
-        result.ordinaryMissBypassed = alwaysHit and true or false
-        result.dualWieldWhitePenalty = physicalContext.dualWieldWhitePenalty
-        result.dualWieldStateKnown = physicalContext.dualWieldStateKnown
-        result.formWeaponUseKnown = physicalContext.formWeaponUseKnown
-        result.deliveryPriorGaps = physicalContext.priorGaps
-        result.deliveryPriorUnknown = physicalContext.unknown
+        HitDelivery:ApplyPhysicalResult(result, physicalContext, alwaysHit)
     end
     result.mode = school == 0 and "armor" or (result.binary and "binary"
         or result.periodic and "periodic-magic" or "magic-partial")
@@ -1736,11 +1729,13 @@ function R:Estimate(action, target, tooltip, state, componentCall)
         result.expectedMultiplier, result.raw = result.multiplier, raw
         result.effective, result.resistChance = effective, resisted
         result.resistanceChance = resistanceChance
-        local deliveryUnknown = physicalContext and physicalContext.unknown
+        local unresolvedHit = deliveryModel == "magic" and context.hitBonuses
+            and not context.hitBonuses.totalKnown
+        local deliveryUnknown = (physicalContext and physicalContext.unknown or unresolvedHit)
             and (deliverySamples or 0) < 4
         local classificationUnknown = deliveryModelKnown ~= true
         result.deliveryPriorUnknown = classificationUnknown or deliveryUnknown and true
-            or physicalContext and physicalContext.unknown or false
+            or physicalContext and physicalContext.unknown or unresolvedHit or false
         result.unknown = not mitigationKnown or classificationUnknown
             or result.targetIdentityUnknown
             or deliveryUnknown and true or false
@@ -1791,8 +1786,11 @@ function R:Estimate(action, target, tooltip, state, componentCall)
                 deliverySource = deliverySource .. "; +19% white dual-wield miss"
             end
             if alwaysHit then deliverySource = deliverySource .. "; ordinary miss bypassed" end
-            deliverySource = deliverySource .. "; +hit excluded from prior"
+            deliverySource = deliverySource
+                .. HitDelivery:PhysicalSuffix(physicalContext)
             result.source = tostring(result.source) .. "; " .. deliverySource
+        elseif deliveryModel == "magic" and context.hitBonuses then
+            HitDelivery:AppendMagicSource(result, context.hitBonuses)
         end
     end
     return result

@@ -43,6 +43,8 @@ function D:Audit(owner)
             and type(C_PlayerInfo.GetComboPointState) == "function" or false,
         comboDuration = C_Spell
             and type(C_Spell.GetSpellDurationRange) == "function" or false,
+        equippedHit = C_PlayerInfo
+            and type(C_PlayerInfo.GetEquippedHitBonuses) == "function" or false,
         targetResistances = (UnitResistance or GetUnitField) and true or false }
     local evidence = owner:EnableEvidenceEvents()
     runtime.evidenceEvents = { damage = evidence.damage, miss = evidence.miss,
@@ -61,6 +63,9 @@ function D:Audit(owner)
     local onSwing = owner and owner:Snapshot() or nil
     runtime.playerOnSwing = onSwing and { supported = onSwing.supported,
         exact = onSwing.exact, occupied = onSwing.occupied } or nil
+    runtime.hitBonuses = XelAssist.Game.HitBonuses
+        and XelAssist.Game.HitBonuses:Snapshot()
+        or { melee = 0, ranged = 0, spell = 0, equipmentKnown = false }
     local ok, actions = pcall(discoveredActions)
     if ok and type(actions) == "table" then
         local inferred, petActions, i = 0, 0, nil
@@ -98,7 +103,14 @@ function D:Print(owner)
         .. ", DBC=" .. (runtime.apis.spellRecords and "yes" or "no")
         .. ", exact-units=" .. (runtime.apis.exactUnits and "yes" or "no") .. ".")
     msg("ClassicAPI combo owner=" .. (runtime.apis.comboOwner and "yes" or "fallback")
-        .. ", combo duration=" .. (runtime.apis.comboDuration and "yes" or "fallback") .. ".")
+        .. ", combo duration=" .. (runtime.apis.comboDuration and "yes" or "fallback")
+        .. ", equipped hit=" .. (runtime.apis.equippedHit and "yes" or "fallback") .. ".")
+    local hit = runtime.hitBonuses
+    msg("Hit evidence: melee=" .. tostring(hit.melee or 0)
+        .. "%, ranged=" .. tostring(hit.ranged or 0)
+        .. "%, spell=" .. tostring(hit.spell or 0) .. "% ("
+        .. tostring(hit.source or "unavailable") .. "); remaining gap="
+        .. tostring(hit.gap or "none") .. ".")
     msg("resistance outcomes: damage=" .. (runtime.evidenceEvents.damage and "on" or "off")
         .. ", miss=" .. (runtime.evidenceEvents.miss and "on" or "off")
         .. ", white swings=" .. (runtime.evidenceEvents.autoAttack and "on" or "off")

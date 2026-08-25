@@ -102,6 +102,7 @@ end
 function C:InvalidateEquipment()
     self.penetrationCache = nil
     self.penetrationFingerprint = nil
+    if XelAssist.Game.HitBonuses then XelAssist.Game.HitBonuses:Invalidate() end
 end
 
 local WEAPON_SKILL_GLOBAL = {

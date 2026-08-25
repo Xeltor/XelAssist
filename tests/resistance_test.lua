@@ -152,6 +152,7 @@ C_UnitAuras = { GetUnitAuras = function(unit, filter)
 end }
 
 dofile("Combat/Delivery.lua")
+dofile("Combat/HitDelivery.lua")
 dofile("Combat/ResistanceSubmissions.lua")
 dofile("Combat/Resistance.lua")
 
@@ -208,6 +209,19 @@ close(fire.multiplier, 0.6064,
     "150 Fire resistance plus equal-level spell delivery at level 60")
 assert(fire.schoolMask == 4 and fire.source == "Turtle UnitResistance target data",
     "school mask or live provenance missing")
+local hitState = { targetResistance = snapshot, playerLevel = 60,
+    hitBonuses = { melee = 1, ranged = 2, spell = 2,
+        equipmentKnown = true, totalKnown = false,
+        source = "test equipped hit", gap = "talent and aura +hit" },
+    actors = { pet = { level = 60 } }, encounter = encounter() }
+local gearedFire = XelAssist.Combat.Resistance:Estimate(
+    action, "target", { school = 2 }, hitState)
+close(gearedFire.baseHitChance, 0.98,
+    "equipped spell hit must improve the ordinary spell-delivery prior")
+assert(gearedFire.hitBonus == 2 and gearedFire.equipmentHitKnown
+    and not gearedFire.hitBonusKnown
+    and string.find(gearedFire.source, "equipped +2% spell hit applied", 1, true),
+    "spell delivery must expose applied equipment hit and the remaining gap")
 local volatile = XelAssist.Combat.Resistance:Estimate(action, "target",
     { school = 2 }, { targetContextKey = "off-target",
         playerLevel = 60, actors = { pet = { level = 60 } },
@@ -556,8 +570,24 @@ assert(lowMain.weaponSkill == 280 and lowMain.targetDefense == 300
     and lowMain.weaponSkillKnown and lowMain.targetDefenseKnown
     and lowMain.usesActualWeaponSkill == true
     and lowMain.hitBonusKnown == false
-    and string.find(lowMain.source, "+hit excluded from prior", 1, true),
+    and string.find(lowMain.source, "equipment +hit", 1, true),
     "physical delivery diagnostics must expose skill, defense, source and excluded +hit")
+local ignoredHitProfile, hitSkillState = isolatedState("skill-target-hit", 91012, 60,
+    { [0] = 0, [1] = 0, [2] = 0, [3] = 0, [4] = 0, [5] = 0, [6] = 0 })
+hitSkillState.hitBonuses = { melee = 2, ranged = 3, spell = 4,
+    equipmentKnown = true, totalKnown = false,
+    source = "test equipped hit", gap = "talent and aura +hit" }
+local gearedMain = XelAssist.Combat.Resistance:Estimate(
+    { name = "Geared Main", spellId = 700, actor = "player",
+        facts = { kind = "debuff", melee = true } },
+    "target", { school = 0 }, hitSkillState)
+close(gearedMain.landChance, 0.93,
+    "equipped melee hit must offset the skill-versus-defense miss roll")
+assert(gearedMain.weaponBaseMissChance == 9 and gearedMain.weaponMissChance == 7
+    and gearedMain.hitBonus == 2 and gearedMain.equipmentHitKnown
+    and string.find(gearedMain.source, "equipped +2% hit applied", 1, true)
+    and string.find(gearedMain.source, "talent and aura +hit excluded", 1, true),
+    "physical delivery must partition known equipment hit from unresolved hit")
 weaponSkills.main.total = 1
 close(XelAssist.Combat.Resistance:Estimate(
     { name = "Untrained Main", spellId = 700, actor = "player",

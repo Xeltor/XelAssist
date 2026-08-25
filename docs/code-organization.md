@@ -46,6 +46,8 @@ never class rotations or ordered priority lists.
   score recommendations, or persist learned combat outcomes.
   `Game/Range.lua` owns normalized native spell verdicts and pure independent
   command/effect bands so planning and final dispatch cannot disagree.
+  `Game/HitBonuses.lua` owns the capability-gated equipped-hit snapshot and
+  keeps unresolved talent/aura contributions explicit.
   `Game/Hostiles.lua` owns bounded GUID-deduplicated hostile observation, while
   `Game/SpellTopology.lua` translates installed-client DBC effect-target and
   radius fields without deciding which action is useful. The session-only

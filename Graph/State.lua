@@ -170,6 +170,8 @@ local function snapshotContext()
         or { points = GetComboPoints and GetComboPoints() or 0,
             ownerGUID = target.guid, selectedExact = true,
             globalExact = false, source = "stock combo state" }
+    local hitBonuses = XelAssist.Game.HitBonuses
+        and XelAssist.Game.HitBonuses:Snapshot() or nil
     return {
         actors = actors, encounter = encounter, inventory = inventory,
         friendlies = friendlies, target = target, healUnit = healUnit,
@@ -184,7 +186,7 @@ local function snapshotContext()
         playerStealthKnown = playerStealthKnown,
         playerStealthSource = playerStealthSource, onSwing = onSwing,
         onSwingCost = onSwingCost, playerResourceReserved = playerResourceReserved,
-        comboObservation = comboObservation,
+        comboObservation = comboObservation, hitBonuses = hitBonuses,
     }
 end
 
@@ -212,6 +214,7 @@ local function newState(mode, context)
         resourceType = UnitPowerType and UnitPowerType("player") or nil,
         combo = context.comboObservation.points or 0,
         comboTargetGUID = context.comboObservation.ownerGUID,
+        hitBonuses = context.hitBonuses,
         moving = context.moving,
         pet = actors.pet ~= nil, petLifecycle = actors.petLifecycle,
         actors = actors, inventory = context.inventory,

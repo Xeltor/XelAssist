@@ -1377,10 +1377,27 @@ assert(afterStealth.playerStealthed == true
     and afterStealth.stealthApproachTargetGUID == currentState.targetGUID,
     "Stealth must project the exact target-pinned approach opportunity")
 currentState.targetReaction = 4
-plan = expect("neutral target does not invent stealth approach", "Stealth")
-assert(plan.path[2] and plan.path[2].action.name == "Move into range"
-    and not plan.path[2].stealthApproach,
-    "a neutral target may retain the generic movement edge but must not invent an undetected rear approach")
+plan = expect("neutral Backstab does not justify Stealth", "Move into range")
+assert(plan.path[2] and plan.path[2].action.name ~= "Stealth"
+    and plan.path[2].spatialConditionalOnly
+    and XelAssist.Graph.StealthSetup:Blocker(currentState)
+        == "no stealth-enabled action",
+    "a neutral target must use ordinary movement rather than paying Stealth's movement penalty")
+currentState.targetDistance, currentState.distance = 4, 4
+currentState.playerBehindTarget = true
+XelAssist.Graph.testRangeBlocked = false
+local ambush = action("Ambush", 1, "builder", 600, 60,
+    { melee = true, behind = true, testMaxRange = 5,
+        testInitiatesCombat = true, testRequiresStealth = true })
+scenarioActions = { stealth, ambush, approachBackstab, approachSinister }
+XelAssist.Graph.StealthSetup:Prepare(currentState, scenarioActions)
+local stealthDescriptor = XelAssist.Graph.Targets:Targets(
+    stealth, currentState)[1]
+local stealthCandidate = XelAssist.Graph.Scoring:Evaluate(
+    stealth, currentState, stealthDescriptor)
+assert(XelAssist.Graph.StealthSetup:Blocker(currentState) == nil
+    and stealthCandidate and stealthCandidate.reason == "unlocks Ambush",
+    "a genuine stealth prerequisite must retain Stealth as a weighted graph setup edge")
 XelAssist.Graph.testRangeBlocked = false
 end
 AttackTarget = savedAttackTarget

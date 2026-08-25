@@ -349,11 +349,13 @@ assert(XelAssistCharDB.visibleSteps == 3 and XelAssistCharDB.graphDepth == nil
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.14" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.15" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(not runtime.apis.comboOwner and not runtime.apis.comboDuration,
     "missing optional ClassicAPI combo bridges must remain visible fallbacks")
+assert(not runtime.apis.equippedHit and not runtime.hitBonuses.equipmentKnown,
+    "missing equipped-hit bridge must remain a visible conservative gap")
 assert(runtime.evidenceEvents.damage and runtime.evidenceEvents.miss,
     "required Nampower outcome events were not enabled and audited")
 assert(runtime.evidenceEvents.autoAttack

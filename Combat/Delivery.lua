@@ -232,7 +232,7 @@ local function targetDefense(identity, actor, attackerLevel)
 end
 
 local function physicalHitFromSkills(attackerSkill, defense, targetLevel,
-    targetIsPlayer, dualWieldWhite)
+    targetIsPlayer, dualWieldWhite, hitBonus)
     if type(attackerSkill) ~= "number" or type(defense) ~= "number" then return nil end
     local difference = attackerSkill - defense
     local miss
@@ -244,8 +244,9 @@ local function physicalHitFromSkills(attackerSkill, defense, targetLevel,
         and targetLevel > 0 and targetLevel < 10 then
         miss = miss * targetLevel / 10
     end
-    miss = clamp(miss, 0, 60)
-    return 1 - miss / 100, miss
+    local baseMiss = clamp(miss, 0, 60)
+    miss = clamp(baseMiss - math.max(0, tonumber(hitBonus) or 0), 0, 60)
+    return 1 - miss / 100, miss, baseMiss
 end
 
 -- Build only the initial physical miss roll here. Dodge/parry/block/mechanic
@@ -310,8 +311,11 @@ function D:PhysicalContext(action, metadata, context, identity)
         and skills.dualWield == true or false
     local targetLevel = identity and tonumber(identity.level)
     if targetLevel == -1 and level and level > 0 then targetLevel = level + 3 end
-    local hit, miss = physicalHitFromSkills(attackerSkill, defense, targetLevel,
-        identity and identity.isPlayer, dual)
+    local bonuses = context and context.hitBonuses
+    local hitBonus = bonuses and bonuses.equipmentKnown
+        and tonumber(subtype == "ranged" and bonuses.ranged or bonuses.melee) or 0
+    local hit, miss, baseMiss = physicalHitFromSkills(attackerSkill, defense,
+        targetLevel, identity and identity.isPlayer, dual, hitBonus)
     local positionRelevant = subtype ~= "ranged"
     local positionKnown = positionRelevant and context
         and context.positionKnown == true and type(context.behindTarget) == "boolean" or false
@@ -338,6 +342,8 @@ function D:PhysicalContext(action, metadata, context, identity)
         .. ":ah" .. (not alwaysHitKnown and "?" or alwaysHit and "1" or "0")
         .. ":x" .. compactContextToken(weaponToken or (actualSkill == false and "level" or "?"))
         .. ":dw" .. (not dualStateKnown and "?" or dual and "1" or "0")
+        .. ":hb" .. (bonuses and bonuses.equipmentKnown
+            and tostring(hitBonus or 0) or "?")
         .. ":p" .. attackPosition
     local priorGaps = {}
     if not skillKnown then table.insert(priorGaps, "weapon skill") end
@@ -350,10 +356,15 @@ function D:PhysicalContext(action, metadata, context, identity)
     if hit == nil then table.insert(priorGaps, "base miss roll") end
     if not dualStateKnown then table.insert(priorGaps, "off-hand durability") end
     if positionRelevant and not positionKnown then table.insert(priorGaps, "attack position") end
-    -- The stock/Nampower APIs do not expose a complete additive +hit total or
-    -- a target's live dodge/parry/block table. Exact hit/miss outcomes learn
-    -- those omitted sub-rolls in this fully partitioned context.
-    if not alwaysHit then table.insert(priorGaps, "+hit") end
+    -- ClassicAPI can prove equipped item/enchant hit. Talent and temporary
+    -- aura contributions remain explicit until the native bridge exposes the
+    -- server-equivalent full modifier; outcomes learn the omitted sub-rolls.
+    if not alwaysHit and not (bonuses and bonuses.equipmentKnown) then
+        table.insert(priorGaps, "equipment +hit")
+    end
+    if not alwaysHit and not (bonuses and bonuses.totalKnown) then
+        table.insert(priorGaps, "talent/aura +hit")
+    end
     if facts.whiteAttack then
         table.insert(priorGaps, "active defenses")
     elseif subtype == "ranged" then
@@ -375,9 +386,13 @@ function D:PhysicalContext(action, metadata, context, identity)
         positionRelevant = positionRelevant,
         positionSource = positionKnown and context.positionSource
             or positionRelevant and "position unavailable" or "ranged attack table",
-        hitChance = hit, missChance = miss,
+        hitChance = hit, missChance = miss, baseMissChance = baseMiss,
         priorGaps = table.concat(priorGaps, ", "), unknown = table.getn(priorGaps) > 0,
-        hitBonusKnown = false, hitBonusSource = "+hit excluded from skill prior" }
+        hitBonus = hitBonus or 0,
+        equipmentHitKnown = bonuses and bonuses.equipmentKnown and true or false,
+        hitBonusKnown = bonuses and bonuses.totalKnown and true or false,
+        hitBonusSource = bonuses and bonuses.source or "+hit unavailable",
+        hitBonusGap = bonuses and bonuses.gap or "equipment, talent and aura +hit" }
 end
 
 function D:ApplyPhysicalContext(context, physical)

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.15
+
+- Made Stealth a dependency-backed setup edge: it now requires a discovered
+  stealth-only action or a concrete undetected rear approach against an
+  aggressive target. Neutral-target Backstab no longer justifies Stealth by
+  itself.
+- Added a ClassicAPI-backed exact aggregate for melee, ranged, and spell hit
+  from equipped non-broken items, random properties, and live enchantments.
+- Applied known equipment hit to weapon-skill-versus-Defense and spell delivery
+  priors, with equipment values included in learned-evidence fingerprints.
+  Talent and non-equipment aura hit remain visible gaps rather than being
+  misreported as part of the gear total.
+- Added privacy-safe hit diagnostics plus deterministic physical and magical
+  delivery regressions.
+
 ## 0.8.14
 
 - Made combo points target-owned throughout legality, power, scoring, and state

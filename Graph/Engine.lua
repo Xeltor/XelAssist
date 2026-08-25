@@ -11,6 +11,7 @@ local Policy = G.SearchPolicy
 local SearchBranches = G.SearchBranches
 local Diagnostics = G.PlanDiagnostics
 local MovementSetup = G.MovementSetup
+local StealthSetup = G.StealthSetup
 
 function G:ActiveTargetModifiers(encounter, targetResistance)
     return State:ActiveTargetModifiers(encounter, targetResistance)
@@ -437,6 +438,7 @@ function G:Evaluate(mode, preview)
     local depth = Policy:Depth()
     counter.maxStates, counter.maxMs = Policy:Limits(state)
     local actions = availableActions()
+    if StealthSetup then StealthSetup:Prepare(state, actions) end
     local path = bestSearchPath(state, started, counter, depth, actions)
     if not path.steps[1] then
         return nil, Diagnostics:Reason(state, counter.blockers), false

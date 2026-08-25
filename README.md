@@ -1,4 +1,4 @@
-# XelAssist 0.8.14
+# XelAssist 0.8.15
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -119,6 +119,9 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
   movement;
 - hitbox-aware actor-to-target distance, line of sight, and behind-position
   evidence when UnitXP exposes it;
+- live main-hand, off-hand, and ranged weapon skill versus target Defense,
+  including the white dual-wield penalty and exact equipped item/enchant +hit
+  when the matching ClassicAPI bridge is available;
 - current resources, per-rank cost, effective healing, overheal, and damage needed
   to finish the target;
 - talent-adjusted client tooltip facts, refreshed whenever talent points change;
