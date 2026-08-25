@@ -7,7 +7,8 @@ local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
 local Threat = XelAssist.Graph.CompanionEventThreat
 local Scheduler = XelAssist.Graph.CompanionScheduler
-local Tie = XelAssist.Graph.CompanionTieScheduler
+local CastEvents = XelAssist.Graph.CompanionCastEvents
+local CastRuntime = XelAssist.Graph.CompanionCastRuntime
 local MAX_HOSTILES = 5
 
 local function hostilesOf(state)
@@ -107,6 +108,10 @@ function C:Events(out, candidate)
     if targetGuid then identity = {
         guid = targetGuid, key = targetKey, localTarget = targetLocal } end
     local events = Scheduler:Events(pet, record, candidate, identity)
+    local i
+    for i = 1, table.getn(events) do
+        events[i].windowStart = tonumber(out.time) or 0
+    end
     if pet.actionReadyIn and pet.actionReadyIn > 0 then
         out.actorReadyAt = out.actorReadyAt or {}
         out.actorReadyAt.pet = math.max(tonumber(out.actorReadyAt.pet) or 0,
@@ -118,12 +123,12 @@ end
 function C:SyncChosenCooldown(out, candidate, context)
     local action = candidate and candidate.action
     local pet = out and out.actors and out.actors.pet
-    if not (action and pet and action.actor == "pet" and action.executor
-        == "petAbility" and action.spellId ~= nil) then return end
+    if not (action and pet and action.actor == "pet"
+        and action.executor == "petAbility") then return end
     local i, ambient
     for i = 1, table.getn(pet.autocasts or {}) do
         ambient = pet.autocasts[i]
-        if ambient.spellId ~= nil and ambient.spellId == action.spellId then
+        if Scheduler:MatchesAction(action, ambient) then
             local cooldown = math.max(0.1, tonumber(
                     candidate.tooltip and candidate.tooltip.cooldown)
                 or tonumber(ambient.cooldown) or 1.5)
@@ -342,30 +347,6 @@ local function syncSelected(out, record, selected)
     end
     if record.dead == true and out.autoShot then out.autoShot.active = false end
 end
-local function consumeAutocastCost(pet, entry, override, known)
-    if known == nil then known = entry.autocastCostKnown end
-    local cost
-    if known == false then cost = 0
-    else cost = tonumber(override) or tonumber(entry.autocastCost) or 0 end
-    local resource = tonumber(pet.resource)
-    if not entry.costPaid and (resource == nil or resource < cost) then
-        return false
-    end
-    if not entry.costPaid then pet.resource = resource - cost end
-    return true
-end
-
-local function reserveAutocast(pet, ambient, entry)
-    if entry.autocastCost == nil then
-        entry.autocastCost = tonumber(ambient.cost) or 0
-    end
-    if not consumeAutocastCost(pet, entry) then return false end
-    ambient.readyIn = math.max(0.1, (tonumber(entry.autocastCooldown)
-            or tonumber(ambient.cooldown) or 1.5)
-        - math.max(0, entry.windowEnd - entry.offset))
-    return true
-end
-
 local function tiedHostileValid(out, pet, entry)
     if not entry.pendingCompletion then
         if not pet.targetExists then return false end
@@ -377,43 +358,37 @@ local function tiedHostileValid(out, pet, entry)
     return eventTarget(out, entry) ~= nil
 end
 
-local function reserveTied(out, pet, entry)
-    local resolved, i = {}, nil
-    local hostileValid = tiedHostileValid(out, pet, entry)
-    for i = 1, table.getn(entry.tiedAutocasts or {}) do
-        local choice = entry.tiedAutocasts[i]
-        if choice.targetIndependent or hostileValid then
-            local _, ambient = Scheduler:FindAmbient(pet, choice)
-            if ambient then
-                table.insert(resolved, { ambient = ambient, choice = choice })
-            end
-        end
-    end
-    entry.tiedGroup = entry.tiedGroup or Tie:Group()
-    local selected = Tie:WorstResolved(resolved, entry.tiedGroup)
-    if not selected or not consumeAutocastCost(pet, entry,
-        selected.choice.autocastCost,
-        selected.choice.autocastCostKnown) then return false end
-    selected.ambient.readyIn = math.max(0.1,
-        (tonumber(selected.choice.autocastCooldown)
-            or tonumber(selected.ambient.cooldown) or 1.5)
-        - math.max(0, entry.windowEnd - entry.offset))
-    Tie:Mark(entry.tiedGroup, selected.choice)
-    return true
+local function startTargetValid(out, pet, entry)
+    if entry.targetIndependent then return true end
+    if not pet.targetExists then return false end
+    local guid, key = captureTarget(out, pet)
+    return guid == entry.targetGuid and key == entry.targetKey
+        and eventTarget(out, entry) ~= nil
 end
 
 function C:Apply(out, source, candidate, context, entry)
     local pet = out.actors and out.actors.pet
     if not pet then return false end
+    if entry.kind == "petAutocastTimelineCap" then
+        pet.resourceExact, pet.actionReadyExact = false, false
+        pet.resourceUnknownReason = "companion autocast timeline cap"
+        return true
+    end
+    if entry.kind == "petAutocastStart" then
+        return CastRuntime:Begin(
+            out, pet, entry, startTargetValid(out, pet, entry))
+    end
+    if not CastEvents:Started(entry) then return false end
     if entry.tiedReservation then
         return entry.kind == "petAutocastUnknown"
-            and reserveTied(out, pet, entry) or false
+            and CastRuntime:ReserveTied(
+                out, pet, entry, tiedHostileValid(out, pet, entry)) or false
     end
     local _, ambient = Scheduler:FindAmbient(pet, entry)
     if not ambient then return false end
     if entry.targetIndependent then
         return entry.kind == "petAutocastUnknown"
-            and reserveAutocast(pet, ambient, entry) or false
+            and CastRuntime:Reserve(out, pet, ambient, entry) or false
     end
     if not entry.pendingCompletion then
         if not pet.targetExists then return false end
@@ -423,9 +398,13 @@ function C:Apply(out, source, candidate, context, entry)
         end
     end
     local target, _, record, selected = eventTarget(out, entry)
-    if not target or not reserveAutocast(pet, ambient, entry) then
+    if not target then
+        if entry.pendingCompletion then
+            return CastRuntime:Reserve(out, pet, ambient, entry)
+        end
         return false
     end
+    if not CastRuntime:Reserve(out, pet, ambient, entry) then return false end
     if entry.kind == "petAutocastUnknown" then return true end
     local changed
     if ambient.kind == "dot" then

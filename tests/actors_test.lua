@@ -10,7 +10,7 @@ NUM_PET_ACTION_SLOTS = 10
 local castSlot, attacked, followed, passive
 local petGuid = {}
 local playerGuid, targetGuid = {}, {}
-local ownerClass = "WARLOCK"
+local ownerClass, hidePetCost = "WARLOCK", false
 local petFamily = "Felhunter"
 
 UnitClass = function(unit)
@@ -89,7 +89,11 @@ PetPassiveMode = function() passive = true end
 XelAssist.Game.Capabilities = {
     Actions = function() return { { name = "Shadow Bolt", actor = "player", facts = { kind = "damage" } } } end,
     InferKnowledge = function() return nil end,
-    Facts = function() return { cost = 0, cast = 0, gcd = 0 } end,
+    Facts = function(_, action)
+        return { cost = not (hidePetCost and action
+                and action.name == "Thunderstomp") and 0 or nil,
+            cast = 0, gcd = 0 }
+    end,
     Geometry = function() return { lineOfSight = true, behind = false, source = "test" } end,
     UnitRef = function(_, unit, relation, source)
         local exists, guid = UnitExists(unit)
@@ -197,12 +201,14 @@ local runtime = XelAssist.Game.Pets.EffectRuntime
 runtime:Reset()
 assert(runtime:Submitted(bestial, petGuid, nil, playerGuid)
     and runtime:ObserveCast(19574, playerGuid, petGuid, "go"))
+hidePetCost = true
 local reconstructed = XelAssist.Game.Actors:Snapshot().pet
 assert(reconstructed.combatEffects["Bestial Wrath:damage-enrage"].remaining == 8
     and reconstructed.combatEffects["Bestial Wrath:control-immunity"].remaining == 18,
     "every fresh actor/graph snapshot must reconstruct confirmed pet effects")
 assert(reconstructed.areaAutocastUnknown
     and table.getn(reconstructed.autocasts) == 1
-    and reconstructed.autocasts[1].name == "Thunderstomp",
-    "enabled pet area autocasts must surface unresolved recipients explicitly")
+    and reconstructed.autocasts[1].name == "Thunderstomp"
+    and reconstructed.autocasts[1].cost == nil,
+    "enabled pet autocasts must preserve area and unreadable-cost uncertainty")
 print("ok: controlled identity plus ID-first Warlock and Hunter pet semantics")

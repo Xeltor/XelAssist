@@ -2,6 +2,7 @@ XelAssist.Graph.Targets = {}
 local T = XelAssist.Graph.Targets
 local S = XelAssist.Graph.State
 local Selection = XelAssist.Graph.TargetSelection
+local Admission = XelAssist.Graph.ActionAdmission
 
 local APPLICATION_BLOCK_THRESHOLD = 0.75
 
@@ -258,55 +259,6 @@ local function positionBlocker(action, state, descriptor)
     return nil
 end
 
-local function actionTiming(action, state, tooltip)
-    local facts, kind = action.facts, action.facts.kind
-    local cast = facts.cast
-    if cast == nil then cast = tooltip.cast end
-    if facts.channel and (not cast or cast <= 0) then cast = tooltip.duration or 3 end
-    if state.instantNext and cast and cast > 0 then cast = 0 end
-    if state.moving and cast and cast > 0 then return nil, "moving" end
-    local actor = action.actor or "player"
-    local immediate = kind == "command"
-        or facts.autoRepeat and state.playerChanneling
-    local actionStart = immediate and (state.time or 0) or math.max(state.time or 0,
-        (state.actorReadyAt and state.actorReadyAt[actor]) or 0)
-    if actor == "pet" and kind ~= "command" and actionStart > (state.time or 0) then
-        return nil, "companion casting"
-    end
-    return actionStart, nil
-end
-
-local function readinessBlocker(action, state, tooltip, actionStart)
-    local facts = action.facts
-    local actor = action.actor or "player"
-    local resource = state.resource
-    if action.actor == "pet" and state.actors and state.actors.pet then
-        resource = state.actors.pet.resource
-    end
-    if resource < (tooltip.cost or 0) then
-        return action.actor == "pet" and "pet resource" or "resource"
-    end
-    if action.executor == "item" then
-        local remaining = XelAssist.Game.Inventory:Cooldown(action)
-        if remaining and remaining > actionStart then return "item cooldown" end
-    elseif action.actor == "pet" then
-        local remaining = XelAssist.Game.Actors:PetCooldown(action)
-        if remaining and remaining > actionStart then return "pet cooldown" end
-    elseif not XelAssist.Game.Capabilities:IsReady(action.name, actionStart) then
-        return "cooldown"
-    end
-    if state.readyAt[actor .. ":" .. action.name]
-        and state.readyAt[actor .. ":" .. action.name] > actionStart then
-        return "future cooldown"
-    end
-    local cooldownGroup = facts.cooldownGroup or tooltip.cooldownGroup
-    if cooldownGroup and state.readyAt["group:" .. cooldownGroup]
-        and state.readyAt["group:" .. cooldownGroup] > actionStart then
-        return "shared cooldown"
-    end
-    return nil
-end
-
 local function rangeBlocker(action, state, descriptor, target, tooltip)
     local facts = action.facts
     local liveRange
@@ -428,9 +380,9 @@ function T:Legal(action, state, descriptor)
     blocker = positionBlocker(action, state, descriptor)
     if blocker then return false, blocker end
     local actionStart
-    actionStart, blocker = actionTiming(action, state, tooltip)
+    actionStart, blocker = Admission:Start(action, state, tooltip)
     if blocker then return false, blocker end
-    blocker = readinessBlocker(action, state, tooltip, actionStart)
+    blocker = Admission:Readiness(action, state, tooltip, actionStart)
     if blocker then return false, blocker end
     blocker = rangeBlocker(action, state, descriptor, target, tooltip)
     if blocker then return false, blocker end

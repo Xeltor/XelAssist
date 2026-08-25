@@ -109,7 +109,7 @@ end
 IsAddOnLoaded = function() return true end
 local mockTime = 0
 GetTime = function() return mockTime end
-GetNampowerVersion = function() return "test-3.0" end
+GetNampowerVersion = function() return 4, 6, 2 end
 local cvars = {}
 GetCVar = function(name) return cvars[name] or "0" end
 SetCVar = function(name, value) cvars[name] = tostring(value) end
@@ -167,18 +167,28 @@ end
 local i
 for i = 1, table.getn(files) do dofile(files[i]) end
 local eventFrame
+focusEventFrame = nil
 for i = 1, table.getn(createdFrames) do
     local frame = createdFrames[i]
     local registered = rawget(frame, "registered")
     if registered and registered.ADDON_LOADED and frame.OnEvent then
         eventFrame = frame
     end
+    if registered and registered.PLAYER_CONTROL_LOST
+        and registered.UNIT_AURA and frame.OnEvent then
+        focusEventFrame = frame
+    end
 end
 assert(eventFrame, "core event dispatcher was not registered")
+assert(focusEventFrame, "Hunter focus evidence dispatcher was not registered")
 local function fireEvent(name, a1, a2, a3, a4, a5, a6, a7, a8, a9)
     event, arg1, arg2, arg3, arg4 = name, a1, a2, a3, a4
     arg5, arg6, arg7, arg8, arg9 = a5, a6, a7, a8, a9
     eventFrame.OnEvent()
+end
+function fireFocusEvent(name, a1, a2, a3, a4)
+    event, arg1, arg2, arg3, arg4 = name, a1, a2, a3, a4
+    focusEventFrame.OnEvent()
 end
 
 XelAssist:Init()
@@ -205,7 +215,7 @@ assert(XelAssistCharDB.graphDepth == 3 and XelAssistCharDB.role == "auto", "char
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.0" and runtime.nampower == "test-3.0", "runtime versions missing")
+assert(runtime.version == "0.8.1" and runtime.nampower == "4.6.2", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(runtime.evidenceEvents.damage and runtime.evidenceEvents.miss,
@@ -227,6 +237,57 @@ assert(routedAutoAttack and routedAutoAttack[1] == "player-guid"
     "core must forward all nine Nampower white-swing fields unchanged")
 assert(runtime.evidenceEvents.aura and runtime.evidenceEvents.start and runtime.evidenceEvents.go,
     "gated Nampower aura/cast lifecycle events were not enabled and audited")
+assert(focusEventFrame.registered.SPELL_ENERGIZE_BY_SELF
+    and focusEventFrame.registered.SPELL_ENERGIZE_BY_OTHER
+    and focusEventFrame.registered.SPELL_ENERGIZE_ON_SELF
+    and XelAssist.Game.Pets.FocusEvidence.externalEnergizeAvailable,
+    "focus energize exclusion events must be registered before learning")
+assert(focusEventFrame.registered.PLAYER_CONTROL_LOST
+    and focusEventFrame.registered.PLAYER_CONTROL_GAINED
+    and focusEventFrame.registered.UNIT_AURA,
+    "control-regime transitions must invalidate learned Hunter focus")
+local routedEnergize
+local originalObserveEnergize = XelAssist.Game.Pets.FocusEvidence.ObserveEnergize
+function XelAssist.Game.Pets.FocusEvidence:ObserveEnergize(targetGuid, powerType, at)
+    routedEnergize = { targetGuid, powerType, at }
+    return true
+end
+fireFocusEvent("SPELL_ENERGIZE_BY_OTHER", "pet-focus-guid", "caster-guid", 123, 2)
+XelAssist.Game.Pets.FocusEvidence.ObserveEnergize = originalObserveEnergize
+assert(routedEnergize and routedEnergize[1] == "pet-focus-guid"
+    and routedEnergize[2] == 2 and routedEnergize[3] == mockTime,
+    "Nampower energize target and power type must route to focus attribution")
+local modifierReset
+local originalModifierChanged = XelAssist.Game.Pets.FocusEvidence.ModifierChanged
+function XelAssist.Game.Pets.FocusEvidence:ModifierChanged(reason)
+    modifierReset = reason
+end
+fireFocusEvent("CHARACTER_POINTS_CHANGED")
+assert(modifierReset == "talent points changed")
+fireFocusEvent("PLAYER_CONTROL_LOST")
+XelAssist.Game.Pets.FocusEvidence.ModifierChanged = originalModifierChanged
+assert(modifierReset == "player control regime changed",
+    "control loss must conservatively invalidate Eyes-of-the-Beast focus")
+XelAssist.Game.Pets.FocusEvidence.guid = "private-pet-guid"
+XelAssist.Game.Pets.FocusEvidence.verifiedAmount = 20
+XelAssist.Game.Pets.FocusEvidence.verifiedObservedInterval = 4
+XelAssist.Game.Pets.FocusEvidence.verifiedInterval = 4.8
+XelAssist.Game.Pets.FocusEvidence.verifiedSamples = 3
+XelAssist.Game.Pets.FocusEvidence.phaseAt = mockTime
+XelAssist.Game.Pets.FocusEvidence.externalEnergizeAvailable = true
+XelAssist.Game.Pets.FocusEvidence.lastFocus = 50
+XelAssist.Game.Pets.FocusEvidence.lastFocusMax = 100
+XelAssist.Game.Pets.FocusEvidence.lastObservedAt = mockTime
+chatMessages = {}
+XelAssist:Command("diagnostics")
+XelAssistTestDiagnosticText = table.concat(chatMessages, "|")
+assert(string.find(XelAssistTestDiagnosticText, "Hunter focus: executable", 1, true)
+    and string.find(XelAssistTestDiagnosticText, "conservative=4.80s", 1, true),
+    "diagnostics must expose the executable Hunter focus evidence state")
+assert(not string.find(XelAssistTestDiagnosticText, "private-pet-guid", 1, true),
+    "Hunter focus diagnostics must never print pet identity")
+XelAssist.Game.Pets.FocusEvidence:ResetSession()
+XelAssist.Game.Pets.FocusEvidence:SetEnergizeEvidenceAvailable(true)
 local tooltipResistance = { school = 2, schoolName = "Fire", multiplier = 0.8,
     decisionMultiplier = 1.2, damageTakenMultiplier = 1.5, uncertaintyMultiplier = 1,
     source = "test target data", confidence = "observed", samples = 3,

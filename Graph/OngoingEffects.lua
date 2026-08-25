@@ -376,7 +376,8 @@ function O:Prepare(out, source, candidate, context)
 end
 
 function O:ApplyEvent(out, source, candidate, context, entry)
-    if entry.kind == "petAutocast" or entry.kind == "petAutocastUnknown" then
+    if entry.kind == "petAutocast" or entry.kind == "petAutocastUnknown"
+        or entry.kind == "petAutocastStart" then
         if Companion then
             Companion:Apply(out, source, candidate, context, entry)
         end

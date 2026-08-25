@@ -50,6 +50,10 @@ never class rotations or ordered priority lists.
   `Game/Pets/EffectRuntime.lua` ledger correlates confirmed casts, observable
   pet auras, and exact melee outcomes so fresh snapshots retain pet effects
   without writing opaque identities or inferred state to saved variables.
+  `Game/Pets/FocusEvidence.lua` owns session-only Hunter cadence learning,
+  `FocusEvents.lua` owns standard/Nampower invalidation and attribution events,
+  and `Resources.lua` owns conservative graph-clock arithmetic. None persists a
+  pet identity or hardcodes a private-server regeneration rate.
 - `Combat` owns declarative player and companion spell meaning, stateless
   delivery rules, transient observations, and target evidence. Pet knowledge is
   ID-first metadata over live-discovered actions, never a family priority list.
@@ -61,7 +65,9 @@ never class rotations or ordered priority lists.
   `Graph/HostileEffects.lua` applies eligible hostile-local effects without
   spending one action more than once. `Graph/AutoShotEffects.lua` and
   `Graph/CompanionEvents.lua` own target-pinned ambient events.
-  `Graph/CompanionScheduler.lua` arbitrates one pet cast/GCD clock,
+  `Graph/CompanionScheduler.lua` arbitrates one pet cast/GCD clock;
+  its resource, tie, cast-event, and cast-runtime helpers each own one phase of
+  causal scheduling, while unknown cost makes later affordability inexact.
   `Graph/CompanionEventThreat.lua` owns companion threat consequences,
   `Graph/EventAuras.lua` owns GUID-keyed clocks for auras those events create,
   and `Graph/ReadinessEffects.lua` owns chosen-action cooldown clocks.
@@ -73,6 +79,8 @@ never class rotations or ordered priority lists.
 - `UI` renders plans and settings. It does not score actions or execute cached
   previews.
 - `Core` owns startup and the one-input execution boundary.
+  `Core/DecisionLog.lua` owns bounded privacy-safe history and event status
+  correlation; `Core/Diagnostics.lua` owns the durable capability/evidence audit.
   `Core/TargetGuard.lua` pins hostile dispatch to the captured selected-target
   identity and revalidates it around actor/range checks. Cast, queue, item,
   pet-command, and any future target-changing APIs must remain on that boundary.
@@ -97,7 +105,7 @@ Current migration debt is deliberately bounded:
 | --- | --- |
 | `Combat/Resistance.lua` | identity/store, learning, estimator, summary |
 | `Game/Capabilities.lua` | spellbook, spell facts, units/range, equipment |
-| `Core/Runtime.lua` | startup, decision log, commands, event routing |
+| `Core/Runtime.lua` | startup/commands versus combat-event routing |
 | `UI/HUD.lua` | formatting, tooltip, layout, recommendation presenter |
 
 ## Enforcement

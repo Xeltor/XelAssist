@@ -48,9 +48,7 @@ function A:Context(source, candidate)
     local remaining = duration and math.max(0, duration - elapsed) or nil
     local applicationState = (hasModifier or facts.exclusiveFamily)
         and Effects:StateAtImpact(source, offset) or nil
-    local context = {
-        action = action,
-        facts = facts,
+    local context = { action = action, facts = facts,
         targetFacts = targetFacts,
         projectedDelivery = delivery,
         applicationElapsed = elapsed,
@@ -60,11 +58,9 @@ function A:Context(source, candidate)
         targetModifierRemaining = remaining,
         applicationState = applicationState,
     }
-
     function context:ChangesHostileTarget()
         return self.hasTargetModifier or self.facts.exclusiveFamily
     end
-
     function context:ModifierPrior(elapsedAfterApplication)
         if not self.applicationState then return nil, nil end
         local prior = self.applicationState.targetModifierEffects
@@ -79,7 +75,6 @@ function A:Context(source, candidate)
         return prior, priorRemaining
             and priorRemaining - elapsedAfterApplication or nil
     end
-
     function context:ProjectCurrentApplication(state, elapsedAfterApplication)
         Effects:ApplyExclusiveFamily(state, self.action,
             self.projectedDelivery)
@@ -108,24 +103,9 @@ function A:Context(source, candidate)
     return context
 end
 
-function A:Consume(out, candidate)
-    local action, facts = candidate.action, candidate.action.facts
-    if action.actor == "pet" and out.actors and out.actors.pet then
-        out.actors.pet.resource = math.max(0,
-            out.actors.pet.resource - candidate.cost)
-    else
-        out.resource = math.max(0, out.resource - candidate.cost)
-    end
-    if action.executor == "item" and action.itemId and out.inventory
-        and out.inventory.itemCounts then
-        out.inventory.itemCounts[action.itemId] = math.max(0,
-            (out.inventory.itemCounts[action.itemId] or 0) - 1)
-    end
-    if facts.reagentName and out.inventory
-        and out.inventory.reagentCounts then
-        out.inventory.reagentCounts[facts.reagentName] = math.max(0,
-            (out.inventory.reagentCounts[facts.reagentName] or 0) - 1)
-    end
+function A:Consume(out, candidate, context)
+    return XelAssist.Graph.ActionConsumption:Consume(
+        out, candidate, context)
 end
 
 local function applyModifierProjection(out, source, context)

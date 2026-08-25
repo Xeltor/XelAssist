@@ -78,6 +78,8 @@ XelAssist.Game.SpellTiming = {
     Next = function(_, interval) return interval or 1 end,
 }
 
+dofile("Game/Pets/Resources.lua")
+
 local guidA, guidB, guidMissing, petActorGuid = {}, {}, {}, {}
 local keyA, keyB = {}, {}
 
@@ -137,7 +139,10 @@ end
 
 dofile("Graph/CompanionEventThreat.lua")
 dofile("Graph/CompanionTieScheduler.lua")
+dofile("Graph/CompanionResources.lua")
+dofile("Graph/CompanionCastEvents.lua")
 dofile("Graph/CompanionScheduler.lua")
+dofile("Graph/CompanionCastRuntime.lua")
 dofile("Graph/CompanionEvents.lua")
 dofile("Graph/EventAuras.lua")
 local C = XelAssist.Graph.CompanionEvents
@@ -146,6 +151,13 @@ local candidate = { downtime = 1, targetKey = keyB,
     targetGUID = guidB }
 local context = { applicationOffset = 0,
     ChangesHostileTarget = function() return false end }
+
+local function causalSort(values)
+    table.sort(values, function(left, right)
+        if left.offset ~= right.offset then return left.offset < right.offset end
+        return (left.priority or 50) < (right.priority or 50)
+    end)
+end
 
 local state = targetLocalState(guidA, false)
 local longCandidate = { downtime = 7, targetKey = keyB, targetGUID = guidB }
@@ -240,6 +252,78 @@ assert(longTie.actors.pet.resource == 55
     and longTie.hostiles.byKey[keyA].health == 100,
     "long tied windows must reserve descending worst-case focus and one causal cooldown per slot")
 
+local tiedCasts = targetLocalState(guidA, false)
+local longCast = { name = "Long", kind = "damage", spellId = 90001,
+    facts = { kind = "damage", ranged = true }, power = 1, cost = 10,
+    cooldown = 1, readyIn = 0,
+    tooltip = { cast = 2, gcd = 0.1, maxRange = 30 } }
+local shortCast = { name = "Short", kind = "damage", spellId = 90002,
+    facts = { kind = "damage", ranged = true }, power = 1, cost = 10,
+    cooldown = 10, readyIn = 0,
+    tooltip = { cast = 1, gcd = 0.1, maxRange = 30 } }
+tiedCasts.actors.pet.autocasts = { longCast, shortCast }
+local tiedCastEvents = C:Events(tiedCasts,
+    { downtime = 4, targetKey = keyB, targetGUID = guidB })
+causalSort(tiedCastEvents)
+local tiedStarts = {}
+for i = 1, table.getn(tiedCastEvents) do
+    local entry = tiedCastEvents[i]
+    assert(C:Apply(tiedCasts, tiedCasts, longTieCandidate,
+        context, entry), "every reserved tied cast record must resolve")
+    if entry.kind == "petAutocastStart" then
+        table.insert(tiedStarts, { offset = entry.offset,
+            choice = entry.castTicket.choice.autocastSpellId })
+    end
+end
+assert(table.getn(tiedStarts) == 3
+    and tiedStarts[1].offset == 0 and tiedStarts[1].choice == 90001
+    and tiedStarts[2].offset == 2 and tiedStarts[2].choice == 90002
+    and tiedStarts[3].offset == 3 and tiedStarts[3].choice == 90001
+    and tiedCasts.actors.pet.resource == 70
+    and shortCast.readyIn == 9 and longCast.readyIn == 2,
+    "tied casts must commit the reserved busy/cast identity and repeat only after its cooldown")
+
+local rapidTie = targetLocalState(guidA, false)
+local slow = { name = "Slow", kind = "damage", spellId = 90101,
+    facts = { kind = "damage", melee = true }, power = 1, cost = 20,
+    cooldown = 10, readyIn = 0, tooltip = { gcd = 0.1 } }
+local fast = { name = "Fast", kind = "damage", spellId = 90102,
+    facts = { kind = "damage", melee = true }, power = 1, cost = 5,
+    cooldown = 0.5, readyIn = 0, tooltip = { gcd = 0.1 } }
+rapidTie.actors.pet.autocasts = { slow, fast }
+local rapidEvents = C:Events(rapidTie,
+    { downtime = 2, targetKey = keyB, targetGUID = guidB })
+local rapidOffsets, rapidChoices = { 0, 0.1, 0.6, 1.1, 1.6 },
+    { 90101, 90102, 90102, 90102, 90102 }
+assert(table.getn(rapidEvents) == 5)
+for i = 1, table.getn(rapidEvents) do
+    assert(math.abs(rapidEvents[i].offset - rapidOffsets[i]) < 0.001
+        and rapidEvents[i].reservedChoice.autocastSpellId == rapidChoices[i]
+        and C:Apply(rapidTie, rapidTie, candidate, context, rapidEvents[i]),
+        "a tied lane may repeat whenever its own committed cooldown expires")
+end
+assert(rapidTie.actors.pet.resource == 60,
+    "runtime tie arbitration must accept every scheduler-reserved repeat")
+
+local divergentTie = targetLocalState(guidA, false)
+local hostileChoice, independentChoice = autocasts()[1], {
+    name = "Shell Shield", kind = "petDefensive", spellId = 90202,
+    facts = { kind = "petDefensive", self = true }, power = 0,
+    cost = 10, cooldown = 0.5, readyIn = 0, tooltip = { gcd = 0.1 } }
+hostileChoice.cost, hostileChoice.tooltip.gcd = 20, 0.1
+divergentTie.actors.pet.autocasts = { hostileChoice, independentChoice }
+local divergentEvents = C:Events(divergentTie, candidate)
+divergentTie.actors.pet.targetExists, divergentTie.actors.pet.targetGuid = false, nil
+assert(table.getn(divergentEvents) > 1
+    and C:Apply(divergentTie, divergentTie, candidate,
+        context, divergentEvents[1])
+    and not C:Apply(divergentTie, divergentTie, candidate,
+        context, divergentEvents[2])
+    and divergentTie.actors.pet.resource == 90
+    and divergentTie.actors.pet.resourceExact == false
+    and divergentTie.actors.pet.actionReadyExact == false,
+    "target-loss fallback must invalidate prebuilt tied follow-ups instead of repeating the fallback")
+
 local mixedTie = targetLocalState(guidA, false)
 local mixedBite = autocasts()[1]
 mixedBite.cost = 20
@@ -285,11 +369,18 @@ castingPet.actors.pet.autocasts = { { name = "Firebolt", kind = "damage",
     power = 40, cost = 20, cooldown = 3, readyIn = 0,
     tooltip = { school = 2, cast = 2, gcd = 1.5, maxRange = 30 } } }
 local castingEvents = C:Events(castingPet, candidate)
-assert(table.getn(castingEvents) == 0 and castingPet.actors.pet.casting
+assert(table.getn(castingEvents) == 1
+    and castingEvents[1].kind == "petAutocastStart"
+    and castingEvents[1].offset == 0
+    and castingPet.actors.pet.resource == 100
+    and C:Apply(castingPet, castingPet, candidate, context,
+        castingEvents[1])
+    and castingPet.actors.pet.casting
     and castingPet.actors.pet.castRemaining == 1
     and castingPet.actorReadyAt.pet == 2
     and castingPet.actors.pet.resource == 80
     and castingPet.actors.pet.pendingAutocast
+    and castingPet.actors.pet.pendingAutocast.costPaid
     and castingPet.actors.pet.pendingAutocast.autocastSpellId == 3110
     and castingPet.actors.pet.pendingAutocast.targetGuid == guidA
     and castingPet.hostiles.byKey[keyA].health == 100,
@@ -318,6 +409,7 @@ assert(table.getn(completionEvents) == 1
     and castingPet.actors.pet.autocasts[2].readyIn == 2
     and not castingPet.actors.pet.pendingAutocast
     and not castingPet.actors.pet.casting
+    and castingPet.actors.pet.actionReadyIn == 0
     and table.getn(C:Events(castingPet, { downtime = 0,
         targetKey = keyB, targetGUID = guidB })) == 0,
     "a pending cast must complete once on its captured target and spell after both identities move")
@@ -340,7 +432,8 @@ assert(table.getn(liveEvents) == 1 and liveEvents[1].pendingCompletion
     and liveCast.actors.pet.resource == 80
     and liveCast.hostiles.byKey[keyA].health == 80
     and liveCast.actors.pet.autocasts[1].readyIn == 2
-    and not liveCast.actors.pet.casting,
+    and not liveCast.actors.pet.casting
+    and liveCast.actors.pet.actionReadyIn == 0,
     "a live cast identified by spell ID must finish without paying its observed cost twice")
 
 local unsupported = targetLocalState(guidA, false)
@@ -421,6 +514,234 @@ chosenFocus.actors.pet.resource = math.max(0,
     chosenFocus.actors.pet.resource - chosenCandidate.cost)
 assert(chosenFocus.actors.pet.resource == 0,
     "the selected pet action must retain all focus required when it executes")
+
+local nilIdentity = targetLocalState(guidA, false)
+local nilAmbient = autocasts()[1]
+nilAmbient.spellId = nil
+nilIdentity.actors.pet.autocasts = { nilAmbient }
+local nilChosen = { downtime = 3, wait = 2, cast = 0,
+    occupancy = 1, cost = 10, costKnown = true,
+    targetKey = keyA, targetGUID = guidA,
+    tooltip = { cost = 10, gcd = 1.5, cooldown = 10 },
+    action = { name = "Bite", actor = "pet", executor = "petAbility",
+        spellId = nil, facts = { kind = "damage" } } }
+assert(table.getn(C:Events(nilIdentity, nilChosen)) == 0,
+    "a chosen nil-ID pet action must exclude its exact nil-ID named autocast")
+C:SyncChosenCooldown(nilIdentity, nilChosen, { applicationOffset = 2 })
+assert(nilAmbient.readyIn == 9,
+    "the same nil-ID identity must receive the chosen cooldown")
+
+local mixedIdentity = targetLocalState(guidA, false)
+local identifiedAmbient = autocasts()[1]
+mixedIdentity.actors.pet.autocasts = { identifiedAmbient }
+local mixedIdentityEvents = C:Events(mixedIdentity, nilChosen)
+assert(table.getn(mixedIdentityEvents) == 1
+    and mixedIdentityEvents[1].autocastSpellId == 17253,
+    "a nil-ID chosen action must never cross-match a same-name identified autocast")
+C:SyncChosenCooldown(mixedIdentity, nilChosen, { applicationOffset = 2 })
+assert(identifiedAmbient.readyIn == 0,
+    "cooldown sync must use the same no-cross-match identity rule as scheduling")
+
+local function verifiedFocus(state, focus, amount, interval, nextIn)
+    local pet = state.actors.pet
+    pet.ownerClass, pet.resourceType = "HUNTER", 2
+    pet.resource, pet.resourceMax = focus, 100
+    pet.resourceRegen = { verified = true, resourceType = 2,
+        amount = amount, interval = interval, nextIn = nextIn,
+        phaseKnown = true, sourceGuid = pet.guid,
+        source = "focused scheduler test",
+        externalEnergizeExcluded = true }
+    pet.resourceRegenKnown = true
+    return pet
+end
+
+local focusWait = targetLocalState(guidA, false)
+local focusBite = autocasts()[1]
+focusWait.actors.pet.autocasts = { focusBite }
+local focusPet = verifiedFocus(focusWait, 0, 10, 4, 2)
+local focusCandidate = { downtime = 3, targetKey = keyB,
+    targetGUID = guidB }
+local focusEvents = C:Events(focusWait, focusCandidate)
+assert(table.getn(focusEvents) == 1 and focusEvents[1].offset == 2
+    and focusEvents[1].kind == "petAutocast"
+    and focusPet.resource == 0,
+    "zero-focus Bite must wait for the first verified lower-envelope tick without prepayment")
+XelAssist.Game.Pets.Resources:AdvanceActor(focusPet, 2)
+assert(focusPet.resource == 10
+    and C:Apply(focusWait, focusWait, focusCandidate, context, focusEvents[1])
+    and focusPet.resource == 0
+    and focusWait.hostiles.byKey[keyA].health == 80,
+    "an instant ambient ability must gain and spend focus only at its causal event time")
+
+local noClock = targetLocalState(guidA, false)
+noClock.actors.pet.autocasts = { autocasts()[1] }
+noClock.actors.pet.ownerClass, noClock.actors.pet.resourceType = "HUNTER", 2
+noClock.actors.pet.resource = 0
+assert(table.getn(C:Events(noClock, focusCandidate)) == 0,
+    "an unverified Hunter focus clock must never manufacture an executable event")
+local unknownPhase = targetLocalState(guidA, false)
+local unknownPet = verifiedFocus(unknownPhase, 0, 10, 4, 2)
+unknownPet.resourceRegen.phaseKnown, unknownPet.resourceRegen.nextIn = false, nil
+unknownPhase.actors.pet.autocasts = { autocasts()[1] }
+assert(table.getn(C:Events(unknownPhase, focusCandidate)) == 0,
+    "verified cadence without verified phase must remain non-executable")
+local warlockClock = targetLocalState(guidA, false)
+local warlockPet = verifiedFocus(warlockClock, 0, 10, 4, 1)
+warlockPet.ownerClass = "WARLOCK"
+warlockClock.actors.pet.autocasts = { autocasts()[1] }
+assert(table.getn(C:Events(warlockClock, focusCandidate)) == 0,
+    "a Hunter-shaped clock must not regenerate focus for a Warlock demon")
+
+local protectedChosen = targetLocalState(guidA, false)
+local protectedPet = verifiedFocus(protectedChosen, 10, 10, 10, 2)
+protectedChosen.actors.pet.autocasts = { autocasts()[1] }
+local delayedChosen = { downtime = 7, wait = 5, cast = 1, cost = 10,
+    targetKey = keyA, targetGUID = guidA, tooltip = { gcd = 1.5 },
+    action = { name = "Delayed Claw", actor = "pet",
+        executor = "petAbility", spellId = 16827,
+        facts = { kind = "damage" } } }
+local protectedEvents = C:Events(protectedChosen, delayedChosen)
+assert(table.getn(protectedEvents) == 1 and protectedEvents[1].offset == 2
+    and protectedPet.resource == 10,
+    "a wait-plus-cast chosen action must protect its focus from time zero while allowing proven surplus")
+XelAssist.Game.Pets.Resources:AdvanceActor(protectedPet, 2)
+assert(C:Apply(protectedChosen, protectedChosen, delayedChosen,
+        context, protectedEvents[1]) and protectedPet.resource == 10)
+XelAssist.Game.Pets.Resources:AdvanceActor(protectedPet, 4)
+local chosenPaid = XelAssist.Game.Pets.Resources:SpendActor(protectedPet, 10)
+assert(chosenPaid and protectedPet.resource == 0,
+    "the delayed chosen pet action must still own its protected focus at application")
+local noSurplus = targetLocalState(guidA, false)
+noSurplus.actors.pet.ownerClass, noSurplus.actors.pet.resourceType = "HUNTER", 2
+noSurplus.actors.pet.resource = 10
+noSurplus.actors.pet.autocasts = { autocasts()[1] }
+assert(table.getn(C:Events(noSurplus, delayedChosen)) == 0,
+    "ambient lanes must not steal a future chosen cost when no verified surplus exists")
+
+local unknownCost = targetLocalState(guidA, false)
+unknownCost.actors.pet.resource = 10
+local mystery = { name = "Mystery", kind = "damage", spellId = 90301,
+    facts = { kind = "damage", melee = true }, power = 1,
+    cooldown = 10, readyIn = 0, tooltip = { gcd = 0.1 } }
+local laterBite = autocasts()[1]
+laterBite.readyIn, laterBite.tooltip.gcd = 1.5, 0.1
+unknownCost.actors.pet.autocasts = { mystery, laterBite }
+local unknownChosen = { downtime = 6.5, wait = 5, cast = 0,
+    occupancy = 1.5, cost = 10, costKnown = true,
+    targetKey = keyA, targetGUID = guidA,
+    tooltip = { cost = 10, gcd = 1.5 },
+    action = { name = "Chosen Bite", actor = "pet",
+        executor = "petAbility", spellId = 90302,
+        facts = { kind = "damage" } } }
+local unknownEvents = C:Events(unknownCost, unknownChosen)
+assert(table.getn(unknownEvents) == 1
+    and unknownEvents[1].autocastSpellId == 90301
+    and unknownEvents[1].autocastCostKnown == false
+    and C:Apply(unknownCost, unknownCost, unknownChosen,
+        context, unknownEvents[1])
+    and unknownCost.actors.pet.resource == 10
+    and unknownCost.actors.pet.resourceExact == false
+    and not XelAssist.Graph.CompanionResources:BeginChosen(
+        unknownCost, unknownChosen, {}),
+    "unknown ambient cost must poison exact focus without charging zero or admitting later paid actions")
+
+local regenTie = targetLocalState(guidA, false)
+local tiePet = verifiedFocus(regenTie, 0, 20, 2, 1)
+regenTie.actors.pet.autocasts = autocasts()
+local tieCandidate = { downtime = 7, targetKey = keyB,
+    targetGUID = guidB }
+local regenTieEvents = C:Events(regenTie, tieCandidate)
+local tieCosts, tieOffsets = { 20, 15, 5, 10 }, { 1, 3, 4.5, 6 }
+assert(table.getn(regenTieEvents) == 4,
+    "regeneration must not collapse a simultaneous tie into one optimistic lane")
+local lastOffset = 0
+for i = 1, table.getn(regenTieEvents) do
+    local entry = regenTieEvents[i]
+    XelAssist.Game.Pets.Resources:AdvanceActor(
+        tiePet, entry.offset - lastOffset)
+    assert(entry.kind == "petAutocastUnknown"
+        and entry.tiedReservation
+        and entry.autocastCost == tieCosts[i]
+        and math.abs(entry.offset - tieOffsets[i]) < 0.001
+        and C:Apply(regenTie, regenTie, tieCandidate, context, entry),
+        "each post-regeneration tie slot must reserve its sequential worst remaining cost")
+    lastOffset = entry.offset
+end
+assert(tiePet.resource == 10,
+    "sequential tied reservations must never spend more focus than verified ticks provide")
+
+local splitCast = targetLocalState(guidA, false)
+local splitPet = verifiedFocus(splitCast, 0, 20, 4, 1)
+splitCast.actors.pet.autocasts = { { name = "Focus Firebolt",
+    kind = "damage", spellId = 3110,
+    facts = { kind = "damage", damageActor = "pet", ranged = true },
+    power = 40, cost = 20, cooldown = 3, readyIn = 0,
+    tooltip = { school = 2, cast = 2, gcd = 1.5, maxRange = 30 } } }
+local splitFirst = { downtime = 2, targetKey = keyB, targetGUID = guidB }
+local splitStart = C:Events(splitCast, splitFirst)
+assert(table.getn(splitStart) == 1
+    and splitStart[1].kind == "petAutocastStart"
+    and splitStart[1].offset == 1 and splitPet.resource == 0
+    and splitCast.actors.pet.pendingAutocast
+    and splitCast.actors.pet.pendingAutocast.remaining == 1,
+    "a regenerated cast crossing the window must persist an unpaid start ticket")
+XelAssist.Game.Pets.Resources:AdvanceActor(splitPet, 1)
+assert(C:Apply(splitCast, splitCast, splitFirst, context, splitStart[1])
+    and splitPet.resource == 0
+    and splitCast.actors.pet.pendingAutocast.costPaid,
+    "the crossing cast must spend exactly once at its verified causal start")
+XelAssist.Game.Pets.Resources:AdvanceActor(splitPet, 1)
+local splitSecond = { downtime = 1, targetKey = keyB, targetGUID = guidB }
+local splitCompletion = C:Events(splitCast, splitSecond)
+assert(table.getn(splitCompletion) == 1
+    and splitCompletion[1].pendingCompletion
+    and splitCompletion[1].offset == 1)
+XelAssist.Game.Pets.Resources:AdvanceActor(splitPet, 1)
+assert(C:Apply(splitCast, splitCast, splitSecond, context,
+        splitCompletion[1]) and splitPet.resource == 0
+    and splitCast.hostiles.byKey[keyA].health == 80,
+    "a split-window completion must not repay a cast that spent in the prior window")
+
+local failedCast = targetLocalState(guidA, false)
+failedCast.actors.pet.resource = 20
+failedCast.actors.pet.autocasts = { { name = "Lost Firebolt",
+    kind = "damage", spellId = 3110,
+    facts = { kind = "damage", damageActor = "pet", ranged = true },
+    power = 40, cost = 20, cooldown = 3, readyIn = 0,
+    tooltip = { school = 2, cast = 2, gcd = 1.5, maxRange = 30 } } }
+local lostStart = C:Events(failedCast, candidate)
+failedCast.actors.pet.targetExists, failedCast.actors.pet.targetGuid = false, nil
+assert(table.getn(lostStart) == 1
+    and not C:Apply(failedCast, failedCast, candidate, context, lostStart[1])
+    and failedCast.actors.pet.resource == 20
+    and not failedCast.actors.pet.pendingAutocast
+    and failedCast.actors.pet.actionReadyIn == 0
+    and (failedCast.actorReadyAt and failedCast.actorReadyAt.pet or 0) == 0
+    and table.getn(C:Events(failedCast, completionCandidate)) == 0,
+    "target loss before cast start must spend nothing and make completion impossible")
+
+local cappedStarts = targetLocalState(guidA, false)
+cappedStarts.actors.pet.resource, cappedStarts.actors.pet.resourceMax = 1000, 1000
+cappedStarts.actors.pet.autocasts = { { name = "Rapid Cast",
+    kind = "damage", spellId = 99901,
+    facts = { kind = "damage", damageActor = "pet", ranged = true },
+    power = 1, cost = 1, cooldown = 0.1, readyIn = 0,
+    tooltip = { school = 2, cast = 0.1, gcd = 0.1, maxRange = 30 } } }
+local cappedEvents = C:Events(cappedStarts,
+    { downtime = 2, targetKey = keyB, targetGUID = guidB })
+local starts, completions = 0, 0
+for i = 1, table.getn(cappedEvents) do
+    if cappedEvents[i].kind == "petAutocastStart" then starts = starts + 1
+    elseif cappedEvents[i].kind == "petAutocast"
+        or cappedEvents[i].kind == "petAutocastUnknown" then
+        completions = completions + 1
+    end
+end
+assert(starts == 8 and completions == 8
+    and cappedStarts.actors.pet.autocastTimelineCapped,
+    "cast-start records must share the eight-ability cap: starts="
+        .. tostring(starts) .. " completions=" .. tostring(completions)
+        .. " events=" .. tostring(table.getn(cappedEvents)))
 
 local lethalBite = targetLocalState(guidA, false)
 lethalBite.actors.pet.autocasts = { autocasts()[1] }
@@ -556,6 +877,30 @@ local function passiveWindow(out, source, duration)
         ChangesHostileTarget = function() return false end }
     return Timeline:Run(out, source, window, windowContext)
 end
+
+local cappedSource = targetLocalState(guidA, false)
+local cappedOut = targetLocalState(guidA, false)
+local function rapidAutocast()
+    return { name = "Rapid Cast", kind = "damage", spellId = 99901,
+        facts = { kind = "damage", damageActor = "pet", ranged = true },
+        power = 1, cost = 1, cooldown = 0.1, readyIn = 0,
+        tooltip = { school = 2, cast = 0.1, gcd = 0.1, maxRange = 30 } }
+end
+cappedSource.actors.pet.resource, cappedOut.actors.pet.resource = 1000, 1000
+cappedSource.actors.pet.resourceMax, cappedOut.actors.pet.resourceMax = 1000, 1000
+cappedSource.actors.pet.autocasts = { rapidAutocast() }
+cappedOut.actors.pet.autocasts = { rapidAutocast() }
+passiveWindow(cappedOut, cappedSource, 2)
+local cappedChosen = { action = { name = "Paid Bite", actor = "pet",
+        executor = "petAbility", facts = { kind = "damage" } },
+    cost = 1, costKnown = true, tooltip = { cost = 1 },
+    wait = 0, occupancy = 0.1, downtime = 0.1 }
+assert(cappedOut.actors.pet.resource == 992
+    and cappedOut.actors.pet.resourceExact == false
+    and cappedOut.actors.pet.actionReadyExact == false
+    and not XelAssist.Graph.CompanionResources:BeginChosen(
+        cappedOut, cappedChosen, {}),
+    "a Timeline cap must causally invalidate resource and readiness before later actions")
 
 local replacedSource = targetLocalState(guidA, false)
 local replacedOut = targetLocalState(guidA, false)

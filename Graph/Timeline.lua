@@ -6,6 +6,8 @@ local State = XelAssist.Graph.State
 local Actions = XelAssist.Graph.ActionEffects
 local AutoShot = XelAssist.Graph.AutoShotEffects
 local Ongoing = XelAssist.Graph.OngoingEffects
+local Companion = XelAssist.Graph.CompanionEvents
+local CompanionResources = XelAssist.Graph.CompanionResources
 
 local function append(events, entry, order)
     entry.order = order
@@ -59,10 +61,38 @@ local function collectEvents(out, source, candidate, context, advanceWindow)
             order = append(events, autoTimeline.events[i], order)
         end
     end
+    local action = candidate.action
+    if action and action.actor == "pet" and action.executor == "petAbility"
+        and (tonumber(candidate.cast) or 0) > 0 then
+        order = append(events, { owner = "action", kind = "chosenActionStart",
+            offset = math.max(0, tonumber(candidate.wait) or 0),
+            priority = 20 }, order)
+    end
     append(events, { owner = "action", kind = "chosenAction",
         offset = context.applicationOffset, priority = 20 }, order)
     sortEvents(events)
     return events, autoTimeline
+end
+
+local function startChosen(out, candidate, context)
+    if hostileDefeated(out, candidate) then
+        context.actionStartFailed = true
+        return false
+    end
+    local started = CompanionResources
+        and CompanionResources:BeginChosen(out, candidate, context)
+    context.actionStarted, context.actionStartFailed = started and true or false,
+        not started and true or nil
+    return started
+end
+
+local function applyPassive(out, source, candidate, context, entry)
+    if entry.kind == "petAutocastTimelineCap" and Companion then
+        return Companion:Apply(out, source, candidate, context, entry)
+    end
+    local beforeAuras = Ongoing:AuraSnapshot(out)
+    Ongoing:ApplyEvent(out, source, candidate, context, entry)
+    return beforeAuras
 end
 
 -- Read-only scoring probe. It stops at the chosen-action event, including
@@ -84,9 +114,13 @@ function L:BeforeAction(source, candidate)
             damageEvents = damageEvents + 1
         end
         elapsed = entry.offset
-        if entry.owner == "action" then break end
+        if entry.owner == "action" and entry.kind == "chosenAction" then break end
         prior = out.targetHealth
-        if entry.owner == "autoShot" then
+        if entry.kind == "chosenActionStart" then
+            startChosen(out, candidate, context)
+        elseif entry.kind == "petAutocastTimelineCap" then
+            applyPassive(out, source, candidate, context, entry)
+        elseif entry.owner == "autoShot" then
             AutoShot:ApplyTimelineEvent(out, autoTimeline, entry)
         else
             local beforeAuras = Ongoing:AuraSnapshot(out)
@@ -115,9 +149,16 @@ function L:Run(out, source, candidate, context)
         advancePetEffects(out, step)
         Ongoing:AdvanceEventAuras(out, eventAuras, step)
         elapsed = entry.offset
-        if entry.owner == "action" then
-            if not hostileDefeated(out, candidate) then
-                Actions:Consume(out, candidate)
+        if entry.kind == "chosenActionStart" then
+            startChosen(out, candidate, context)
+        elseif entry.owner == "action" then
+            local action = candidate.action
+            local needsStart = action.actor == "pet"
+                and action.executor == "petAbility"
+                and (tonumber(candidate.cast) or 0) > 0
+            local castStarted = not needsStart or context.actionStarted
+            if castStarted and not hostileDefeated(out, candidate)
+                and Actions:Consume(out, candidate, context) then
                 context.petEventContext = { applicationElapsed = 0 }
                 Actions:Apply(out, source, candidate, context)
                 context.petEventContext = nil
@@ -125,6 +166,8 @@ function L:Run(out, source, candidate, context)
             end
         elseif entry.owner == "autoShot" then
             AutoShot:ApplyTimelineEvent(out, autoTimeline, entry)
+        elseif entry.kind == "petAutocastTimelineCap" then
+            applyPassive(out, source, candidate, context, entry)
         else
             local beforeAuras = Ongoing:AuraSnapshot(out)
             Ongoing:ApplyEvent(out, source, candidate, context, entry)

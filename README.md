@@ -1,4 +1,4 @@
-# XelAssist 0.8.0
+# XelAssist 0.8.1
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -79,7 +79,9 @@ their local state evidence. `/xa log` prints the latest five. It contains combat
 numbers and action names, not player or target names.
 
 `/xa diagnostics` also refreshes a durable, privacy-safe runtime audit containing
-dependency/API availability and discovered versus inferred action-node counts.
+dependency/API availability, discovered versus inferred action-node counts, and
+the Hunter focus learner state. It reports whether focus timing is still
+learning, verified but dormant, or executable; it does not persist pet identity.
 
 ## Graph model
 
@@ -103,7 +105,10 @@ a 3 ms hot-path budget. It accounts for:
   geometry, cast completion, or area recipients reserve cost without fake hits;
 - Hunter pet lifecycle, happiness, focus, family abilities, Growl/Cower policy,
   Bestial Wrath's separate damage/immunity windows, Intimidation's deferred
-  successful-melee proc, Kill Command's pet-owned result, and five-second Mend Pet;
+  successful-melee proc, Kill Command's pet-owned result, five-second Mend Pet,
+  and live-learned same-pet focus regeneration without a hardcoded server rate.
+  The cadence becomes executable only when Nampower energize attribution can
+  exclude non-passive gains; otherwise it remains diagnostic;
 - Auto Shot launch, projectile, impact, ammunition, movement/cast delay, and
   repeated-tap state on the same causal timeline as pet attacks, periodic ticks,
   and the chosen action;

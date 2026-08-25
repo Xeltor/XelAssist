@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.8.1
+
+- Added a session-only Hunter focus learner without assuming a server or talent
+  rate. Three clean, uncapped, same-pet `UNIT_FOCUS` gains establish amount and
+  cadence, then projection adds a conservative timing envelope. Nampower 4.5+
+  energize events are required to make that clock executable; without causal
+  attribution, learned cadence stays diagnostic. Energizes, identity/lifecycle,
+  max-focus, talent, pet-aura, and player-control regime changes invalidate
+  ambiguous evidence, including Improved Eyes of the Beast transitions without
+  localized spell names. Focus cap erases phase, and post-cap spending starts a
+  full-interval lower bound instead of banking suppressed ticks.
+- Put known-cost companion actions on one causal cast/resource timeline. Focus
+  is paid once at cast start, tied autocasts share one atomic arbitration result,
+  cooldown-expired identities can recur, and failed starts release pet occupancy.
+  Unknown costs or a bounded-event overflow invalidate later affordability
+  instead of becoming free. Pending and already-observed casts do not pay again.
+- Split focus evidence, event routing, graph-clock arithmetic, decision logging,
+  and runtime diagnostics into focused modules. `/xa diagnostics` reports the
+  privacy-safe Hunter focus learner state without persisting pet identity.
+- Added deterministic learner, lifecycle, cast arbitration, unknown-cost,
+  failure, event-cap, and projection regressions. Authenticated in-world Hunter
+  validation is still pending and is not claimed by this checkpoint.
+
 ## 0.8.0
 
 - Added a deterministic hostile snapshot that deduplicates exact opaque GUIDs

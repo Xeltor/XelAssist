@@ -410,6 +410,7 @@ XelAssist.Graph.HostileEffects = {
 dofile("Graph/Effects.lua")
 dofile("Graph/EventAuras.lua")
 dofile("Graph/ReadinessEffects.lua")
+dofile("Graph/ActionConsumption.lua")
 dofile("Graph/ActionEffects.lua")
 
 local modifierName = "Shadow Vulnerability"

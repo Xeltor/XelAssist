@@ -31,6 +31,9 @@ function A:MergeLive(pet, lifecycle)
     end
     if lifecycle.focus ~= nil then pet.resource = lifecycle.focus end
     if lifecycle.focusMax ~= nil then pet.resourceMax = lifecycle.focusMax end
+    if XelAssist.Game.Pets.Resources then
+        XelAssist.Game.Pets.Resources:Attach(pet, lifecycle)
+    end
     return pet
 end
 
@@ -103,11 +106,11 @@ function A:ApplyLifecycle(out, candidate)
     local health = operation == "revive"
         and math.max(1, healthMax * 0.15) or math.max(1, tonumber(prior.health) or 1)
     local pet = {
-        id = "pet", unit = "pet", actorType = "controlled",
+        id = "pet", unit = "pet", actorType = "controlled", ownerClass = "HUNTER",
         guid = prior.guid or last.guid, family = prior.family or last.family,
         health = health, healthMax = healthMax,
         resource = tonumber(prior.focus) or 0,
-        resourceMax = tonumber(prior.focusMax) or 100,
+        resourceMax = tonumber(prior.focusMax) or 100, resourceType = 2,
         targetExists = false, targetsCurrent = false, hasAggro = false,
         lifecycle = "alive", projectedLifecycle = operation,
     }

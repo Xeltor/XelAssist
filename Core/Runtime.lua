@@ -55,67 +55,6 @@ function XA:Init()
     XelAssist.UI.Minimap:Build()
 end
 
-function XA:RecordDecision(plan, mode)
-    if type(XelAssistLog) ~= "table" then XelAssistLog = {} end
-    local state, action = plan.observed or {}, plan.action
-    local resistanceComponents
-    if plan.resistance and type(plan.resistance.components) == "table" then
-        resistanceComponents = {}
-        local i
-        for i = 1, math.min(4, table.getn(plan.resistance.components)) do
-            local component = plan.resistance.components[i]
-            table.insert(resistanceComponents, {
-                school = component.school, schoolName = component.schoolName,
-                phase = component.componentPhase, weight = component.componentWeight,
-                multiplier = component.multiplier, decisionWeight = component.decisionWeight,
-                confidence = component.confidence, unknown = component.unknown and true or false,
-                samples = component.samples })
-        end
-    end
-    table.insert(XelAssistLog, { at = time and time() or 0, mode = mode,
-        action = action.name, spellId = action.spellId, rank = action.rank,
-        actor = action.actor or "player",
-        executor = action.executor or "playerSpell", reason = plan.reason, status = "attempted",
-        confidence = plan.confidence, value = math.floor(plan.value or 0),
-        downtime = plan.downtime, threat = math.floor(plan.threat or 0),
-        hp = state.health, hpMax = state.healthMax, targetHp = state.targetHealth,
-        targetMax = state.targetMax, resource = state.resource, resourceMax = state.resourceMax,
-        moving = state.moving, aggro = state.hasAggro, tank = state.tank,
-        distance = state.distance, distanceKind = state.distanceKind,
-        resistanceSchool = plan.resistance and plan.resistance.school,
-        resistanceSchoolName = plan.resistance and plan.resistance.schoolName,
-        resistanceMode = plan.resistance and plan.resistance.mode,
-        resistanceComponents = resistanceComponents,
-        resistanceMultiplier = plan.resistance and plan.resistance.multiplier,
-        resistanceDecisionMultiplier = plan.resistance and plan.resistance.decisionMultiplier,
-        resistanceDamageTakenMultiplier = plan.resistance and plan.resistance.damageTakenMultiplier,
-        resistanceUncertaintyMultiplier = plan.resistance and plan.resistance.uncertaintyMultiplier,
-        resistanceConfidence = plan.resistance and plan.resistance.confidence,
-        resistanceSamples = plan.resistance and plan.resistance.samples,
-        resistanceSource = plan.resistance and plan.resistance.source })
-    while table.getn(XelAssistLog) > 200 do table.remove(XelAssistLog, 1) end
-end
-
-function XA:UpdateDecisionStatus(spellId, actor, status)
-    if type(XelAssistLog) ~= "table" or not spellId then return false end
-    actor = actor or "player"
-    local spellName = SpellInfo and SpellInfo(spellId) or nil
-    local i
-    for i = table.getn(XelAssistLog), 1, -1 do
-        local row = XelAssistLog[i]
-        local active = row.status == "attempted" or row.status == "queued"
-            or row.status == "accepted" or row.status == "start"
-            or row.status == "channel" or row.status == "go"
-        if active and row.actor == actor
-            and (tonumber(row.spellId) == tonumber(spellId)
-                or not row.spellId and spellName and row.action == spellName) then
-            row.status = string.lower(status or "event")
-            return true
-        end
-    end
-    return false
-end
-
 function XA:CheckDependencies()
     local missing = {}
     if not SpellInfo or not SUPERWOW_VERSION then table.insert(missing, "SuperWoW") end
@@ -124,67 +63,6 @@ function XA:CheckDependencies()
     self.missing = missing
     self.executionEnabled = table.getn(missing) == 0
     if not self.executionEnabled then msg("execution disabled; missing " .. table.concat(missing, ", ") .. ".", 1, 0.25, 0.2) end
-end
-
-function XA:RuntimeAudit()
-    if type(XelAssistCharDB.runtime) ~= "table" then XelAssistCharDB.runtime = {} end
-    local runtime = XelAssistCharDB.runtime
-    runtime.version = self.version
-    runtime.schema = XelAssistCharDB.schema
-    runtime.loadedAt = time and time() or 0
-    runtime.superWoW = SUPERWOW_VERSION and tostring(SUPERWOW_VERSION) or nil
-    if GetNampowerVersion then
-        local ok, major, minor, patch = pcall(GetNampowerVersion)
-        if ok and major then
-            if minor ~= nil then runtime.nampower = tostring(major) .. "."
-                .. tostring(minor) .. "." .. tostring(patch or 0)
-            else runtime.nampower = tostring(major) end
-        end
-    end
-    runtime.apis = { queue = QueueSpellByName and true or false,
-        spellRecords = GetSpellRecField and true or false,
-        exactUnits = GetUnitField and true or false,
-        castInfo = GetCastInfo and true or false,
-        rangeData = GetSpellRangeData and true or false,
-        movement = PlayerIsMoving and true or false,
-        targetResistances = (UnitResistance or GetUnitField) and true or false }
-    local evidence = self:EnableEvidenceEvents()
-    runtime.evidenceEvents = { damage = evidence.damage, miss = evidence.miss,
-        autoAttack = evidence.autoAttack,
-        aura = evidence.aura, start = evidence.start, go = evidence.go }
-    local ok, actions = pcall(function()
-        local found = XelAssist.Game.Actors and XelAssist.Game.Actors:Actions() or XelAssist.Game.Capabilities:Actions()
-        if XelAssist.Game.Inventory then
-            local items, i = XelAssist.Game.Inventory:Actions(), nil
-            for i = 1, table.getn(items) do table.insert(found, items[i]) end
-        end
-        return found
-    end)
-    if ok and type(actions) == "table" then
-        local inferred, petActions, i = 0, 0, nil
-        for i = 1, table.getn(actions) do
-            if actions[i].facts and actions[i].facts.inferred then inferred = inferred + 1 end
-            if actions[i].actor == "pet" then petActions = petActions + 1 end
-        end
-        runtime.actions = table.getn(actions)
-        runtime.petActions = petActions
-        runtime.petPresent = UnitExists("pet") and not UnitIsDead("pet") and true or false
-        runtime.petSpellbook = GetSpellName and BOOKTYPE_PET and true or false
-        runtime.petActionBar = GetPetActionInfo and true or false
-        runtime.petCooldowns = GetPetActionCooldown and true or false
-        runtime.inferred = inferred
-        runtime.auditError = nil
-    else
-        runtime.actions, runtime.inferred = nil, nil
-        runtime.auditError = tostring(actions or "action discovery failed")
-    end
-    return runtime
-end
-
-function XA:RecordError(detail)
-    if type(XelAssistCharDB.runtime) ~= "table" then XelAssistCharDB.runtime = {} end
-    XelAssistCharDB.runtime.lastError = tostring(detail or "unknown evaluation failure")
-    XelAssistCharDB.runtime.lastErrorAt = time and time() or 0
 end
 
 function XA:SetMode(mode)
@@ -208,23 +86,7 @@ function XA:Command(text)
         return
     end
     if cmd == "diagnostics" then
-        local runtime = self:RuntimeAudit()
-        msg("mode=" .. self.mode .. ", execution=" .. (self.executionEnabled and "ready" or "disabled")
-            .. ", graph=utility, depth=" .. (XelAssistCharDB.graphDepth or 3)
-            .. ", nodes=" .. (runtime.actions or 0) .. ", inferred=" .. (runtime.inferred or 0)
-            .. ", fallback=conservative hold, schema=" .. (runtime.schema or 4) .. ".")
-        msg("SuperWoW=" .. (runtime.superWoW or "missing") .. ", Nampower="
-            .. (runtime.nampower or (runtime.apis.queue and "present" or "missing"))
-            .. ", DBC=" .. (runtime.apis.spellRecords and "yes" or "no")
-            .. ", exact-units=" .. (runtime.apis.exactUnits and "yes" or "no") .. ".")
-        msg("resistance outcomes: damage=" .. (runtime.evidenceEvents.damage and "on" or "off")
-            .. ", miss=" .. (runtime.evidenceEvents.miss and "on" or "off")
-            .. ", white swings=" .. (runtime.evidenceEvents.autoAttack and "on" or "off")
-            .. ", aura=" .. (runtime.evidenceEvents.aura and "on" or "off")
-            .. ", cast lifecycle=" .. (runtime.evidenceEvents.start
-                and runtime.evidenceEvents.go and "on" or "off") .. ".")
-        if runtime.lastError then msg("last graph error: " .. runtime.lastError, 1, 0.4, 0.25) end
-        return
+        XelAssist.Core.Diagnostics:Print(self); return
     end
     if cmd == "resistance" or cmd == "resistances" then
         local state = XelAssist.Graph:Snapshot(self.mode)
@@ -251,69 +113,8 @@ function XA:Command(text)
         msg("expected delivery: " .. table.concat(parts, " · "))
         return
     end
-    if cmd == "log" then
-        local first = math.max(1, table.getn(XelAssistLog) - 4)
-        local i
-        for i = first, table.getn(XelAssistLog) do
-            local row = XelAssistLog[i]
-            local resistance = ""
-            if row.resistanceDecisionMultiplier then
-                local school = row.resistanceSchoolName
-                    or row.resistanceSchool ~= nil and XelAssist.Combat.Resistance
-                        and XelAssist.Combat.Resistance:SchoolName(row.resistanceSchool)
-                    or row.resistanceMode == "mixed" and "Mixed" or "effect"
-                resistance = " · " .. school .. " "
-                    .. math.floor(row.resistanceDecisionMultiplier * 100 + 0.5) .. "% scored"
-                    .. " [" .. tostring(row.resistanceConfidence or "unknown")
-                    .. ((row.resistanceSamples or 0) > 0
-                        and ", " .. tostring(row.resistanceSamples) .. " samples" or "") .. "]"
-                if type(row.resistanceComponents) == "table" then
-                    local componentParts, componentTotal, componentIndex = {}, 0, nil
-                    for componentIndex = 1, table.getn(row.resistanceComponents) do
-                        componentTotal = componentTotal
-                            + (tonumber(row.resistanceComponents[componentIndex].weight) or 0)
-                    end
-                    for componentIndex = 1, table.getn(row.resistanceComponents) do
-                        local component = row.resistanceComponents[componentIndex]
-                        local label = component.phase or component.schoolName
-                            or component.school ~= nil and XelAssist.Combat.Resistance
-                                and XelAssist.Combat.Resistance:SchoolName(component.school) or "part"
-                        local share = componentTotal > 0
-                            and math.floor((component.weight or 0) * 100 / componentTotal + 0.5)
-                            or 0
-                        table.insert(componentParts, label .. " "
-                            .. math.floor((component.multiplier or 1) * 100 + 0.5)
-                            .. "%@" .. share .. "%"
-                            .. (component.unknown and " uncertain" or ""))
-                    end
-                    resistance = resistance .. " {" .. table.concat(componentParts, ", ") .. "}"
-                end
-                if row.resistanceMultiplier then
-                    resistance = resistance .. " · expected "
-                        .. math.floor(row.resistanceMultiplier * 100 + 0.5) .. "%"
-                end
-                if row.resistanceDamageTakenMultiplier
-                    and math.abs(row.resistanceDamageTakenMultiplier - 1) > 0.001 then
-                    resistance = resistance .. " · target modifier "
-                        .. math.floor(row.resistanceDamageTakenMultiplier * 100 + 0.5) .. "%"
-                end
-                if row.resistanceUncertaintyMultiplier
-                    and math.abs(row.resistanceUncertaintyMultiplier - 1) > 0.001 then
-                    resistance = resistance .. " · confidence reserve "
-                        .. math.floor(row.resistanceUncertaintyMultiplier * 100 + 0.5) .. "%"
-                end
-                if row.resistanceSource then
-                    resistance = resistance .. " · " .. tostring(row.resistanceSource)
-                end
-            end
-            msg("log " .. i .. ": " .. row.action .. " R" .. (row.rank or 0)
-                .. " — " .. row.reason .. " (" .. row.confidence .. ", "
-                .. (row.status or "unknown") .. ")" .. resistance)
-        end
-        if table.getn(XelAssistLog) == 0 then msg("decision log is empty.") end
-        return
-    end
-    if cmd == "clearlog" then XelAssistLog = {}; msg("decision log cleared."); return end
+    if cmd == "log" then XelAssist.Core.DecisionLog:PrintRecent(); return end
+    if cmd == "clearlog" then XelAssist.Core.DecisionLog:Clear(); return end
     if cmd == "buff" or cmd == "buffs" then self:Execute("buff"); return end
     if cmd == "config" or cmd == "ui" then XelAssist.UI.Settings:Toggle(); return end
     if cmd == "show" then XelAssist.UI.HUD.frame:Show(); XelAssistDB.ui.shown = true; return end

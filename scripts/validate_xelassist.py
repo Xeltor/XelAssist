@@ -145,7 +145,6 @@ if root_modules:
 
 legacy_line_ceilings = {
     "Combat/Resistance.lua": 1850,
-    "Core/Runtime.lua": 557,
     "Game/Capabilities.lua": 1004,
     "UI/HUD.lua": 598,
 }
@@ -179,11 +178,13 @@ subprocess.run(["lua", str(root / "tests/action_resistance_semantics_test.lua")]
 subprocess.run(["lua", str(root / "tests/actors_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/hunter_pet_state_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/hunter_pet_actions_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/hunter_pet_resources_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/hunter_combat_semantics_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/auto_shot_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/auto_shot_hostile_locality_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/companion_threat_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/companion_events_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/companion_timeline_causality_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/friendlies_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/hostiles_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/hostile_state_test.lua")], cwd=root, check=True)

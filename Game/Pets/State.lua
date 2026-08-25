@@ -117,6 +117,9 @@ function S:IsHunter()
 end
 
 function S:ResetSession()
+    if XelAssist.Game.Pets.FocusEvidence then
+        XelAssist.Game.Pets.FocusEvidence:IdentityChanged(self.currentGuid, nil)
+    end
     self.live = emptyState(self:IsHunter(), now())
     self.currentGuid = nil
     self.lastKnown = nil
@@ -152,7 +155,7 @@ function S:Remember(guid, name, family, identityReset)
     if family ~= nil then self.lastKnown.family = family end
 end
 
-function S:ReadPresent(guid, observedAt)
+function S:ReadPresent(guid, observedAt, reason)
     local state = emptyState(true, observedAt)
     state.present, state.guid = true, guid
     state.guidKnown = guid ~= nil
@@ -221,6 +224,9 @@ end
 function S:Refresh(reason)
     local observedAt = now()
     if not self:IsHunter() then
+        if XelAssist.Game.Pets.FocusEvidence then
+            XelAssist.Game.Pets.FocusEvidence:IdentityChanged(self.currentGuid, nil)
+        end
         self.live = emptyState(false, observedAt)
         self.currentGuid = nil
         self.attackGuid, self.attackActive = nil, nil
@@ -232,6 +238,7 @@ function S:Refresh(reason)
     local exists, guid = unitEvidence("pet")
     local previousGuid, previousPresent = self.currentGuid,
         self.live and self.live.present or false
+    local previousLifecycle = self.live and self.live.lifecycle or "unknown"
     if exists then
         local replacement = previousPresent and previousGuid ~= nil and guid ~= nil
             and previousGuid ~= guid
@@ -246,7 +253,18 @@ function S:Refresh(reason)
             self:ClearDismissalEvidence()
         end
         self.currentGuid = guid
-        self.live = self:ReadPresent(guid, observedAt)
+        self.live = self:ReadPresent(guid, observedAt, reason)
+        local evidence = XelAssist.Game.Pets.FocusEvidence
+        if evidence then
+            if previousPresent and not replacement
+                and previousLifecycle ~= self.live.lifecycle then
+                evidence:ModifierChanged("pet lifecycle changed")
+            end
+            self.live.resourceRegen = evidence:Observe(guid,
+                self.live.focus, self.live.focusMax, observedAt,
+                reason == "UNIT_FOCUS", "HUNTER")
+            self.live.resourceRegenKnown = self.live.resourceRegen ~= nil
+        end
         self.live.reason = reason
         self:Remember(guid, self.live.name, self.live.family,
             replacement or not previousPresent)
@@ -257,9 +275,11 @@ function S:Refresh(reason)
     local explicitDismissal = self.dismissalPending
         and (self.dismissalPendingGuid == nil or previousGuid == nil
             or self.dismissalPendingGuid == previousGuid)
-    local previousLifecycle = self.live and self.live.lifecycle or "unknown"
     if previousPresent and XelAssist.Game.Pets.EffectRuntime then
         XelAssist.Game.Pets.EffectRuntime:IdentityChanged(previousGuid, nil)
+    end
+    if previousPresent and XelAssist.Game.Pets.FocusEvidence then
+        XelAssist.Game.Pets.FocusEvidence:IdentityChanged(previousGuid, nil)
     end
     self.currentGuid = nil
     self.attackGuid, self.attackActive = nil, nil
@@ -278,10 +298,15 @@ function S:Snapshot()
     local source = self:Refresh("snapshot")
     local out, key, value = {}, nil, nil
     for key, value in pairs(source) do
-        if key ~= "foodTypes" and key ~= "lastKnown" then out[key] = value end
+        if key ~= "foodTypes" and key ~= "lastKnown"
+            and key ~= "resourceRegen" then out[key] = value end
     end
     out.foodTypes = copyArray(source.foodTypes)
     out.lastKnown = copyLastKnown(self.lastKnown)
+    if XelAssist.Game.Pets.Resources then
+        out.resourceRegen = XelAssist.Game.Pets.Resources:CopyClock(
+            source.resourceRegen)
+    end
     return out
 end
 

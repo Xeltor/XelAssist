@@ -16,6 +16,7 @@ local petGuid = {}
 local petName = "Sable"
 local petFamily = "Wolf"
 local petTargetGuid = {}
+local petFocus = 62
 local attackBarActive = false
 local hasPetUIOverride
 local abandoned = false
@@ -34,7 +35,7 @@ UnitName = function(unit) return unit == "pet" and petName or nil end
 UnitCreatureFamily = function(unit) return unit == "pet" and petFamily or nil end
 UnitHealth = function(unit) return unit == "pet" and (petDead and 0 or 731) or 0 end
 UnitHealthMax = function(unit) return unit == "pet" and 900 or 0 end
-UnitMana = function(unit) return unit == "pet" and 62 or 0 end
+UnitMana = function(unit) return unit == "pet" and petFocus or 0 end
 UnitManaMax = function(unit) return unit == "pet" and 100 or 0 end
 UnitIsDead = function(unit) return unit == "pet" and petDead end
 HasPetUI = function()
@@ -58,6 +59,9 @@ CreateFrame = function()
     }
 end
 
+dofile("Game/Pets/FocusEvidence.lua")
+dofile("Game/Pets/FocusEvents.lua")
+dofile("Game/Pets/Resources.lua")
 dofile("Game/Pets/State.lua")
 local S = XelAssist.Game.Pets.State
 
@@ -89,13 +93,35 @@ attackBarActive = true
 snapshot = S:Snapshot()
 assert(snapshot.attackActive and snapshot.attackActiveKnown)
 
+petFocus, clock = 72, 104
+assert(S:OnEvent("UNIT_FOCUS", "pet", petGuid))
+petFocus, clock = 82, 108
+assert(S:OnEvent("UNIT_FOCUS", "pet", petGuid))
+petFocus, clock = 92, 112
+assert(S:OnEvent("UNIT_FOCUS", "pet", petGuid))
+snapshot = S:Snapshot()
+assert(snapshot.resourceRegenKnown and snapshot.resourceRegen.verified
+    and snapshot.resourceRegen.amount == 10
+    and snapshot.resourceRegen.observedInterval == 4
+    and snapshot.resourceRegen.interval == 4.8
+    and not snapshot.resourceRegen.phaseKnown,
+    "lifecycle snapshot must carry same-identity learned focus evidence")
+snapshot.resourceRegen.interval = 1
+assert(S.live.resourceRegen.interval == 4.8,
+    "resource clocks must be copied out of live observation state")
+
 petDead = true
 snapshot = S:Snapshot()
 assert(snapshot.lifecycle == "dead" and snapshot.present and snapshot.guid == petGuid,
     "a defeated pet must remain observable by lifecycle")
+assert(not snapshot.resourceRegenKnown and snapshot.resourceRegen == nil,
+    "same-identity death must invalidate the learned focus regime")
 assert(not S:OnEvent("PET_ATTACK_START", nil, petGuid),
     "a defeated pet cannot acquire an attacking state")
 petDead = false
+snapshot = S:Snapshot()
+assert(snapshot.lifecycle == "alive" and not snapshot.resourceRegenKnown,
+    "same-identity revival must require fresh focus evidence")
 
 local rememberedGuid = petGuid
 petPresent = false

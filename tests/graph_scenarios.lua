@@ -11,6 +11,7 @@ dofile("Combat/AutoShotProjection.lua")
 dofile("Combat/PetKnowledge.lua")
 dofile("Game/SpellTiming.lua")
 dofile("Game/Capabilities.lua")
+dofile("Game/Pets/Resources.lua")
 dofile("Game/Pets/Actions.lua")
 dofile("Game/Pets/Effects.lua")
 dofile("Game/Actors.lua")
@@ -21,19 +22,24 @@ dofile("Graph/State.lua")
 dofile("Graph/TargetSelection.lua")
 dofile("Graph/CompanionThreat.lua")
 dofile("Graph/CompanionEventThreat.lua")
+dofile("Graph/ActionAdmission.lua")
 dofile("Graph/Targets.lua")
 dofile("Graph/Effects.lua")
 dofile("Graph/AreaRecipients.lua")
 dofile("Graph/HostileEffects.lua")
 dofile("Graph/AutoShotEffects.lua")
 dofile("Graph/CompanionTieScheduler.lua")
+dofile("Graph/CompanionResources.lua")
+dofile("Graph/CompanionCastEvents.lua")
 dofile("Graph/CompanionScheduler.lua")
+dofile("Graph/CompanionCastRuntime.lua")
 dofile("Graph/CompanionEvents.lua")
 dofile("Graph/EventAuras.lua")
 dofile("Graph/ReadinessEffects.lua")
 dofile("Graph/ActorScoring.lua")
 dofile("Graph/ThreatScoring.lua")
 dofile("Graph/OngoingEffects.lua")
+dofile("Graph/ActionConsumption.lua")
 dofile("Graph/ActionEffects.lua")
 dofile("Graph/Timeline.lua")
 dofile("Graph/Scoring.lua")
@@ -304,7 +310,10 @@ scenarioActions = { action("Greater Heal", 1, "heal", 900, 200, { cast = 1.5 }) 
 plan = expect("future direct heal switches recipients", "Greater Heal")
 assert(plan.path[1].targetGUID == "ally-a" and plan.path[2]
     and plan.path[2].targetGUID == "ally-b",
-    "future health must be target-local so the beam can switch allies")
+    "future health must be target-local so the beam can switch allies: steps="
+        .. tostring(table.getn(plan.path)) .. " prevented="
+        .. tostring(plan.path[1] and plan.path[1].state
+            and plan.path[1].state.chosenActionPrevented))
 
 currentState = state("support")
 setFriendlies(currentState, {
@@ -1154,7 +1163,11 @@ assert(afterChosenRecord.health == 60
     and math.abs(afterChosenBite.actors.pet.actionReadyIn - 1.4) < 0.001
     and afterChosenBite.actorReadyAt.pet == 1.5
     and math.abs(afterChosenBite.actors.pet.autocasts[1].readyIn - 9.9) < 0.001,
-    "a chosen autocast ability must spend, damage, threaten, and cool down once")
+    "a chosen autocast ability must spend, damage, threaten, and cool down once: resource="
+        .. tostring(afterChosenBite.actors.pet.resource) .. " ready="
+        .. tostring(afterChosenBite.actors.pet.actionReadyIn) .. " actor="
+        .. tostring(afterChosenBite.actorReadyAt.pet) .. " cooldown="
+        .. tostring(afterChosenBite.actors.pet.autocasts[1].readyIn))
 
 local deferredState = XelAssist.Graph.State:Copy(chosenPetState)
 deferredState.actors.pet.pendingMeleeEffects = { Intimidation = {
@@ -1911,6 +1924,27 @@ currentState.targetCasting = false; currentState.actors.pet.resource = 0
 scenarioActions = { petAction("Firebolt", "damage", 800, 50, { ranged = true }),
     action("Shadow Bolt", 1, "damage", 250, 100) }
 expect("pet resource isolation", "Shadow Bolt")
+
+currentState = state("smart"); currentState.moving = true
+currentState.actorReadyAt = { player = 0, pet = 0 }
+currentState.actors.pet = { health = 1000, healthMax = 1000,
+    resource = 100, resourceMax = 100, targetExists = true,
+    targetsCurrent = true, hasAggro = false, distance = 20,
+    lineOfSight = true }
+scenarioActions = { petAction("Moving Firebolt", "damage", 800, 50,
+        { ranged = true, cast = 2 }),
+    action("Moving Wand", 1, "damage", 100, 0) }
+expect("player movement does not block pet cast", "Moving Firebolt")
+
+local unknownCostPet = petAction(
+    "Unreadable Bite", "damage", 1000, 0, { melee = true })
+unknownCostPet.mock.cost = nil
+local knownFreePet = petAction(
+    "Free Bite", "damage", 100, 0, { melee = true })
+knownFreePet.mock.cost = 0
+currentState.moving, currentState.actors.pet.distance = false, 3
+scenarioActions = { unknownCostPet, knownFreePet }
+expect("unknown chosen pet cost is not free", "Free Bite")
 
 currentState = state("smart")
 currentState.resource, currentState.resourceMax = 5000, 5000

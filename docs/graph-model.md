@@ -38,7 +38,8 @@ per-effect sets, and `Graph/HostileEffects.lua` applies the supported
 single-effect direct-damage subset while charging one action once. Mixed
 effects and area modifiers remain unknown. `Graph/AutoShotEffects.lua` and
 `Graph/CompanionEvents.lua` own target-pinned ambient events;
-`Graph/CompanionScheduler.lua` arbitrates one pet cast/GCD clock and
+`Graph/CompanionScheduler.lua` arbitrates one pet cast/GCD clock, with focused
+resource, tie, cast-event, cast-runtime, and chosen-consumption helpers, and
 `Graph/CompanionEventThreat.lua` owns companion threat consequences.
 `Graph/EventAuras.lua` advances event-created aura clocks by opaque hostile key,
 while `Graph/ReadinessEffects.lua` owns chosen-action cooldown clocks.
@@ -335,10 +336,19 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   remain unknown unless the client exposes them; they are not silently treated
   as safe.
 - Hunter pet focus is observed exactly at each live snapshot and known pet costs
-  are reserved across the shared autocast clock. Passive focus-regeneration tick
-  phase and server/talent rate modifiers are not yet projected, so long waits can
-  undervalue a later pet action but cannot manufacture focus the pet does not
-  currently have.
+  are reserved across the shared autocast clock. Passive regeneration becomes
+  executable only after three same-identity, uncapped `UNIT_FOCUS` gains establish
+  a stable amount and observed cadence from live evidence; projection lengthens
+  that cadence by the accepted jitter tolerance. Nampower 4.5+ energize
+  attribution is required before the clock can make actions affordable, so a
+  standard-API-only learner remains diagnostic rather than blessing repeated
+  external gains. Energizes fully invalidate ordering-dependent evidence. Cap,
+  source, lifecycle, max-focus, pet-aura, and talent ambiguity erase phase or the
+  modifier regime. Player-control loss/gain also invalidates the model,
+  conservatively covering Improved Eyes of the Beast entry and exit without
+  localized names. Spending after cap re-anchors a full-interval lower bound, so
+  lookahead can never bank suppressed ticks. Unknown pet cost makes resource
+  exactness false and withholds later affordability instead of charging zero.
 - The stock API exposes a localized Hunter family name but not its numeric
   CreatureFamily ID. XelAssist records an English-name family match for
   diagnostics only and never uses it to admit an action; the live spell ID/bar

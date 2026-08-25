@@ -58,6 +58,9 @@ end
 function E:Advance(state, elapsed)
     local pet = petOf(state)
     if not pet or not elapsed or elapsed <= 0 then return end
+    if XelAssist.Game.Pets.Resources then
+        XelAssist.Game.Pets.Resources:AdvanceActor(pet, elapsed)
+    end
     local function advanceStore(store)
         local name, effect
         for name, effect in pairs(store or {}) do

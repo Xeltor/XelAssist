@@ -94,6 +94,7 @@ local function legalityAndTiming(action, state, descriptor)
         effectTooltip = effectTooltip,
         actionStart = actionStart, cast = cast, occupancy = occupancy,
         wait = wait, downtime = wait + occupancy, cost = tooltip.cost or 0,
+        costKnown = tooltip.cost ~= nil,
         power = power, expectedPower = power, estimated = estimated,
         value = 0, reason = kind, damageKind = damageKind,
         targetEffect = damageKind or kind == "debuff"
@@ -380,7 +381,8 @@ local function candidate(context)
         castTargetRef = descriptor and descriptor.castTargetRef,
         targetPriority = descriptor and descriptor.record
             and descriptor.record.priority,
-        cost = context.cost, cast = context.cast, downtime = context.downtime,
+        cost = context.cost, costKnown = context.costKnown,
+        cast = context.cast, downtime = context.downtime,
         threat = context.threat, estimated = context.estimated,
         tooltip = context.tooltip, power = context.expectedPower,
         effectivePower = context.effectivePower, rawPower = context.power,

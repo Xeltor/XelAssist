@@ -276,7 +276,7 @@ function A:Snapshot()
                 table.insert(pet.autocasts, { name = actions[i].name,
                     kind = actions[i].facts.kind, threat = actions[i].facts.threat,
                     actor = "pet", spellId = actions[i].spellId, facts = actions[i].facts,
-                    cost = tooltip.cost or 0,
+                    cost = tooltip.cost,
                     power = tooltip.average or tooltip.dbcAverage or 0,
                     tooltip = tooltip,
                     cooldown = tooltip.cooldown or 1.5,

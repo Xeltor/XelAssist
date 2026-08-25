@@ -3,6 +3,8 @@
 XelAssist.Graph.CompanionScheduler = {}
 local S = XelAssist.Graph.CompanionScheduler
 local Tie = XelAssist.Graph.CompanionTieScheduler
+local Resources = XelAssist.Graph.CompanionResources
+local CastEvents = XelAssist.Graph.CompanionCastEvents
 
 local MAX_EVENTS = 8
 
@@ -66,18 +68,19 @@ end
 
 function S:FindAmbient(pet, identity) return findAmbient(pet, identity) end
 
+function S:MatchesAction(action, ambient)
+    if not (action and ambient) then return false end
+    if action.spellId ~= nil or ambient.spellId ~= nil then
+        return action.spellId ~= nil and ambient.spellId ~= nil
+            and sameSpell(action.spellId, ambient.spellId)
+    end
+    return action.name ~= nil and action.name == ambient.name
+end
+
 local function chosen(candidate, ambient)
     local action = candidate and candidate.action
     return action and action.actor == "pet" and action.executor == "petAbility"
-        and action.spellId ~= nil and ambient.spellId ~= nil
-        and sameSpell(action.spellId, ambient.spellId)
-end
-
-local function chosenCost(candidate)
-    local action = candidate and candidate.action
-    if not (action and action.actor == "pet"
-        and action.executor == "petAbility") then return 0 end
-    return math.max(0, tonumber(candidate.cost) or 0)
+        and S:MatchesAction(action, ambient)
 end
 
 local function geometry(pet, record)
@@ -139,20 +142,6 @@ local function reservedTime(value, busy, first, last)
     return value
 end
 
-local function pendingFor(lane, identity, remaining, costPaid)
-    identity = identity or {}
-    return { autocastIndex = lane.index, autocastName = lane.ambient.name,
-        autocastSpellId = lane.ambient.spellId,
-        targetGuid = identity.guid, targetKey = identity.key,
-        targetLocal = identity.localTarget,
-        targetIndependent = lane.targetIndependent and true or false,
-        remaining = remaining, cooldown = lane.cooldown,
-        cost = lane.cost, costKnown = lane.costKnown,
-        costPaid = costPaid and true or false,
-        uncertain = lane.uncertain and true or false,
-        unknownReason = lane.unknownReason }
-end
-
 local function livePending(pet, identity, remaining)
     if pet.castSpellId == nil then return nil end
     local match = { autocastSpellId = pet.castSpellId }
@@ -164,32 +153,11 @@ local function livePending(pet, identity, remaining)
     local uncertain, reason = area or not known or independent, nil
     if area then reason = "companion area recipients"
     elseif not known or independent then reason = "companion autocast effect" end
-    return pendingFor({ index = index, ambient = ambient,
+    return CastEvents:Pending({ index = index, ambient = ambient,
         cooldown = math.max(0.1, tonumber(ambient.cooldown) or 1.5),
         cost = cost, costKnown = costKnown, uncertain = uncertain,
         unknownReason = reason, targetIndependent = independent },
         identity, remaining, true)
-end
-
-local function eventFor(identity, offset, window, costPaid)
-    return { owner = "ongoing",
-        kind = identity.uncertain and "petAutocastUnknown" or "petAutocast",
-        offset = offset, priority = 50,
-        autocastIndex = identity.autocastIndex,
-        autocastName = identity.autocastName,
-        autocastSpellId = identity.autocastSpellId,
-        autocastCost = identity.cost,
-        autocastCostKnown = identity.costKnown,
-        autocastCooldown = identity.cooldown,
-        costPaid = costPaid and true or false,
-        windowEnd = window, targetGuid = identity.targetGuid,
-        targetKey = identity.targetKey, targetLocal = identity.targetLocal,
-        targetIndependent = identity.targetIndependent,
-        tiedReservation = identity.tiedReservation,
-        tiedAutocasts = identity.tiedAutocasts,
-        tiedGroup = identity.tiedGroup,
-        reservedChoice = identity.reservedChoice,
-        unknownReason = identity.unknownReason }
 end
 
 local function markLaneUnknowns(pet, candidate, area, known, costKnown,
@@ -260,7 +228,8 @@ local function completePending(clock, pending)
         clock.pet.pendingAutocast = pending
         return
     end
-    local entry = eventFor(pending, completion, clock.window, pending.costPaid)
+    local entry = CastEvents:Event(
+        pending, completion, clock.window, pending.costPaid)
     entry.pendingCompletion = true
     table.insert(clock.events, entry)
     clock.emitted = clock.emitted + 1
@@ -279,24 +248,33 @@ local function completePending(clock, pending)
             lane.ready = math.max(lane.ready, completion + cooldown)
         end
     end
-    if not pending.costPaid and pending.costKnown and clock.resourceKnown then
-        clock.available = math.max(0, clock.available - (pending.cost or 0))
-    end
     clock.pet.pendingAutocast = nil
     if sameSpell(clock.pet.castSpellId, pending.autocastSpellId) then
         clock.pet.castSpellId = nil
     end
 end
 
+local function laneTime(clock, lane)
+    local at = math.max(lane.ready, clock.actorReady)
+    local i
+    for i = 1, 3 do
+        at = reservedTime(at, lane.busy,
+            clock.chosenFirst, clock.chosenLast)
+        local focused = Resources:Earliest(
+            clock.resourceClock, lane.cost, lane.costKnown, at)
+        if not focused then return nil end
+        if focused == at then return at end
+        at = focused
+    end
+    return at
+end
+
 local function nextLane(clock)
     local bestTime, tied, i = nil, {}, nil
     for i = 1, table.getn(clock.lanes) do
         local lane = clock.lanes[i]
-        local affordable = not clock.resourceKnown or not lane.costKnown
-            or lane.cost <= clock.available
-        if affordable then
-            local at = reservedTime(math.max(lane.ready, clock.actorReady),
-                lane.busy, clock.chosenFirst, clock.chosenLast)
+        local at = laneTime(clock, lane)
+        if at then
             if not bestTime or at < bestTime then
                 bestTime, tied = at, { lane }
             elseif at == bestTime then table.insert(tied, lane) end
@@ -306,21 +284,22 @@ local function nextLane(clock)
 end
 
 local function beginPending(clock, best, bestTime, impact)
-    local paid = clock.resourceKnown and best.costKnown
-    if paid then
-        clock.pet.resource = math.max(0, clock.pet.resource - best.cost)
-    end
-    clock.pet.pendingAutocast = pendingFor(best, clock.identity,
-        impact - clock.window, paid)
+    local pending = CastEvents:Pending(best, clock.identity,
+        impact - clock.window, false)
+    clock.pet.pendingAutocast = pending
     clock.pet.castSpellId = best.ambient.spellId
     clock.pet.autocastCompletionUnknown = true
     addUnknown(clock.candidate, "companion cast completion")
+    table.insert(clock.events,
+        CastEvents:Start(pending, bestTime, clock.window))
+    clock.emitted = clock.emitted + 1
     clock.actorReady = bestTime + best.busy
 end
 
 local function tiedIdentity(clock, tied)
     local reserved, busy, cast = Tie:Envelope(tied)
-    local identity = pendingFor(reserved, clock.identity, 0, false)
+    local identity = CastEvents:Pending(
+        reserved, clock.identity, 0, false)
     clock.tiedGroup = clock.tiedGroup or Tie:Group()
     identity.uncertain = true
     identity.unknownReason = "companion autocast order"
@@ -338,26 +317,26 @@ local function emitTie(clock, tied, bestTime)
     local impact = bestTime + cast
     clock.pet.autocastOrderUnknown = true
     addUnknown(clock.candidate, "companion autocast order")
-    if clock.resourceKnown and identity.costKnown then
-        clock.available = clock.available - identity.cost
-    end
+    if not Resources:Reserve(clock.resourceClock,
+        bestTime, identity.cost, identity.costKnown) then return false end
     reserved.ready = impact + reserved.cooldown
     clock.actorReady = bestTime + busy
+    if cast > 0 then
+        table.insert(clock.events,
+            CastEvents:Start(identity, bestTime, clock.window))
+    end
     if impact > clock.window then
-        local paid = clock.resourceKnown and identity.costKnown
-        if paid then
-            clock.pet.resource = math.max(0,
-                clock.pet.resource - identity.cost)
-        end
-        identity.remaining, identity.costPaid = impact - clock.window, paid
+        identity.remaining = impact - clock.window
         clock.pet.pendingAutocast = identity
         clock.pet.castSpellId = nil
         clock.pet.autocastCompletionUnknown = true
         addUnknown(clock.candidate, "companion cast completion")
+        clock.emitted = clock.emitted + 1
         return false
     end
-    table.insert(clock.events,
-        eventFor(identity, impact, clock.window, false))
+    local entry = CastEvents:Event(identity, impact, clock.window, false)
+    if cast > 0 then entry.pendingCompletion = true end
+    table.insert(clock.events, entry)
     clock.emitted = clock.emitted + 1
     return true
 end
@@ -366,20 +345,24 @@ local function emitLane(clock, best, bestTime, tied)
     if table.getn(tied) > 1 or clock.tiedGroup then
         return emitTie(clock, tied, bestTime)
     end
-    if clock.resourceKnown and best.costKnown then
-        clock.available = clock.available - best.cost
-    end
+    if not Resources:Reserve(clock.resourceClock,
+        bestTime, best.cost, best.costKnown) then return false end
     local impact = bestTime + best.cast
     if impact > clock.window then
         beginPending(clock, best, bestTime, impact)
         return false
     end
     local uncertain = best.uncertain
-    local identity = pendingFor(best, clock.identity, 0, false)
+    local identity = CastEvents:Pending(best, clock.identity, 0, false)
     identity.uncertain = uncertain
     identity.unknownReason = best.unknownReason
-    table.insert(clock.events,
-        eventFor(identity, impact, clock.window, false))
+    if best.cast > 0 then
+        table.insert(clock.events,
+            CastEvents:Start(identity, bestTime, clock.window))
+    end
+    local entry = CastEvents:Event(identity, impact, clock.window, false)
+    if best.cast > 0 then entry.pendingCompletion = true end
+    table.insert(clock.events, entry)
     best.ready, clock.actorReady = impact + best.cooldown,
         bestTime + best.busy
     clock.emitted = clock.emitted + 1
@@ -392,12 +375,21 @@ local function schedule(clock)
         if not best or bestTime > clock.window then break end
         if not emitLane(clock, best, bestTime, tied) then break end
     end
+    if clock.emitted == MAX_EVENTS then
+        local best, at = nextLane(clock)
+        if best and at <= clock.window then
+            clock.cappedAt = at
+            table.insert(clock.events, { owner = "ongoing",
+                kind = "petAutocastTimelineCap", offset = at,
+                priority = 15, windowEnd = clock.window })
+        end
+    end
 end
 
 local function finishClock(clock)
     local pet = clock.pet
     pet.actionReadyIn = math.max(0,
-        math.max(clock.actorReady, clock.chosenLast or 0) - clock.window)
+        clock.initialActorReady - clock.window)
     if pet.pendingAutocast then
         pet.castRemaining = math.max(0,
             tonumber(pet.pendingAutocast.remaining) or 0)
@@ -406,7 +398,7 @@ local function finishClock(clock)
         if pet.castRemaining <= 0 then pet.castSpellId = nil end
     end
     pet.casting = pet.castRemaining > 0
-    if clock.emitted == MAX_EVENTS then
+    if clock.cappedAt then
         pet.autocastTimelineCapped = true
         addUnknown(clock.candidate, "companion autocast timeline cap")
     end
@@ -420,15 +412,14 @@ function S:Events(pet, record, candidate, identity)
         pending = livePending(pet, identity, initialCast)
         pet.pendingAutocast = pending
     end
-    local resource = tonumber(pet.resource)
     local chosenFirst, chosenLast = reservation(candidate)
     local clock = { pet = pet, candidate = candidate, identity = identity,
         window = window, initialCast = initialCast, events = {},
         lanes = collectLanes(pet, record, candidate, identity, window),
-        resourceKnown = resource ~= nil,
-        available = resource and math.max(0,
-            resource - chosenCost(candidate)) or nil,
+        resourceClock = Resources:Create(pet, candidate),
         actorReady = math.max(initialCast, tonumber(pet.actionReadyIn) or 0),
+        initialActorReady = math.max(initialCast,
+            tonumber(pet.actionReadyIn) or 0),
         chosenFirst = chosenFirst, chosenLast = chosenLast, emitted = 0,
         tiedGroup = pending and pending.tiedGroup or nil }
     if pending then completePending(clock, pending)

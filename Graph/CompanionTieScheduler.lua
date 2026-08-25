@@ -25,6 +25,7 @@ function T:Choice(lane)
         autocastSpellId = lane.ambient.spellId,
         autocastCooldown = lane.cooldown,
         autocastCost = lane.cost, autocastCostKnown = lane.costKnown,
+        autocastBusy = lane.busy, autocastCast = lane.cast,
         targetIndependent = lane.targetIndependent and true or false }
 end
 
@@ -46,13 +47,13 @@ local function worse(left, right)
 end
 
 function T:Envelope(tied)
-    local reserved, busy, cast, i = nil, 0, 0, nil
+    local reserved, i = nil, nil
     for i = 1, table.getn(tied) do
         local lane = tied[i]
         if worse(lane, reserved) then reserved = lane end
-        busy, cast = math.max(busy, lane.busy), math.max(cast, lane.cast)
     end
-    return reserved, busy, cast
+    return reserved, reserved and reserved.busy or 0,
+        reserved and reserved.cast or 0
 end
 
 function T:Group() return { consumed = {} } end
@@ -77,10 +78,10 @@ function T:WorstResolved(resolved, group)
         local choice = value.choice
         local lane = { cost = choice.autocastCost,
             costKnown = choice.autocastCostKnown,
-            busy = 0, cast = 0,
+            busy = tonumber(choice.autocastBusy) or 0,
+            cast = tonumber(choice.autocastCast) or 0,
             cooldown = tonumber(choice.autocastCooldown) or 1.5 }
-        if not self:Consumed(group, choice)
-            and (not best or worse(lane, best.lane)) then
+        if not best or worse(lane, best.lane) then
             best = { ambient = value.ambient, choice = choice, lane = lane }
         end
     end
