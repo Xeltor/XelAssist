@@ -263,6 +263,9 @@ function A:Snapshot()
         pet.distance, pet.distanceKind = self:Distance("pet", "target")
         local geometry = XelAssist.Game.Capabilities:Geometry("pet", "target")
         pet.lineOfSight, pet.behind = geometry.lineOfSight, geometry.behind
+        if XelAssist.Game.AttackRounds then
+            pet = XelAssist.Game.AttackRounds:Attach(pet)
+        end
         pet.autocasts = {}
         local actions = self.petActions and self.petActionsGuid == pet.guid
             and self.petActions or self:BuildPetActions(pet.actorRef)

@@ -1,4 +1,4 @@
-# XelAssist 0.8.1
+# XelAssist 0.8.2
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -79,9 +79,10 @@ their local state evidence. `/xa log` prints the latest five. It contains combat
 numbers and action names, not player or target names.
 
 `/xa diagnostics` also refreshes a durable, privacy-safe runtime audit containing
-dependency/API availability, discovered versus inferred action-node counts, and
-the Hunter focus learner state. It reports whether focus timing is still
-learning, verified but dormant, or executable; it does not persist pet identity.
+dependency/API availability, discovered versus inferred action-node counts,
+Hunter focus evidence, and controlled-companion swing evidence. It reports
+whether each clock is learning, dormant, or executable; it does not persist pet
+identity.
 
 ## Graph model
 
@@ -109,9 +110,17 @@ a 3 ms hot-path budget. It accounts for:
   and live-learned same-pet focus regeneration without a hardcoded server rate.
   The cadence becomes executable only when Nampower energize attribution can
   exclude non-passive gains; otherwise it remains diagnostic;
+- target-pinned Hunter pet and Warlock demon main-hand swing timing learned from
+  exact classified Nampower attack rounds, independently of focus and the pet
+  spell GCD. Attack commands never fabricate a swing phase. Exact hitbox/reach
+  and line-of-sight evidence gate each projected round; target, identity, speed,
+  aura, control, or attack-state changes invalidate it. Normal pet damage is
+  diagnostic only until crit, glancing, block, absorb, and resistance outcome
+  magnitude can be distributed without inventing damage or threat;
 - Auto Shot launch, projectile, impact, ammunition, movement/cast delay, and
-  repeated-tap state on the same causal timeline as pet attacks, periodic ticks,
-  and the chosen action;
+  repeated-tap state on the shared event timeline with periodic ticks, companion
+  events, and the chosen action. The generic player Attack command is likewise
+  start-only and idempotent; its button press is never modeled as melee damage;
 - equipped weapon durability and ammunition, plus opt-in immediate-use healing
   and mana consumables discovered conservatively from live bag tooltips;
 - future resource, health, target-health, aura, threat-drop, and cooldown state.

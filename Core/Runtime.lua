@@ -268,9 +268,12 @@ ev:SetScript("OnEvent", function()
     end
     if (event == "AUTO_ATTACK_SELF" or event == "AUTO_ATTACK_OTHER")
         and XelAssist.Combat.Resistance then
-        XelAssist.Game.Pets.EffectRuntime:ObserveAutoAttack(arg1, arg2,
-            XelAssist.Combat.Resistance:AutoAttack(arg1, arg2, arg3, arg4,
-                arg5, arg6, arg7, arg8, arg9))
+        local result = XelAssist.Combat.Resistance:AutoAttack(
+            arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9)
+        XelAssist.Game.Pets.EffectRuntime:ObserveAutoAttack(arg1, arg2, result)
+        if XelAssist.Game.AttackRounds then
+            XelAssist.Game.AttackRounds:Observe(arg1, arg2, result, GetTime())
+        end
     end
     if event == "AURA_CAST_ON_SELF" or event == "AURA_CAST_ON_OTHER" then
         local spellName = SpellInfo and SpellInfo(arg1) or nil

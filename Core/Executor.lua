@@ -130,7 +130,14 @@ local function dispatchPlayer(action, plan, castName, friendly, capturedGuid, un
         guid, reason, hostile = Guard:ValidateSelectedHostile(plan, unit, castRef)
     end
     if hostile and not guid then return false, reason end
-    if action.facts.autoRepeat then CastSpellByName(castName)
+    if action.facts.playerAttack then
+        local attack = XelAssist.Game.PlayerAttack
+        if not (attack and attack.Start) then
+            return false, "player Attack state unavailable"
+        end
+        local started, startReason = attack:Start(guid)
+        if not started then return false, startReason end
+    elseif action.facts.autoRepeat then CastSpellByName(castName)
     elseif action.facts.petLifecycle then CastSpellByName(castName)
     elseif action.facts.ground then CastSpellByName(castName, "CLICK")
     elseif friendly then CastSpellByName(castName, capturedGuid)
@@ -150,7 +157,8 @@ function XA:ExecutePlayerPlan(plan, selected)
     local friendly = friendlyRelation(relation) and not facts.petLifecycle
     local unit = plan.castTarget or plan.target
         or ((not facts.ground) and "target" or nil)
-    local queueCandidate = not facts.autoRepeat and not facts.petLifecycle
+    local queueCandidate = not facts.playerAttack and not facts.autoRepeat
+        and not facts.petLifecycle
         and not facts.ground and not friendly
         and (not plan.target or plan.target == "target") and QueueSpellByName
     local capturedGuid, effectGuid, reason, hostileGuid, hostilePlan
@@ -256,7 +264,7 @@ function XA:ExecutePlayerPlan(plan, selected)
             reservationGuid, effectGuid, playerGuid)
     end
     self:RecordDecision(plan, selected)
-    if XelAssist.Combat.Observations then
+    if XelAssist.Combat.Observations and not facts.playerAttack then
         local observedAction = facts.effectTarget == "target"
             and not facts.deferredUntilPetMelee
             and (plan.effectAction or action) or action

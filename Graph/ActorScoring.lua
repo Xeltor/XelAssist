@@ -63,6 +63,12 @@ function A:Score(context)
         elseif facts.summonRole == "support" and state.groupSize > 0 then
             context.value, context.reason = 1100, "brings group support"
         end
+    elseif facts.playerAttack then
+        -- The button establishes an ambient state; without a resolved player
+        -- swing phase there is no defensible damage or threat packet to price.
+        context.power, context.expectedPower, context.effectivePower = 0, 0, 0
+        context.estimated = false
+        context.value, context.reason = 800, "starts sustained melee attacks"
     elseif kind == "command" then
         local pet = state.actors and state.actors.pet
         if context.action.command == "attack" then

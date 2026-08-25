@@ -4,8 +4,11 @@ XelAssist.Combat.Knowledge = {
     -- Shared utility
     ["Shoot"] = { kind = "damage", recovery = true, cast = 0, gcd = 0,
         ranged = true, weaponRanged = true, dynamicSchool = "equippedWand" },
-    ["Attack"] = { kind = "damage", recovery = true, melee = true,
-        whiteAttack = true, weaponHand = "main", cast = 0, gcd = 0 },
+    -- Attack only starts the client-owned melee state. Resolved white swings
+    -- arrive independently through Nampower and are never damage from this press.
+    ["Attack"] = { kind = "command", playerAttack = true, ambient = true,
+        startOnly = true, recovery = true, melee = true, whiteAttack = true,
+        weaponHand = "main", cast = 0, gcd = 0 },
 
     -- Warrior
     ["Execute"] = { kind = "damage", execute = 20, melee = true, threat = 1.0 },

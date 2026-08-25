@@ -377,7 +377,8 @@ end
 
 function O:ApplyEvent(out, source, candidate, context, entry)
     if entry.kind == "petAutocast" or entry.kind == "petAutocastUnknown"
-        or entry.kind == "petAutocastStart" then
+        or entry.kind == "petAutocastStart" or entry.kind == "petWhiteSwing"
+        or entry.kind == "petSwingTimelineCap" then
         if Companion then
             Companion:Apply(out, source, candidate, context, entry)
         end

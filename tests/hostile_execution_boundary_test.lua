@@ -85,7 +85,7 @@ local effects, hooks = {}, {}
 local function resetEffects()
     effects = { direct = 0, queue = 0, petAbility = 0, petAttack = 0,
         petFollow = 0, petPassive = 0, log = 0, observation = 0,
-        pending = 0, auto = 0, petEffect = 0 }
+        pending = 0, auto = 0, playerAttack = 0, petEffect = 0 }
     hooks = {}
     resetUnits()
     XelAssist.pendingAuras = {}
@@ -97,6 +97,7 @@ local function assertNoExecution(message)
         and effects.petFollow == 0 and effects.petPassive == 0
         and effects.log == 0 and effects.observation == 0
         and effects.pending == 0 and effects.auto == 0
+        and effects.playerAttack == 0
         and effects.petEffect == 0, message)
 end
 
@@ -113,6 +114,7 @@ end
 PetAttack = function() effects.petAttack = effects.petAttack + 1 end
 PetFollow = function() effects.petFollow = effects.petFollow + 1 end
 PetPassiveMode = function() effects.petPassive = effects.petPassive + 1 end
+AttackTarget = function() effects.playerAttack = effects.playerAttack + 1 end
 
 XelAssist.Game.Capabilities = {
     CastName = function(_, action) return action.name end,
@@ -167,6 +169,12 @@ XelAssist.Combat.AutoShot = {
         return true
     end,
     Submitted = function() effects.auto = effects.auto + 1 end,
+}
+XelAssist.Game.PlayerAttack = {
+    Start = function()
+        AttackTarget()
+        return true
+    end,
 }
 XelAssist.UI.HUD = { Refresh = function() end }
 DEFAULT_CHAT_FRAME = { AddMessage = function() end }
@@ -253,6 +261,21 @@ currentPlan = hostilePlan(playerAction("Racing Bolt"))
 hooks.inRange = function() units.target.guid = otherGuid end
 XelAssist:Execute()
 assertNoExecution("a selected-target GUID race reached the queue")
+
+resetEffects()
+currentPlan = hostilePlan(playerAction("Attack", { kind = "command",
+    playerAttack = true, ambient = true, startOnly = true }))
+XelAssist:Execute()
+assert(effects.playerAttack == 1 and effects.queue == 0 and effects.direct == 0
+    and effects.log == 1 and effects.observation == 0,
+    "a valid player Attack must use only its guarded start command")
+
+resetEffects()
+currentPlan = hostilePlan(playerAction("Attack", { kind = "command",
+    playerAttack = true, ambient = true, startOnly = true }))
+hooks.inRange = function() units.target.guid = otherGuid end
+XelAssist:Execute()
+assertNoExecution("a selected-target GUID race reached AttackTarget")
 
 resetEffects()
 currentPlan = hostilePlan(playerAction("Racing Dot", { kind = "dot" }))

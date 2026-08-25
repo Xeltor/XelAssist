@@ -31,10 +31,14 @@ end
 
 assert(XelAssist.Combat.Knowledge.Shoot.ranged and XelAssist.Combat.Knowledge.Shoot.weaponRanged,
     "Shoot must identify the equipped ranged weapon as its damage source")
-assert(XelAssist.Combat.Knowledge.Attack.whiteAttack
+assert(XelAssist.Combat.Knowledge.Attack.kind == "command"
+    and XelAssist.Combat.Knowledge.Attack.playerAttack
+    and XelAssist.Combat.Knowledge.Attack.ambient
+    and XelAssist.Combat.Knowledge.Attack.startOnly
+    and XelAssist.Combat.Knowledge.Attack.whiteAttack
     and XelAssist.Combat.Knowledge.Attack.weaponHand == "main"
     and not XelAssist.Combat.Knowledge["Sinister Strike"].whiteAttack,
-    "only Attack may opt into the white-swing dual-wield miss penalty")
+    "Attack must start ambient melee while retaining white-swing delivery metadata")
 assert(XelAssist.Combat.Knowledge["Kill Command"].damageActor == "pet",
     "Kill Command damage must be attributed to the pet actor")
 local hunter = XelAssist.Combat.Knowledge

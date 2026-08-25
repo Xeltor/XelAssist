@@ -304,6 +304,13 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   Growl/Cower, focus attacks, movement, control, self-defense, and family actions
   are ID-first facts taken from the installed Octowow DBCs; only actions present
   in the live pet spellbook and executable pet bar become graph nodes.
+  Ordinary companion main-hand attacks are a separate actor clock: only an
+  exact classified Nampower round anchors phase, and each future round stays
+  pinned to that pet and hostile identity. It is independent of focus and the
+  pet GCD, requires exact reach/line-of-sight evidence, and invalidates on
+  identity, target, attack-state, speed, aura, level, world, or control changes.
+  Same-time autocast/white order creates a causal boundary that withholds all
+  later companion events in that projected window.
 - Evaluation errors, missing dependencies, and budget overruns hold without a cast.
 
 ## Known evidence gaps
@@ -335,6 +342,10 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
 - Pet line of sight, pathing, exact numeric threat lead, and encounter hazards
   remain unknown unless the client exposes them; they are not silently treated
   as safe.
+- A resolved companion round proves swing phase, not its next outcome magnitude.
+  The live normal-damage envelope is retained for diagnostics, but white-round
+  damage and threat remain unknown until crit, glancing, block, absorb, and
+  resistance outcome magnitudes can be modeled without false precision.
 - Hunter pet focus is observed exactly at each live snapshot and known pet costs
   are reserved across the shared autocast clock. Passive regeneration becomes
   executable only after three same-identity, uncapped `UNIT_FOCUS` gains establish

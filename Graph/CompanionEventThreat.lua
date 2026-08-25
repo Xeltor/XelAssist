@@ -25,7 +25,17 @@ function T:ConsumeMelee(target, out, action, targetGuid, delivery, record,
     selected)
     if not (XelAssist.Game.Pets and XelAssist.Game.Pets.Effects) then return end
     local pet = out.actors and out.actors.pet
-    local priorEstimate = pet and pet.threatEstimate
+    local targetPet = target.actors and target.actors.pet
+    local priorRoot = pet and pet.threatEstimate
+    local priorEstimate
+    if record then priorEstimate = record.companionThreatEstimate
+    else priorEstimate = targetPet and targetPet.threatEstimate end
+    if record and targetPet then
+        targetPet.threatEstimate = priorEstimate
+        if record.threat and record.threat.projectedPetHasAggro ~= nil then
+            targetPet.hasAggro = record.threat.projectedPetHasAggro
+        elseif record.threat then targetPet.hasAggro = record.threat.petHasAggro end
+    end
     local effect = XelAssist.Game.Pets.Effects:ConsumeMelee(
         target, action, targetGuid, delivery)
     if effect and record and effect.projectedThreat then
@@ -36,10 +46,12 @@ function T:ConsumeMelee(target, out, action, targetGuid, delivery, record,
         record.threat.petDelta = (tonumber(record.threat.petDelta) or 0)
             + effect.projectedThreat
     end
-    if pet and record and pet.threatEstimate ~= priorEstimate then
-        record.companionThreatEstimate = pet.threatEstimate
-        if not selected then pet.threatEstimate = priorEstimate end
+    local estimate = targetPet and targetPet.threatEstimate
+    if record and estimate ~= priorEstimate then
+        record.companionThreatEstimate = estimate
+        if selected and pet then pet.threatEstimate = estimate end
     end
+    if pet and not selected then pet.threatEstimate = priorRoot end
     return effect
 end
 

@@ -9,106 +9,23 @@ local Threat = XelAssist.Graph.CompanionEventThreat
 local Scheduler = XelAssist.Graph.CompanionScheduler
 local CastEvents = XelAssist.Graph.CompanionCastEvents
 local CastRuntime = XelAssist.Graph.CompanionCastRuntime
-local MAX_HOSTILES = 5
-
-local function hostilesOf(state)
-    local hostiles = state and state.hostiles
-    if type(hostiles) ~= "table" or type(hostiles.order) ~= "table"
-        or type(hostiles.byKey) ~= "table" then return nil end
-    return hostiles
-end
-
-local function hostileForGuid(state, guid)
-    local hostiles = hostilesOf(state)
-    if not hostiles or guid == nil then return nil, nil end
-    local direct = hostiles.byKey[guid]
-    if direct and (direct.guid == nil or direct.guid == guid) then
-        return guid, direct
-    end
-    local count = math.min(table.getn(hostiles.order), MAX_HOSTILES)
-    local i
-    for i = 1, count do
-        local key = hostiles.order[i]
-        local record = hostiles.byKey[key]
-        if record and record.guid == guid then return key, record end
-    end
-    return nil, nil
-end
-local function selectedIdentity(state)
-    local hostiles = hostilesOf(state)
-    if not hostiles then return state and state.targetGUID, nil, nil end
-    local count = math.min(table.getn(hostiles.order), MAX_HOSTILES)
-    local fallbackKey, fallback
-    local i
-    for i = 1, count do
-        local key = hostiles.order[i]
-        local record = hostiles.byKey[key]
-        if record then
-            if key == hostiles.selectedKey then
-                return record.guid or key, key, record
-            end
-            if not fallback and record.selected == true then
-                fallbackKey, fallback = key, record
-            end
-        end
-    end
-    if fallback then return fallback.guid or fallbackKey, fallbackKey, fallback end
-    return nil, nil, nil
-end
-
-local function selectedKey(state, key, record)
-    local hostiles = hostilesOf(state)
-    if not hostiles then return false end
-    if hostiles.selectedKey ~= nil then return key == hostiles.selectedKey end
-    return record and record.selected == true
-end
-
-local function provenDead(record)
-    if not record then return true end
-    if record.dead == true or record.projectedDefeated == true then return true end
-    return record.healthExact == true and tonumber(record.health) ~= nil
-        and tonumber(record.health) <= 0
-end
-
-local function captureTarget(state, pet)
-    if not (pet and pet.targetExists) then return nil, nil, nil end
-    local hostiles = hostilesOf(state)
-    if hostiles then
-        local petGuid, aliasGuid = pet.targetGuid, nil
-        if type(hostiles.byUnit) == "table" then
-            local aliasKey = hostiles.byUnit.pettarget
-            local alias = aliasKey and hostiles.byKey[aliasKey]
-            if alias then aliasGuid = alias.guid or aliasKey end
-        end
-        if petGuid ~= nil and aliasGuid ~= nil and petGuid ~= aliasGuid then
-            return nil, nil, nil
-        end
-        local guid = petGuid or aliasGuid
-        if guid == nil and pet.targetsCurrent == true then
-            guid = selectedIdentity(state)
-        end
-        local key, record = hostileForGuid(state, guid)
-        if not key or provenDead(record) then return nil, nil, nil end
-        return guid, key, true
-    end
-    if pet.targetsCurrent ~= true then return nil, nil, nil end
-    local guid = pet.targetGuid or state.targetGUID
-    if guid == nil or pet.targetGuid ~= nil and state.targetGUID ~= nil
-        and pet.targetGuid ~= state.targetGUID then return nil, nil, nil end
-    return guid, nil, false
-end
+local Targets = XelAssist.Graph.CompanionTargets
+local Swings = XelAssist.Graph.CompanionSwings
 
 function C:Events(out, candidate)
     local pet = out.actors and out.actors.pet
-    local targetGuid, targetKey, targetLocal = captureTarget(out, pet)
-    if not (pet and pet.autocasts) then return {} end
+    if not pet then return {} end
+    local targetGuid, targetKey, targetLocal = Targets:Capture(out, pet)
     local record
-    if targetLocal then _, record = hostileForGuid(out, targetGuid) end
+    if targetLocal then _, record = Targets:ForGuid(out, targetGuid) end
     local identity
     if targetGuid then identity = {
         guid = targetGuid, key = targetKey, localTarget = targetLocal } end
     local events = Scheduler:Events(pet, record, candidate, identity)
+    local swingEvents = Swings:Events(pet, record, candidate, identity)
     local i
+    for i = 1, table.getn(swingEvents) do table.insert(events, swingEvents[i]) end
+    Swings:ResolveTies(events, pet, candidate)
     for i = 1, table.getn(events) do
         events[i].windowStart = tonumber(out.time) or 0
     end
@@ -139,34 +56,6 @@ function C:SyncChosenCooldown(out, candidate, context)
     end
 end
 
-local function eventTarget(out, entry)
-    if entry.targetLocal then
-        if not hostilesOf(out) then return nil end
-        local key, record = hostileForGuid(out, entry.targetGuid)
-        if not key or key ~= entry.targetKey or provenDead(record) then return nil end
-        record.projectedAuras = record.projectedAuras or {}
-        record.threat = record.threat or { playerHasAggro = record.hasPlayerAggro,
-            petHasAggro = record.hasPetAggro, playerDelta = 0, petDelta = 0 }
-        local view = State.HostileContext and State:HostileContext(out, key)
-        if not view then return nil end
-        return view, key, record, selectedKey(out, key, record)
-    end
-    if hostilesOf(out) or entry.targetGuid ~= out.targetGUID then return nil end
-    if out.targetHealthExact and (tonumber(out.targetHealth) or 0) <= 0 then
-        return nil
-    end
-    return out, nil, nil, true
-end
-
-local function candidateTargetsEntry(candidate, entry)
-    if not candidate then return false end
-    if entry.targetKey ~= nil and candidate.targetKey ~= nil then
-        return entry.targetKey == candidate.targetKey
-    end
-    return entry.targetGuid ~= nil and candidate.targetGUID ~= nil
-        and entry.targetGuid == candidate.targetGUID
-end
-
 local function eventState(source, candidate, context, entry)
     local base = source
     if entry.targetLocal then
@@ -177,7 +66,7 @@ local function eventState(source, candidate, context, entry)
     local state = Effects:StateAtImpact(base, entry.offset)
     if state and context and context.applicationOffset
         and entry.offset >= context.applicationOffset
-        and candidateTargetsEntry(candidate, entry)
+        and Targets:CandidateMatches(candidate, entry)
         and context.ChangesHostileTarget and context.ProjectCurrentApplication
         and context:ChangesHostileTarget() then
         state = State:Copy(state)
@@ -316,6 +205,40 @@ local function applyDamage(target, out, source, candidate, context, entry,
     return true
 end
 
+local function applyUnknownWhiteOutcome(target, out, source, candidate,
+    context, entry, ambient, pet, record, selected, consumeMelee)
+    local delivery
+    if consumeMelee then
+        _, delivery = deliveryFor(
+            source, candidate, context, entry, ambient, 1)
+        if delivery == nil then return false end
+    end
+    if record then
+        record.healthExact = false
+        record.whiteSwingDamageUnknown = true
+        record.threat = record.threat or {}
+        record.threat.petDeltaExact = false
+        record.threat.whiteSwingDamageUnknown = true
+    else
+        target.targetHealthExact = false
+        target.whiteSwingDamageUnknown = true
+    end
+    pet.whiteSwingMagnitudeUnknown = true
+    if consumeMelee then
+        Threat:ConsumeMelee(target, out, ambient, entry.targetGuid,
+            delivery, record, selected)
+    else
+        local _, effect
+        for _, effect in pairs(pet.pendingMeleeEffects or {}) do
+            if effect.targetGuid == entry.targetGuid then
+                effect.outcomeUnknown = true
+            end
+        end
+        pet.pendingMeleeEffectsExact = false
+    end
+    return true
+end
+
 local function applyThreat(target, out, source, candidate, context, entry,
     ambient, record, selected)
     local _, delivery = deliveryFor(
@@ -350,29 +273,82 @@ end
 local function tiedHostileValid(out, pet, entry)
     if not entry.pendingCompletion then
         if not pet.targetExists then return false end
-        local currentGuid, currentKey = captureTarget(out, pet)
+        local currentGuid, currentKey = Targets:Capture(out, pet)
         if currentGuid ~= entry.targetGuid or currentKey ~= entry.targetKey then
             return false
         end
     end
-    return eventTarget(out, entry) ~= nil
+    return Targets:Resolve(out, entry) ~= nil
 end
 
 local function startTargetValid(out, pet, entry)
     if entry.targetIndependent then return true end
     if not pet.targetExists then return false end
-    local guid, key = captureTarget(out, pet)
+    local guid, key = Targets:Capture(out, pet)
     return guid == entry.targetGuid and key == entry.targetKey
-        and eventTarget(out, entry) ~= nil
+        and Targets:Resolve(out, entry) ~= nil
+end
+
+local function applyWhiteSwing(out, source, candidate, context, entry, pet)
+    if not Swings:StillCurrent(out, pet, entry) then return false end
+    local target, _, record, selected = Targets:Resolve(out, entry)
+    if not target then return false end
+    local changed = applyUnknownWhiteOutcome(target, out, source, candidate,
+        context, entry, entry.ambient, pet, record, selected, true)
+    syncSelected(out, record, selected and changed)
+    return changed and true or false
+end
+
+local function applyTiedReservation(out, source, candidate, context, entry, pet)
+    local reserved = entry.kind == "petAutocastUnknown"
+        and CastRuntime:ReserveTied(
+            out, pet, entry, tiedHostileValid(out, pet, entry)) or false
+    if not (reserved and entry.meleeOrderUnknown) then return reserved end
+    local target, _, record, selected = Targets:Resolve(out, entry)
+    if not target then return reserved end
+    applyUnknownWhiteOutcome(target, out, source, candidate,
+        context, entry, entry.tiedWhiteAmbient, pet, record, selected, false)
+    pet.resourceExact, pet.actionReadyExact = false, false
+    pet.resourceUnknownReason = "companion melee order"
+    pet.companionTimelineExact = false
+    pet.companionTimelineUnknownReason = "companion melee order"
+    syncSelected(out, record, selected)
+    return reserved
+end
+
+local function applyUnknownAutocast(out, source, candidate, context,
+    entry, ambient, pet, target, record, selected)
+    if entry.meleeOrderUnknown then
+        applyUnknownWhiteOutcome(target, out, source, candidate,
+            context, entry, entry.tiedWhiteAmbient, pet,
+            record, selected, false)
+        pet.resourceExact, pet.actionReadyExact = false, false
+        pet.resourceUnknownReason = "companion melee order"
+        pet.companionTimelineExact = false
+        pet.companionTimelineUnknownReason = "companion melee order"
+        syncSelected(out, record, selected)
+    end
+    return true
 end
 
 function C:Apply(out, source, candidate, context, entry)
     local pet = out.actors and out.actors.pet
     if not pet then return false end
+    if pet.companionTimelineExact == false then return false end
     if entry.kind == "petAutocastTimelineCap" then
         pet.resourceExact, pet.actionReadyExact = false, false
         pet.resourceUnknownReason = "companion autocast timeline cap"
         return true
+    end
+    if entry.kind == "petSwingTimelineCap" then
+        if pet.attackRound then
+            pet.attackRound.phaseExact, pet.attackRound.projectable = false, false
+            pet.attackRound.reason = "companion white-swing timeline cap"
+        end
+        return true
+    end
+    if entry.kind == "petWhiteSwing" then
+        return applyWhiteSwing(out, source, candidate, context, entry, pet)
     end
     if entry.kind == "petAutocastStart" then
         return CastRuntime:Begin(
@@ -380,9 +356,8 @@ function C:Apply(out, source, candidate, context, entry)
     end
     if not CastEvents:Started(entry) then return false end
     if entry.tiedReservation then
-        return entry.kind == "petAutocastUnknown"
-            and CastRuntime:ReserveTied(
-                out, pet, entry, tiedHostileValid(out, pet, entry)) or false
+        return applyTiedReservation(
+            out, source, candidate, context, entry, pet)
     end
     local _, ambient = Scheduler:FindAmbient(pet, entry)
     if not ambient then return false end
@@ -392,12 +367,12 @@ function C:Apply(out, source, candidate, context, entry)
     end
     if not entry.pendingCompletion then
         if not pet.targetExists then return false end
-        local currentGuid, currentKey = captureTarget(out, pet)
+        local currentGuid, currentKey = Targets:Capture(out, pet)
         if currentGuid ~= entry.targetGuid or currentKey ~= entry.targetKey then
             return false
         end
     end
-    local target, _, record, selected = eventTarget(out, entry)
+    local target, _, record, selected = Targets:Resolve(out, entry)
     if not target then
         if entry.pendingCompletion then
             return CastRuntime:Reserve(out, pet, ambient, entry)
@@ -405,7 +380,10 @@ function C:Apply(out, source, candidate, context, entry)
         return false
     end
     if not CastRuntime:Reserve(out, pet, ambient, entry) then return false end
-    if entry.kind == "petAutocastUnknown" then return true end
+    if entry.kind == "petAutocastUnknown" then
+        return applyUnknownAutocast(out, source, candidate, context,
+            entry, ambient, pet, target, record, selected)
+    end
     local changed
     if ambient.kind == "dot" then
         changed = applyDot(target, out, source, candidate, context, entry,

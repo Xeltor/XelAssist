@@ -139,6 +139,41 @@ assert(triggered
     and not state.actors.pet.pendingMeleeEffects.Intimidation,
     "the next matching pet melee must consume Intimidation into its scaled pet threat and stun")
 
+state.auras = {}
+state.actors.pet.pendingMeleeEffects = { Intimidation = {
+    remaining = 15, targetGuid = targetGuid, stunDuration = 3 } }
+local firstPartial = XelAssist.Game.Pets.Effects:ConsumeMelee(
+    state, melee, targetGuid, 0.8)
+state.auras.Intimidation.remaining = 1
+local secondPartial = XelAssist.Game.Pets.Effects:ConsumeMelee(
+    state, melee, targetGuid, 0.8)
+assert(firstPartial and secondPartial
+    and state.auras.Intimidation.applicationProbability == 0.8
+    and state.auras.Intimidation.remaining == 1
+    and state.auras.Intimidation.alternateProcTimingWithheld
+    and state.deferredControlTimingUnknown,
+    "later probabilistic melees must not sum branches and refresh control duration")
+
+state.auras = {}
+state.actors.pet.pendingMeleeEffects = { Intimidation = {
+    remaining = 15, targetGuid = targetGuid, stunDuration = 3 } }
+XelAssist.Game.Pets.Effects:ConsumeMelee(state, melee, targetGuid, 0.2)
+XelAssist.Game.Pets.Effects:ConsumeMelee(state, melee, targetGuid, 1)
+assert(state.auras.Intimidation.applicationProbability == 0.8
+    and state.auras.Intimidation.remaining == 3,
+    "a stronger later proc branch may replace, but never union with, a weaker lower bound")
+
+state.auras = {}
+state.actors.pet.pendingMeleeEffects = { Intimidation = {
+    remaining = 15, targetGuid = targetGuid, stunDuration = 3,
+    outcomeUnknown = true } }
+assert(not XelAssist.Game.Pets.Effects:ConsumeMelee(
+        state, melee, targetGuid, 1)
+    and state.actors.pet.pendingMeleeEffects.Intimidation
+    and not state.auras.Intimidation
+    and state.deferredControlTimingUnknown,
+    "an order-uncertain next-melee charge must block re-arm without inventing a later proc")
+
 local runtime = XelAssist.Game.Pets.EffectRuntime
 local function freshPet()
     return { guid = petGuid, level = 60, happinessDamageMultiplier = 1.25 }

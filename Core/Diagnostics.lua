@@ -45,6 +45,8 @@ function D:Audit(owner)
         start = evidence.start, go = evidence.go }
     local focus = XelAssist.Game.Pets and XelAssist.Game.Pets.FocusEvidence
     runtime.hunterFocus = focus and focus:Status() or nil
+    local rounds = XelAssist.Game.AttackRounds
+    runtime.companionSwings = rounds and rounds:Status() or nil
     local ok, actions = pcall(discoveredActions)
     if ok and type(actions) == "table" then
         local inferred, petActions, i = 0, 0, nil
@@ -97,6 +99,18 @@ function D:Print(owner)
             .. ", energize attribution=" .. (focus.energizeAttribution and "on" or "off")
             .. ", phase=" .. (focus.phaseKnown and "known" or "unknown")
             .. ", last reset=" .. tostring(focus.lastResetReason or "none") .. ".")
+    end
+    local swings = runtime.companionSwings
+    if swings then
+        local state = swings.verified and swings.phaseKnown and "phase-known"
+            or swings.verified and "verified-dormant" or "awaiting-round"
+        msg("Companion swings: " .. state
+            .. ", cadence samples=" .. tostring(swings.samples or 0)
+            .. ", speed=" .. seconds(swings.speed) .. "s"
+            .. ", conservative=" .. seconds(swings.interval) .. "s"
+            .. ", magnitude=" .. (swings.outcomeMagnitudeKnown
+                and "known" or "withheld")
+            .. ", last reset=" .. tostring(swings.lastResetReason or "none") .. ".")
     end
     if runtime.lastError then msg("last graph error: " .. runtime.lastError, 1, 0.4, 0.25) end
     return runtime

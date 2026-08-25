@@ -88,7 +88,8 @@ function T:Relevant(action, state, descriptor)
     if action.actor == "pet" and kind == "command" then
         local pet = state.actors and state.actors.pet
         if action.command == "attack" then
-            return state.hostile and pet and not pet.targetsCurrent
+            return state.hostile and pet and (not pet.targetsCurrent
+                or pet.attackActiveKnown == true and pet.attackActive ~= true)
         end
         if action.command == "passive" then
             return pet and pet.stance ~= "passive" and pet.healthMax > 0
@@ -133,6 +134,16 @@ local function policyBlocker(action, state)
     end
     if facts.consumable and not XelAssistCharDB.toggles.consumables then
         return "consumable policy"
+    end
+    if facts.playerAttack then
+        if not (XelAssist.Game.PlayerAttack
+            and XelAssist.Game.PlayerAttack.CanStart)
+            or not state.playerAttack then
+            return "player Attack state unavailable"
+        end
+        local allowed, reason = XelAssist.Game.PlayerAttack:CanStart(
+            state.playerAttack)
+        if not allowed then return reason or "player Attack state uncertain" end
     end
     if facts.autoRepeat and state.autoShot and state.autoShot.active then
         return "already active"

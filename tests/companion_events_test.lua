@@ -79,6 +79,7 @@ XelAssist.Game.SpellTiming = {
 }
 
 dofile("Game/Pets/Resources.lua")
+dofile("Graph/CompanionTargets.lua")
 
 local guidA, guidB, guidMissing, petActorGuid = {}, {}, {}, {}
 local keyA, keyB = {}, {}
@@ -143,6 +144,7 @@ dofile("Graph/CompanionResources.lua")
 dofile("Graph/CompanionCastEvents.lua")
 dofile("Graph/CompanionScheduler.lua")
 dofile("Graph/CompanionCastRuntime.lua")
+dofile("Graph/CompanionSwings.lua")
 dofile("Graph/CompanionEvents.lua")
 dofile("Graph/EventAuras.lua")
 local C = XelAssist.Graph.CompanionEvents
@@ -701,6 +703,141 @@ assert(C:Apply(splitCast, splitCast, splitSecond, context,
         splitCompletion[1]) and splitPet.resource == 0
     and splitCast.hostiles.byKey[keyA].health == 80,
     "a split-window completion must not repay a cast that spent in the prior window")
+
+do
+local function verifiedSwing(state, nextIn, interval, power)
+    local pet = state.actors.pet
+    pet.autocasts, pet.resource, pet.actionReadyIn = {}, 0, 20
+    pet.attackActive, pet.attackActiveKnown = true, true
+    pet.attackRound = { projectable = true, verified = true,
+        phaseKnown = true, attackActive = true,
+        nextSwingIn = nextIn, interval = interval, power = power,
+        damageSource = "test full pet damage", phaseSource = "resolved test round" }
+    state.hostiles.byKey[keyA].geometry.pet = {
+        distance = 3, distanceKind = "hitbox", lineOfSight = true }
+    return pet
+end
+
+local whiteSwing = targetLocalState(guidA, false)
+local whitePet = verifiedSwing(whiteSwing, 0.5, 2, 20)
+local priorConsumed = table.getn(consumed)
+local whiteEvents = C:Events(whiteSwing,
+    { downtime = 1, targetKey = keyB, targetGUID = guidB })
+local appliedWhite = whiteEvents[1]
+    and C:Apply(whiteSwing, whiteSwing, candidate, context, whiteEvents[1])
+assert(table.getn(whiteEvents) == 1
+    and whiteEvents[1].kind == "petWhiteSwing"
+    and whiteEvents[1].offset == 0.5
+    and whiteEvents[1].targetGuid == guidA
+    and whiteEvents[1].ambient.facts.whiteAttack and appliedWhite
+    and whiteSwing.hostiles.byKey[keyA].health == 100
+    and not whiteSwing.hostiles.byKey[keyA].healthExact
+    and whiteSwing.hostiles.byKey[keyB].health == 200
+    and whiteSwing.hostiles.byKey[keyA].projectedThreat == nil
+    and whiteSwing.hostiles.byKey[keyA].threat.whiteSwingDamageUnknown
+    and whitePet.whiteSwingMagnitudeUnknown
+    and whitePet.resource == 0 and whitePet.actionReadyIn == 19
+    and table.getn(consumed) == priorConsumed + 1
+    and consumed[table.getn(consumed)].guid == guidA,
+    "a verified white swing must run target-locally outside focus and pet GCD: events="
+        .. tostring(table.getn(whiteEvents)) .. " applied=" .. tostring(appliedWhite)
+        .. " first=" .. tostring(whiteSwing.hostiles.byKey[keyA].health)
+        .. " second=" .. tostring(whiteSwing.hostiles.byKey[keyB].health)
+        .. " threat=" .. tostring(whiteSwing.hostiles.byKey[keyA].projectedThreat
+            and whiteSwing.hostiles.byKey[keyA].projectedThreat.pet)
+        .. " resource=" .. tostring(whitePet.resource)
+        .. " ready=" .. tostring(whitePet.actionReadyIn)
+        .. " consumed=" .. tostring(table.getn(consumed) - priorConsumed))
+
+local redirectedSwing = targetLocalState(guidA, false)
+verifiedSwing(redirectedSwing, 0.5, 2, 20)
+local redirectedEvent = C:Events(redirectedSwing,
+    { downtime = 1, targetKey = keyB, targetGUID = guidB })[1]
+redirectedSwing.actors.pet.targetGuid = guidB
+redirectedSwing.hostiles.byUnit.pettarget = keyB
+assert(not C:Apply(redirectedSwing, redirectedSwing, candidate,
+        context, redirectedEvent)
+    and redirectedSwing.hostiles.byKey[keyA].health == 100
+    and redirectedSwing.hostiles.byKey[keyB].health == 200,
+    "a target change before resolution must discard, never redirect, a white swing")
+
+local tiedSwing = targetLocalState(guidA, false)
+local tiedPet = verifiedSwing(tiedSwing, 0.5, 2, 20)
+local tiedBite = autocasts()[1]
+tiedBite.readyIn = 0.5
+tiedPet.resource, tiedPet.actionReadyIn = 100, 0
+tiedPet.autocasts = { tiedBite }
+tiedPet.pendingMeleeEffects = { Intimidation = {
+    remaining = 15, targetGuid = guidA, chargeProbability = 1 } }
+local tiedCandidate = { downtime = 1, targetKey = keyB, targetGUID = guidB }
+local tiedEvents = C:Events(tiedSwing, tiedCandidate)
+local tiedApplied = tiedEvents[1]
+    and C:Apply(tiedSwing, tiedSwing, tiedCandidate, context, tiedEvents[1])
+assert(table.getn(tiedEvents) == 1
+    and tiedEvents[1].kind == "petAutocastUnknown"
+    and tiedEvents[1].meleeOrderUnknown and tiedEvents[1].tiedWhiteAmbient
+    and tiedApplied and tiedPet.resource == 90
+    and tiedPet.resourceExact == false and tiedPet.actionReadyExact == false
+    and tiedSwing.hostiles.byKey[keyA].health == 100
+    and not tiedSwing.hostiles.byKey[keyA].healthExact
+    and tiedSwing.hostiles.byKey[keyA].projectedThreat == nil
+    and tiedPet.pendingMeleeEffects.Intimidation.outcomeUnknown
+    and tiedPet.pendingMeleeEffectsExact == false
+    and tiedCandidate.companionUnknowns[2] == "companion melee order",
+    "same-offset Bite and white swing must reserve cost and withhold invented order")
+
+local boundary = targetLocalState(guidA, false)
+local boundaryPet = verifiedSwing(boundary, 0.5, 3, 20)
+local boundaryBite = autocasts()[1]
+boundaryBite.readyIn, boundaryBite.cooldown = 0.5, 0.2
+boundaryBite.tooltip.gcd = 0.1
+boundaryPet.resource, boundaryPet.actionReadyIn = 100, 0
+boundaryPet.autocasts = { boundaryBite }
+local boundaryCandidate = {
+    downtime = 1.2, targetKey = keyB, targetGUID = guidB }
+local boundaryEvents = C:Events(boundary, boundaryCandidate)
+causalSort(boundaryEvents)
+assert(table.getn(boundaryEvents) > 1
+    and boundaryEvents[1].kind == "petAutocastUnknown"
+    and C:Apply(boundary, boundary, boundaryCandidate,
+        context, boundaryEvents[1]),
+    "a white-swing/autocast tie must establish a causal boundary")
+for i = 2, table.getn(boundaryEvents) do
+    assert(not C:Apply(boundary, boundary, boundaryCandidate,
+        context, boundaryEvents[i]),
+        "events after an unresolved companion order must be withheld")
+end
+assert(boundaryPet.resource == 90
+    and boundaryPet.companionTimelineExact == false
+    and not boundary.hostiles.byKey[keyA].healthExact,
+    "the boundary must prevent later focus, damage, threat and cooldown commits")
+
+local stoppedSwing = targetLocalState(guidA, false)
+local stoppedPet = verifiedSwing(stoppedSwing, 0.5, 2, 20)
+local stoppedEvent = C:Events(stoppedSwing,
+    { downtime = 1, targetKey = keyB, targetGUID = guidB })[1]
+stoppedPet.attackActive = false
+assert(not C:Apply(stoppedSwing, stoppedSwing, candidate, context, stoppedEvent)
+    and stoppedSwing.hostiles.byKey[keyA].health == 100,
+    "a stopped companion must invalidate a previously scheduled white swing")
+
+local heldSwing = targetLocalState(guidA, false)
+local heldPet = verifiedSwing(heldSwing, 0.5, 2, 20)
+heldSwing.hostiles.byKey[keyA].geometry.pet = {}
+local heldCandidate = { downtime = 1, targetKey = keyB, targetGUID = guidB }
+local heldEvents = C:Events(heldSwing, heldCandidate)
+assert(table.getn(heldEvents) == 0 and heldPet.attackRound.readyHeld
+    and heldPet.whiteSwingGeometryUnknown
+    and heldCandidate.companionUnknowns[1] == "companion melee geometry",
+    "unknown pet geometry must hold a ready swing without inventing damage")
+heldSwing.hostiles.byKey[keyA].geometry.pet = {
+    distance = 3, distanceKind = "hitbox", lineOfSight = true }
+local releasedEvents = C:Events(heldSwing,
+    { downtime = 0.1, targetKey = keyB, targetGUID = guidB })
+assert(table.getn(releasedEvents) == 1
+    and releasedEvents[1].offset == 0.05,
+    "a held swing may resume only after exact legal geometry returns")
+end
 
 local failedCast = targetLocalState(guidA, false)
 failedCast.actors.pet.resource = 20

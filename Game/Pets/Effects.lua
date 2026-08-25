@@ -151,6 +151,10 @@ function E:ConsumeMelee(state, action, targetGuid, delivery)
     for name, effect in pairs(effects) do
         if (not effect.remaining or effect.remaining > 0)
             and effect.targetGuid == targetGuid then
+            if effect.outcomeUnknown then
+                state.deferredControlTimingUnknown = true
+                return nil
+            end
             local probability = tonumber(delivery)
             if probability == nil then probability = 1 end
             probability = math.max(0, math.min(1, probability))
@@ -160,10 +164,22 @@ function E:ConsumeMelee(state, action, targetGuid, delivery)
             if effect.chargeProbability <= 0.05 then effects[name] = nil end
             if effect.stunDuration and effect.stunDuration > 0 then
                 state.auras = state.auras or {}
-                state.auras[name] = { remaining = effect.stunDuration,
-                    duration = effect.stunDuration, mine = true,
-                    target = "target", applicationProbability = proc,
-                    sourceActor = "pet", deferred = true }
+                local prior = state.auras[name]
+                local priorProbability = tonumber(
+                    prior and prior.applicationProbability) or 0
+                if not prior or (tonumber(prior.remaining) or 0) <= 0
+                    or proc > priorProbability then
+                    state.auras[name] = { remaining = effect.stunDuration,
+                        duration = effect.stunDuration, mine = true,
+                        target = "target", applicationProbability = proc,
+                        sourceActor = "pet", deferred = true }
+                else
+                    -- Distinct possible proc times are mutually exclusive
+                    -- branches. Keep the strongest single active lower bound;
+                    -- summing them and refreshing duration would invent control.
+                    prior.alternateProcTimingWithheld = true
+                    state.deferredControlTimingUnknown = true
+                end
             end
             effect.threat = deferredThreat(effect, pet)
             effect.threatMultiplier = self:ThreatMultiplier(pet)

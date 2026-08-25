@@ -52,8 +52,11 @@ never class rotations or ordered priority lists.
   without writing opaque identities or inferred state to saved variables.
   `Game/Pets/FocusEvidence.lua` owns session-only Hunter cadence learning,
   `FocusEvents.lua` owns standard/Nampower invalidation and attribution events,
-  and `Resources.lua` owns conservative graph-clock arithmetic. None persists a
-  pet identity or hardcodes a private-server regeneration rate.
+  and `Resources.lua` owns conservative graph-clock arithmetic.
+  `Game/AttackRounds.lua` owns session-only classified companion swing evidence,
+  `AttackRoundEvents.lua` owns its invalidation boundary, and
+  `PlayerAttack.lua` owns idempotent live player-Attack submission. None persists
+  a pet identity or hardcodes a private-server regeneration rate.
 - `Combat` owns declarative player and companion spell meaning, stateless
   delivery rules, transient observations, and target evidence. Pet knowledge is
   ID-first metadata over live-discovered actions, never a family priority list.
@@ -64,7 +67,9 @@ never class rotations or ordered priority lists.
   `Graph/AreaRecipients.lua` resolves conservative per-effect recipient sets;
   `Graph/HostileEffects.lua` applies eligible hostile-local effects without
   spending one action more than once. `Graph/AutoShotEffects.lua` and
-  `Graph/CompanionEvents.lua` own target-pinned ambient events.
+  `Graph/CompanionEvents.lua` own target-pinned ambient events;
+  `Graph/CompanionTargets.lua` owns their identity boundary and
+  `Graph/CompanionSwings.lua` owns ordinary melee scheduling.
   `Graph/CompanionScheduler.lua` arbitrates one pet cast/GCD clock;
   its resource, tie, cast-event, and cast-runtime helpers each own one phase of
   causal scheduling, while unknown cost makes later affordability inexact.

@@ -266,6 +266,9 @@ local function applyActorOrInventory(out, candidate, context)
         and XelAssist.Game.Pets.Effects:Apply(out, candidate,
             context.petEventContext or context) then
         return
+    elseif facts.playerAttack then
+        out.playerAttack = XelAssist.Game.PlayerAttack:Projected(
+            candidate.targetGUID or out.targetGUID)
     elseif facts.kind == "autoRepeat" then
         local auto = out.autoShot or {}
         auto.supported, auto.active = true, true
@@ -282,9 +285,29 @@ local function applyActorOrInventory(out, candidate, context)
     elseif facts.kind == "command" and out.actors and out.actors.pet then
         if action.command == "passive" then
             out.actors.pet.stance = "passive"
+            out.actors.pet.attackActive = false
+            out.actors.pet.attackActiveKnown = true
+            if out.actors.pet.attackRound then
+                out.actors.pet.attackRound.projectable = false
+                out.actors.pet.attackRound.phaseKnown = false
+            end
         else
             out.actors.pet.targetExists = action.command == "attack"
             out.actors.pet.targetsCurrent = action.command == "attack"
+            if action.command == "attack" then
+                out.actors.pet.targetGuid = candidate.targetGUID or out.targetGUID
+                out.actors.pet.attackActive = true
+                out.actors.pet.attackActiveKnown = true
+                if out.actors.pet.attackRound then
+                    out.actors.pet.attackRound.projectable = false
+                    out.actors.pet.attackRound.phaseKnown = false
+                    out.actors.pet.attackRound.reason =
+                        "attack command submitted; awaiting resolved swing"
+                end
+            else
+                out.actors.pet.attackActive = false
+                out.actors.pet.attackActiveKnown = true
+            end
         end
     elseif facts.kind == "resource" and facts.consumable then
         out.resource = math.min(out.resourceMax,

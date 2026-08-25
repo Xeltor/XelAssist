@@ -139,6 +139,8 @@ function S:Snapshot(mode)
     local distanceKind = target.hostile and target.distanceKind or healDistanceKind
     local autoShot = autoShotState(inventory, target.hostile, moving,
         casting, channeling, target.distance, target.geometry)
+    local playerAttack = XelAssist.Game.PlayerAttack
+        and XelAssist.Game.PlayerAttack:Snapshot() or nil
     local state = {
         mode = mode, hostile = target.hostile, targetGUID = target.guid,
         targetRef = target.ref, friendlies = friendlies, hostiles = target.hostiles,
@@ -164,6 +166,7 @@ function S:Snapshot(mode)
         pet = actors.pet ~= nil, petLifecycle = actors.petLifecycle,
         actors = actors, inventory = inventory,
         autoShot = autoShot,
+        playerAttack = playerAttack,
         encounter = encounter, targetAuras = target.targetAuras,
         targetCasting = target.casting,
         targetCastRemaining = target.castRemaining,
@@ -287,6 +290,9 @@ function S:Copy(state)
     end
     if state.autoShot then
         out.autoShot = copyNested(state.autoShot, 2, seen, nil, atomic)
+    end
+    if state.playerAttack then
+        out.playerAttack = copyNested(state.playerAttack, 2, seen, nil, atomic)
     end
     if out.hostiles then
         if state.targetContextKey ~= nil then

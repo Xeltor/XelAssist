@@ -168,19 +168,28 @@ local i
 for i = 1, table.getn(files) do dofile(files[i]) end
 local eventFrame
 focusEventFrame = nil
+attackRoundEventFrame = nil
 for i = 1, table.getn(createdFrames) do
     local frame = createdFrames[i]
     local registered = rawget(frame, "registered")
     if registered and registered.ADDON_LOADED and frame.OnEvent then
         eventFrame = frame
     end
-    if registered and registered.PLAYER_CONTROL_LOST
+    if registered and registered.SPELL_ENERGIZE_BY_SELF
+        and registered.PLAYER_CONTROL_LOST
         and registered.UNIT_AURA and frame.OnEvent then
         focusEventFrame = frame
+    end
+    if registered and registered.PET_ATTACK_START
+        and registered.UNIT_ATTACK_SPEED and registered.UNIT_TARGET
+        and not registered.SPELL_ENERGIZE_BY_SELF and frame.OnEvent then
+        attackRoundEventFrame = frame
     end
 end
 assert(eventFrame, "core event dispatcher was not registered")
 assert(focusEventFrame, "Hunter focus evidence dispatcher was not registered")
+assert(attackRoundEventFrame,
+    "companion attack-round invalidation dispatcher was not registered")
 local function fireEvent(name, a1, a2, a3, a4, a5, a6, a7, a8, a9)
     event, arg1, arg2, arg3, arg4 = name, a1, a2, a3, a4
     arg5, arg6, arg7, arg8, arg9 = a5, a6, a7, a8, a9
@@ -215,7 +224,7 @@ assert(XelAssistCharDB.graphDepth == 3 and XelAssistCharDB.role == "auto", "char
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.1" and runtime.nampower == "4.6.2", "runtime versions missing")
+assert(runtime.version == "0.8.2" and runtime.nampower == "4.6.2", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(runtime.evidenceEvents.damage and runtime.evidenceEvents.miss,
@@ -226,15 +235,28 @@ assert(runtime.evidenceEvents.autoAttack
     "exact Nampower white-swing evidence events were not registered and audited")
 local routedAutoAttack
 local originalAutoAttack = XelAssist.Combat.Resistance.AutoAttack
+routedAttackRound = nil
+XelAssistTestOriginalAttackRoundObserve = XelAssist.Game.AttackRounds.Observe
 function XelAssist.Combat.Resistance:AutoAttack(a1, a2, a3, a4, a5, a6, a7, a8, a9)
     routedAutoAttack = { a1, a2, a3, a4, a5, a6, a7, a8, a9 }
+    return { actor = "pet", hand = "main", outcome = "miss", hitInfo = a4,
+        evidence = "ordinary-miss", exactDelivery = true }
+end
+function XelAssist.Game.AttackRounds:Observe(attackerGuid, targetGuid, result, at)
+    routedAttackRound = { attackerGuid, targetGuid, result, at }
 end
 fireEvent("AUTO_ATTACK_SELF", "player-guid", "target-guid", 42, 4, 1, 2, 3, 4, 5)
 XelAssist.Combat.Resistance.AutoAttack = originalAutoAttack
+XelAssist.Game.AttackRounds.Observe = XelAssistTestOriginalAttackRoundObserve
 assert(routedAutoAttack and routedAutoAttack[1] == "player-guid"
     and routedAutoAttack[2] == "target-guid" and routedAutoAttack[3] == 42
     and routedAutoAttack[4] == 4 and routedAutoAttack[9] == 5,
     "core must forward all nine Nampower white-swing fields unchanged")
+assert(routedAttackRound and routedAttackRound[1] == "player-guid"
+    and routedAttackRound[2] == "target-guid"
+    and routedAttackRound[3].outcome == "miss"
+    and routedAttackRound[4] == mockTime,
+    "core must route the classified round and exact observation time once")
 assert(runtime.evidenceEvents.aura and runtime.evidenceEvents.start and runtime.evidenceEvents.go,
     "gated Nampower aura/cast lifecycle events were not enabled and audited")
 assert(focusEventFrame.registered.SPELL_ENERGIZE_BY_SELF
@@ -1022,6 +1044,57 @@ assert(directCastCount == autoCasts + 1 and queueCount == autoQueues
     and string.find(XelAssist.lastReason, "state uncertain", 1, true),
     "a second tap before the client update must hold without toggling Auto Shot off")
 XelAssist.Combat.AutoShot:Reset(true)
+
+queuedSpell, directlyCast, directUnit = nil, nil, nil
+XelAssistTestSavedCurrentCastingInfo, XelAssistTestSavedAttackTarget =
+    GetCurrentCastingInfo, AttackTarget
+XelAssistTestLivePlayerAttack, XelAssistTestPlayerAttackCalls = 0, 0
+GetCurrentCastingInfo = function()
+    return 0, 0, 0, 0, 0, 0, XelAssistTestLivePlayerAttack
+end
+AttackTarget = function()
+    XelAssistTestPlayerAttackCalls = XelAssistTestPlayerAttackCalls + 1
+end
+XelAssist.Game.PlayerAttack:Reset()
+XelAssistTestPlayerAttackPlan = { action = { name = "Attack", spellId = 6603,
+        rank = 1, rankText = "", actor = "player", executor = "playerSpell",
+        facts = { kind = "command", playerAttack = true, ambient = true,
+            startOnly = true, melee = true, whiteAttack = true,
+            cast = 0, gcd = 0 } },
+    target = "target", targetGUID = "hunter-auto-target",
+    targetRelation = "hostile",
+    targetRef = { unit = "target", guid = "hunter-auto-target",
+        relation = "hostile", source = "selected" },
+    reason = "test player melee start", confidence = "client data", value = 1,
+    threat = 0, wait = 0, cast = 0, downtime = 0.05,
+    observed = {}, follow = {}, path = {}, tooltip = {} }
+XelAssist.Graph.Evaluate = function()
+    return XelAssistTestPlayerAttackPlan, nil, false
+end
+XelAssistTestAttackCasts, XelAssistTestAttackQueues, XelAssistTestAttackLog =
+    directCastCount, queueCount, table.getn(XelAssistLog)
+XelAssist:Execute()
+assert(XelAssistTestPlayerAttackCalls == 1
+    and directCastCount == XelAssistTestAttackCasts
+    and queueCount == XelAssistTestAttackQueues
+    and table.getn(XelAssistLog) == XelAssistTestAttackLog + 1,
+    "Attack must use AttackTarget once without entering a spell cast or queue")
+XelAssist:Execute()
+assert(XelAssistTestPlayerAttackCalls == 1
+    and directCastCount == XelAssistTestAttackCasts
+    and queueCount == XelAssistTestAttackQueues
+    and table.getn(XelAssistLog) == XelAssistTestAttackLog + 1
+    and string.find(XelAssist.lastReason, "start pending", 1, true),
+    "a repeated /xa input must hold while the player Attack state is pending")
+XelAssistTestLivePlayerAttack = 1
+XelAssist:Execute()
+assert(XelAssistTestPlayerAttackCalls == 1
+    and table.getn(XelAssistLog) == XelAssistTestAttackLog + 1
+    and string.find(XelAssist.lastReason, "already active", 1, true),
+    "a live active player Attack must never be toggled by another /xa input")
+XelAssist.Game.PlayerAttack:Reset()
+GetCurrentCastingInfo, AttackTarget = XelAssistTestSavedCurrentCastingInfo,
+    XelAssistTestSavedAttackTarget
 UnitClass, IsAutoRepeatAction, UnitCanAttack = originalUnitClass,
     originalAutoRepeat, originalUnitCanAttack
 testTargetGUID = nil

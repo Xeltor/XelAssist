@@ -11,6 +11,7 @@ dofile("Combat/AutoShotProjection.lua")
 dofile("Combat/PetKnowledge.lua")
 dofile("Game/SpellTiming.lua")
 dofile("Game/Capabilities.lua")
+dofile("Game/PlayerAttack.lua")
 dofile("Game/Pets/Resources.lua")
 dofile("Game/Pets/Actions.lua")
 dofile("Game/Pets/Effects.lua")
@@ -19,6 +20,7 @@ dofile("Game/Friendlies.lua")
 dofile("Combat/TargetModifiers.lua")
 dofile("Graph/HostileState.lua")
 dofile("Graph/State.lua")
+dofile("Graph/CompanionTargets.lua")
 dofile("Graph/TargetSelection.lua")
 dofile("Graph/CompanionThreat.lua")
 dofile("Graph/CompanionEventThreat.lua")
@@ -33,6 +35,7 @@ dofile("Graph/CompanionResources.lua")
 dofile("Graph/CompanionCastEvents.lua")
 dofile("Graph/CompanionScheduler.lua")
 dofile("Graph/CompanionCastRuntime.lua")
+dofile("Graph/CompanionSwings.lua")
 dofile("Graph/CompanionEvents.lua")
 dofile("Graph/EventAuras.lua")
 dofile("Graph/ReadinessEffects.lua")
@@ -929,6 +932,40 @@ XelAssistCharDB.graphDepth = 1
 plan = expect("Auto Shot active repeat guard", "Low Filler")
 assert(plan.action.name ~= "Auto Shot",
     "an active repeat must never re-enter the candidate graph as a toggle press")
+
+local savedAttackTarget = AttackTarget
+AttackTarget = function() end
+XelAssist.Game.PlayerAttack:Reset()
+currentState = state("smart")
+currentState.actorReadyAt = { player = 0, pet = 0 }
+currentState.playerAttack = { supported = true, active = false,
+    activeKnown = true, pending = false, clockKnown = true,
+    source = "Nampower current casting info" }
+local meleeStart = action("Attack", 1, "command", 400, 0,
+    { playerAttack = true, ambient = true, startOnly = true,
+        melee = true, whiteAttack = true, cast = 0 })
+meleeStart.mock.gcd = 0
+local meleeFiller = action("Melee Filler", 1, "damage", 1, 0)
+meleeFiller.mock.gcd = 2.5
+scenarioActions = { meleeStart, meleeFiller }
+XelAssistCharDB.graphDepth = 2
+plan = expect("player Attack ambient start", "Attack")
+assert(plan.power == 0 and plan.path[1].rawPower == 0 and plan.threat == 0
+    and plan.follow[1] and plan.follow[1].name == "Melee Filler",
+    "Attack must be a zero-packet setup followed by an ordinary action")
+local afterMeleeStart = XelAssist.Graph.Transitions:Advance(
+    currentState, plan.path[1])
+assert(afterMeleeStart.targetHealth == currentState.targetHealth
+    and afterMeleeStart.playerAttack.active
+    and afterMeleeStart.playerAttack.activeKnown
+    and not afterMeleeStart.playerAttack.pending,
+    "starting player Attack must not invent immediate damage or a swing")
+currentState.playerAttack.active = true
+XelAssistCharDB.graphDepth = 1
+plan = expect("player Attack active repeat guard", "Melee Filler")
+assert(plan.action.name ~= "Attack",
+    "an active player Attack must never re-enter the graph as a toggle press")
+AttackTarget = savedAttackTarget
 
 local function hunterAutoState(health, nextLaunch, distance)
     local value = state("smart")
@@ -1970,6 +2007,18 @@ plan = expect("companion attack command", "Pet Attack")
 assert(plan.wait < 0.2,
     "a companion command must execute now rather than inherit the pet cast clock")
 currentState.actors.pet.targetExists = true; currentState.actors.pet.targetsCurrent = true
+currentState.actors.pet.attackActiveKnown = true
+currentState.actors.pet.attackActive = false
+currentState.actors.pet.attackRound = { projectable = true, phaseKnown = true,
+    attackActive = true, nextSwingIn = 1, interval = 2, power = 50 }
+plan = expect("inactive companion attack command", "Pet Attack")
+local afterPetAttackCommand = XelAssist.Graph.Transitions:Advance(currentState, plan)
+assert(afterPetAttackCommand.targetHealth == currentState.targetHealth
+    and afterPetAttackCommand.actors.pet.attackActive
+    and not afterPetAttackCommand.actors.pet.attackRound.projectable
+    and not afterPetAttackCommand.actors.pet.attackRound.phaseKnown,
+    "Pet Attack must start engagement without inventing an immediate swing")
+currentState.actors.pet.attackActive = true
 scenarioActions = { { name = "Pet Attack", rank = 1, actor = "pet", executor = "petCommand",
         command = "attack", facts = { kind = "command", petCommand = true },
         mock = { cost = 0, cast = 0, gcd = 0 } }, action("Shadow Bolt", 1, "damage", 100, 20) }

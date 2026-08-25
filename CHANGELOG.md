@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.8.2
+
+- Added a session-only, target-pinned controlled-companion main-hand swing
+  clock. Only exact classified Nampower rounds from the current pet establish
+  phase; pet commands, action-bar glow, misses without exact actor attribution,
+  and `NOACTION` packets do not. Identity, target, attack-state, speed, aura,
+  level, world, and control-regime changes invalidate the clock.
+- Scheduled verified Hunter pet and Warlock demon white rounds independently of
+  focus and pet spell GCD, behind exact hitbox/combat-reach and line-of-sight
+  evidence. Events retain their original hostile GUID and stop at timeline caps,
+  target changes, overdue phase, or an unresolved same-time autocast order.
+- Kept timing evidence separate from outcome magnitude. The stock normal pet
+  damage envelope is visible diagnostically, but projected white rounds do not
+  invent damage, threat, target survival, or deferred-melee proc order until the
+  crit/glancing/block/absorb/resistance distribution is defensible.
+- Made the generic player `Attack` action an idempotent start-only command using
+  Nampower's exact live auto-attack state and a rewind-safe submission latch. A
+  button press cannot score or apply an immediate white hit, enter the spell
+  queue, or toggle the attack back off on repeated taps.
+- Fixed deferred Hunter melee threat so Intimidation updates the captured
+  hostile record and only mirrors into the root pet for the selected target.
+  Added real hostile-context and same-window causal-boundary regressions.
+- Split companion target identity and swing scheduling into focused modules and
+  added privacy-safe swing diagnostics. All deterministic validators pass;
+  authenticated in-world Hunter validation remains pending and is not claimed.
+
 ## 0.8.1
 
 - Added a session-only Hunter focus learner without assuming a server or talent
