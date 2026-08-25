@@ -33,7 +33,8 @@ local function windowFraction(startAt, duration, lower, upper)
 end
 
 local function evidence(context)
-    if not context.damageKind or not context.descriptor
+    local durationUtility = context.kind == "debuff"
+    if not (context.damageKind or durationUtility) or not context.descriptor
         or context.descriptor.relation ~= "hostile" then return nil end
     local learned = context.state.targetSurvival
     if type(learned) ~= "table" or learned.available ~= true
@@ -48,6 +49,27 @@ local function evidence(context)
     local upper = math.max(lower,
         (tonumber(learned.upperTimeToDie) or learned.timeToDie or 0) * scale)
     return learned, lower, upper
+end
+
+-- Generic hostile utility has to earn back the action window used to apply it.
+-- The existing utility score only values the first ten seconds of an effect,
+-- so use that same bounded window rather than pretending a multi-minute debuff
+-- pays back in full on a target which is already dying.  This intentionally
+-- relies only on observed target-health pressure and action timing; it does not
+-- encode a class-specific curse, mark, shout, or armor-cycle rule.
+local function durationUtility(context, impactAt, lower, upper)
+    local duration = tonumber(context.effectTooltip.duration)
+        or tonumber(context.tooltip.duration)
+    local window = math.min(10, duration and math.max(0, duration) or 10)
+    if window <= 0 then return 0, 0, 0, duration end
+    local expectedSeconds = window
+        * windowFraction(impactAt, window, lower, upper)
+    local setupSeconds = math.min(window, math.max(0,
+        tonumber(context.downtime) or tonumber(context.occupancy) or 0))
+    local usefulSeconds = math.max(0, expectedSeconds - setupSeconds)
+    local availableSeconds = math.max(0.001, window - setupSeconds)
+    return math.max(0, math.min(1, usefulSeconds / availableSeconds)),
+        expectedSeconds, setupSeconds, duration
 end
 
 function S:Adjust(context)
@@ -69,7 +91,11 @@ function S:Adjust(context)
     local before = math.max(0, tonumber(context.expectedPower) or 0)
     local directFactor = aliveAt(impactAt, lower, upper)
     local periodicFactor, duration = nil, nil
-    if context.kind == "dot" then
+    local utilityFactor, expectedUtilitySeconds, utilityPaybackSeconds
+    if context.kind == "debuff" then
+        utilityFactor, expectedUtilitySeconds, utilityPaybackSeconds, duration =
+            durationUtility(context, impactAt, lower, upper)
+    elseif context.kind == "dot" then
         duration = math.max(0, tonumber(context.effectTooltip.duration)
             or tonumber(context.tooltip.duration) or 12)
         periodicFactor = windowFraction(impactAt, duration, lower, upper)
@@ -87,7 +113,8 @@ function S:Adjust(context)
     else
         context.expectedPower = before * directFactor
     end
-    local factor = before > 0 and context.expectedPower / before or 1
+    local factor = utilityFactor
+        or (before > 0 and context.expectedPower / before or 1)
     context.survival = { available = true,
         timeToDie = learned.timeToDie, lowerTimeToDie = lower,
         upperTimeToDie = upper, incomingDps = learned.incomingDps,
@@ -95,13 +122,18 @@ function S:Adjust(context)
         confidence = learned.confidence, source = learned.source,
         impactAt = impactAt, duration = duration,
         directFactor = directFactor, periodicFactor = periodicFactor,
+        utilityFactor = utilityFactor,
+        expectedUtilitySeconds = expectedUtilitySeconds,
+        utilityPaybackSeconds = utilityPaybackSeconds,
         decisionFactor = factor }
 end
 
 function S:Explain(context)
     local survival = context.survival
     if not survival or (survival.decisionFactor or 1) >= 0.75 then return end
-    if context.kind == "dot" then
+    if context.kind == "debuff" then
+        context.reason = "target may die before the utility pays back"
+    elseif context.kind == "dot" then
         context.reason = "target may die before the effect pays back"
     elseif context.facts.channel then
         context.reason = "target may die before the channel completes"

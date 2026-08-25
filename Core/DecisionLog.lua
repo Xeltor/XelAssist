@@ -29,6 +29,12 @@ function L:Record(plan, mode)
         actor = action.actor or "player", executor = action.executor or "playerSpell",
         reason = plan.reason, status = "attempted", confidence = plan.confidence,
         value = math.floor(plan.value or 0), downtime = plan.downtime,
+        graphElapsed = plan.elapsed, graphExpanded = plan.expanded,
+        graphDepth = plan.completedDepth, graphHorizon = plan.decisionHorizon,
+        graphBudgetLimited = plan.budgetLimited and true or false,
+        timelineProbeHits = plan.timelineProbeHits,
+        timelineProbeMisses = plan.timelineProbeMisses,
+        timelineProbeBypasses = plan.timelineProbeBypasses,
         threat = math.floor(plan.threat or 0), hp = state.health, hpMax = state.healthMax,
         targetHp = state.targetHealth, targetMax = state.targetMax,
         resource = state.resource, resourceMax = state.resourceMax,
@@ -138,6 +144,16 @@ local function survivalDetail(row)
         math.floor((row.survivalDecisionFactor or 1) * 100 + 0.5))
 end
 
+local function graphDetail(row)
+    if not row.graphElapsed then return "" end
+    local probes = (tonumber(row.timelineProbeHits) or 0)
+        + (tonumber(row.timelineProbeMisses) or 0)
+    return string.format(" · graph %.1fms d%d/%d n%d%s · probes %d/%d",
+        row.graphElapsed, row.graphDepth or 0, row.graphHorizon or 0,
+        row.graphExpanded or 0, row.graphBudgetLimited and " limited" or "",
+        row.timelineProbeHits or 0, probes)
+end
+
 function L:PrintRecent()
     local first = math.max(1, table.getn(XelAssistLog) - 4)
     local i
@@ -146,7 +162,7 @@ function L:PrintRecent()
         msg("log " .. i .. ": " .. row.action .. " R" .. (row.rank or 0)
             .. " — " .. row.reason .. " (" .. row.confidence .. ", "
             .. (row.status or "unknown") .. ")" .. resistanceDetail(row)
-            .. survivalDetail(row))
+            .. survivalDetail(row) .. graphDetail(row))
     end
     if table.getn(XelAssistLog) == 0 then msg("decision log is empty.") end
 end

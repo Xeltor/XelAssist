@@ -90,7 +90,10 @@ never class rotations or ordered priority lists.
   ranged stats, and the bounded submission latch. It does not depend on graph
   search.
 - `Game/SpellPower.lua` decodes OctoWoW's VMaNGOS weapon-effect aggregation
-  from live Spell.dbc rows. `Game/WeaponPower.lua` owns the ordinary and
+  from live Spell.dbc rows. `Game/SpellEffectPower.lua` derives only complete
+  scalar direct/periodic totals from installed-client effect arrays, and
+  `Game/SpellFactCache.lua` keeps actor-identity-bound tooltip/DBC facts local
+  to the current player or companion. `Game/WeaponPower.lua` owns the ordinary and
   normalized live equipped-weapon basis. `Graph/ActionPower.lua` combines those
   facts with scripted effects, tooltip evidence, and spell power;
   strategic utility and delivery stay outside raw potency.
@@ -103,7 +106,9 @@ never class rotations or ordered priority lists.
   ordering and interrupt cancellation; and `Graph/IncomingScoring.lua` exposes
   those consequences to healing and absorb value without broadening admission.
   `Graph/SurvivalPressure.lua` converts learned target pressure into bounded
-  cast, channel, and periodic expected output without defining class strategy.
+  cast, channel, periodic, and hostile-setup payoff without defining class
+  strategy. `Graph/PeriodicScoring.lua` owns periodic combat progress and
+  role/output weighting, leaving the main scoring coordinator human-sized.
   `Graph/DotProjection.lua` owns the direct/periodic transition split and keeps
   that expected survival factor causal across later aura ticks.
   `Graph/ChannelCommitment.lua` owns the remaining-value comparison between
@@ -131,8 +136,10 @@ never class rotations or ordered priority lists.
   `Graph/CompanionEventThreat.lua` owns companion threat consequences,
   `Graph/EventAuras.lua` owns GUID-keyed clocks for auras those events create,
   and `Graph/ReadinessEffects.lua` owns chosen-action cooldown clocks.
-  `Graph/Timeline.lua` orders projected combat events without owning their
-  mechanics. `Graph/ActorScoring.lua` and `Graph/ThreatScoring.lua` keep
+  `Graph/AmbientTargetHealth.lua` proves when scoring can skip an otherwise
+  redundant causal health copy; `Graph/Timeline.lua` orders projected combat
+  events without owning their mechanics. `Graph/ActorScoring.lua` and
+  `Graph/ThreatScoring.lua` keep
   controlled-actor utility, actor-owned threat, and delivered
   damage-per-resource value out of core potency scoring.
   `Graph/PlayerEngagement.lua` projects productive Attack starts;

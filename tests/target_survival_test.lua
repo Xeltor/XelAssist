@@ -67,12 +67,12 @@ local survival = { available = true, incomingDps = 200, timeToDie = 2,
     observedFor = 3, samples = 7, confidence = "observed",
     source = "exact hostile health trend" }
 local function context(kind, cast, duration)
-    return { kind = kind, damageKind = true,
+    return { kind = kind, damageKind = kind ~= "debuff",
         facts = { kind = kind, channel = kind == "channel" },
         state = { time = 0, targetHealth = 400,
             targetHealthExact = true, targetSurvival = survival },
         descriptor = { relation = "hostile" }, targetHealthAtImpact = 400,
-        wait = 0, cast = cast or 0, expectedPower = 500,
+        wait = 0, cast = cast or 0, downtime = 1.5, expectedPower = 500,
         dotPeriodicExpectedPower = kind == "dot" and 500 or nil,
         tooltip = { duration = duration }, effectTooltip = { duration = duration } }
 end
@@ -104,6 +104,28 @@ P:Adjust(future)
 assert(future.survival.directFactor > 0.58
     and future.survival.directFactor < 0.59,
     "future graph time must consume the same root survival window")
+local debuff = context("debuff", 0, 120)
+P:Adjust(debuff); P:Explain(debuff)
+assert(debuff.survival and debuff.survival.utilityFactor > 0.07
+    and debuff.survival.utilityFactor < 0.071
+    and debuff.survival.expectedUtilitySeconds > 2.09
+    and debuff.survival.expectedUtilitySeconds < 2.11
+    and debuff.survival.utilityPaybackSeconds == 1.5
+    and debuff.reason == "target may die before the utility pays back",
+    "a hostile utility debuff must retain only observed lifetime after its action payback window")
+local expiredDebuff = context("debuff", 0, 120)
+expiredDebuff.state.time = 3
+P:Adjust(expiredDebuff)
+assert(expiredDebuff.survival.utilityFactor == 0,
+    "a debuff must have no utility after the target's bounded lifetime")
+local durableDebuff = context("debuff", 0, 120)
+durableDebuff.state.targetSurvival = { available = true, incomingDps = 20,
+    timeToDie = 20, lowerTimeToDie = 15, upperTimeToDie = 25,
+    observedFor = 3, samples = 7, confidence = "observed",
+    source = "exact hostile health trend" }
+P:Adjust(durableDebuff)
+assert(durableDebuff.survival.utilityFactor == 1,
+    "a target proven to outlive the bounded utility window must retain full debuff value")
 local area = context("damage", 3)
 area.tooltip.topology = { area = true }
 area.effectTooltip.topology = area.tooltip.topology

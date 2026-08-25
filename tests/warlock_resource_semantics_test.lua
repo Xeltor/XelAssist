@@ -37,6 +37,8 @@ GetSpellSlotTypeIdForName = function(name)
 end
 
 dofile("Game/ResourceExchange.lua")
+dofile("Game/SpellEffectPower.lua")
+dofile("Game/SpellFactCache.lua")
 dofile("Game/Capabilities.lua")
 
 local unsigned = XelAssist.Game.ResourceExchange:InferDBC(1454)

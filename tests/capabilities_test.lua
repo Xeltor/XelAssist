@@ -122,6 +122,23 @@ GetSpellRecField = function(spellId, field)
             effectBasePoints = { -46, 5, 0 }, effectMiscValue = { 20, 20, 0 } }
         return modifier[field]
     end
+    if spellId == 172 then
+        local corruption = {
+            castTime = 1500, recoveryTime = 0, categoryRecoveryTime = 0,
+            category = 0, startRecoveryTime = 1500,
+            startRecoveryCategory = 133, rangeIndex = 7, manaCost = 35,
+            attributes = 0, school = 5, spellLevel = 1, baseLevel = 1,
+            maxLevel = 60, attributesEx4 = 0,
+            effect = { 6, 0, 0 }, effectApplyAuraName = { 3, 0, 0 },
+            effectBasePoints = { 9, 0, 0 },
+            effectBaseDice = { 1, 0, 0 }, effectDieSides = { 1, 0, 0 },
+            effectDicePerLevel = { 0, 0, 0 },
+            effectRealPointsPerLevel = { 0, 0, 0 },
+            effectAmplitude = { 3000, 0, 0 },
+            effectPointsPerComboPoint = { 0, 0, 0 },
+        }
+        return corruption[field]
+    end
     if spellId == 348 and field == "effect" then return { 2, 6, 0 } end
     if spellId == 348 and field == "effectApplyAuraName" then return { 0, 3, 0 } end
     if spellId == 348 and field == "effectAmplitude" then return { 0, 3000, 0 } end
@@ -177,8 +194,11 @@ dofile("Combat/Knowledge.lua")
 dofile("Game/SpellTiming.lua")
 dofile("Game/SpellClassification.lua")
 dofile("Game/SpellPower.lua")
+dofile("Game/SpellEffectPower.lua")
+dofile("Game/SpellFactCache.lua")
 dofile("Game/Range.lua")
 dofile("Game/Capabilities.lua")
+dofile("Graph/ActionPower.lua")
 
 local savedGetCastInfo, savedGetCurrentCastingInfo = GetCastInfo,
     GetCurrentCastingInfo
@@ -432,8 +452,44 @@ local hybrid = XelAssist.Game.Capabilities:Facts({ name = "Immolate", slot = 4,
     spellId = 348, bookType = BOOKTYPE_SPELL, facts = { kind = "dot" } })
 assert(hybrid.directDamage == 30 and hybrid.periodicDamage == 60
     and hybrid.average == 90 and hybrid.periodicInterval == 3
+    and hybrid.damageTotalSource == "tooltip"
     and hybrid.periodicIntervalSource == "client DBC effectAmplitude",
     "hybrid damage and authoritative DBC tick cadence must remain separable")
+tooltipLines[2] = { left = "Corrupts the target, causing 40 Shadow damage over 12 sec.", right = nil }
+tooltipLines[3] = { left = "1.5 sec cast", right = "30 yd range" }
+local gerundDot = XelAssist.Game.Capabilities:Facts({ name = "Corruption", slot = 5,
+    spellId = 172, bookType = BOOKTYPE_SPELL, facts = { kind = "dot" } })
+assert(gerundDot.average == 40 and gerundDot.damageTotalSource == "tooltip",
+    "a complete periodic total using 'causing' must not collapse to one DBC tick")
+tooltipLines[2] = { left = "Deals 10 Shadow damage every 3 sec over 12 sec.", right = nil }
+tooltipLines[3] = { left = "1.5 sec cast", right = "30 yd range" }
+local perTickAction = { name = "Corruption", slot = 7, spellId = 172,
+    bookType = BOOKTYPE_SPELL, rank = 1, facts = { kind = "dot" } }
+local perTickDot = XelAssist.Game.Capabilities:Facts(perTickAction)
+assert(perTickDot.average == 10 and perTickDot.damageTotalSource == nil
+    and perTickDot.dbcEffectAverage == 40
+    and perTickDot.dbcEffectPeriodicDamage == 40
+    and perTickDot.dbcEffectComplete,
+    "a per-tick tooltip must retain the complete four-tick DBC total")
+local perTickPower, perTickEstimated, perTickEvidence =
+    XelAssist.Graph.ActionPower:Estimate(perTickAction, perTickDot, {}, "target-guid")
+assert(perTickPower == 40 and perTickEstimated
+    and perTickEvidence and perTickEvidence.complete
+    and perTickEvidence.periodic == 40,
+    "ActionPower must choose the complete DBC total over a per-tick tooltip value")
+tooltipLines[2] = { left = "Deals 10 Fire damage.", right = nil }
+local firstDemon = { name = "Firebolt", slot = 6, spellId = 3110,
+    bookType = "pet", actor = "pet", actorRef = { guid = "demon-a" },
+    facts = { kind = "damage" } }
+local firstDemonFacts = XelAssist.Game.Capabilities:Facts(firstDemon)
+tooltipLines[2] = { left = "Deals 20 Fire damage.", right = nil }
+local cachedDemonFacts = XelAssist.Game.Capabilities:Facts(firstDemon)
+local replacementDemonFacts = XelAssist.Game.Capabilities:Facts({ name = "Firebolt",
+    slot = 6, spellId = 3110, bookType = "pet", actor = "pet",
+    actorRef = { guid = "demon-b" }, facts = { kind = "damage" } })
+assert(firstDemonFacts.average == 10 and cachedDemonFacts.average == 10
+    and replacementDemonFacts.average == 20,
+    "a replacement pet must not inherit tooltip facts from the prior identity's reused slot")
 tooltipLines[2] = { left = "Heals a friendly target for 100 to 120.", right = nil }
 tooltipLines[3] = { left = "2 sec cast", right = "30 yd range" }
 local inferred = XelAssist.Game.Capabilities:InferKnowledge(9)

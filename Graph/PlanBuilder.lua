@@ -135,6 +135,7 @@ end
 
 function B:Build(state, observed, path, counter, started, observedAt)
     local best, follow, i = path.steps[1], {}, nil
+    local probes = state.xelTimelineProbeCache or {}
     for i = 2, table.getn(path.steps) do
         table.insert(follow, path.steps[i].action)
     end
@@ -161,6 +162,9 @@ function B:Build(state, observed, path, counter, started, observedAt)
         completedDepth = counter.completedDepth or 0,
         decisionHorizon = Policy:Depth(), timeHorizon = Policy.MAX_SECONDS,
         elapsed = Policy:ElapsedMilliseconds(started), value = best.value,
+        timelineProbeHits = probes.hits or 0,
+        timelineProbeMisses = probes.misses or 0,
+        timelineProbeBypasses = probes.bypasses or 0,
         threat = best.threat, downtime = best.downtime, observed = observed,
         resistance = best.resistance, tooltip = best.tooltip,
         recipientEffects = best.recipientEffects,
@@ -174,6 +178,7 @@ function B:Build(state, observed, path, counter, started, observedAt)
         collateralExpectedPower = best.collateralExpectedPower,
         power = best.power, rawPower = best.rawPower,
         powerEvidence = best.powerEvidence,
+        survival = best.survival,
         comboAvailability = best.comboAvailability,
         marginalPower = best.marginalPower,
         displacedWhitePower = best.displacedWhitePower,

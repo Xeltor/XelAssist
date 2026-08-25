@@ -217,6 +217,7 @@ XelAssist.Graph.ActorScoring = { Score = function() return false end }
 XelAssist.Graph.ThreatScoring = { Apply = function() end }
 XelAssist.Game.Capabilities.BonusDamage = function() return 0 end
 dofile("Graph/ActionPower.lua")
+dofile("Graph/PeriodicScoring.lua")
 dofile("Graph/Scoring.lua")
 
 local autoKill = copy(state)

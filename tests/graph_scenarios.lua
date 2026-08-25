@@ -15,6 +15,8 @@ dofile("Combat/PetKnowledge.lua")
 dofile("Game/SpellTiming.lua")
 dofile("Game/SpellClassification.lua")
 dofile("Game/SpellPower.lua")
+dofile("Game/SpellEffectPower.lua")
+dofile("Game/SpellFactCache.lua")
 dofile("Game/Range.lua")
 dofile("Game/ResourceExchange.lua")
 dofile("Game/Capabilities.lua")
@@ -75,9 +77,11 @@ dofile("Graph/OngoingEffects.lua")
 dofile("Graph/ActionConsumption.lua")
 dofile("Graph/DotProjection.lua")
 dofile("Graph/ActionEffects.lua")
+dofile("Graph/AmbientTargetHealth.lua")
 dofile("Graph/Timeline.lua")
 dofile("Graph/ActionPower.lua")
 dofile("Graph/SurvivalPressure.lua")
+dofile("Graph/PeriodicScoring.lua")
 dofile("Graph/Scoring.lua")
 dofile("Graph/Transitions.lua")
 dofile("Graph/SearchPolicy.lua")
@@ -602,6 +606,35 @@ scenarioActions = { action("Burn", 1, "dot", 500, 40), action("Bolt", 1, "damage
 plan = expect("future aura state", "Burn")
 assert(plan.follow[1] and plan.follow[1].name == "Bolt", "future action should respect the applied aura")
 
+-- Installed OctoWoW rank-one values at player level seven.  These are generic
+-- graph inputs, not a Warlock rotation: a fresh 80-health target lives long
+-- enough for efficient overlapping damage, while a direct lethal remains best.
+currentState = state("smart")
+currentState.resource, currentState.resourceMax = 293, 293
+currentState.actors.player.resource = 293
+currentState.actors.player.resourceMax = 293
+currentState.targetHealth, currentState.targetMax = 80, 80
+currentState.pet = false
+XelAssistCharDB.graphDepth = 2
+scenarioActions = {
+    action("Corruption", 1, "dot", 40, 35,
+        { cast = 1.5, testDuration = 12, testPeriodicInterval = 3 }),
+    action("Immolate", 1, "dot", 30.4, 25,
+        { cast = 2, testDuration = 15, testPeriodicInterval = 3,
+            testDirectDamage = 10.4, testPeriodicDamage = 20 }),
+    action("Shadow Bolt", 1, "damage", 15.6, 25, { cast = 1.7 }),
+}
+expect("level seven warlock fresh target", "Corruption")
+currentState.pet = true
+expect("level seven warlock with solo companion", "Corruption")
+currentState.targetHealth = 15
+expect("level seven warlock direct lethal", "Shadow Bolt")
+currentState = state("smart")
+scenarioActions = { action("Zero-output periodic", 1, "dot", 0, 0,
+        { testDuration = 12 }),
+    action("Proven damage", 1, "damage", 1, 0) }
+expect("zero-output periodic has no progress value", "Proven damage")
+
 currentState = state("smart")
 currentState.targetAuras = { Immolate = { mine = true, duration = 15, remaining = 10 } }
 scenarioActions = { action("Immolate", 1, "dot", 700, 100, { testDuration = 15 }),
@@ -640,6 +673,46 @@ plan = expect("learned target survival rejects wasted dot", "Shoot")
 assert(plan.action.name == "Shoot"
     and plan.path[1].survival and plan.path[1].survival.decisionFactor == 1,
     "learned group damage pressure must favor immediate free damage over a dot that cannot pay back")
+
+currentState = state("smart")
+currentState.targetHealth, currentState.targetMax = 100, 1000
+currentState.targetSurvival = { available = true, incomingDps = 200,
+    timeToDie = 0.5, lowerTimeToDie = 0.25, upperTimeToDie = 0.75,
+    observedFor = 3, samples = 7, confidence = "observed",
+    source = "exact hostile health trend" }
+XelAssistTestEndFightWeakness = action("Curse of Weakness", 1, "debuff", 0, 35,
+    { ranged = true, attackSpeedReduction = true, testDuration = 120 })
+XelAssistTestEndFightTargets = XelAssist.Graph.Targets:Targets(
+    XelAssistTestEndFightWeakness, currentState)
+XelAssistTestEndFightCandidate, XelAssistTestEndFightBlocker =
+    XelAssist.Graph.Scoring:Evaluate(
+        XelAssistTestEndFightWeakness, currentState,
+        XelAssistTestEndFightTargets[1])
+assert(XelAssistTestEndFightCandidate and not XelAssistTestEndFightBlocker
+    and XelAssistTestEndFightCandidate.survival.utilityFactor == 0
+    and XelAssistTestEndFightCandidate.value < 0
+    and XelAssistTestEndFightCandidate.reason
+        == "target may die before the utility pays back",
+    "a dying target must not retain fixed positive value for a hostile utility debuff")
+scenarioActions = { XelAssistTestEndFightWeakness,
+    action("Shoot", 1, "damage", 20, 0, { recovery = true }) }
+expect("dying target rejects utility debuff", "Shoot")
+
+currentState = state("smart")
+currentState.targetSurvival = { available = true, incomingDps = 50,
+    timeToDie = 20, lowerTimeToDie = 15, upperTimeToDie = 25,
+    observedFor = 3, samples = 7, confidence = "observed",
+    source = "exact hostile health trend" }
+XelAssistTestEndFightTargets = XelAssist.Graph.Targets:Targets(
+    XelAssistTestEndFightWeakness, currentState)
+XelAssistTestEndFightCandidate = XelAssist.Graph.Scoring:Evaluate(
+    XelAssistTestEndFightWeakness, currentState,
+    XelAssistTestEndFightTargets[1])
+assert(XelAssistTestEndFightCandidate.value > 0
+    and XelAssistTestEndFightCandidate.survival.utilityFactor == 1,
+    "evidence-based end-of-fight gating must not disable utility on a durable target")
+XelAssistTestEndFightWeakness, XelAssistTestEndFightTargets = nil, nil
+XelAssistTestEndFightCandidate, XelAssistTestEndFightBlocker = nil, nil
 
 currentState = state("smart"); currentState.playerLevel = 60
 currentState.targetResistances = { 0, 0, 240, 0, 0, 0, 0 }
@@ -2921,6 +2994,138 @@ plan = expect("action-specific group buff target", "Arcane Intellect")
 assert(plan.target == "party4",
     "a missing buff outside the urgent-healing cap must remain reachable")
 
+currentState = state("smart")
+scenarioActions = {
+    action("Unique Instant", 1, "damage", 30, 5),
+    action("Unique Cast", 1, "damage", 40, 5, { cast = 1 }),
+}
+XelAssistCharDB.graphDepth = 1
+expect("unique actions bypass causal memo allocation", "Unique Instant")
+assert(currentState.xelTimelineProbeCache == nil,
+    "an evaluation without a repeated actor/name must not allocate a causal memo")
+
+-- An exact health forecast with no possible ambient damage does not need a
+-- graph-state copy. Every modeled ambient damage lane retains the full probe.
+XelAssistTestProbeSource = state("smart")
+XelAssistTestProbeCandidate = { action = action(
+        "Exact Probe", 1, "damage", 10, 0),
+    tooltip = {}, target = "target", targetRelation = "hostile",
+    targetGUID = XelAssistTestProbeSource.targetGUID,
+    wait = 0, cast = 1, occupancy = 1.5, downtime = 1.5,
+    advanceDowntime = 1.5, effectDelivery = 1 }
+XelAssistTestStateCopy = XelAssist.Graph.State.Copy
+XelAssistTestCopyCalls = 0
+XelAssist.Graph.State.Copy = function(owner, source)
+    XelAssistTestCopyCalls = XelAssistTestCopyCalls + 1
+    return XelAssistTestStateCopy(owner, source)
+end
+XelAssistTestFastProbe = XelAssist.Graph.Timeline:BeforeScoredAction(
+    XelAssistTestProbeSource, XelAssistTestProbeCandidate)
+assert(XelAssistTestCopyCalls == 0,
+    "a proven zero-ambient health forecast must avoid the deep state copy")
+XelAssistTestFullProbe = XelAssist.Graph.Timeline:BeforeAction(
+    XelAssistTestProbeSource, XelAssistTestProbeCandidate)
+assert(XelAssistTestCopyCalls == 1
+    and XelAssistTestFastProbe.targetHealth == XelAssistTestFullProbe.targetHealth
+    and XelAssistTestFastProbe.defeated == XelAssistTestFullProbe.defeated,
+    "the zero-ambient fast forecast must equal the established full timeline")
+XelAssistTestProbeSource.auras["Exact Periodic"] = {
+    remaining = 0.5, periodicRate = 20, target = "target" }
+XelAssistTestPeriodicProbe = XelAssist.Graph.Timeline:BeforeScoredAction(
+    XelAssistTestProbeSource, XelAssistTestProbeCandidate)
+assert(XelAssistTestCopyCalls > 1
+    and XelAssistTestPeriodicProbe.targetHealth == 990
+    and XelAssistTestPeriodicProbe.damageEvents == 1,
+    "periodic target damage must retain its exact full causal probe")
+XelAssistTestProbeSource.auras = {}
+XelAssistTestGuardProbe = function()
+    local before = XelAssistTestCopyCalls
+    XelAssist.Graph.Timeline:BeforeScoredAction(
+        XelAssistTestProbeSource, XelAssistTestProbeCandidate)
+    return XelAssistTestCopyCalls > before
+end
+XelAssistTestProbeSource.wand = { active = true, nextShotIn = 2, speed = 2 }
+assert(XelAssistTestGuardProbe(), "active wand clocks must keep the full probe")
+XelAssistTestProbeSource.wand = nil
+XelAssistTestProbeSource.autoShot = { supported = false, active = false }
+local copiesBeforeUnsupportedAuto = XelAssistTestCopyCalls
+XelAssist.Graph.Timeline:BeforeScoredAction(
+    XelAssistTestProbeSource, XelAssistTestProbeCandidate)
+assert(XelAssistTestCopyCalls == copiesBeforeUnsupportedAuto,
+    "an unsupported inactive Auto Shot snapshot must not block the exact fast path")
+XelAssistTestProbeSource.autoShot = { supported = true, active = false,
+    inFlight = { { targetGuid = XelAssistTestProbeSource.targetGUID,
+        remaining = 0.5, power = 10 } } }
+assert(XelAssistTestGuardProbe(), "an in-flight Auto Shot must keep the full probe")
+XelAssistTestProbeSource.autoShot = nil
+XelAssistTestProbeSource.playerAttack = { active = true,
+    attackRound = { projectable = true, targetGuid = "prior-target" } }
+assert(XelAssistTestGuardProbe(), "projectable player swings must keep the full probe")
+XelAssistTestProbeSource.playerAttack = nil
+XelAssistTestProbeSource.actors.pet = {
+    targetExists = true, targetsCurrent = false }
+assert(XelAssistTestGuardProbe(), "targeted pet events must keep the full probe")
+XelAssistTestProbeSource.actors.pet = nil
+XelAssistTestProbeSource.hostileCasts = {
+    order = { "zero-cast" }, byCaster = {} }
+assert(XelAssistTestGuardProbe(), "hostile cast ledgers must keep the full probe")
+XelAssistTestProbeSource.hostileCasts = nil
+XelAssistTestProbeSource.targetCasting = true
+assert(XelAssistTestGuardProbe(), "legacy hostile casts must keep the full probe")
+XelAssist.Graph.State.Copy = XelAssistTestStateCopy
+XelAssistTestProbeSource, XelAssistTestProbeCandidate = nil, nil
+XelAssistTestFastProbe, XelAssistTestFullProbe = nil, nil
+XelAssistTestPeriodicProbe, XelAssistTestStateCopy = nil, nil
+XelAssistTestCopyCalls, XelAssistTestGuardProbe = nil, nil
+
+-- Equivalent player-spell ranks must share one pre-application forecast without
+-- hiding an exact ambient companion hit that changes lethal damage at impact.
+currentState = state("smart")
+currentState.targetHealth, currentState.targetMax = 70, 70
+currentState.actors.pet = { health = 100, healthMax = 100,
+    resource = 100, resourceMax = 100, targetExists = true,
+    targetGuid = currentState.targetGUID, targetsCurrent = true,
+    hasAggro = false, distance = 3, lineOfSight = true,
+    autocasts = { { name = "Causal Bite", actor = "pet", kind = "damage",
+        facts = { kind = "damage", damageActor = "pet", melee = true },
+        power = 30, cost = 0, cooldown = 10, readyIn = 0.25,
+        tooltip = { school = 0 } } } }
+scenarioActions = {
+    action("Causal Bolt", 1, "damage", 35, 5, { cast = 1 }),
+    action("Causal Bolt", 2, "damage", 48, 8, { cast = 1 }),
+}
+XelAssistCharDB.graphDepth = 1
+XelAssistTestProbeBegin = XelAssist.Graph.Timeline.BeginEvaluation
+XelAssistTestStateCopy = XelAssist.Graph.State.Copy
+XelAssistTestCopyCalls = 0
+XelAssist.Graph.State.Copy = function(owner, source)
+    XelAssistTestCopyCalls = XelAssistTestCopyCalls + 1
+    return XelAssistTestStateCopy(owner, source)
+end
+XelAssist.Graph.Timeline.BeginEvaluation = function(_, source)
+    source.xelTimelineProbeCache, source.xelTimelineProbeState = nil, nil
+end
+XelAssistTestUncachedPlan = expect(
+    "uncached causal rank forecast", "Causal Bolt")
+XelAssistTestUncachedCopies = XelAssistTestCopyCalls
+XelAssist.Graph.Timeline.BeginEvaluation = XelAssistTestProbeBegin
+XelAssistTestCopyCalls = 0
+plan = expect("cached causal rank forecast", "Causal Bolt")
+XelAssistTestCachedCopies = XelAssistTestCopyCalls
+XelAssist.Graph.State.Copy = XelAssistTestStateCopy
+assert(plan.action.rank == 2 and plan.reason == "finishes the target"
+    and XelAssistTestUncachedPlan.action.rank == plan.action.rank
+    and XelAssistTestUncachedPlan.reason == plan.reason
+    and XelAssistTestUncachedPlan.value == plan.value
+    and XelAssistTestUncachedCopies == 3
+    and XelAssistTestCachedCopies == 2
+    and currentState.xelTimelineProbeCache.hits == 1
+    and currentState.xelTimelineProbeCache.misses == 1,
+    "rank memoization must preserve exact ambient lethal-health semantics while removing one deep copy")
+XelAssistTestProbeBegin, XelAssistTestStateCopy = nil, nil
+XelAssistTestCopyCalls, XelAssistTestUncachedCopies = nil, nil
+XelAssistTestCachedCopies, XelAssistTestUncachedPlan = nil, nil
+
 -- GetTime is frame-cached in the real client. The intra-frame profiler must
 -- still stop a rank-heavy synchronous search while preserving the complete
 -- root and one useful continuation.
@@ -2929,7 +3134,7 @@ scenarioActions = {}
 XelAssistTestBudgetRank = 1
 while XelAssistTestBudgetRank <= 48 do
     table.insert(scenarioActions,
-        action("Warlock Rank " .. XelAssistTestBudgetRank, 1, "damage",
+        action("Warlock Bolt", XelAssistTestBudgetRank, "damage",
             XelAssistTestBudgetRank, 5))
     XelAssistTestBudgetRank = XelAssistTestBudgetRank + 1
 end
@@ -2943,9 +3148,40 @@ debugprofilestop = function()
     XelAssistTestProfileClock = XelAssistTestProfileClock + 9.1
     return XelAssistTestProfileClock
 end
+XelAssistTestProbeBegin = XelAssist.Graph.Timeline.BeginEvaluation
+XelAssistTestStateCopy = XelAssist.Graph.State.Copy
+XelAssistTestCopyCalls = 0
+XelAssist.Graph.State.Copy = function(owner, source)
+    XelAssistTestCopyCalls = XelAssistTestCopyCalls + 1
+    return XelAssistTestStateCopy(owner, source)
+end
+XelAssist.Graph.Timeline.BeginEvaluation = function(_, source)
+    source.xelTimelineProbeCache, source.xelTimelineProbeState = nil, nil
+end
+XelAssistTestUncachedPlan = expect(
+    "uncached soft graph budget preserves immediate action", "Sinister Strike")
+XelAssistTestUncachedCopies = XelAssistTestCopyCalls
+XelAssist.Graph.Timeline.BeginEvaluation = XelAssistTestProbeBegin
+XelAssistTestProfileClock, XelAssistTestCopyCalls = 100000, 0
 plan = expect("soft graph budget preserves immediate action", "Sinister Strike")
+XelAssistTestCachedCopies = XelAssistTestCopyCalls
+XelAssist.Graph.State.Copy = XelAssistTestStateCopy
 assert(plan.budgetLimited == true and table.getn(plan.path) == 2
     and plan.completedDepth == 2 and plan.expanded <= 98,
     "a frozen frame clock must still cap the rank-heavy graph after one continuation")
+assert(XelAssistTestUncachedPlan.action.name == plan.action.name
+    and XelAssistTestUncachedPlan.action.rank == plan.action.rank
+    and XelAssistTestUncachedPlan.value == plan.value
+    and XelAssistTestUncachedPlan.follow[1].name == plan.follow[1].name
+    and XelAssistTestUncachedPlan.follow[1].rank == plan.follow[1].rank
+    and XelAssistTestUncachedPlan.expanded == plan.expanded
+    and XelAssistTestUncachedPlan.completedDepth == plan.completedDepth
+    and currentState.xelTimelineProbeCache.hits == 94
+    and currentState.xelTimelineProbeCache.misses == 2
+    and currentState.xelTimelineProbeCache.bypasses == 2,
+    "zero-ambient rank scoring must preserve the selected plan and memo accounting")
+XelAssistTestProbeBegin, XelAssistTestStateCopy = nil, nil
+XelAssistTestCopyCalls, XelAssistTestUncachedCopies = nil, nil
+XelAssistTestCachedCopies, XelAssistTestUncachedPlan = nil, nil
 
 print("ok: rank, aggro, interrupt, movement, range, aura, cooldown and beam scenarios")

@@ -71,6 +71,19 @@ function P:Estimate(action, tooltip, state, targetGUID)
         base, estimated = unresolvedWeaponPower(
             action, tooltip, state, targetGUID), true
     end
+    if not base and action.facts.kind == "dot"
+        and not action.facts.combo and not tooltip.durationComboScaled
+        and tooltip.damageTotalSource == "tooltip" and tooltip.average then
+        base, estimated = tooltip.average + combo, false
+    end
+    if not base and action.facts.kind == "dot"
+        and not action.facts.combo and not tooltip.durationComboScaled
+        and tooltip.dbcEffectComplete and tooltip.dbcEffectAverage then
+        base, estimated = tooltip.dbcEffectAverage + combo, true
+        evidence = { source = tooltip.dbcEffectSource,
+            complete = true, direct = tooltip.dbcEffectDirectDamage,
+            periodic = tooltip.dbcEffectPeriodicDamage }
+    end
     if not base and tooltip.average then
         base, estimated = tooltip.average + combo, false
     end

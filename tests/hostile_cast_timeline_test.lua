@@ -12,8 +12,12 @@ local function copy(value, seen)
     return out
 end
 
+local stateCopies, lastStateCopy = 0, nil
 XelAssist.Graph.State = {
-    Copy = function(_, state) return copy(state) end,
+    Copy = function(_, state)
+        stateCopies, lastStateCopy = stateCopies + 1, copy(state)
+        return lastStateCopy
+    end,
     RefreshHostileRecord = function() end,
 }
 dofile("Graph/HostileCastState.lua")
@@ -55,6 +59,7 @@ XelAssist.Graph.OngoingEffects = {
 }
 XelAssist.Graph.EventAuras = { AgeBranches = function() end }
 XelAssist.Game.Pets.Effects = { Advance = function() end }
+dofile("Graph/AmbientTargetHealth.lua")
 dofile("Graph/Timeline.lua")
 
 local Timeline = XelAssist.Graph.Timeline
@@ -119,6 +124,15 @@ Timeline:Run(stale, copy(stale), observeCandidate,
 assert(not stale.hostileCasts.byCaster["unmatched-guid"]
     and table.getn(stale.hostileCasts.order) == 0,
     "every completed cast must receive a retirement event instead of a zero row")
+
+local zeroProbeState = state(0)
+local copiesBeforeZeroProbe = stateCopies
+local zeroProbe = Timeline:BeforeScoredAction(
+    zeroProbeState, candidate(0))
+assert(stateCopies > copiesBeforeZeroProbe and zeroProbe.targetHealth == 100
+    and lastStateCopy.health == 60
+    and not lastStateCopy.hostileCasts.byCaster["enemy-guid"],
+    "a zero-time hostile cast must retain the full pre-action consequence path")
 
 local defeated = state(2)
 local killCandidate = candidate(0)

@@ -581,10 +581,9 @@ end
 -- Best-effort facts from the client tooltip. Unknown values stay nil: the
 -- graph prices uncertainty but never invents a damage, heal, range or timer.
 function C:Facts(action)
-    if not self.tooltipFacts then self.tooltipFacts = {} end
     local bookType = action.bookType or BOOKTYPE_SPELL
-    local cacheKey = tostring(bookType) .. ":" .. tostring(action.slot)
-    local hit = self.tooltipFacts[cacheKey]
+    local hit, cacheKey, factCache = XelAssist.Game.SpellFactCache:Lookup(
+        self, action, bookType)
     if hit then return hit end
     if not scanTip then scanTip = CreateFrame("GameTooltip", TIP_NAME, nil, "GameTooltipTemplate") end
     scanTip:SetOwner(UIParent, "ANCHOR_NONE"); scanTip:ClearLines()
@@ -689,7 +688,8 @@ function C:Facts(action)
             local text = left and left:GetText()
             local lower = text and string.lower(string.gsub(text, ",", ""))
             if lower then
-                local exact = numberFrom(lower, "for (%d+) %a* ?damage")
+                local exact = XelAssist.Game.SpellEffectPower:TooltipPeriodicTotal(lower, out)
+                    or numberFrom(lower, "for (%d+) %a* ?damage")
                     or numberFrom(lower, "deals (%d+) %a* ?damage")
                     or numberFrom(lower, "causes (%d+) %a* ?damage")
                     or numberFrom(lower, "absorbs (%d+)")
@@ -754,7 +754,8 @@ function C:Facts(action)
     end
     if XelAssist.Game.ResourceExchange then XelAssist.Game.ResourceExchange:Apply(action, out, description) end
     XelAssist.Game.SpellTiming:Apply(action, out)
-    self.tooltipFacts[cacheKey] = out
+    if XelAssist.Game.SpellEffectPower then XelAssist.Game.SpellEffectPower:Apply(action, out, dbc, dbcArray) end
+    XelAssist.Game.SpellFactCache:Store(factCache, cacheKey, out)
     return out
 end
 function C:WeaponDamage()

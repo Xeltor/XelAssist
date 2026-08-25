@@ -11,6 +11,7 @@ local SearchBranches = G.SearchBranches
 local Diagnostics = G.PlanDiagnostics
 local MovementSetup = G.MovementSetup
 local PlanBuilder = G.PlanBuilder
+local Timeline = G.Timeline
 
 function G:ActiveTargetModifiers(encounter, targetResistance)
     return State:ActiveTargetModifiers(encounter, targetResistance)
@@ -272,6 +273,9 @@ function G:Evaluate(mode, preview, observedAt)
     local depth = Policy:Depth()
     counter.maxStates, counter.maxMs = Policy:Limits(state)
     local actions = availableActions()
+    if Timeline and Timeline.BeginEvaluation then
+        Timeline:BeginEvaluation(state, actions)
+    end
     if G.SoulShardReserve and G.SoulShardReserve:Relevant(actions) then
         G.SoulShardReserve:Prepare(state)
     end

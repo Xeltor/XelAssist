@@ -12,6 +12,105 @@ local PlayerSwings = XelAssist.Graph.PlayerSwings
 local WandCommitment = XelAssist.Graph.WandCommitment
 local EventAuras = XelAssist.Graph.EventAuras
 local HostileCasts = XelAssist.Graph.HostileCastEvents
+local AmbientTargetHealth = XelAssist.Graph.AmbientTargetHealth
+local NIL_PROBE_TARGET = {}
+
+local function memoActionKey(action)
+    local facts = action and action.facts or {}
+    local actor = action and (action.actor or "player") or "player"
+    local executor = action and action.executor
+    if not (action and action.name and actor == "player"
+        and (executor == nil or executor == "playerSpell")) then return nil end
+    if facts.channel or facts.autoRepeat or facts.wandRepeat or facts.playerAttack
+        or facts.onNextSwing or facts.onSwing or facts.exclusiveFamily then
+        return nil
+    end
+    return actor .. "\001" .. action.name
+end
+
+local function repeatedActionKeys(actions)
+    local seen, repeated, any, i = {}, {}, false, nil
+    for i = 1, table.getn(actions or {}) do
+        local key = memoActionKey(actions[i])
+        if key then
+            if seen[key] then repeated[key], any = true, true
+            else seen[key] = true end
+        end
+    end
+    return any and repeated or nil
+end
+
+-- Scoring asks the causal timeline for target health before every legal rank.
+-- Ranks of the same player spell often have an identical pre-application
+-- schedule, so repeating the deep state copy cannot change that forecast.  The
+-- cache is attached to one Engine evaluation and inherited by its graph states;
+-- it never survives into the next live observation.
+function L:BeginEvaluation(state, actions)
+    if not state then return nil end
+    state.xelTimelineProbeCache, state.xelTimelineProbeState = nil, nil
+    local eligible = repeatedActionKeys(actions)
+    if not eligible then return nil end
+    local cache = { byState = {}, eligible = eligible,
+        hits = 0, misses = 0, bypasses = 0 }
+    state.xelTimelineProbeCache = cache
+    state.xelTimelineProbeState = {}
+    return cache
+end
+
+local function probeTarget(candidate)
+    if candidate.targetKey ~= nil then return candidate.targetKey, "key" end
+    if candidate.targetGUID ~= nil then return candidate.targetGUID, "guid" end
+    if candidate.target ~= nil then return candidate.target, "unit" end
+    return NIL_PROBE_TARGET, "none"
+end
+
+local function scalar(value)
+    if value == nil then return "" end
+    if value == true then return "1" end
+    if value == false then return "0" end
+    return tostring(value)
+end
+
+local function probeSignature(candidate)
+    local action = candidate and candidate.action
+    local tooltip = candidate and candidate.tooltip or {}
+    -- These actions can change an ambient clock before their scored application,
+    -- or carry rank-specific target-modifier state.  Keep their established
+    -- exact probe path instead of assuming equivalence.
+    if tooltip.onNextSwing or tooltip.onSwing
+        or tooltip.targetArmorReduction or tooltip.targetResistanceReduction
+        or tooltip.targetDamageTaken then return nil end
+    return table.concat({ scalar(action.name),
+        scalar(action.facts and action.facts.kind),
+        scalar(candidate.wait), scalar(candidate.cast),
+        scalar(candidate.occupancy), scalar(candidate.downtime),
+        scalar(candidate.actionStart), scalar(candidate.gcd),
+        scalar(candidate.normalGcd), scalar(candidate.targetRelation),
+        scalar(candidate.targetSource), scalar(candidate.ambientExcludedKind),
+        scalar(candidate.ambientExcludedOffset) }, "\001")
+end
+
+local function cachedProbe(source, candidate)
+    local cache = source and source.xelTimelineProbeCache
+    local group = memoActionKey(candidate and candidate.action)
+    if not (cache and group and cache.eligible[group]) then
+        if cache then cache.bypasses = cache.bypasses + 1 end
+        return nil, nil, cache
+    end
+    local signature = probeSignature(candidate)
+    if not signature then
+        cache.bypasses = cache.bypasses + 1
+        return nil, nil, cache
+    end
+    local stateKey = source.xelTimelineProbeState or source
+    local stateCache = cache.byState[stateKey]
+    if not stateCache then stateCache = {}; cache.byState[stateKey] = stateCache end
+    local target, kind = probeTarget(candidate)
+    local targetCache = stateCache[target]
+    if not targetCache then targetCache = {}; stateCache[target] = targetCache end
+    local key = kind .. "\001" .. signature
+    return targetCache[key], { bucket = targetCache, key = key }, cache
+end
 
 local function syncCandidateTarget(state, candidate)
     if not (candidate and candidate.targetRelation == "hostile"
@@ -232,7 +331,24 @@ function L:BeforeScoredAction(source, candidate)
     local probe, key, value = {}, nil, nil
     for key, value in pairs(candidate) do probe[key] = value end
     probe.downtime = candidate.advanceDowntime or candidate.downtime
-    return self:BeforeAction(source, probe)
+    local hit, slot, cache = cachedProbe(source, probe)
+    if hit then
+        cache.hits = cache.hits + 1
+        return hit
+    end
+    local result
+    if source.targetHealthExact and probe.targetRelation == "hostile"
+        and AmbientTargetHealth
+        and not AmbientTargetHealth:CanChange(source) then
+        result = { targetHealth = source.targetHealth,
+            defeated = hostileDefeated(source, probe), damageEvents = 0,
+            autoLaunches = 0, autoImpacts = 0 }
+    else result = self:BeforeAction(source, probe) end
+    if slot then
+        cache.misses = cache.misses + 1
+        slot.bucket[slot.key] = result
+    end
+    return result
 end
 
 function L:BeforePlayerSwing(source, candidate, impactDelay)
@@ -302,5 +418,9 @@ function L:Run(out, source, candidate, context)
     if autoTimeline then AutoShot:FinishTimeline(out, autoTimeline) end
     syncCandidateTarget(out, candidate)
     out.chosenActionPrevented = not actionApplied and true or nil
+    -- A completed transition is a new immutable graph node.  Context views of
+    -- this node inherit the marker, while sibling/descendant nodes never share
+    -- memoized health forecasts accidentally.
+    if out.xelTimelineProbeCache then out.xelTimelineProbeState = {} end
     return out
 end

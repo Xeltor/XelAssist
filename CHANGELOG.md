@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.23
+
+- Derived complete direct and periodic damage totals from the installed
+  Spell.dbc effect arrays. Explicit tooltip totals remain authoritative, while
+  per-tick prose can no longer make Corruption, Immolate, or similar effects
+  look like one-tick spells; unknown cadence and combo-scaled durations remain
+  conservative rather than invented.
+- Gave periodic damage the same combat-progress and damage-role treatment as
+  direct spells, then bounded that value by learned target survival. Fresh
+  Warlock targets can now prefer a worthwhile DoT, while a direct lethal cast
+  still wins when the target will die before the aura pays back.
+- Applied the same learned lifetime/payback pressure to hostile utility
+  debuffs, preventing Curse of Weakness and similar setup from being selected
+  at the end of a fight while retaining their value on durable targets.
+- Scoped cached spell facts to actor identity, rank, level, spellbook, and slot
+  so a newly summoned demon or Hunter pet cannot inherit stale facts from a
+  prior companion that reused its action-bar position.
+- Removed unused non-hostile and proven zero-ambient target-health timeline
+  copies, memoized only equivalent repeated-rank forecasts within one
+  evaluation, and exposed graph time, completed depth, expanded edges, budget
+  state, and probe reuse in `/xa log` for privacy-safe in-client hitch evidence.
+
 ## 0.8.22
 
 - Added a bounded, session-only hostile-cast ledger from exact Nampower and

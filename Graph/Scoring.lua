@@ -16,6 +16,7 @@ local ComboScoring = XelAssist.Graph.ComboScoring
 local Admission = XelAssist.Graph.ActionAdmission
 local SurvivalPressure = XelAssist.Graph.SurvivalPressure
 local IncomingScoring = XelAssist.Graph.IncomingScoring
+local PeriodicScoring = XelAssist.Graph.PeriodicScoring
 local function legalityAndTiming(action, state, descriptor)
     local allowed, blocker, tooltip, target, actionStart, resolved, targetState =
         Targets:Legal(action, state, descriptor)
@@ -161,6 +162,7 @@ local function projectAmbientTargetHealth(context)
     local state = context.state
     if not (Timeline and state.targetHealthExact) then return end
     local descriptor = context.descriptor or {}
+    if descriptor.relation ~= "hostile" then return end
     context.targetRelation = descriptor.relation
     context.targetGUID = descriptor.guid
     local probe = context.onNextSwing
@@ -199,20 +201,7 @@ local function scoreDamageAndHealing(context)
         if state.role == "damage" then context.value = context.value * 1.15
         elseif state.role == "healer" then context.value = context.value * 0.85 end
     elseif kind == "dot" then
-        local effective, fraction = expected, 1
-        if state.targetHealthExact and targetHealth > 0 then
-            effective = math.min(expected, targetHealth)
-            fraction = math.min(1, targetHealth / math.max(1, expected))
-        end
-        context.effectivePower = effective
-        context.value = effective * 4 / math.max(1, context.downtime)
-            + effective / math.max(1, context.cost) * 45
-        if fraction < 1 then
-            context.value = context.value - (expected - effective) * 3
-        end
-        context.reason = fraction < 0.75
-            and "target may die before the effect pays back"
-            or "adds efficient lasting damage"
+        PeriodicScoring:Score(context, targetHealth)
     elseif kind == "heal" or kind == "hot" then
         local missing = context.targetMissing
         local effective = math.min(power, missing)
@@ -287,11 +276,15 @@ local function scoreStateUtility(context)
         end
     elseif kind == "debuff" then
         local tooltip = context.tooltip
+        local survivalFactor = context.survival
+            and context.survival.utilityFactor or 1
         if tooltip.targetArmorReduction
             or tooltip.targetResistanceReduction or tooltip.targetDamageTaken then
-            context.value, context.reason = 120, "opens a stronger damage path"
+            context.value, context.reason = 120 * survivalFactor,
+                "opens a stronger damage path"
         else
-            context.value = 200 + math.min(10, tooltip.duration or 0) * 4
+            context.value = (200
+                + math.min(10, tooltip.duration or 0) * 4) * survivalFactor
             context.reason = "adds missing utility"
         end
     elseif kind == "modifier" then
