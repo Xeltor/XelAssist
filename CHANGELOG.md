@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.6
+
+- Restored the complete recommendation HUD and minimap entry on Vanilla 1.12
+  clients. The cooldown spiral now uses the client-compatible `Model` frame
+  type when no expansion-specific type is published, and remains optional if
+  the native constructor or configuration is unavailable. A failed decorative
+  overlay can no longer abort the action card or the later minimap build.
+
 ## 0.8.5
 
 - Removed the target-acquisition crash boundary from the recommendation HUD.

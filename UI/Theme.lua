@@ -47,6 +47,26 @@ function Theme:AddSectionRail(frame, y)
     return rail
 end
 
+function Theme:CreateOptionalCooldown(owner, size)
+    -- Vanilla 1.12 exposes CooldownFrameTemplate through a Model frame. Some
+    -- later clients expose a Cooldown frame type instead. Treat the overlay as
+    -- optional so a client-specific constructor cannot abort the entire HUD
+    -- (and consequently prevent the minimap button from being built).
+    local frameType = COOLDOWN_FRAME_TYPE or "Model"
+    local ok, cooldown = pcall(CreateFrame, frameType, nil, owner,
+        "CooldownFrameTemplate")
+    if not ok or not cooldown then return nil end
+    local configured = pcall(function()
+        cooldown:SetWidth(size - 2); cooldown:SetHeight(size - 2)
+        cooldown:SetPoint("CENTER", owner, "CENTER", 0, 0)
+    end)
+    if not configured then
+        if cooldown.Hide then pcall(cooldown.Hide, cooldown) end
+        return nil
+    end
+    return cooldown
+end
+
 function Theme:CreateActionIcon(owner, size, withCooldown)
     local plate = owner:CreateTexture(nil, "BORDER")
     plate:SetWidth(size); plate:SetHeight(size)
@@ -55,9 +75,7 @@ function Theme:CreateActionIcon(owner, size, withCooldown)
     icon:SetPoint("CENTER", plate, "CENTER", 0, 0)
     local cooldown
     if withCooldown then
-        cooldown = CreateFrame("Cooldown", nil, owner, "CooldownFrameTemplate")
-        cooldown:SetWidth(size - 2); cooldown:SetHeight(size - 2)
-        cooldown:SetPoint("CENTER", owner, "CENTER", 0, 0)
+        cooldown = self:CreateOptionalCooldown(owner, size)
     end
     return icon, plate, cooldown
 end

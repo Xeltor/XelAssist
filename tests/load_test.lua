@@ -9,6 +9,8 @@ UIParent = {}
 SlashCmdList = {}
 RAID_CLASS_COLORS = { MAGE = { r = 0.25, g = 0.78, b = 0.92 } }
 SUPERWOW_VERSION = 2
+COOLDOWN_FRAME_TYPE = nil
+XelAssistTestRejectCooldownTemplate = true
 
 local serial = 0
 local createdFrames = {}
@@ -88,6 +90,12 @@ widget.__index = function(self, key)
 end
 
 CreateFrame = function(frameType, name, parent, template)
+    if template == "CooldownFrameTemplate" then
+        XelAssistTestLastCooldownFrameType = frameType
+        if XelAssistTestRejectCooldownTemplate then
+            error("mock client rejected optional cooldown constructor")
+        end
+    end
     serial = serial + 1
     local frame = setmetatable({ name = name or ("Mock" .. serial), shown = true,
         enabled = true, frameType = frameType, parent = parent, template = template }, widget)
@@ -260,9 +268,12 @@ assert(XelAssist.UI.HUD.frame.instrumentStyle
     "settings must share the HUD instrument backdrop, border, class stripe and quiet rails")
 assert(rawget(XelAssist.UI.HUD.frame.main, "template") == nil
     and XelAssist.UI.HUD.frame.main.iconFrame
+    and rawget(XelAssist.UI.HUD.frame.main, "cooldown") == nil
     and XelAssist.UI.HUD.frame.main.step:GetText() == "01"
     and rawget(XelAssist.UI.HUD.frame.follow[1], "border") == nil,
-    "recommendation icons must use one clean frame and keep the numbered decision rail")
+    "recommendation icons must survive an unavailable optional cooldown overlay")
+assert(XelAssistTestLastCooldownFrameType == "Model",
+    "Vanilla cooldown overlays must prefer the client-compatible Model frame type")
 assert(XelAssist.UI.Settings.frame.macro.frameType == "Frame"
     and XelAssist.UI.Settings.frame.macro.command == "/xa"
     and XelAssist.UI.Settings.frame.macro.text:GetText() == "/xa"
@@ -310,12 +321,13 @@ do
         "cooldown help must name only learned actions governed by the graph policy")
     XelAssist.Game.Actors.Actions, XelAssist.Game.Actors.Facts = savedActions, savedFacts
 end
-assert(XelAssist.UI.Minimap.button, "minimap entry did not build")
+assert(XelAssist.UI.Minimap.button,
+    "minimap entry must still build when the optional HUD cooldown is unavailable")
 assert(XelAssistCharDB.graphDepth == 3 and XelAssistCharDB.role == "auto", "character defaults missing")
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.5" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.6" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(runtime.evidenceEvents.damage and runtime.evidenceEvents.miss,
