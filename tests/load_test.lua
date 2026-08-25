@@ -350,7 +350,7 @@ assert(XelAssistCharDB.visibleSteps == 3 and XelAssistCharDB.graphDepth == nil
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.18" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.19" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(not runtime.apis.comboOwner and not runtime.apis.comboDuration,
@@ -541,7 +541,7 @@ do
     arg1 = 0.21; driver.OnUpdate()
     assert(settledEvaluations == 0,
         "a new target must settle for one HUD tick before native presentation work")
-    arg1 = 0.21; driver.OnUpdate()
+    arg1 = 0.36; driver.OnUpdate()
     assert(settledEvaluations == 1
         and (rootCalls.GetPoint or 0) == geometryBefore.getPoint
         and (rootCalls.SetHeight or 0) == geometryBefore.setHeight
@@ -569,6 +569,31 @@ do
             .. " published="
             .. tostring(XelAssist.Core.RecommendationSnapshot.mode))
     XelAssist.UI.HUD:ClearExecutionMode()
+
+    XelAssistTestSavedReachValidate =
+        XelAssist.Core.ExecutionReach.Validate
+    XelAssist.Core.ExecutionReach.Validate = function()
+        return false, "range"
+    end
+    XelAssist.Graph.Evaluate = function(_, mode, preview, observedAt)
+        XelAssistTestObservedAt = observedAt
+        return { liveSnapshot = true, observedAt = observedAt,
+            action = { name = "Stale Shadow Bolt", actor = "player",
+                executor = "playerSpell", facts = { kind = "damage" } },
+            target = "target", reason = "stale range probe",
+            observed = {}, follow = {}, path = {} }, nil, false
+    end
+    XelAssistTestFreshPlan, XelAssistTestFreshError =
+        XelAssist.UI.RecommendationController:Evaluate(
+            XelAssist.UI.HUD, true)
+    assert(XelAssistTestObservedAt == mockTime
+        and XelAssistTestFreshPlan == nil
+        and string.find(XelAssistTestFreshError,
+            "State changed during evaluation: range", 1, true)
+        and XelAssist.Core.RecommendationSnapshot.plan == nil,
+        "a range-stale live graph plan must be rejected before publication")
+    XelAssist.Core.ExecutionReach.Validate =
+        XelAssistTestSavedReachValidate
 end
 XelAssist.Graph.Evaluate = function() return displayPlan, nil, false end
 XelAssist.UI.HUD:Refresh(true)

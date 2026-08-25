@@ -18,20 +18,31 @@ end
 
 function R:SpellVerdict(spellId, castName, unit)
     if unit == nil then return nil end
+    -- Nampower follows the exact unit/GUID path used by queued casts, while
+    -- ClassicAPI independently checks the client's geometric spell band.
+    -- Neither positive result may erase the other's explicit rejection: an
+    -- API disagreement is unsafe and therefore resolves out of range.
+    local numeric = tonumber(spellId)
+    local nampowerVerdict
+    if numeric and numeric > 0 then
+        nampowerVerdict = query(IsSpellInRange, numeric, unit)
+    end
+    if nampowerVerdict == nil and castName ~= nil and castName ~= "" then
+        nampowerVerdict = query(IsSpellInRange, castName, unit)
+    end
     local modern = C_Spell and C_Spell.IsSpellInRange
+    local classicVerdict
     if type(modern) == "function" then
-        local numeric = tonumber(spellId)
         if numeric and numeric > 0 then
-            local verdict = query(modern, numeric, unit)
-            if verdict ~= nil then return verdict end
+            classicVerdict = query(modern, numeric, unit)
         end
-        if castName ~= nil and castName ~= "" then
-            local verdict = query(modern, castName, unit)
-            if verdict ~= nil then return verdict end
+        if classicVerdict == nil and castName ~= nil and castName ~= "" then
+            classicVerdict = query(modern, castName, unit)
         end
     end
-    if castName == nil or castName == "" then return nil end
-    return query(IsSpellInRange, castName, unit)
+    if nampowerVerdict == false or classicVerdict == false then return false end
+    if nampowerVerdict == true or classicVerdict == true then return true end
+    return nil
 end
 
 local function number(value)

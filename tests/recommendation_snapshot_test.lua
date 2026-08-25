@@ -35,6 +35,14 @@ acquired, reason = Snapshot:Acquire("smart")
 assert(acquired == nil and reason == "recommendation expired",
     "a stale publication must fail closed")
 
+now = now + 1
+local delayed = { action = { name = "Shadow Bolt" },
+    observedAt = now - Snapshot.MAX_AGE - 0.01 }
+Snapshot:Publish(delayed, "smart")
+acquired, reason = Snapshot:Acquire("smart")
+assert(acquired == nil and reason == "recommendation expired",
+    "search time must age from live observation rather than publication")
+
 now = now + 0.2
 Snapshot:Publish(first, "smart")
 Snapshot:Invalidate("target changed")

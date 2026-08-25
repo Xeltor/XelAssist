@@ -616,6 +616,15 @@ XelAssist:Execute()
 assertNoExecution("an explicit minimum-range violation reached the cast API")
 
 resetEffects()
+playerDistance, spellRangeVerdict = 40, true
+currentPlan = hostilePlan(playerAction("Contradicted Bolt",
+    { kind = "damage", ranged = true }))
+currentPlan.tooltip = { minRange = 0, maxRange = 30 }
+XelAssist:Execute()
+assertNoExecution(
+    "a permissive native verdict overrode the exact dispatch distance band")
+
+resetEffects()
 spellRangeVerdict = false
 currentPlan = hostilePlan(playerAction("Raptor Strike",
     { kind = "damage", melee = true }))

@@ -14,6 +14,24 @@ P.MAX_DECISIONS = 24
 P.MAX_SECONDS = 45
 P.DISCOUNT_SECONDS = 4.5
 
+-- GetTime is updated at the frame boundary on the 1.12 client. A synchronous
+-- graph search therefore sees a frozen value and cannot enforce a millisecond
+-- budget with it. debugprofilestop is the client-owned intra-frame clock; the
+-- fallback keeps standalone tests and reduced API environments deterministic.
+function P:ClockMilliseconds()
+    if type(debugprofilestop) == "function" then
+        local value = debugprofilestop()
+        if type(value) == "number" then return value end
+    end
+    if type(GetTime) == "function" then return GetTime() * 1000 end
+    return 0
+end
+
+function P:ElapsedMilliseconds(started)
+    return math.max(0, self:ClockMilliseconds()
+        - (tonumber(started) or 0))
+end
+
 function P:Depth()
     -- graphDepth is retained only as a standalone/test compatibility override.
     -- Runtime migrates the user-facing setting to visibleSteps and clears it.
@@ -41,7 +59,7 @@ end
 
 function P:BudgetReached(started, counter)
     return counter.count >= (counter.maxStates or self.MIN_STATES)
-        or (GetTime() - started) * 1000 > (counter.maxMs or self.MIN_MS)
+        or self:ElapsedMilliseconds(started) > (counter.maxMs or self.MIN_MS)
 end
 
 function P:WithinHorizon(state, rootTime)

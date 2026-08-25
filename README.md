@@ -1,4 +1,4 @@
-# XelAssist 0.8.18
+# XelAssist 0.8.19
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -19,6 +19,12 @@ as actor-to-target contracts with modeled start times and visible evidence state
 Predicted rows are never executable. The explanation describes the tradeoff that
 won, such as finishing the target, avoiding excess healing, limiting threat,
 interrupting a cast, or preserving resources.
+
+Evaluation is bounded by an intra-frame profiler clock and counts every
+action-target edge it examines, including learned spell ranks that do not enter
+the final beam. Unchanged state is polled at a low enough cadence to leave frame
+time for the client. A plan remains as old as the live snapshot that began its
+search; range and identity are checked again before publication and execution.
 
 Actions on the selected target use Nampower 4.7.0+'s one normal-GCD spell queue.
 XelAssist protects an occupied slot across repeated macro taps until matching

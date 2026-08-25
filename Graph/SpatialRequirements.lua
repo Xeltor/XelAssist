@@ -145,11 +145,15 @@ local function commandVerdict(action, state, descriptor, target, tooltip)
         verdict = Range:SpellVerdict(action.spellId,
             XelAssist.Game.Capabilities:CastName(action), castUnit)
     end
-    if verdict == nil then
-        local distance, kind = distanceFor(state, descriptor,
-            actorUnit(action, false), castUnit)
-        verdict, reason = Range:TooltipVerdict(tooltip, distance, kind)
+    local distance, kind = distanceFor(state, descriptor,
+        actorUnit(action, false), castUnit)
+    local bandVerdict, bandReason = Range:TooltipVerdict(
+        tooltip, distance, kind)
+    if verdict == false or bandVerdict == false then
+        return false, bandVerdict == false and bandReason or "range",
+            true, castUnit
     end
+    if verdict ~= true then verdict, reason = bandVerdict, bandReason end
     if verdict == nil then reason = reason or "range unknown"
     elseif verdict == false then reason = reason or "range" end
     return verdict, reason, true, castUnit
@@ -280,12 +284,11 @@ local function positionBlocker(action, state, descriptor, tooltip)
     end
     if not isFuture(state) then
         if lineOfSight == false then return "line of sight" end
-    elseif lineOfSight == false then return "line of sight"
     else
         addCondition(descriptor, { kind = "line of sight", stage = "effect",
             actor = actor, target = descriptor.guid,
-            assumption = lineOfSight == true and "remain" or "prove",
-            detail = "line of sight must be present at effect time" })
+            assumption = "prove",
+            detail = "line of sight must be proven when this action becomes current" })
     end
     if not facts.behind then return nil end
     local behind = actor == "pet" and state.actors and state.actors.pet

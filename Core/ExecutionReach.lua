@@ -50,11 +50,14 @@ local function commandVerdict(action, plan, unit, tooltip)
         verdict = Range:SpellVerdict(action.spellId,
             XelAssist.Game.Capabilities:CastName(action), unit)
     end
-    if verdict == nil then
-        local measured, kind = distance(
-            action.actor == "pet" and "pet" or "player", unit)
-        verdict, reason = Range:TooltipVerdict(tooltip, measured, kind)
+    local measured, kind = distance(
+        action.actor == "pet" and "pet" or "player", unit)
+    local bandVerdict, bandReason = Range:TooltipVerdict(
+        tooltip, measured, kind)
+    if verdict == false or bandVerdict == false then
+        return false, bandVerdict == false and bandReason or "range"
     end
+    if verdict ~= true then verdict, reason = bandVerdict, bandReason end
     if verdict == false then return false, reason or "range" end
     if verdict ~= true then return false, reason or "range unknown" end
     return true, nil

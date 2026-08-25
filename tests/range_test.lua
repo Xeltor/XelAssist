@@ -23,11 +23,12 @@ end
 modernResults[172] = 0
 legacyResult = 1
 assert(Range:SpellVerdict(172, "Corruption(Rank 1)", "target") == false
-    and table.getn(modernCalls) == 1 and modernCalls[1].spell == 172
-    and modernCalls[1].unit == "target" and table.getn(legacyCalls) == 0,
-    "the numeric ClassicAPI verdict must be authoritative and normalized")
+    and table.getn(legacyCalls) == 1 and legacyCalls[1].spell == 172
+    and legacyCalls[1].unit == "target" and table.getn(modernCalls) == 1,
+    "an exact geometric rejection must veto a permissive queue-range verdict")
 
 modernCalls, legacyCalls, modernResults = {}, {}, {}
+legacyResult = -1
 modernResults[172] = nil
 modernResults["Corruption(Rank 1)"] = true
 assert(Range:SpellVerdict(172, "Corruption(Rank 1)", "mouseover") == true
@@ -35,31 +36,34 @@ assert(Range:SpellVerdict(172, "Corruption(Rank 1)", "mouseover") == true
     and modernCalls[1].spell == 172
     and modernCalls[2].spell == "Corruption(Rank 1)"
     and modernCalls[2].unit == "mouseover"
-    and table.getn(legacyCalls) == 0,
-    "an unsupported numeric query must fall back to the modern name query")
+    and table.getn(legacyCalls) == 2
+    and legacyCalls[1].spell == 172
+    and legacyCalls[2].spell == "Corruption(Rank 1)",
+    "unsupported Nampower queries must fall back through ClassicAPI")
 
 modernCalls, legacyCalls, modernResults = {}, {}, {}
+legacyResult = -1
 modernResults[172] = "error"
 modernResults["Corruption(Rank 1)"] = nil
-legacyResult = 0
-assert(Range:SpellVerdict(172, "Corruption(Rank 1)", "party1") == false
-    and table.getn(modernCalls) == 2 and table.getn(legacyCalls) == 1
-    and legacyCalls[1].spell == "Corruption(Rank 1)"
+assert(Range:SpellVerdict(172, "Corruption(Rank 1)", "party1") == nil
+    and table.getn(modernCalls) == 2 and table.getn(legacyCalls) == 2
+    and legacyCalls[2].spell == "Corruption(Rank 1)"
     and legacyCalls[1].unit == "party1",
-    "failed and unknown modern queries must fall back to the legacy API")
+    "failed and unknown range queries must remain conservative")
 
 modernCalls, legacyCalls, modernResults = {}, {}, {}
-modernResults[172] = -1
-modernResults["Corruption(Rank 1)"] = "error"
+modernResults[172] = true
 legacyResult = true
 assert(Range:SpellVerdict(172, "Corruption(Rank 1)", "target") == true,
-    "unsupported modern values and errors must preserve a boolean legacy verdict")
+    "corroborating boolean range verdicts must admit the action")
 
 modernCalls, legacyCalls, modernResults = {}, {}, {}
+legacyResult = -1
 modernResults["Attack"] = 1
 assert(Range:SpellVerdict(nil, "Attack", "target") == true
+    and table.getn(legacyCalls) == 1 and legacyCalls[1].spell == "Attack"
     and table.getn(modernCalls) == 1 and modernCalls[1].spell == "Attack",
-    "a missing numeric ID must begin with the modern name query")
+    "a missing numeric ID must query both supported name contracts")
 assert(Range:SpellVerdict(6603, nil, "target") == nil,
     "a failed numeric query without a cast name must remain unknown")
 

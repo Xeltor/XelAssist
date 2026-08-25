@@ -322,14 +322,14 @@ C_Spell = { IsSpellInRange = function(name, unit)
 end }
 rangeResult = 1
 assert(XelAssist.Game.Capabilities:InRange("Attack", "target") == false,
-    "ClassicAPI geometric range must override a permissive global verdict")
+    "an exact geometric rejection must veto a permissive global verdict")
 classicResult, rangeResult = nil, 0
 assert(XelAssist.Game.Capabilities:InRange("Attack", "target") == false,
-    "an unsupported ClassicAPI verdict must fall back to the global API")
+    "an explicit Nampower rejection must survive an unknown geometric verdict")
 C_Spell.IsSpellInRange = function() error("unavailable") end
 rangeResult = 1
 assert(XelAssist.Game.Capabilities:InRange("Attack", "target") == true,
-    "a failed ClassicAPI query must fall back to the global API")
+    "a failed geometric query must retain a positive Nampower verdict")
 C_Spell = nil
 IsSpellInRange = nil
 assert(XelAssist.Game.Capabilities:InRange("Flash Heal(Rank 1)", "party1") == nil,

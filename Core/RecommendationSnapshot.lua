@@ -12,7 +12,9 @@ function S:Publish(plan, mode, errorText)
     self.plan = plan
     self.mode = mode
     self.errorText = errorText
-    self.publishedAt = GetTime()
+    -- Freshness starts when the live graph observation began, not when a
+    -- potentially expensive search finally handed the plan to the UI.
+    self.publishedAt = tonumber(plan and plan.observedAt) or GetTime()
     self.consumedGeneration = nil
     return self.generation
 end

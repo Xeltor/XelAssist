@@ -201,7 +201,8 @@ local function targetBlocker(action, state, descriptor, target)
     end
     local inventoryBlocker = XelAssist.Game.Inventory and XelAssist.Game.Inventory:Blocker(action, state)
     if inventoryBlocker then return inventoryBlocker end
-    local observedBlocker = descriptor.relation == "hostile" and XelAssist.Combat.Observations
+    local observedBlocker = descriptor.relation == "hostile"
+        and (tonumber(state.time) or 0) <= 0 and XelAssist.Combat.Observations
         and XelAssist.Combat.Observations:Blocker(action, target)
     return observedBlocker
 end

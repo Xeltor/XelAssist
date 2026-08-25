@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.19
+
+- Bounded synchronous graph work with the client's intra-frame profiler clock
+  and counted every evaluated action-target edge. Rank-heavy Warlock spellbooks
+  can no longer evade the time/state budget and monopolize each target frame;
+  unchanged polling also drops from five evaluations per second to under three.
+- Aged recommendations from the start of their live observation and revalidated
+  actor, target, and reach before publication. A long search can no longer make
+  stale geometry look newly sampled.
+- Combined Nampower, ClassicAPI, DBC, and measured-distance range evidence
+  conservatively, so one permissive result cannot override an explicit range
+  rejection from another exact source.
+- Separated observable current line of sight from future graph uncertainty.
+  A current native rejection may still veto an action, but it is never copied
+  forward as a predicted obstruction or guaranteed clear path.
+- Split immutable plan assembly out of the search engine to keep the runtime
+  modules within the repository's human-review size limit.
+
 ## 0.8.18
 
 - Added bounded target-survival learning from exact hostile health trends.

@@ -3,6 +3,8 @@ XelAssistCharDB = {}
 
 local now = 100
 function GetTime() return now end
+local profileNow = 100000
+function debugprofilestop() return profileNow end
 
 dofile("Graph/SearchPolicy.lua")
 local Policy = XelAssist.Graph.SearchPolicy
@@ -46,11 +48,21 @@ assert(math.abs(Policy:Weight(10, { actionStart = 14.5, cast = 0 }) - 0.5)
         < 0.0001,
     "an action one discount interval away must retain half weight")
 
+local started = Policy:ClockMilliseconds()
 local counter = { count = 255, maxStates = 256, maxMs = 8 }
-assert(not Policy:BudgetReached(now, counter),
+assert(not Policy:BudgetReached(started, counter),
     "the state budget must allow its final state")
 counter.count = 256
-assert(Policy:BudgetReached(now, counter),
+assert(Policy:BudgetReached(started, counter),
     "the state budget must stop at its exact bound")
+counter.count = 0
+profileNow = profileNow + 8
+assert(not Policy:BudgetReached(started, counter),
+    "the precise clock must allow the exact millisecond boundary")
+profileNow = profileNow + 0.01
+assert(Policy:BudgetReached(started, counter),
+    "the intra-frame profiler clock must stop a search while GetTime is frozen")
+assert(math.abs(Policy:ElapsedMilliseconds(started) - 8.01) < 0.001,
+    "reported evaluation time must use the same precise budget clock")
 
 print("search policy tests passed")

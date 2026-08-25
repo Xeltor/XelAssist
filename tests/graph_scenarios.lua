@@ -73,6 +73,7 @@ dofile("Graph/Transitions.lua")
 dofile("Graph/SearchPolicy.lua")
 dofile("Graph/SearchBranches.lua")
 dofile("Graph/PlanDiagnostics.lua")
+dofile("Graph/PlanBuilder.lua")
 dofile("Graph/Engine.lua")
 
 local pendingAura
@@ -566,6 +567,17 @@ assert(tooFar and tooFar.action.name == "Move into range"
     and tooFar.follow[1] and tooFar.follow[1].name == "Dead Zone Shot",
     "maximum range must block too-far actions: " .. tostring(tooFarReason))
 XelAssist.Graph.testRangeUnknown = false
+
+currentState = state("smart"); currentState.distance = 40
+scenarioActions = { action("Contradicted Bolt", 1, "damage", 900, 0,
+    { testMinRange = 0, testMaxRange = 30 }) }
+XelAssistTestContradicted = XelAssist.Graph:Evaluate("smart", true)
+assert(XelAssistTestContradicted
+    and XelAssistTestContradicted.action.name == "Move into range"
+    and XelAssistTestContradicted.follow[1]
+    and XelAssistTestContradicted.follow[1].name == "Contradicted Bolt",
+    "a permissive native verdict must not override an exact DBC-distance rejection")
+XelAssistTestContradicted = nil
 
 currentState = state("smart"); XelAssistCharDB.toggles.cooldowns = false
 scenarioActions = { action("Unknown Long Cooldown", 1, "damage", 2000, 0, { testCooldown = 60 }),
@@ -1281,6 +1293,57 @@ do
         and plan.path[2].spatialConditionFingerprint
         and table.getn(plan.path[2].spatialConditions or {}) > 0,
         "a reachable future melee step must disclose the spatial facts it assumes")
+end
+
+do
+    local losAction = action("LOS Boundary Probe", 1, "damage", 10, 0)
+    local rootLosState = state("smart")
+    rootLosState.targetLineOfSight = false
+    local rootDescriptor = XelAssist.Graph.Targets:Targets(
+        losAction, rootLosState)[1]
+    local rootLegal, rootReason = XelAssist.Graph.Targets:Legal(
+        losAction, rootLosState, rootDescriptor)
+    assert(not rootLegal and rootReason == "line of sight",
+        "an explicit current line-of-sight failure must still block the live action")
+
+    local futureLosState = state("smart")
+    futureLosState.time, futureLosState.targetLineOfSight = 1, false
+    local futureDescriptor = XelAssist.Graph.Targets:Targets(
+        losAction, futureLosState)[1]
+    local futureLegal, futureReason, _, _, _, projectedDescriptor =
+        XelAssist.Graph.Targets:Legal(
+            losAction, futureLosState, futureDescriptor)
+    local losCondition, i
+    for i = 1, table.getn(projectedDescriptor
+        and projectedDescriptor.spatialConditions or {}) do
+        local condition = projectedDescriptor.spatialConditions[i]
+        if condition.kind == "line of sight" then losCondition = condition end
+    end
+    assert(futureLegal and not futureReason and losCondition
+        and losCondition.assumption == "prove"
+        and losCondition.conditionalOnly ~= true
+        and projectedDescriptor.spatialConditionalOnly ~= true,
+        "a carried LOS failure must become an unproven future condition without erasing strategic value")
+
+    local priorBlocker = XelAssist.Combat.Observations.Blocker
+    local blockerCalls = 0
+    XelAssist.Combat.Observations.Blocker = function()
+        blockerCalls = blockerCalls + 1
+        return "observed immunity"
+    end
+    rootLosState.targetLineOfSight = true
+    rootDescriptor = XelAssist.Graph.Targets:Targets(
+        losAction, rootLosState)[1]
+    rootLegal, rootReason = XelAssist.Graph.Targets:Legal(
+        losAction, rootLosState, rootDescriptor)
+    futureDescriptor = XelAssist.Graph.Targets:Targets(
+        losAction, futureLosState)[1]
+    futureLegal, futureReason = XelAssist.Graph.Targets:Legal(
+        losAction, futureLosState, futureDescriptor)
+    XelAssist.Combat.Observations.Blocker = priorBlocker
+    assert(not rootLegal and rootReason == "observed immunity"
+        and futureLegal and not futureReason and blockerCalls == 1,
+        "short-lived live observation blockers must not leak into future nodes")
 end
 
 do
@@ -2801,23 +2864,31 @@ plan = expect("action-specific group buff target", "Arcane Intellect")
 assert(plan.target == "party4",
     "a missing buff outside the urgent-healing cap must remain reachable")
 
--- Live state collection may cross the search clock's soft limit even for a
--- low-level character. It must shorten future look-ahead, never suppress the
--- first usable action and turn the HUD into a graph-budget HOLD.
+-- GetTime is frame-cached in the real client. The intra-frame profiler must
+-- still stop a rank-heavy synchronous search while preserving the complete
+-- root and one useful continuation.
 currentState = state("smart")
-scenarioActions = { action("Sinister Strike", 1, "builder", 200, 45) }
-XelAssistCharDB.graphDepth = 3
-local budgetClock = 0
-XelAssist.Graph.Snapshot = function()
-    budgetClock = budgetClock + 1
-    return currentState
+scenarioActions = {}
+XelAssistTestBudgetRank = 1
+while XelAssistTestBudgetRank <= 48 do
+    table.insert(scenarioActions,
+        action("Warlock Rank " .. XelAssistTestBudgetRank, 1, "damage",
+            XelAssistTestBudgetRank, 5))
+    XelAssistTestBudgetRank = XelAssistTestBudgetRank + 1
 end
-GetTime = function()
-    budgetClock = budgetClock + 0.01
-    return budgetClock
+table.insert(scenarioActions,
+    action("Sinister Strike", 1, "builder", 200, 45))
+XelAssistCharDB.graphDepth = 3
+XelAssist.Graph.Snapshot = function() return currentState end
+GetTime = function() return 100 end
+XelAssistTestProfileClock = 100000
+debugprofilestop = function()
+    XelAssistTestProfileClock = XelAssistTestProfileClock + 9.1
+    return XelAssistTestProfileClock
 end
 plan = expect("soft graph budget preserves immediate action", "Sinister Strike")
-assert(plan.budgetLimited == true and table.getn(plan.path) == 2,
-    "the bounded graph must complete two decisions before publishing a limited rail")
+assert(plan.budgetLimited == true and table.getn(plan.path) == 2
+    and plan.completedDepth == 2 and plan.expanded <= 98,
+    "a frozen frame clock must still cap the rank-heavy graph after one continuation")
 
 print("ok: rank, aggro, interrupt, movement, range, aura, cooldown and beam scenarios")
