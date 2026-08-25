@@ -43,6 +43,8 @@ function T:Apply(context)
         return
     end
     local healing = kind == "heal" or kind == "hot" or kind == "petHeal"
+    local baseFlatThreat = facts.baseFlatThreatBySpellId
+        and facts.baseFlatThreatBySpellId[tonumber(context.action.spellId)] or nil
     -- A restored resource quantity is not hostile effect magnitude. Pricing
     -- mana as threat made Life Tap appear to generate aggro equal to its gain.
     local threatPower = kind == "resource" and 0
@@ -56,7 +58,14 @@ function T:Apply(context)
         or threatPower
     local valueThreat = valueThreatPower
         * (facts.threat or (healing and 0.5 or 1))
-    if facts.deferredFlatThreat then
+    if facts.baseFlatThreatBySpellId then
+        threatPower, valueThreatPower = 0, 0
+        threat = math.max(0, tonumber(baseFlatThreat) or 0)
+            * math.max(0, math.min(1, tonumber(context.effectDelivery) or 1))
+        valueThreat = threat
+        context.power, context.expectedPower = 0, 0
+        context.effectivePower, context.fullEffectivePower = 0, 0
+    elseif facts.deferredFlatThreat then
         threat = threatPower * (tonumber(facts.petThreatMultiplierOnCast) or 1)
         valueThreat = valueThreatPower
             * (tonumber(facts.petThreatMultiplierOnCast) or 1)

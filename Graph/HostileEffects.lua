@@ -346,8 +346,11 @@ end
 
 function H:ApplyPrimaryThreat(out, candidate, context)
     local kind = context and context.facts and context.facts.kind
+    local baseFlatThreat = context and context.facts
+        and context.facts.baseFlatThreatBySpellId
     if candidate.targetRelation ~= "hostile"
-        or (kind ~= "damage" and kind ~= "dot" and kind ~= "builder") then
+        or (kind ~= "damage" and kind ~= "dot" and kind ~= "builder"
+            and not baseFlatThreat) then
         return
     end
     local amount = math.max(0, tonumber(candidate.threat) or 0)
@@ -379,6 +382,11 @@ function H:ApplyPrimaryThreat(out, candidate, context)
     record.threat = record.threat or {}
     local field = actor == "pet" and "petDelta" or "playerDelta"
     record.threat[field] = (tonumber(record.threat[field]) or 0) + amount
+    if baseFlatThreat then
+        record.threat.playerDeltaExact = false
+        record.threat.containsEstimatedBaseThreat = true
+        record.threat.projectedSource = context.facts.baseFlatThreatSource
+    end
 end
 
 function H:ProjectPetTaunt(out, candidate, action)

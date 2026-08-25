@@ -3,6 +3,7 @@
 XelAssist.Graph.Effects = {}
 local C = XelAssist.Graph.Effects
 local State = XelAssist.Graph.State
+local Stacks = XelAssist.Graph.StackedModifiers
 
 local function commitHostile(state)
     if State and State.CommitActiveHostile then
@@ -190,9 +191,11 @@ local function refreshExpectedModifier(effect, keepFailure)
         effect.successResistanceReduction, failureReduction, probability)
     effect.damageTaken = blendModifierValues(
         effect.successDamageTaken, failureTaken, probability)
+    if Stacks then Stacks:Refresh(effect, keepFailure) end
     if not keepFailure then
         effect.failureResistanceReduction = nil
         effect.failureDamageTaken = nil
+        effect.failureStackMass = nil
         effect.fallbackRemaining = nil
         effect.activeRoot = nil
     end
@@ -200,11 +203,13 @@ end
 
 function C:AdvanceModifierFallbacks(state, elapsed)
     if not state.targetModifierEffects or not elapsed or elapsed <= 0 then return end
-    local changed, _, effect = false, nil, nil
-    for _, effect in pairs(state.targetModifierEffects) do
+    local changed, name, effect = false, nil, nil
+    for name, effect in pairs(state.targetModifierEffects) do
         if effect.fallbackRemaining then
             if effect.fallbackRemaining <= elapsed then
                 refreshExpectedModifier(effect, false)
+                if Stacks then Stacks:SyncAura(
+                    state.auras and state.auras[name], effect) end
                 changed = true
             else effect.fallbackRemaining = effect.fallbackRemaining - elapsed end
         end
@@ -243,6 +248,12 @@ function C:ApplyTargetModifier(state, action, targetFacts, sourceState, delivery
     end
     priorEffect = priorEffect or state.targetModifierEffects[action.name]
     delivery = math.max(0, math.min(1, tonumber(delivery) or 1))
+    local cap = tonumber(action.facts.stackable)
+    local stackProjection = cap and Stacks:Application(priorEffect, cap) or nil
+    local priorStacks = stackProjection
+        and Stacks:Expected(stackProjection.prior, cap) or 0
+    local successStacks = stackProjection
+        and Stacks:Expected(stackProjection.success, cap) or nil
     local effect = { name = action.name,
         group = action.facts.modifierGroup or action.name,
         exclusiveFamily = action.facts.exclusiveFamily, mine = true,
@@ -251,6 +262,9 @@ function C:ApplyTargetModifier(state, action, targetFacts, sourceState, delivery
         failureResistanceReduction = copyNumbers(
             priorEffect and priorEffect.resistanceReduction) or {},
         failureDamageTaken = copyNumbers(priorEffect and priorEffect.damageTaken) or {},
+        stackCap = cap,
+        successStackMass = stackProjection and stackProjection.success or nil,
+        failureStackMass = stackProjection and stackProjection.failure or nil,
         deliveryProbability = delivery,
         fallbackRemaining = priorEffect and (fallbackRemaining or math.huge) or nil,
         activeRoot = priorEffect and priorEffect.activeRoot or nil }
@@ -264,23 +278,29 @@ function C:ApplyTargetModifier(state, action, targetFacts, sourceState, delivery
                 or sourceState.combo or 0
             armor = armor * points
         end
-        if action.facts.stackable and priorEffect then
-            armor = (priorEffect.resistanceReduction[0] or 0) + armor
+        if cap then
+            local prior = priorEffect and priorEffect.resistanceReduction[0] or 0
+            local perStack = priorStacks > 0 and prior / priorStacks or 0
+            armor = math.max(armor, perStack) * successStacks
         end
         effect.successResistanceReduction[0] = armor
     end
     local school, amount
     for school, amount in pairs(targetFacts.targetResistanceReduction or {}) do
         local value = tonumber(amount) or 0
-        if action.facts.stackable and priorEffect then
-            value = (priorEffect.resistanceReduction[school] or 0) + value
+        if cap then
+            local prior = priorEffect and priorEffect.resistanceReduction[school] or 0
+            local perStack = priorStacks > 0 and prior / priorStacks or 0
+            value = math.max(value, perStack) * successStacks
         end
         effect.successResistanceReduction[school] = value
     end
     for school, amount in pairs(targetFacts.targetDamageTaken or {}) do
         local value = tonumber(amount) or 0
-        if action.facts.stackable and priorEffect then
-            value = (priorEffect.damageTaken[school] or 0) + value
+        if cap then
+            local prior = priorEffect and priorEffect.damageTaken[school] or 0
+            local perStack = priorStacks > 0 and prior / priorStacks or 0
+            value = math.max(value, perStack) * successStacks
         end
         effect.successDamageTaken[school] = value
     end
@@ -302,6 +322,7 @@ local function scaleModifierBranch(effect, probability)
             effect[field][school] = amount * probability
         end
     end
+    if Stacks then Stacks:Scale(effect, probability) end
 end
 
 function C:ApplyExclusiveFamily(state, action, delivery)

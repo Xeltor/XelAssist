@@ -65,7 +65,7 @@ function T:AuraActive(action, state, descriptor)
         local liveProbability = live and (tonumber(live.applicationProbability) or 1) or 0
         stacks = math.max(stacks or 0, liveProbability >= APPLICATION_BLOCK_THRESHOLD
             and (tonumber(live.stacks) or 1) or 0)
-        return stacks >= action.facts.stackable
+        return stacks >= action.facts.stackable and not action.facts.refreshAtStackCap
     end
     if future then
         if type(future) ~= "table" then return true end

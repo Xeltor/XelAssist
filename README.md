@@ -1,4 +1,4 @@
-# XelAssist 0.8.31
+# XelAssist 0.8.32
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -100,6 +100,15 @@ exact usability, cooldown, five-yard reach, hostile identity, victim
 identity, and roster ownership; a target that has already switched to the
 player cancels the recommendation instead of wasting Taunt. A proven ally or
 pet pull remains valid before the player's own combat flag arrives.
+
+Sunder Armor now keeps armor projection separate from threat projection. Its
+five installed ranks contribute the VMaNGOS build-5875 server profile's 45,
+99, 153, 207, or 261 base flat threat only after expected effect delivery,
+while remaining explicitly runtime-unverified for Octowow. Armor stacks and
+partial-delivery branches cap at five; a landed cast at the cap refreshes the
+projected aura and adds threat without inventing a sixth stack. Because stance
+and talent multipliers are not yet included, the resulting player-threat delta
+is deliberately marked inexact and never used to fabricate an aggro switch.
 
 ## Requirements
 

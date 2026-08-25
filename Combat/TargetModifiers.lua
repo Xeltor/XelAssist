@@ -137,12 +137,17 @@ function M:Active(encounter, targetResistance)
             local name = action and action.name or aura.name
                 or SpellInfo and SpellInfo(aura.spellId) or "Target modifier"
             local stacks = math.max(1, tonumber(aura.stacks) or 1)
+            if facts.stackable then stacks = math.min(facts.stackable, stacks) end
             local owned = aura.mine
             if owned == nil and aura.playerOrPet then owned = true end
             local effect = { resistanceReduction = {}, damageTaken = {},
                 name = name, group = facts.modifierGroup
                     or exact and exact.modifierGroup or name,
                 remaining = aura.remaining, activeRoot = true,
+                stackCap = facts.stackable,
+                stackMass = facts.stackable and { [stacks] = 1 } or nil,
+                stacks = facts.stackable and stacks or nil,
+                expectedStacks = facts.stackable and stacks or nil,
                 exclusiveFamily = facts.exclusiveFamily,
                 mine = owned,
                 liveIncluded = targetResistance and targetResistance.live and true or false }

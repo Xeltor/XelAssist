@@ -13,6 +13,7 @@ local ResourceExchange = XelAssist.Graph.ResourceExchange
 local HealthTransfer = XelAssist.Graph.HealthTransfer
 local WandCommitment = XelAssist.Graph.WandCommitment
 local PlayerTaunt = XelAssist.Graph.PlayerTaunt
+local StackedModifiers = XelAssist.Graph.StackedModifiers
 
 function A:Context(source, candidate)
     local action, facts = candidate.action, candidate.action.facts
@@ -359,6 +360,10 @@ local function applyAura(out, source, candidate, context,
             expectedStacks = facts.stackable and math.min(facts.stackable,
                 stacks + context.projectedDelivery) or nil,
         }
+        if facts.stackable and StackedModifiers then
+            StackedModifiers:SyncAura(out.auras[action.name],
+                out.targetModifierEffects and out.targetModifierEffects[action.name])
+        end
     end
 end
 local function syncFriendlyCompatibility(state)
