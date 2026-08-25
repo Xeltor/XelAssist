@@ -234,6 +234,15 @@ The action's resource and cooldown state advance once even when several
 recipients resolve. Unknown target relation, unknown radius, cones, chain
 secondaries, and ground/dynamic-object placement do not manufacture recipients.
 
+The complete local target enum is also available through an isolated rich
+descriptor API, and the spell-semantics decoder retains multi-effect spells as
+composable atoms instead of forcing one `kind`. Polymorphic and scripted
+recipients, unknown auras, incomplete arrays, and unbounded or cyclic triggers
+remain explicit failures. In 0.8.28 this evidence has no production caller and
+cannot alter action discovery, graph state, scoring, or recommendations; the
+first consumer must use a compact evaluation-owned projection and pass the
+frozen search-budget benchmark before that isolation gate is relaxed.
+
 The bounded beam compares elapsed-time-discounted paths, so a future cooldown, aura,
 resource shortage, or downtime can change which current action wins. Player cast
 occupancy and the shared GCD are separate clocks: normal actions advance the GCD,

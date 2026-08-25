@@ -1,4 +1,4 @@
-# XelAssist 0.8.27
+# XelAssist 0.8.28
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -64,6 +64,14 @@ initial player-health cost and each upkeep tick causally, heals only after a
 successful nonlethal payment, prices overhealing and incoming damage, and can
 be continued or deliberately clipped by the same weighted channel graph used
 by other classes. Unproven server-side talent modifiers remain unknown.
+
+The installed-client semantic foundation now decodes multi-effect mechanics
+for every class as separate damage, healing, resource, dispel, threat, summon,
+aura, form, and triggered-child atoms. It also describes all 64 local implicit
+target codes without collapsing target A and B. This layer is deliberately
+recommendation-neutral in 0.8.28: no action discovery or graph consumer calls
+it yet, and validation rejects accidental production callers until a compact
+consumer can be benchmarked without reducing search depth.
 
 ## Requirements
 
@@ -236,7 +244,8 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
   through selected, mouseover, pet-target, and party/raid-target unit tokens,
   with target-local health, aura, resistance, modifier, geometry, victim, and
   threat projections; this is not full nameplate or encounter-roster discovery;
-- DBC-derived per-effect recipient topology and installed-client radius data.
+- DBC-derived per-effect recipient topology and installed-client radius data,
+  plus an isolated full target-enum and composable spell-mechanics decoder.
   Proven target- and caster-centered circles retain geometry for multiple
   observed hostiles, but the stock unit-token snapshot is not exhaustive, so
   secondary benefit is withheld while known collateral pull risk still counts.

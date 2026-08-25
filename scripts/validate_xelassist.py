@@ -167,6 +167,9 @@ for path in production_lua_files(root):
     if "%" in code: raise SystemExit(f"{path.relative_to(root)}: Lua 5.1 modulo operator is not valid in Lua 5.0")
     if "#" in code: raise SystemExit(f"{path.relative_to(root)}: Lua 5.1 length operator is not valid in Lua 5.0")
     relative = path.relative_to(root).as_posix()
+    if relative != "Game/SpellSemantics.lua" and "SpellSemantics" in code:
+        raise SystemExit(
+            f"{relative}: recommendation-neutral SpellSemantics has a production caller")
     lines = len(text.splitlines())
     ceiling = legacy_line_ceilings.get(relative, 450)
     if lines > ceiling:
@@ -180,6 +183,7 @@ subprocess.run(["lua", str(root / "tests/search_lifecycle_test.lua")], cwd=root,
 subprocess.run(["lua", str(root / "tests/search_preparation_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/publication_guard_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/spell_topology_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/spell_semantics_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/geometry_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/capabilities_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/resource_exchange_test.lua")], cwd=root, check=True)

@@ -218,6 +218,17 @@ for raw in io.lines("XelAssist.toc") do
 end
 local i
 for i = 1, table.getn(files) do dofile(files[i]) end
+
+-- 0.8.28 loads the cross-class DBC decoder as recommendation-neutral
+-- infrastructure. Any production caller would add cold client reads or rich
+-- descriptor copies to the combat path before a consumer has been benchmarked.
+local semanticMethods = { "Decode", "Resolve", "InferAction", "Apply", "Invalidate" }
+for i = 1, table.getn(semanticMethods) do
+    local name = semanticMethods[i]
+    XelAssist.Game.SpellSemantics[name] = function()
+        error("recommendation-neutral SpellSemantics caller: " .. name)
+    end
+end
 local eventFrame
 focusEventFrame = nil
 attackRoundEventFrame = nil
@@ -375,7 +386,7 @@ assert(XelAssistCharDB.schema == 5
     and XelAssistCharDB.toggles.engagedTargets == false,
     "saved-variable schema did not migrate with safe hostile-target defaults")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.27" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.28" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(not runtime.apis.comboOwner and not runtime.apis.comboDuration,

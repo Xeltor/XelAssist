@@ -60,7 +60,13 @@ never class rotations or ordered priority lists.
   DBC consequences. `Game/TargetSurvival.lua` owns bounded session-only
   exact-health trend evidence without persisting or rendering opaque identity, and
   `Game/SpellTopology.lua` translates installed-client DBC effect-target and
-  radius fields without deciding which action is useful. The session-only
+  radius fields without deciding which action is useful. Its compact `Facts`
+  output remains graph-facing, while `Describe` exposes fresh rich target-enum
+  metadata only to explicit mechanics decoders. `Game/SpellSemantics.lua`
+  owns cached raw DBC evidence, mutation-isolated per-effect mechanic atoms,
+  contextual recipient resolution, and bounded immediate-trigger traversal.
+  It has no production consumer in 0.8.28; validation preserves that isolation
+  until a compact projection is benchmarked. The session-only
   `Game/Pets/EffectRuntime.lua` ledger correlates confirmed casts, observable
   pet auras, and exact melee outcomes so fresh snapshots retain pet effects
   without writing opaque identities or inferred state to saved variables.

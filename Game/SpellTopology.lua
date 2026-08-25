@@ -14,39 +14,137 @@ local RADIUS = {
     [29] = 6, [31] = 80,
 }
 
+-- Complete SpellTarget enum exposed by the locally installed Nampower fork.
+-- These descriptors preserve what each implicit target field says without
+-- forcing two fields into one recipient.  `resolved = false` means the enum
+-- does not prove enough relation/shape information for graph decisions.
+local function descriptor(name, kind, relation, shape, center, extra)
+    local out = { name = name, kind = kind, relation = relation,
+        shape = shape, center = center, resolved = true }
+    local key, value
+    for key, value in pairs(extra or {}) do out[key] = value end
+    return out
+end
+
+local function legacyDescriptor(name, kind, relation, shape, center, extra)
+    local out = descriptor(name, kind, relation, shape, center, extra)
+    out.legacy = true
+    return out
+end
+
 local TARGET = {
-    [1] = { relation = "self", shape = "single", center = "caster" },
-    [2] = { relation = "hostile", shape = "single", center = "caster" },
-    [3] = { relation = "friendly", shape = "single", center = "caster" },
-    [5] = { relation = "pet", shape = "single", center = "caster" },
-    [6] = { relation = "hostile", shape = "single", center = "target" },
-    [7] = { relation = "unknown", shape = "area", center = "caster" },
-    [8] = { relation = "unknown", shape = "area", center = "target" },
-    [15] = { relation = "hostile", shape = "area", center = "caster" },
-    [16] = { relation = "hostile", shape = "area", center = "target" },
-    [20] = { relation = "party", shape = "area", center = "caster" },
-    [21] = { relation = "friendly", shape = "single", center = "target" },
-    [24] = { relation = "hostile", shape = "cone", center = "caster" },
-    [25] = { relation = "unknown", shape = "single", center = "target" },
-    [27] = { relation = "friendly", shape = "single", center = "caster" },
-    -- Dynamic-object recipients are ground effects. A visible target does not
-    -- prove the object's placement center, so the graph must not resolve them
-    -- as ordinary target-centered circles.
-    [28] = { relation = "hostile", shape = "ground", center = "dynamicObject" },
-    [29] = { relation = "friendly", shape = "ground", center = "dynamicObject" },
-    [30] = { relation = "friendly", shape = "area", center = "caster" },
-    [31] = { relation = "friendly", shape = "area", center = "target" },
-    [33] = { relation = "party", shape = "area", center = "caster" },
-    [34] = { relation = "party", shape = "area", center = "target" },
-    [35] = { relation = "party", shape = "single", center = "target" },
-    [36] = { relation = "hostile", shape = "area", center = "caster" },
-    [37] = { relation = "friendly", shape = "area", center = "target" },
-    [45] = { relation = "friendly", shape = "chain", center = "target" },
-    [54] = { relation = "hostile", shape = "cone", center = "caster" },
-    [56] = { relation = "raid", shape = "area", center = "caster" },
-    [57] = { relation = "raid", shape = "single", center = "target" },
-    [58] = { relation = "raid", shape = "single", center = "caster" },
-    [59] = { relation = "friendly", shape = "cone", center = "caster" },
+    [0] = descriptor("TARGET_NONE", "none", "none", "none", "none"),
+    [1] = legacyDescriptor("TARGET_UNIT_CASTER", "unit", "self", "single", "caster"),
+    [2] = legacyDescriptor("TARGET_UNIT_ENEMY_NEAR_CASTER", "unit", "hostile", "single", "caster"),
+    [3] = legacyDescriptor("TARGET_UNIT_FRIEND_NEAR_CASTER", "unit", "friendly", "single", "caster"),
+    [4] = descriptor("TARGET_UNIT_NEAR_CASTER", "unit", "polymorphic", "single", "caster",
+        { resolved = false }),
+    [5] = legacyDescriptor("TARGET_UNIT_CASTER_PET", "unit", "pet", "single", "caster"),
+    [6] = legacyDescriptor("TARGET_UNIT_ENEMY", "unit", "hostile", "single", "target"),
+    [7] = legacyDescriptor("TARGET_ENUM_UNITS_SCRIPT_AOE_AT_SRC_LOC", "unit", "unknown", "area", "source",
+        { scripted = true, resolved = false, destination = "source",
+            legacyCenter = "caster" }),
+    [8] = legacyDescriptor("TARGET_ENUM_UNITS_SCRIPT_AOE_AT_DEST_LOC", "unit", "unknown", "area", "destination",
+        { scripted = true, resolved = false, destination = "destination",
+            legacyCenter = "target" }),
+    [9] = descriptor("TARGET_LOCATION_CASTER_HOME_BIND", "location", "none", "location", "homeBind",
+        { destination = "homeBind" }),
+    [10] = descriptor("TARGET_LOCATION_CASTER_DIVINE_BIND_NYI", "location", "none", "location", "divineBind",
+        { destination = "divineBind", nyi = true, resolved = false }),
+    [11] = descriptor("TARGET_PLAYER_NYI", "unit", "unknown", "single", "unknown",
+        { nyi = true, resolved = false }),
+    [12] = descriptor("TARGET_PLAYER_NEAR_CASTER_NYI", "unit", "unknown", "single", "caster",
+        { nyi = true, resolved = false }),
+    [13] = descriptor("TARGET_PLAYER_ENEMY_NYI", "unit", "hostile", "single", "target",
+        { nyi = true, resolved = false }),
+    [14] = descriptor("TARGET_PLAYER_FRIEND_NYI", "unit", "friendly", "single", "target",
+        { nyi = true, resolved = false }),
+    [15] = legacyDescriptor("TARGET_ENUM_UNITS_ENEMY_AOE_AT_SRC_LOC", "unit", "hostile", "area", "source",
+        { destination = "source", legacyCenter = "caster" }),
+    [16] = legacyDescriptor("TARGET_ENUM_UNITS_ENEMY_AOE_AT_DEST_LOC", "unit", "hostile", "area", "destination",
+        { destination = "destination", legacyCenter = "target" }),
+    [17] = descriptor("TARGET_LOCATION_DATABASE", "location", "none", "location", "database",
+        { destination = "database" }),
+    [18] = descriptor("TARGET_LOCATION_CASTER_DEST", "location", "none", "location", "destination",
+        { destination = "destination" }),
+    [19] = descriptor("TARGET_UNK_19", "unknown", "unknown", "unknown", "unknown",
+        { resolved = false }),
+    [20] = legacyDescriptor("TARGET_ENUM_UNITS_PARTY_WITHIN_CASTER_RANGE", "unit", "party", "area", "caster"),
+    [21] = legacyDescriptor("TARGET_UNIT_FRIEND", "unit", "friendly", "single", "target"),
+    [22] = descriptor("TARGET_LOCATION_CASTER_SRC", "location", "none", "location", "source",
+        { destination = "source" }),
+    [23] = descriptor("TARGET_GAMEOBJECT", "object", "none", "single", "target"),
+    [24] = legacyDescriptor("TARGET_ENUM_UNITS_ENEMY_IN_CONE_24", "unit", "hostile", "cone", "caster"),
+    [25] = legacyDescriptor("TARGET_UNIT", "unit", "polymorphic", "single", "target",
+        { resolved = false, legacyRelation = "unknown" }),
+    [26] = descriptor("TARGET_LOCKED", "locked", "unknown", "unknown", "target",
+        { resolved = false }),
+    [27] = legacyDescriptor("TARGET_UNIT_CASTER_MASTER", "unit", "friendly", "single", "caster"),
+    [28] = legacyDescriptor("TARGET_ENUM_UNITS_ENEMY_AOE_AT_DYNOBJ_LOC", "unit", "hostile", "area", "dynamicObject",
+        { destination = "dynamicObject", deployable = true,
+            legacyShape = "ground" }),
+    [29] = legacyDescriptor("TARGET_ENUM_UNITS_FRIEND_AOE_AT_DYNOBJ_LOC", "unit", "friendly", "area", "dynamicObject",
+        { destination = "dynamicObject", deployable = true,
+            legacyShape = "ground" }),
+    [30] = legacyDescriptor("TARGET_ENUM_UNITS_FRIEND_AOE_AT_SRC_LOC", "unit", "friendly", "area", "source",
+        { destination = "source", legacyCenter = "caster" }),
+    [31] = legacyDescriptor("TARGET_ENUM_UNITS_FRIEND_AOE_AT_DEST_LOC", "unit", "friendly", "area", "destination",
+        { destination = "destination", legacyCenter = "target" }),
+    [32] = descriptor("TARGET_LOCATION_UNIT_MINION_POSITION", "location", "none", "location", "minion",
+        { destination = "minionPosition", deployable = true }),
+    [33] = legacyDescriptor("TARGET_ENUM_UNITS_PARTY_AOE_AT_SRC_LOC", "unit", "party", "area", "source",
+        { destination = "source", legacyCenter = "caster" }),
+    [34] = legacyDescriptor("TARGET_ENUM_UNITS_PARTY_AOE_AT_DEST_LOC", "unit", "party", "area", "destination",
+        { destination = "destination", legacyCenter = "target" }),
+    [35] = legacyDescriptor("TARGET_UNIT_PARTY", "unit", "party", "single", "target"),
+    [36] = legacyDescriptor("TARGET_ENUM_UNITS_ENEMY_WITHIN_CASTER_RANGE", "unit", "hostile", "area", "caster"),
+    [37] = legacyDescriptor("TARGET_UNIT_FRIEND_AND_PARTY", "unit", "friendly", "area", "target"),
+    [38] = descriptor("TARGET_UNIT_SCRIPT_NEAR_CASTER", "unit", "unknown", "single", "caster",
+        { scripted = true, resolved = false }),
+    [39] = descriptor("TARGET_LOCATION_CASTER_FISHING_SPOT", "location", "none", "location", "fishingSpot",
+        { destination = "fishingSpot", deployable = true }),
+    [40] = descriptor("TARGET_GAMEOBJECT_SCRIPT_NEAR_CASTER", "object", "none", "single", "caster",
+        { scripted = true, resolved = false }),
+    [41] = descriptor("TARGET_LOCATION_CASTER_FRONT_RIGHT", "location", "none", "location", "casterFrontRight",
+        { destination = "casterFrontRight" }),
+    [42] = descriptor("TARGET_LOCATION_CASTER_BACK_RIGHT", "location", "none", "location", "casterBackRight",
+        { destination = "casterBackRight" }),
+    [43] = descriptor("TARGET_LOCATION_CASTER_BACK_LEFT", "location", "none", "location", "casterBackLeft",
+        { destination = "casterBackLeft" }),
+    [44] = descriptor("TARGET_LOCATION_CASTER_FRONT_LEFT", "location", "none", "location", "casterFrontLeft",
+        { destination = "casterFrontLeft" }),
+    [45] = legacyDescriptor("TARGET_UNIT_FRIEND_CHAIN_HEAL", "unit", "friendly", "chain", "target"),
+    [46] = descriptor("TARGET_LOCATION_SCRIPT_NEAR_CASTER", "location", "none", "location", "caster",
+        { destination = "caster", scripted = true, resolved = false }),
+    [47] = descriptor("TARGET_LOCATION_CASTER_FRONT", "location", "none", "location", "casterFront",
+        { destination = "casterFront" }),
+    [48] = descriptor("TARGET_LOCATION_CASTER_BACK", "location", "none", "location", "casterBack",
+        { destination = "casterBack" }),
+    [49] = descriptor("TARGET_LOCATION_CASTER_LEFT", "location", "none", "location", "casterLeft",
+        { destination = "casterLeft" }),
+    [50] = descriptor("TARGET_LOCATION_CASTER_RIGHT", "location", "none", "location", "casterRight",
+        { destination = "casterRight" }),
+    [51] = descriptor("TARGET_ENUM_GAMEOBJECTS_SCRIPT_AOE_AT_SRC_LOC", "object", "none", "area", "source",
+        { destination = "source", scripted = true, resolved = false }),
+    [52] = descriptor("TARGET_ENUM_GAMEOBJECTS_SCRIPT_AOE_AT_DEST_LOC", "object", "none", "area", "destination",
+        { destination = "destination", scripted = true, resolved = false }),
+    [53] = descriptor("TARGET_LOCATION_CASTER_TARGET_POSITION", "location", "none", "location", "target",
+        { destination = "targetPosition" }),
+    [54] = legacyDescriptor("TARGET_ENUM_UNITS_ENEMY_IN_CONE_54", "unit", "hostile", "cone", "caster"),
+    [55] = descriptor("TARGET_LOCATION_CASTER_FRONT_LEAP", "location", "none", "location", "casterFront",
+        { destination = "casterFrontLeap" }),
+    [56] = legacyDescriptor("TARGET_ENUM_UNITS_RAID_WITHIN_CASTER_RANGE", "unit", "raid", "area", "caster"),
+    [57] = legacyDescriptor("TARGET_UNIT_RAID", "unit", "raid", "single", "target"),
+    [58] = legacyDescriptor("TARGET_UNIT_RAID_NEAR_CASTER", "unit", "raid", "single", "caster"),
+    [59] = legacyDescriptor("TARGET_ENUM_UNITS_FRIEND_IN_CONE", "unit", "friendly", "cone", "caster"),
+    [60] = descriptor("TARGET_ENUM_UNITS_SCRIPT_IN_CONE_60", "unit", "unknown", "cone", "caster",
+        { scripted = true, resolved = false }),
+    [61] = descriptor("TARGET_UNIT_RAID_AND_CLASS", "unit", "raid", "unknown", "target",
+        { resolved = false }),
+    [62] = descriptor("TARGET_PLAYER_RAID_NYI", "unit", "raid", "unknown", "unknown",
+        { nyi = true, resolved = false }),
+    [63] = descriptor("TARGET_LOCATION_UNIT_POSITION", "location", "none", "location", "target",
+        { destination = "unitPosition" }),
 }
 
 local function dbcArray(spellId, field)
@@ -56,14 +154,33 @@ local function dbcArray(spellId, field)
     return nil
 end
 
-local function copyTarget(code)
-    local known = TARGET[tonumber(code)]
+local function copyDescriptor(code)
+    local number = tonumber(code) or 0
+    local known = TARGET[number]
     if not known then
-        return { code = tonumber(code) or 0, relation = "unknown",
+        return { code = number, name = "TARGET_UNKNOWN", kind = "unknown",
+            relation = "unknown", shape = "unknown", center = "unknown",
+            resolved = false, scripted = false }
+    end
+    local out = { code = number, name = known.name, kind = known.kind,
+        relation = known.relation, shape = known.shape, center = known.center,
+        resolved = known.resolved, scripted = known.scripted == true }
+    if known.destination then out.destination = known.destination end
+    if known.deployable then out.deployable = true end
+    if known.nyi then out.nyi = true end
+    return out
+end
+
+local function copyLegacyTarget(code)
+    local number = tonumber(code) or 0
+    local known = TARGET[number]
+    if not (known and known.legacy) then
+        return { code = number, relation = "unknown",
             shape = "unknown", center = "unknown" }
     end
-    return { code = tonumber(code), relation = known.relation,
-        shape = known.shape, center = known.center }
+    return { code = number, relation = known.legacyRelation or known.relation,
+        shape = known.legacyShape or known.shape,
+        center = known.legacyCenter or known.center }
 end
 
 local function isArea(target)
@@ -82,8 +199,10 @@ local function chooseTarget(first, second)
 end
 
 local function effectRecord(index, effects, targetsA, targetsB, radii, chains)
-    local first = copyTarget(targetsA and targetsA[index])
-    local second = copyTarget(targetsB and targetsB[index])
+    local implicitA = tonumber(targetsA and targetsA[index]) or 0
+    local implicitB = tonumber(targetsB and targetsB[index]) or 0
+    local first = copyLegacyTarget(implicitA)
+    local second = copyLegacyTarget(implicitB)
     local target = chooseTarget(first, second)
     local radiusIndex = tonumber(radii and radii[index])
     local chainTargets = tonumber(chains and chains[index])
@@ -91,7 +210,7 @@ local function effectRecord(index, effects, targetsA, targetsB, radii, chains)
         target.shape, target.center = "chain", "target"
     end
     return { index = index, effect = tonumber(effects and effects[index]) or 0,
-        implicitA = first.code, implicitB = second.code,
+        implicitA = implicitA, implicitB = implicitB,
         relation = target.relation, shape = target.shape, center = target.center,
         radiusIndex = radiusIndex, radius = RADIUS[radiusIndex],
         -- An area effect without a positive, mapped radius is unknown. A zero
@@ -99,6 +218,13 @@ local function effectRecord(index, effects, targetsA, targetsB, radii, chains)
         radiusKnown = not isArea(target) or radiusIndex ~= nil
             and radiusIndex > 0 and RADIUS[radiusIndex] ~= nil,
         maxTargets = chainTargets and chainTargets > 0 and chainTargets or nil }
+end
+
+-- Return a fresh rich enum descriptor only to callers that need semantic
+-- target detail.  These tables intentionally do not enter Facts(), which is
+-- embedded in every action and deep-copied during root observation.
+function T:Describe(code)
+    return copyDescriptor(code)
 end
 
 function T:Radius(index)

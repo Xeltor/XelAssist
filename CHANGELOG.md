@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.8.28
+
+- Added a cached, fail-closed installed-client spell-semantics decoder that
+  preserves each effect as composable damage, healing, power, dispel, threat,
+  taunt, summon, aura, form, and immediate-trigger atoms. Nine-class fixtures
+  cover Taunt, Cleanse, Tranquilizing Shot, Adrenaline Rush, Dispel Magic,
+  Searing Totem, Evocation, Dark Pact, and Cat Form, plus mixed Fireball,
+  Regrowth, and Bloodrage mechanics.
+- Expanded the single target-code registry to all 64 Nampower enum values and
+  exposed fresh rich descriptors without changing the compact topology copied
+  into graph snapshots. Target A/B identity, polymorphic units, scripted
+  recipients, locations, objects, and deployables remain distinct and
+  unresolved evidence stays fail-closed.
+- Kept the new layer recommendation-neutral while its first compact consumer is
+  designed. Static validation and full-load traps forbid production callers;
+  descriptors are mutation-isolated, trigger traversal is cycle/depth/node
+  bounded, positive and negative caches invalidate explicitly, and passive
+  spells cannot enter inference. Deterministic Warlock search depth, edge
+  counts, active time, and maximum slice metrics remain identical to 0.8.27.
+
 ## 0.8.27
 
 - Added a reusable graph-native health-transfer channel primitive, initially
