@@ -163,9 +163,10 @@ assert "TargetNearestEnemy" not in graph + core
 assert "TargetUnit(" not in graph + core
 assert "ClearTarget(" not in graph + core
 assert 'CastSpellByName(castName, "CLICK")' in core
-assert "QueueSpellByName(castName)" in core
-assert "local forceQueue" in core
-assert 'plan.target == "target") and QueueSpellByName' in core
+assert "QueueSpellByName(castName, guid)" in core
+assert "QueueSpellByName(castName)" not in core
+assert "context.usesHostileQueue and context.hostilePlan" in core
+assert 'plan.target == "target")' in core and "QueueSpellByName ~= nil" in core
 assert "fallback=conservative hold" in core
 assert "function XA:RuntimeAudit" in core and "function XA:RecordError" in core
 assert "function UI:Refresh" not in core

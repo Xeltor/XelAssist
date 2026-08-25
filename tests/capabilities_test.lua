@@ -125,8 +125,14 @@ GetSpellRecField = function(spellId, field)
     if spellId == 348 and field == "effect" then return { 2, 6, 0 } end
     if spellId == 348 and field == "effectApplyAuraName" then return { 0, 3, 0 } end
     if spellId == 348 and field == "effectAmplitude" then return { 0, 3000, 0 } end
+    if spellId == 2973 then
+        local raptor = { attributes = 4, startRecoveryCategory = 0,
+            startRecoveryTime = 1500, school = 0 }
+        return raptor[field]
+    end
     local values = { castTime = 2500, recoveryTime = 8000, categoryRecoveryTime = 6000,
-        category = 44, startRecoveryTime = 1500, rangeIndex = 7, manaCost = 60,
+        category = 44, startRecoveryTime = 1500, startRecoveryCategory = 133,
+        rangeIndex = 7, manaCost = 60, attributes = 0,
         school = 4, spellLevel = 20, attributesEx4 = 1 }
     if field == "effectBasePoints" then return { 89, 0, 0 } end
     if field == "effectDieSides" then return { 20, 0, 0 } end
@@ -164,6 +170,7 @@ end
 
 dofile("Combat/Knowledge.lua")
 dofile("Game/SpellTiming.lua")
+dofile("Game/SpellClassification.lua")
 dofile("Game/Capabilities.lua")
 
 local savedGetCastInfo, savedGetCurrentCastingInfo = GetCastInfo,
@@ -198,6 +205,15 @@ assert(facts.minRange == 8 and facts.maxRange == 30 and facts.duration == 12)
 assert(facts.average == 110 and facts.school == 4)
 assert(facts.attributesEx4 == 1 and facts.ignoresResistances == true,
     "DBC ignore-resistance attribute missing")
+assert(facts.attributes == 0 and facts.onNextSwing == false
+    and facts.startRecoveryCategory == 133 and facts.normalGcd == true,
+    "DBC normal-GCD classification missing")
+local raptorFacts = XelAssist.Game.Capabilities:Facts({ name = "Raptor Strike",
+    slot = 3, spellId = 2973, bookType = BOOKTYPE_SPELL,
+    facts = { kind = "damage", melee = true } })
+assert(raptorFacts.attributes == 4 and raptorFacts.onNextSwing == true
+    and raptorFacts.normalGcd == false,
+    "DBC on-next-swing classification must not require typed action metadata")
 assert(facts.dbcAverage and facts.dbcAverage > 100, "DBC effect magnitude missing")
 assert(XelAssist.Game.Capabilities:GCDRemaining() == 0.3)
 local health, maximum, exact = XelAssist.Game.Capabilities:Health("target")

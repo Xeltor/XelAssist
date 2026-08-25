@@ -605,10 +605,7 @@ function C:Facts(action)
     local gcdMs = dbc("startRecoveryTime")
     local rangeIndex = dbc("rangeIndex")
     out.school = dbc("school")
-    out.attributesEx4 = dbc("attributesEx4")
-    if out.attributesEx4 ~= nil then
-        out.ignoresResistances = out.attributesEx4 - math.floor(out.attributesEx4 / 2) * 2 == 1
-    end
+    local gcdCategory = XelAssist.Game.SpellClassification:Apply(action, out, dbc)
     if castMs then out.cast = castMs / 1000 end
     if recoveryMs and recoveryMs > 0 then out.cooldown = recoveryMs / 1000 end
     if categoryRecoveryMs and categoryRecoveryMs > 0 then out.categoryCooldown = categoryRecoveryMs / 1000 end
@@ -645,7 +642,10 @@ function C:Facts(action)
         if best > 0 then out.dbcAverage = best end
         if bestCombo > 0 then out.comboBonus = bestCombo end
     end
-    if out.cast or out.cooldown or out.gcd or out.maxRange or out.duration or out.cost then out.source = "dbc" end
+    if out.cast or out.cooldown or out.gcd or out.maxRange or out.duration
+        or out.cost or out.attributes ~= nil or gcdCategory ~= nil then
+        out.source = "dbc"
+    end
     local i
     for i = 2, 10 do
         local left = getglobal(TIP_NAME .. "TextLeft" .. i)

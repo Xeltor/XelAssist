@@ -1,4 +1,6 @@
 local XA = XelAssist
+local PlayerNormalQueue = XelAssist.Core.PlayerNormalQueue
+local PlayerQueueEvents = XelAssist.Core.PlayerQueueEvents
 local function msg(text, r, g, b)
     DEFAULT_CHAT_FRAME:AddMessage("XelAssist: " .. text, r or 0.35, g or 0.85, b or 1)
 end
@@ -10,6 +12,16 @@ end
 local function flagSet(value, flag)
     value = math.max(0, tonumber(value) or 0)
     return math.floor(value / flag) - math.floor(value / (flag * 2)) * 2 == 1
+end
+local function nampowerAtLeast(major, minor, patch)
+    if type(GetNampowerVersion) ~= "function" then return false end
+    local ok, haveMajor, haveMinor, havePatch = pcall(GetNampowerVersion)
+    if not ok then return false end
+    haveMajor, haveMinor, havePatch = tonumber(haveMajor) or 0,
+        tonumber(haveMinor) or 0, tonumber(havePatch) or 0
+    if haveMajor ~= major then return haveMajor > major end
+    if haveMinor ~= minor then return haveMinor > minor end
+    return havePatch >= patch
 end
 function XA:EnableEvidenceEvents()
     local names = { "NP_EnableAuraCastEvents", "NP_EnableSpellStartEvents",
@@ -23,7 +35,7 @@ function XA:EnableEvidenceEvents()
     local nampower = (GetNampowerVersion or QueueSpellByName) and true or false
     self.evidenceEvents = { damage = nampower, miss = nampower, autoAttack = nampower,
         aura = cvarEnabled(names[1]), start = cvarEnabled(names[2]),
-        go = cvarEnabled(names[3]) }
+        go = cvarEnabled(names[3]), castResult = nampowerAtLeast(4, 7, 0) }
     return self.evidenceEvents
 end
 
@@ -59,7 +71,11 @@ function XA:CheckDependencies()
     local missing = {}
     if not SpellInfo or not SUPERWOW_VERSION then table.insert(missing, "SuperWoW") end
     if not IsAddOnLoaded or not IsAddOnLoaded("SuperAPI") then table.insert(missing, "SuperAPI") end
-    if not QueueSpellByName then table.insert(missing, "Nampower") end
+    if not QueueSpellByName then
+        table.insert(missing, "Nampower")
+    elseif not nampowerAtLeast(4, 7, 0) then
+        table.insert(missing, "Nampower 4.7.0+")
+    end
     self.missing = missing
     self.executionEnabled = table.getn(missing) == 0
     if not self.executionEnabled then msg("execution disabled; missing " .. table.concat(missing, ", ") .. ".", 1, 0.25, 0.2) end
@@ -129,6 +145,7 @@ SlashCmdList["XELASSIST"] = function(text) XA:Command(text) end
 local ev = CreateFrame("Frame")
 ev:RegisterEvent("ADDON_LOADED")
 ev:RegisterEvent("PLAYER_LOGIN")
+ev:RegisterEvent("PLAYER_ENTERING_WORLD")
 ev:RegisterEvent("SPELLS_CHANGED")
 ev:RegisterEvent("CHARACTER_POINTS_CHANGED")
 ev:RegisterEvent("PET_BAR_UPDATE")
@@ -143,6 +160,7 @@ ev:RegisterEvent("SPELLCAST_INTERRUPTED")
 ev:RegisterEvent("UI_ERROR_MESSAGE")
 ev:RegisterEvent("SPELL_QUEUE_EVENT")
 ev:RegisterEvent("SPELL_CAST_EVENT")
+if nampowerAtLeast(4, 7, 0) then ev:RegisterEvent("SPELL_CAST_RESULT_SELF") end
 ev:RegisterEvent("SPELL_START_SELF")
 ev:RegisterEvent("SPELL_START_OTHER")
 ev:RegisterEvent("SPELL_GO_SELF")
@@ -161,7 +179,10 @@ ev:RegisterEvent("AURA_CAST_ON_SELF")
 ev:RegisterEvent("AURA_CAST_ON_OTHER")
 ev:RegisterEvent("DEBUFF_ADDED_OTHER")
 ev:SetScript("OnEvent", function()
-    if event == "ADDON_LOADED" and arg1 == "XelAssist" then XA:Init() end
+    if event == "ADDON_LOADED" and arg1 == "XelAssist" then
+        PlayerNormalQueue:Reset(); XA:Init()
+    end
+    if event == "PLAYER_ENTERING_WORLD" then PlayerNormalQueue:Reset() end
     if event == "PLAYER_LOGIN" then
         local runtime = XA:RuntimeAudit()
         msg("v" .. XA.version .. " ready · " .. (runtime.actions or 0) .. " action nodes ("
@@ -191,7 +212,12 @@ ev:SetScript("OnEvent", function()
         XelAssist.Combat.Observations:ErrorMessage(arg1)
     end
     if event == "SPELLCAST_FAILED" then
-        XA:MarkPendingFailure(nil, XA:PlayerGUID())
+        -- Nampower 4.7 follows with attempt-identified evidence. While a
+        -- normal queue owner exists, this vanilla event could belong to an
+        -- older same-spell generation, so bounded uncertainty is safer.
+        if not PlayerNormalQueue:Current() then
+            XA:MarkPendingFailure(nil, XA:PlayerGUID())
+        end
     end
     if event == "SPELLCAST_INTERRUPTED" then
         -- The vanilla event carries no spell identity. A known fallback cast
@@ -202,7 +228,10 @@ ev:SetScript("OnEvent", function()
     end
     if event == "SPELL_FAILED_SELF" then
         local _, playerGuid = UnitExists("player")
-        XA:MarkPendingFailure(arg1, playerGuid)
+        local matched = PlayerNormalQueue:ServerFailure(arg1, nil, arg4)
+        if PlayerQueueEvents:Allows(arg1, matched) then
+            XA:MarkPendingFailure(arg1, playerGuid)
+        end
     end
     if event == "SPELL_FAILED_OTHER" and XelAssist.Combat.Resistance
         and XelAssist.Combat.Resistance:IsOwnedCaster(arg1) then
@@ -213,31 +242,38 @@ ev:SetScript("OnEvent", function()
         XA:ClearPetCast(arg2, arg1)
     end
     if event == "SPELL_QUEUE_EVENT" then
-        local queueCode = tonumber(arg1)
-        if queueCode == 0 or queueCode == 2 or queueCode == 4 then
-            XA:TouchPendingSpell(arg2, "queued", 2, XA:PlayerGUID())
-        else
-            local lifecycle = XA:Lifecycle(arg2, XA:PlayerGUID(), nil)
-            if lifecycle then
-                lifecycle.state, lifecycle.poppedAt, lifecycle.lastAt =
-                    "popped", GetTime(), GetTime()
+        PlayerQueueEvents:Handle(XA, arg1, arg2)
+    end
+    if event == "SPELL_CAST_EVENT" then
+        local matched, disposition = PlayerNormalQueue:CastEvent(
+            arg1, arg2, arg3, arg4, arg6)
+        if PlayerQueueEvents:Allows(arg2, matched) then
+            local casterGuid, ambiguous = XA:PendingCasterForSpell(arg2, arg4)
+            if casterGuid and not ambiguous then
+                if tonumber(arg1) == 1 then
+                    XA:TouchPendingSpell(arg2, "accepted", 2, casterGuid, arg4)
+                elseif disposition == "retry-preserved" then
+                    XA:TouchPendingSpell(arg2, "queued", 2, casterGuid, arg4)
+                else XA:MarkPendingFailure(arg2, casterGuid, arg4) end
             end
         end
     end
-    if event == "SPELL_CAST_EVENT" then
-        local casterGuid, ambiguous = XA:PendingCasterForSpell(arg2, arg4)
-        if casterGuid and not ambiguous then
-            if tonumber(arg1) == 1 then
-                XA:TouchPendingSpell(arg2, "accepted", 2, casterGuid, arg4)
-            else XA:MarkPendingFailure(arg2, casterGuid, arg4) end
-        end
+    if event == "SPELL_CAST_RESULT_SELF" then
+        PlayerNormalQueue:ServerResult(arg1, arg2, arg3, arg4, arg5)
     end
     if (event == "SPELL_START_SELF" or event == "SPELL_START_OTHER")
         and XelAssist.Combat.Resistance and XelAssist.Combat.Resistance:IsOwnedCaster(arg3) then
+        local routeEvidence = true
+        if arg3 == XA:PlayerGUID() then
+            routeEvidence = PlayerQueueEvents:Allows(arg2,
+                PlayerNormalQueue:ServerAccepted(arg2, arg4))
+        end
         local castSeconds = math.max(0, tonumber(arg6) or 0) / 1000
         local channelSeconds = math.max(0, tonumber(arg7) or 0) / 1000
         local duration = castSeconds + channelSeconds
-        XA:TouchPendingSpell(arg2, "started", duration + 2, arg3, arg4)
+        if routeEvidence then
+            XA:TouchPendingSpell(arg2, "started", duration + 2, arg3, arg4)
+        end
         local _, petGuid = UnitExists("pet")
         if arg3 == petGuid then
             XA.petCastGuid, XA.petCastSpellId = arg3, arg2
@@ -247,7 +283,14 @@ ev:SetScript("OnEvent", function()
     end
     if (event == "SPELL_GO_SELF" or event == "SPELL_GO_OTHER")
         and XelAssist.Combat.Resistance and XelAssist.Combat.Resistance:IsOwnedCaster(arg3) then
-        XA:TouchPendingSpell(arg2, "go", 2, arg3, arg4)
+        local routeEvidence = true
+        if arg3 == XA:PlayerGUID() then
+            routeEvidence = PlayerQueueEvents:Allows(arg2,
+                PlayerNormalQueue:ServerAccepted(arg2, arg4))
+        end
+        if routeEvidence then
+            XA:TouchPendingSpell(arg2, "go", 2, arg3, arg4)
+        end
         if XA.petCastGuid == arg3 and tonumber(XA.petCastSpellId) == tonumber(arg2)
             and not XA.petCastChannel then
             XA:ClearPetCast(arg2, arg3)
@@ -327,16 +370,25 @@ ev:SetScript("OnEvent", function()
         end
         if playerGUID and arg1 == playerGUID then
             local castSpell = SpellInfo and SpellInfo(arg4) or nil
-            if castSpell then XA:UpdateDecisionStatus(arg4, "player", arg3) end
+            local matched
+            if arg3 == "START" or arg3 == "CHANNEL" or arg3 == "CAST" then
+                matched = PlayerNormalQueue:ServerAccepted(arg4, arg2)
+            elseif arg3 == "FAIL" then
+                matched = PlayerNormalQueue:ServerFailure(arg4, arg2)
+            end
+            local routeEvidence = PlayerQueueEvents:Allows(arg4, matched)
+            if castSpell and routeEvidence then
+                XA:UpdateDecisionStatus(arg4, "player", arg3)
+            end
             if arg3 == "START" or arg3 == "CHANNEL" then
                 XA.playerCastUntil = GetTime() + ((arg5 or 1500) / 1000)
                 XA.playerCastName = SpellInfo and SpellInfo(arg4) or nil
             elseif arg3 == "CAST" or arg3 == "FAIL" then
                 XA.playerCastUntil = nil; XA.playerCastName = nil
             end
-            if castSpell and arg3 == "CAST" then
+            if castSpell and routeEvidence and arg3 == "CAST" then
                 XA:TouchPendingSpell(arg4, "go", 2, playerGUID, arg2)
-            elseif castSpell and arg3 == "FAIL" then
+            elseif castSpell and routeEvidence and arg3 == "FAIL" then
                 XA:MarkPendingFailure(arg4, playerGUID, arg2)
             end
         end

@@ -1,4 +1,4 @@
-XelAssist = { Game = {}, Combat = {}, Graph = {}, UI = {} }
+XelAssist = { Core = {}, Game = {}, Combat = {}, Graph = {}, UI = {} }
 table.getn = table.getn or function(value)
     local count = 0
     while value[count + 1] ~= nil do count = count + 1 end
@@ -85,10 +85,13 @@ local effects, hooks = {}, {}
 local function resetEffects()
     effects = { direct = 0, queue = 0, petAbility = 0, petAttack = 0,
         petFollow = 0, petPassive = 0, log = 0, observation = 0,
-        pending = 0, auto = 0, playerAttack = 0, petEffect = 0 }
+        pending = 0, auto = 0, playerAttack = 0, petEffect = 0, item = 0 }
     hooks = {}
     resetUnits()
     XelAssist.pendingAuras = {}
+    if XelAssist.Core.PlayerNormalQueue then
+        XelAssist.Core.PlayerNormalQueue:Reset()
+    end
     XelAssist.lastReason = nil
 end
 local function assertNoExecution(message)
@@ -98,15 +101,18 @@ local function assertNoExecution(message)
         and effects.log == 0 and effects.observation == 0
         and effects.pending == 0 and effects.auto == 0
         and effects.playerAttack == 0
-        and effects.petEffect == 0, message)
+        and effects.petEffect == 0 and effects.item == 0, message)
 end
 
 CastSpellByName = function(name, unit)
     effects.direct, effects.directName, effects.directUnit =
         effects.direct + 1, name, unit
+    if hooks.direct then hooks.direct(name, unit) end
 end
-QueueSpellByName = function(name)
-    effects.queue, effects.queueName = effects.queue + 1, name
+QueueSpellByName = function(name, guid)
+    effects.queue, effects.queueName, effects.queueGuid =
+        effects.queue + 1, name, guid
+    if hooks.queue then hooks.queue(name, guid) end
 end
 CastPetAction = function(slot)
     effects.petAbility, effects.petSlot = effects.petAbility + 1, slot
@@ -159,6 +165,11 @@ XelAssist.Game.Actors = {
 XelAssist.Game.Pets = { EffectRuntime = { Submitted = function()
     effects.petEffect = effects.petEffect + 1
 end } }
+XelAssist.Game.Inventory = { Execute = function(action)
+    effects.item = effects.item + 1
+    if hooks.item then hooks.item(action) end
+    return true
+end }
 XelAssist.Combat.Observations = { Submitted = function()
     effects.observation = effects.observation + 1
 end }
@@ -192,6 +203,7 @@ XelAssist.MarkAuraPending = function()
     effects.pending = effects.pending + 1
 end
 dofile("Core/TargetGuard.lua")
+dofile("Core/PlayerNormalQueue.lua")
 dofile("Core/Executor.lua")
 
 local function selectedRef()
@@ -217,9 +229,245 @@ XelAssist.Graph.Evaluate = function() return currentPlan, nil, false end
 resetEffects()
 currentPlan = hostilePlan(playerAction("Shadow Bolt"))
 XelAssist:Execute()
-assert(effects.queue == 1 and effects.direct == 0 and effects.log == 1
+assert(effects.queue == 1 and effects.queueGuid == selectedGuid
+    and effects.direct == 0 and effects.log == 1
     and effects.observation == 1,
-    "a valid selected hostile must retain normal queued execution")
+    "a selected-hostile queue submission must pin its validated GUID")
+
+-- A synchronous client rejection is not a submitted action. It must not leave
+-- the ghost DoT reservation that would suppress the required immediate retry.
+resetEffects()
+currentPlan = hostilePlan(playerAction("Immolate", { kind = "dot" }))
+currentPlan.action.spellId, currentPlan.tooltip.gcd = 348, 1.5
+hooks.queue = function(_, guid)
+    XelAssist.Core.PlayerNormalQueue:ServerFailure(348, guid, "701")
+    XelAssist.Core.PlayerNormalQueue:CastEvent(0, 348, 0, guid, "701")
+end
+XelAssist:Execute()
+assert(effects.queue == 1 and effects.log == 0 and effects.observation == 0
+    and effects.pending == 0
+    and not XelAssist.Core.PlayerNormalQueue:Current()
+    and string.find(XelAssist.lastReason, "client cast failed", 1, true),
+    "an immediate client failure must not create a ghost spell submission")
+
+-- Nampower raises an exact local failure from inside the cast trampoline,
+-- queues its configured retry, then emits the outer failed cast event. The
+-- queued retry is a real submission and must remain guarded against overwrite.
+resetEffects()
+currentPlan = hostilePlan(playerAction("Serpent Sting", { kind = "dot" }))
+currentPlan.action.spellId, currentPlan.tooltip.gcd = 1978, 1.5
+hooks.queue = function()
+    XelAssist.Core.PlayerNormalQueue:ServerFailure(1978, nil, "703")
+    XelAssist.Core.PlayerNormalQueue:QueueEvent(2, 1978)
+    XelAssist.Core.PlayerNormalQueue:CastEvent(
+        0, 1978, 0, selectedGuid, "703")
+end
+XelAssist:Execute()
+local localRetry = XelAssist.Core.PlayerNormalQueue:Current()
+assert(effects.queue == 1 and effects.log == 1 and effects.observation == 1
+    and effects.pending == 1 and localRetry and localRetry.phase == "queued",
+    "a synchronous local retry must remain a logged and guarded submission")
+XelAssist:Execute()
+assert(effects.queue == 1 and effects.log == 1
+    and XelAssist.Core.PlayerNormalQueue:Current() == localRetry,
+    "the next input must not overwrite a locally retried normal spell")
+
+resetEffects()
+currentPlan = { action = { name = "Healing Potion", actor = "player",
+        executor = "item", facts = { kind = "heal", consumable = true } },
+    reason = "client failure", confidence = "client data", value = 1,
+    threat = 0, wait = 0, cast = 0, downtime = 0,
+    observed = {}, follow = {}, path = {}, tooltip = { gcd = 1.5 } }
+hooks.item = function()
+    XelAssist.Core.PlayerNormalQueue:CastEvent(0, 17534, 0, nil, "702")
+end
+XelAssist:Execute()
+assert(effects.item == 1 and effects.log == 0
+    and not XelAssist.Core.PlayerNormalQueue:Current()
+    and string.find(XelAssist.lastReason, "client cast failed", 1, true),
+    "a synchronously failed item proc must not be logged as submitted")
+
+-- A proven normal queue survives the synchronous dispatch callback and blocks
+-- only actions that could overwrite that one slot.
+resetEffects()
+currentPlan = hostilePlan(playerAction("Serpent Sting"))
+currentPlan.action.spellId, currentPlan.tooltip.gcd = 1978, 1.5
+hooks.queue = function()
+    XelAssist.Core.PlayerNormalQueue:QueueEvent(2, 1978)
+end
+XelAssist:Execute()
+local ownedQueue = XelAssist.Core.PlayerNormalQueue:Current()
+assert(effects.queue == 1 and ownedQueue and ownedQueue.phase == "queued",
+    "a synchronous normal queue event must survive dispatch finalization")
+units.target.guid = otherGuid
+assert(effects.queueGuid == selectedGuid and ownedQueue.targetGuid == selectedGuid,
+    "a delayed normal cast must retain the captured hostile GUID across selection changes")
+units.target.guid = selectedGuid
+XelAssist:Execute()
+assert(effects.queue == 1 and effects.log == 1 and effects.observation == 1
+    and string.find(XelAssist.lastReason, "already queued", 1, true),
+    "a repeated input must not replace XelAssist's pending normal spell")
+XelAssist.Core.PlayerNormalQueue:QueueEvent(0, 1978)
+XelAssist.Core.PlayerNormalQueue:QueueEvent(4, 1978)
+XelAssist.Core.PlayerNormalQueue:QueueEvent(3, 9999)
+assert(XelAssist.Core.PlayerNormalQueue:Current() == ownedQueue,
+    "independent queue events and mismatched pops must retain the normal owner")
+
+currentPlan = { action = playerAction("Lesser Heal", { kind = "heal" }),
+    target = "party1", targetGUID = allyGuid, targetRelation = "ally",
+    targetRef = { unit = "party1", guid = allyGuid,
+        relation = "ally", source = "party" },
+    reason = "queue boundary", confidence = "client data", value = 1,
+    threat = 0, wait = 0, cast = 0, downtime = 0,
+    observed = {}, follow = {}, path = {}, tooltip = { gcd = 1.5 } }
+XelAssist:Execute()
+assert(effects.direct == 0 and effects.queue == 1 and effects.log == 1
+    and XelAssist.Core.PlayerNormalQueue:Current() == ownedQueue,
+    "a normal friendly cast must not overwrite the occupied Nampower slot")
+
+currentPlan = hostilePlan(playerAction("Volley",
+    { kind = "damage", ground = true }))
+currentPlan.tooltip.gcd = 1.5
+XelAssist:Execute()
+assert(effects.direct == 0 and effects.queue == 1 and effects.log == 1
+    and XelAssist.Core.PlayerNormalQueue:Current() == ownedQueue,
+    "a normal ground cast must not overwrite the occupied Nampower slot")
+
+currentPlan = hostilePlan(playerAction("Revive Pet",
+    { kind = "summon", petLifecycle = true }))
+currentPlan.tooltip.gcd = 1.5
+XelAssist:Execute()
+assert(effects.direct == 0 and effects.queue == 1 and effects.log == 1
+    and XelAssist.Core.PlayerNormalQueue:Current() == ownedQueue,
+    "a normal pet-lifecycle cast must not overwrite the occupied Nampower slot")
+
+currentPlan = { action = { name = "Healing Potion", actor = "player",
+        executor = "item", facts = { kind = "heal", consumable = true } },
+    reason = "queue boundary", confidence = "client data", value = 1,
+    threat = 0, wait = 0, downtime = 0, observed = {}, follow = {}, path = {},
+    tooltip = { gcd = 1.5 } }
+XelAssist:Execute()
+assert(effects.item == 0 and effects.log == 1
+    and XelAssist.Core.PlayerNormalQueue:Current() == ownedQueue,
+    "a normal item use must not overwrite the occupied Nampower slot")
+
+currentPlan.tooltip.gcd = 0
+XelAssist:Execute()
+assert(effects.item == 1 and effects.log == 2
+    and XelAssist.Core.PlayerNormalQueue:Current() == ownedQueue,
+    "a proven non-GCD item must remain executable beside the normal slot")
+
+currentPlan = hostilePlan(playerAction("Kill Command",
+    { kind = "damage", gcd = 0 }))
+currentPlan.action.spellId, currentPlan.tooltip.gcd = 34026, 0
+hooks.queue = function()
+    XelAssist.Core.PlayerNormalQueue:QueueEvent(4, 34026)
+end
+XelAssist:Execute()
+assert(effects.queue == 2
+    and XelAssist.Core.PlayerNormalQueue:Current() == ownedQueue,
+    "a non-GCD action must remain executable beside the normal queue")
+
+currentPlan = hostilePlan(playerAction("Raptor Strike",
+    { kind = "damage", melee = true }))
+currentPlan.action.spellId = 2973
+currentPlan.tooltip = { gcd = 1.5, attributes = 4,
+    onNextSwing = true, startRecoveryCategory = 0, normalGcd = false }
+hooks.queue = function()
+    XelAssist.Core.PlayerNormalQueue:QueueEvent(0, 2973)
+end
+XelAssist:Execute()
+assert(effects.queue == 3
+    and XelAssist.Core.PlayerNormalQueue:Current() == ownedQueue,
+    "an on-next-swing action must remain independent of the normal queue")
+XelAssist.Core.PlayerNormalQueue:CastEvent(1, 1978, 0, selectedGuid)
+assert(XelAssist.Core.PlayerNormalQueue:QueueEvent(3, 1978)
+    and XelAssist.Core.PlayerNormalQueue:Current() == ownedQueue
+    and ownedQueue.phase == "popped",
+    "the exact normal pop must remain latched before server evidence")
+assert(not XelAssist.Core.PlayerNormalQueue:ServerAccepted(9999, selectedGuid)
+    and XelAssist.Core.PlayerNormalQueue:Current() == ownedQueue,
+    "mismatched server evidence must not reopen the slot")
+assert(XelAssist.Core.PlayerNormalQueue:ServerAccepted(1978, selectedGuid)
+    and not XelAssist.Core.PlayerNormalQueue:Current(),
+    "matching server evidence after the pop must reopen the slot")
+
+-- Implicit-target pet lifecycle spells establish ownership even though their
+-- CastSpellByName call deliberately carries no dead/dismissed pet GUID.
+resetEffects()
+currentPlan = { action = playerAction("Revive Pet", { kind = "summon",
+        petLifecycle = "revive", fixedTarget = "pet" }),
+    target = "pet", targetRelation = "pet",
+    reason = "queue boundary", confidence = "client data", value = 1,
+    threat = 0, wait = 0, cast = 10, downtime = 10,
+    observed = {}, follow = {}, path = {}, tooltip = { gcd = 1.5 } }
+currentPlan.action.spellId = 982
+hooks.direct = function()
+    XelAssist.Core.PlayerNormalQueue:QueueEvent(2, 982)
+end
+XelAssist:Execute()
+local lifecycleQueue = XelAssist.Core.PlayerNormalQueue:Current()
+assert(effects.direct == 1 and effects.directUnit == nil
+    and lifecycleQueue and lifecycleQueue.phase == "queued"
+    and lifecycleQueue.targetGuid == nil,
+    "a normal pet-lifecycle cast must own the slot without a synthetic target")
+XelAssist:Execute()
+assert(effects.direct == 1 and effects.log == 1
+    and string.find(XelAssist.lastReason, "already queued", 1, true),
+    "a repeated pet-lifecycle input must not overwrite its normal slot")
+XelAssist.Core.PlayerNormalQueue:CastEvent(1, 982, 0,
+    "0x0000000000000000")
+XelAssist.Core.PlayerNormalQueue:ServerAccepted(982,
+    "0x0000000000000000")
+
+-- GCD-triggering items establish the same owner; the actual proc spell ID can
+-- arrive synchronously through Nampower after the provisional nil spell ID.
+resetEffects()
+currentPlan = { action = { name = "Healing Potion", actor = "player",
+        executor = "item", facts = { kind = "heal", consumable = true } },
+    reason = "queue boundary", confidence = "client data", value = 1,
+    threat = 0, wait = 0, cast = 0, downtime = 0,
+    observed = {}, follow = {}, path = {}, tooltip = { gcd = 1.5 } }
+hooks.item = function()
+    XelAssist.Core.PlayerNormalQueue:QueueEvent(2, 17534)
+end
+XelAssist:Execute()
+local itemQueue = XelAssist.Core.PlayerNormalQueue:Current()
+assert(effects.item == 1 and itemQueue and itemQueue.spellId == 17534
+    and itemQueue.phase == "queued",
+    "a normal item use must establish ownership from its proc evidence")
+XelAssist:Execute()
+assert(effects.item == 1 and effects.log == 1
+    and string.find(XelAssist.lastReason, "already queued", 1, true),
+    "a repeated item input must not overwrite its normal slot")
+XelAssist.Core.PlayerNormalQueue:CastEvent(1, 17534, 0, nil)
+XelAssist.Core.PlayerNormalQueue:ServerAccepted(17534, nil)
+
+resetEffects()
+local dualNormal = playerAction("Dual GCD", { kind = "damage",
+    fixedTarget = "pet", effectTarget = "target", effectActor = "pet" })
+dualNormal.spellId = 9001
+currentPlan = hostilePlan(dualNormal)
+currentPlan.castTarget, currentPlan.castTargetGUID = "pet", petGuid
+currentPlan.castTargetRelation = "pet"
+currentPlan.castTargetRef = { unit = "pet", guid = petGuid,
+    relation = "pet", source = "controlled" }
+currentPlan.tooltip.gcd = 1.5
+hooks.direct = function(_, guid)
+    XelAssist.Core.PlayerNormalQueue:CastEvent(1, 9001, 0, guid)
+end
+XelAssist:Execute()
+local dualQueue = XelAssist.Core.PlayerNormalQueue:Current()
+assert(effects.direct == 1 and effects.directUnit == petGuid
+    and dualQueue and dualQueue.targetGuid == petGuid
+    and dualQueue.phase == "attempted",
+    "normal queue ownership must use a dual-target action's cast recipient")
+assert(not XelAssist.Core.PlayerNormalQueue:ServerAccepted(9001, selectedGuid)
+    and XelAssist.Core.PlayerNormalQueue:Current() == dualQueue,
+    "effect-target evidence must not release a different cast recipient")
+assert(XelAssist.Core.PlayerNormalQueue:ServerAccepted(9001, petGuid)
+    and not XelAssist.Core.PlayerNormalQueue:Current(),
+    "matching cast-recipient evidence must release the dual-target action")
 
 -- No observed off-selected token can be promoted into an executable hostile.
 local forgedTokens = { "mouseover", "pettarget", "party1target" }

@@ -42,7 +42,8 @@ function D:Audit(owner)
     local evidence = owner:EnableEvidenceEvents()
     runtime.evidenceEvents = { damage = evidence.damage, miss = evidence.miss,
         autoAttack = evidence.autoAttack, aura = evidence.aura,
-        start = evidence.start, go = evidence.go }
+        start = evidence.start, go = evidence.go,
+        castResult = evidence.castResult }
     local focus = XelAssist.Game.Pets and XelAssist.Game.Pets.FocusEvidence
     runtime.hunterFocus = focus and focus:Status() or nil
     local rounds = XelAssist.Game.AttackRounds
@@ -87,7 +88,9 @@ function D:Print(owner)
         .. ", white swings=" .. (runtime.evidenceEvents.autoAttack and "on" or "off")
         .. ", aura=" .. (runtime.evidenceEvents.aura and "on" or "off")
         .. ", cast lifecycle=" .. (runtime.evidenceEvents.start
-            and runtime.evidenceEvents.go and "on" or "off") .. ".")
+            and runtime.evidenceEvents.go and "on" or "off")
+        .. ", exact cast results="
+        .. (runtime.evidenceEvents.castResult and "on" or "off") .. ".")
     local focus = runtime.hunterFocus
     if focus then
         local state = focus.executable and "executable"

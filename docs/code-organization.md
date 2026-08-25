@@ -87,8 +87,14 @@ never class rotations or ordered priority lists.
   `Core/DecisionLog.lua` owns bounded privacy-safe history and event status
   correlation; `Core/Diagnostics.lua` owns the durable capability/evidence audit.
   `Core/TargetGuard.lua` pins hostile dispatch to the captured selected-target
-  identity and revalidates it around actor/range checks. Cast, queue, item,
-  pet-command, and any future target-changing APIs must remain on that boundary.
+  identity and revalidates it around actor/range checks.
+  `Core/PlayerNormalQueue.lua` owns session-only evidence for Nampower's single
+  normal-GCD queue slot and consumes Nampower 4.7.0+'s opaque attempt-result
+  identity; it does not merge on-swing or non-GCD queue classes.
+  `Core/PlayerQueueEvents.lua` gates queue evidence before it can change graph
+  reservations, keeping same-spell attempt generations isolated.
+  Cast, queue, item, pet-command, and any future target-changing APIs must remain
+  on that boundary.
 
 Dependencies must follow TOC order and remain acyclic. A lower-level mechanics
 module cannot reach back into `Graph`, `UI`, or runtime dispatch.
@@ -110,6 +116,7 @@ Current migration debt is deliberately bounded:
 | --- | --- |
 | `Combat/Resistance.lua` | identity/store, learning, estimator, summary |
 | `Game/Capabilities.lua` | spellbook, spell facts, units/range, equipment |
+| `Game/SpellClassification.lua` | DBC-derived normal-GCD and on-next-swing queue classes |
 | `Core/Runtime.lua` | startup/commands versus combat-event routing |
 | `UI/HUD.lua` | formatting, tooltip, layout, recommendation presenter |
 

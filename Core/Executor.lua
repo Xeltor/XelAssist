@@ -2,6 +2,7 @@
 -- exact actor/target identities and live application state used by the plan.
 local XA = XelAssist
 local Guard = XelAssist.Core.TargetGuard
+local PlayerNormalQueue = XelAssist.Core.PlayerNormalQueue
 
 local function applicationGuarded(facts, tooltip)
     local kind = facts and facts.kind
@@ -145,129 +146,174 @@ local function dispatchPlayer(action, plan, castName, friendly, capturedGuid, un
     elseif action.facts.petLifecycle then CastSpellByName(castName)
     elseif action.facts.ground then CastSpellByName(castName, "CLICK")
     elseif friendly then CastSpellByName(castName, capturedGuid)
-    elseif unit == "target" and QueueSpellByName then QueueSpellByName(castName)
+    elseif unit == "target" and QueueSpellByName then
+        QueueSpellByName(castName, guid)
     elseif unit then CastSpellByName(castName, unit)
-    elseif QueueSpellByName then QueueSpellByName(castName)
+    elseif QueueSpellByName then QueueSpellByName(castName, guid)
     else CastSpellByName(castName) end
     return true, nil, guid
 end
 
-function XA:ExecutePlayerPlan(plan, selected)
+local function rejectPlayer(owner, reason, directReason)
+    if directReason then owner.lastReason = directReason
+    else owner:Fallback(reason) end
+    XelAssist.UI.HUD:Refresh(true)
+    return false
+end
+
+local function validateAutoShot(plan)
+    local guid, reason, evidence =
+        Guard:ValidateAutoShotTarget(plan, autoShotEvidence)
+    if not guid then return nil, reason end
+    local allowed
+    allowed, reason = XelAssist.Combat.AutoShot:CanStart(
+        XelAssist.Combat.AutoShot:Snapshot(evidence))
+    if not allowed then return nil, reason or "Auto Shot state uncertain" end
+    return guid, nil
+end
+
+local function playerContext(plan)
     local action, facts = plan.action, plan.action.facts
-    local castName = XelAssist.Game.Capabilities:CastName(action)
     local castRef = plan.castTargetRef or plan.targetRef
     local relation = castRef and castRef.relation
         or plan.castTargetRelation or plan.targetRelation
-    local friendly = friendlyRelation(relation) and not facts.petLifecycle
-    local unit = plan.castTarget or plan.target
-        or ((not facts.ground) and "target" or nil)
-    local queueCandidate = not facts.playerAttack and not facts.autoRepeat
-        and not facts.petLifecycle
-        and not facts.ground and not friendly
-        and (not plan.target or plan.target == "target") and QueueSpellByName
-    local capturedGuid, effectGuid, reason, hostileGuid, hostilePlan
-    hostileGuid, reason, hostilePlan =
-        Guard:SelectedHostileAnchor(plan, unit, castRef)
-    local forceQueue = queueCandidate and hostilePlan
-    if (tonumber(plan.wait) or 0) > 0 and not forceQueue then
-        self:Fallback(friendly and "ally action not ready" or "action not ready")
-        XelAssist.UI.HUD:Refresh(true); return
+    local context = { action = action, facts = facts, castRef = castRef,
+        castName = XelAssist.Game.Capabilities:CastName(action),
+        friendly = friendlyRelation(relation) and not facts.petLifecycle,
+        unit = plan.castTarget or plan.target
+            or ((not facts.ground) and "target" or nil) }
+    context.usesHostileQueue = not facts.playerAttack and not facts.autoRepeat
+        and not facts.petLifecycle and not facts.ground and not context.friendly
+        and (not plan.target or plan.target == "target")
+        and QueueSpellByName ~= nil
+    context.normalQueue = not facts.playerAttack and not facts.autoRepeat
+        and PlayerNormalQueue:MayOccupy(action, plan.tooltip)
+    local reason
+    context.hostileGuid, reason, context.hostilePlan =
+        Guard:SelectedHostileAnchor(plan, context.unit, castRef)
+    return context
+end
+
+local function validatePlayerContext(owner, plan, context)
+    local action, facts = context.action, context.facts
+    if (tonumber(plan.wait) or 0) > 0
+        and not (context.usesHostileQueue and context.hostilePlan) then
+        return rejectPlayer(owner, context.friendly and "ally action not ready"
+            or "action not ready")
     end
-    hostileGuid, reason, hostilePlan =
-        Guard:ValidateSelectedHostile(plan, unit, castRef)
-    if hostilePlan and not hostileGuid then
-        self:Fallback(reason); XelAssist.UI.HUD:Refresh(true); return
+    if context.normalQueue then
+        local blocker = PlayerNormalQueue:Blocker(action, plan.tooltip)
+        if blocker then return rejectPlayer(owner, blocker) end
+    end
+    local reason
+    context.hostileGuid, reason, context.hostilePlan =
+        Guard:ValidateSelectedHostile(plan, context.unit, context.castRef)
+    if context.hostilePlan and not context.hostileGuid then
+        return rejectPlayer(owner, reason)
     end
     if facts.autoRepeat and XelAssist.Combat.AutoShot then
-        local evidence, allowed
-        capturedGuid, reason, evidence =
-            Guard:ValidateAutoShotTarget(plan, autoShotEvidence)
-        if not capturedGuid then
-            self:Fallback(reason); XelAssist.UI.HUD:Refresh(true); return
-        end
-        allowed, reason = XelAssist.Combat.AutoShot:CanStart(
-            XelAssist.Combat.AutoShot:Snapshot(evidence))
-        if not allowed then
-            self:Fallback(reason or "Auto Shot state uncertain")
-            XelAssist.UI.HUD:Refresh(true); return
-        end
+        context.capturedGuid, reason = validateAutoShot(plan)
+        if not context.capturedGuid then return rejectPlayer(owner, reason) end
     end
-    if friendly then
-        unit, capturedGuid, reason = validateFriendly(self, castRef)
-        if not unit then self:Fallback(reason); XelAssist.UI.HUD:Refresh(true); return end
+    if context.friendly then
+        context.unit, context.capturedGuid, reason =
+            validateFriendly(owner, context.castRef)
+        if not context.unit then return rejectPlayer(owner, reason) end
     end
-    effectGuid, reason = Guard:ValidateHostileEffect(plan)
-    if facts.effectTarget and not effectGuid then
-        self:Fallback(reason); XelAssist.UI.HUD:Refresh(true); return
+    context.effectGuid, reason = Guard:ValidateHostileEffect(plan)
+    if facts.effectTarget and not context.effectGuid then
+        return rejectPlayer(owner, reason)
     end
-    if not facts.petLifecycle
-        and XelAssist.Game.Capabilities:InRange(castName, unit) == false then
-        self.lastReason = "Move into range — " .. action.name
-        XelAssist.UI.HUD:Refresh(true); return
+    if not facts.petLifecycle and XelAssist.Game.Capabilities:InRange(
+        context.castName, context.unit) == false then
+        return rejectPlayer(owner, nil, "Move into range — " .. action.name)
     end
-    if friendly and not XelAssist.Game.Capabilities:SameUnitRef(castRef) then
-        self:Fallback("ally changed"); XelAssist.UI.HUD:Refresh(true); return
+    if context.friendly
+        and not XelAssist.Game.Capabilities:SameUnitRef(context.castRef) then
+        return rejectPlayer(owner, "ally changed")
     end
     if facts.requiresHunterCritical then
         local usable, usableReason = XelAssist.Game.Capabilities:Usable(action)
         if usable ~= true then
-            self:Fallback(usableReason or "Hunter critical expired")
-            XelAssist.UI.HUD:Refresh(true); return
+            return rejectPlayer(owner, usableReason or "Hunter critical expired")
         end
     end
-    local playerGuid = self:PlayerGUID()
-    local applicationGuid = effectGuid or hostileGuid or friendly and capturedGuid
-        or Guard:TargetGuid(plan, unit, castRef)
-    local applicationUnit = facts.effectTarget == "target" and "target" or unit
-    local reservationGuid, reservationUnit = applicationGuid, applicationUnit
+    return true
+end
+
+local function preparePlayerRecipients(owner, plan, context)
+    local facts = context.facts
+    context.playerGuid = owner:PlayerGUID()
+    context.applicationGuid = context.effectGuid or context.hostileGuid
+        or context.friendly and context.capturedGuid
+        or Guard:TargetGuid(plan, context.unit, context.castRef)
+    if not facts.petLifecycle then
+        context.queueTargetGuid = context.friendly and context.capturedGuid
+            or context.hostileGuid
+            or Guard:TargetGuid(plan, context.unit, context.castRef)
+    end
+    context.reservationUnit = facts.effectTarget == "target"
+        and "target" or context.unit
+    context.reservationGuid = context.applicationGuid
     if facts.deferredUntilPetMelee or facts.petCombatBuff
         or facts.petCombatEffects then
-        reservationGuid, reservationUnit = capturedGuid, unit
+        context.reservationGuid, context.reservationUnit =
+            context.capturedGuid, context.unit
     end
-    local duplicate = duplicateApplication(self, action, plan.tooltip, reservationUnit,
-        reservationGuid, playerGuid)
-    if duplicate then self:Fallback(duplicate); return end
-    -- Aura inspection reads a mutable token, so identity is checked again at
-    -- the exact dispatch boundary.
-    if friendly and not XelAssist.Game.Capabilities:SameUnitRef(castRef) then
-        self:Fallback("ally changed"); XelAssist.UI.HUD:Refresh(true); return
+    local duplicate = duplicateApplication(owner, context.action, plan.tooltip,
+        context.reservationUnit, context.reservationGuid, context.playerGuid)
+    if duplicate then return rejectPlayer(owner, duplicate) end
+    return true
+end
+
+local function dispatchPlayerContext(owner, plan, context)
+    local action, facts, reason = context.action, context.facts, nil
+    if context.friendly
+        and not XelAssist.Game.Capabilities:SameUnitRef(context.castRef) then
+        return rejectPlayer(owner, "ally changed")
     end
     local finalEffectGuid
     finalEffectGuid, reason = Guard:ValidateHostileEffect(plan)
-    if facts.effectTarget and (not finalEffectGuid or finalEffectGuid ~= effectGuid) then
-        self:Fallback(reason or "effect target changed")
-        XelAssist.UI.HUD:Refresh(true); return
+    if facts.effectTarget and (not finalEffectGuid
+        or finalEffectGuid ~= context.effectGuid) then
+        return rejectPlayer(owner, reason or "effect target changed")
     end
     if facts.autoRepeat and XelAssist.Combat.AutoShot then
-        local evidence, allowed
-        applicationGuid, reason, evidence =
-            Guard:ValidateAutoShotTarget(plan, autoShotEvidence)
-        if not applicationGuid then
-            self:Fallback(reason); XelAssist.UI.HUD:Refresh(true); return
-        end
-        allowed, reason = XelAssist.Combat.AutoShot:CanStart(
-            XelAssist.Combat.AutoShot:Snapshot(evidence))
-        if not allowed then
-            self:Fallback(reason or "Auto Shot state uncertain")
-            XelAssist.UI.HUD:Refresh(true); return
-        end
+        context.applicationGuid, reason = validateAutoShot(plan)
+        if not context.applicationGuid then return rejectPlayer(owner, reason) end
     end
-    local dispatched, dispatchReason, dispatchGuid = dispatchPlayer(
-        action, plan, castName, friendly, capturedGuid, unit)
-    if not dispatched then
-        self:Fallback(dispatchReason or "target changed")
-        XelAssist.UI.HUD:Refresh(true); return
+    local queueRecord
+    if context.normalQueue and (facts.petLifecycle
+        or context.usesHostileQueue or context.queueTargetGuid ~= nil) then
+        queueRecord, reason = PlayerNormalQueue:Arm(action, plan.tooltip,
+            context.castName, context.queueTargetGuid, plan.wait, plan.cast)
+        if not queueRecord then return rejectPlayer(owner, reason) end
     end
-    if hostilePlan then applicationGuid = dispatchGuid end
-    if facts.effectTarget == "target" then effectGuid = dispatchGuid end
+    local dispatched, dispatchReason, dispatchGuid = dispatchPlayer(action, plan,
+        context.castName, context.friendly, context.capturedGuid, context.unit)
+    local queueAccepted = true
+    if queueRecord then
+        queueAccepted, dispatchReason =
+            PlayerNormalQueue:Finalize(queueRecord, dispatched)
+    end
+    if not dispatched or not queueAccepted then
+        return rejectPlayer(owner, dispatchReason or "target changed")
+    end
+    if context.hostilePlan then context.applicationGuid = dispatchGuid end
+    if facts.effectTarget == "target" then context.effectGuid = dispatchGuid end
+    return true
+end
+
+local function recordPlayerSubmission(owner, plan, selected, context)
+    local action, facts = context.action, context.facts
     if facts.autoRepeat and XelAssist.Combat.AutoShot then
-        XelAssist.Combat.AutoShot:Submitted(applicationGuid, action.spellId)
+        XelAssist.Combat.AutoShot:Submitted(context.applicationGuid, action.spellId)
     end
     if XelAssist.Game.Pets and XelAssist.Game.Pets.EffectRuntime then
         XelAssist.Game.Pets.EffectRuntime:Submitted(action,
-            reservationGuid, effectGuid, playerGuid)
+            context.reservationGuid, context.effectGuid, context.playerGuid)
     end
-    self:RecordDecision(plan, selected)
+    owner:RecordDecision(plan, selected)
     if XelAssist.Combat.Observations and not facts.playerAttack then
         local observedAction = facts.effectTarget == "target"
             and not facts.deferredUntilPetMelee
@@ -277,14 +323,52 @@ function XA:ExecutePlayerPlan(plan, selected)
             and (plan.effectTooltip or plan.tooltip) or plan.tooltip
         XelAssist.Combat.Observations:Submitted(observedAction,
             facts.effectTarget == "target" and not facts.deferredUntilPetMelee
-                and "target"
-                or friendly and capturedGuid or plan.target, observedTooltip)
+                and "target" or context.friendly and context.capturedGuid
+                or plan.target, observedTooltip)
     end
     if applicationGuarded(facts, plan.tooltip) then
-        self:MarkAuraPending(action.name,
+        owner:MarkAuraPending(action.name,
             math.max(2, (plan.wait or 0) + (plan.cast or 0) + 2),
-            reservationGuid, action.spellId, playerGuid, auraBarForFacts(facts))
+            context.reservationGuid, action.spellId, context.playerGuid,
+            auraBarForFacts(facts))
     end
+    owner.lastReason = action.name .. " — " .. plan.reason
+    XelAssist.UI.HUD:Refresh(true)
+end
+
+function XA:ExecutePlayerPlan(plan, selected)
+    local context = playerContext(plan)
+    if not validatePlayerContext(self, plan, context) then return end
+    if not preparePlayerRecipients(self, plan, context) then return end
+    if not dispatchPlayerContext(self, plan, context) then return end
+    recordPlayerSubmission(self, plan, selected, context)
+end
+
+function XA:ExecuteItemPlan(plan, selected)
+    local action = plan.action
+    if (tonumber(plan.wait) or 0) > 0 then
+        self:Fallback("item action not ready"); return
+    end
+    local queueCandidate = PlayerNormalQueue:MayOccupy(action, plan.tooltip)
+    if queueCandidate then
+        local queueBlocker = PlayerNormalQueue:Blocker(action, plan.tooltip)
+        if queueBlocker then self:Fallback(queueBlocker); return end
+    end
+    local queueRecord, reason
+    if queueCandidate then
+        queueRecord, reason = PlayerNormalQueue:Arm(action, plan.tooltip,
+            action.name, nil, plan.wait, plan.cast)
+        if not queueRecord then self:Fallback(reason); return end
+    end
+    local executed = XelAssist.Game.Inventory:Execute(action)
+    local queueAccepted = true
+    if queueRecord then
+        queueAccepted, reason = PlayerNormalQueue:Finalize(queueRecord, executed)
+    end
+    if not executed or not queueAccepted then
+        self:Fallback(reason or "item unavailable"); return
+    end
+    self:RecordDecision(plan, selected)
     self.lastReason = action.name .. " — " .. plan.reason
     XelAssist.UI.HUD:Refresh(true)
 end
@@ -308,15 +392,7 @@ function XA:Execute(mode)
     end
     local action = plan.action
     if action.executor == "item" then
-        if (tonumber(plan.wait) or 0) > 0 then
-            self:Fallback("item action not ready"); return
-        end
-        if not XelAssist.Game.Inventory:Execute(action) then
-            self:Fallback("item unavailable"); return
-        end
-        self:RecordDecision(plan, selected)
-        self.lastReason = action.name .. " — " .. plan.reason
-        XelAssist.UI.HUD:Refresh(true); return
+        self:ExecuteItemPlan(plan, selected); return
     end
     if action.actor == "pet" then self:ExecutePetPlan(plan, selected); return end
     self:ExecutePlayerPlan(plan, selected)

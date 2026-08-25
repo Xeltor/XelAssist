@@ -97,8 +97,9 @@ end
 local queuedSpell, directlyCast, directUnit, queueCount, directCastCount =
     nil, nil, nil, 0, 0
 local petActionCount, petActionSlot = 0, nil
-QueueSpellByName = function(name)
+QueueSpellByName = function(name, guid)
     queuedSpell, queueCount = name, queueCount + 1
+    if XelAssistTestQueueHook then XelAssistTestQueueHook(name, guid) end
 end
 CastSpellByName = function(name, unit)
     directlyCast, directUnit, directCastCount = name, unit, directCastCount + 1
@@ -109,7 +110,7 @@ end
 IsAddOnLoaded = function() return true end
 local mockTime = 0
 GetTime = function() return mockTime end
-GetNampowerVersion = function() return 4, 6, 2 end
+GetNampowerVersion = function() return 4, 7, 0 end
 local cvars = {}
 GetCVar = function(name) return cvars[name] or "0" end
 SetCVar = function(name, value) cvars[name] = tostring(value) end
@@ -224,7 +225,7 @@ assert(XelAssistCharDB.graphDepth == 3 and XelAssistCharDB.role == "auto", "char
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.3" and runtime.nampower == "4.6.2", "runtime versions missing")
+assert(runtime.version == "0.8.4" and runtime.nampower == "4.7.0", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(runtime.evidenceEvents.damage and runtime.evidenceEvents.miss,
@@ -257,7 +258,9 @@ assert(routedAttackRound and routedAttackRound[1] == "player-guid"
     and routedAttackRound[3].outcome == "miss"
     and routedAttackRound[4] == mockTime,
     "core must route the classified round and exact observation time once")
-assert(runtime.evidenceEvents.aura and runtime.evidenceEvents.start and runtime.evidenceEvents.go,
+assert(runtime.evidenceEvents.aura and runtime.evidenceEvents.start
+    and runtime.evidenceEvents.go and runtime.evidenceEvents.castResult
+    and eventFrame.registered.SPELL_CAST_RESULT_SELF,
     "gated Nampower aura/cast lifecycle events were not enabled and audited")
 assert(focusEventFrame.registered.SPELL_ENERGIZE_BY_SELF
     and focusEventFrame.registered.SPELL_ENERGIZE_BY_OTHER
@@ -506,12 +509,57 @@ local function resetCastState()
     XelAssist.spellLifecycle = {}
     XelAssist.lifecycleKeys = {}
     XelAssist:ClearPetCast()
+    XelAssist.Core.PlayerNormalQueue:Reset()
     XelAssist.Combat.Resistance.submissions = {}
     XelAssist.Combat.Resistance.recentSubmissions = {}
 end
 
 local immolateAction = { name = "Immolate", spellId = 348, actor = "player",
     facts = { kind = "dot", cast = 0 } }
+
+resetCastState()
+mockTime = 0
+queueAction = { name = "Serpent Sting", spellId = 1978,
+    facts = { kind = "dot" } }
+queueRecord = XelAssist.Core.PlayerNormalQueue:Arm(queueAction,
+    { gcd = 1.5 }, queueAction.name, "target-a", 0, 0)
+fireEvent("SPELL_CAST_EVENT", 1, 1978, 0, "target-a")
+XelAssist.Core.PlayerNormalQueue:Finalize(queueRecord, true)
+assert(queueRecord.phase == "attempted"
+    and XelAssist.Core.PlayerNormalQueue:Current() == queueRecord,
+    "runtime client-attempt routing must retain normal ownership")
+fireEvent("SPELL_START_SELF", 0, 1978, "player-guid", "target-a", 0, 0, 0, 0)
+assert(not XelAssist.Core.PlayerNormalQueue:Current(),
+    "runtime player start evidence must release an attempted normal owner")
+
+queueRecord = XelAssist.Core.PlayerNormalQueue:Arm(queueAction,
+    { gcd = 1.5 }, queueAction.name, "target-a", 0, 0)
+fireEvent("SPELL_QUEUE_EVENT", 2, 1978)
+XelAssist.Core.PlayerNormalQueue:Finalize(queueRecord, true)
+fireEvent("SPELL_START_SELF", 0, 1978, "player-guid", "target-a", 0, 0, 0, 0)
+assert(XelAssist.Core.PlayerNormalQueue:Current() == queueRecord
+    and queueRecord.phase == "queued",
+    "runtime start evidence for an active same spell must not release a queued follow-up")
+fireEvent("SPELL_CAST_EVENT", 1, 1978, 0, "target-a")
+fireEvent("SPELL_QUEUE_EVENT", 3, 1978)
+assert(queueRecord.phase == "popped",
+    "runtime queue-pop routing must retain the in-flight owner")
+fireEvent("SPELL_GO_SELF", 0, 1978, "player-guid", "target-a")
+assert(not XelAssist.Core.PlayerNormalQueue:Current(),
+    "runtime player GO evidence must release the popped owner")
+
+queueRecord = XelAssist.Core.PlayerNormalQueue:Arm(queueAction,
+    { gcd = 1.5 }, queueAction.name, "target-a", 0, 0)
+fireEvent("SPELL_CAST_EVENT", 1, 1978, 0, "target-a")
+XelAssist.Core.PlayerNormalQueue:Finalize(queueRecord, true)
+fireEvent("SPELL_FAILED_SELF", 1978, 77, 1)
+fireEvent("SPELL_QUEUE_EVENT", 2, 1978)
+assert(XelAssist.Core.PlayerNormalQueue:Current() == queueRecord
+    and queueRecord.phase == "queued",
+    "runtime retry queue evidence must supersede provisional server failure")
+fireEvent("PLAYER_ENTERING_WORLD")
+assert(not XelAssist.Core.PlayerNormalQueue:Current(),
+    "world entry must reset session-only queue ownership")
 
 resetCastState()
 mockTime = 0
@@ -569,6 +617,54 @@ assert(not XelAssist:IsAuraPending("Immolate")
     and not XelAssist.Combat.Resistance:Submission(
         "target-a", "player-guid", 348),
     "a terminal interruption must clear UI and resistance reservations together")
+
+resetCastState()
+mockTime = 2
+testTargetGUID = "target-a"
+XelAssist.Combat.Resistance:Submitted(
+    immolateAction, testTargetGUID, { duration = 15 })
+XelAssist:MarkAuraPending(
+    "Immolate", 2, testTargetGUID, 348, "player-guid", "debuff")
+XelAssistTestAmbiguousOwner = XelAssist.Core.PlayerNormalQueue:Arm(
+    immolateAction, { gcd = 1.5 }, "Immolate(Rank 1)",
+    testTargetGUID, 0, 0)
+XelAssist.Core.PlayerNormalQueue:CastEvent(
+    1, 348, 0, testTargetGUID, "exact-current")
+XelAssist.Core.PlayerNormalQueue:Finalize(
+    XelAssistTestAmbiguousOwner, true)
+fireEvent("SPELLCAST_FAILED")
+fireEvent("SPELL_FAILED_SELF", 348, 77, 1, "0")
+mockTime = mockTime + 0.3
+assert(XelAssist:IsAuraPending("Immolate")
+    and XelAssist.Combat.Resistance:Submission(
+        testTargetGUID, "player-guid", 348)
+    and XelAssist.Core.PlayerNormalQueue:Current()
+        == XelAssistTestAmbiguousOwner,
+    "ambiguous failure evidence must not poison an exact owned reservation")
+fireEvent("SPELL_CAST_EVENT",
+    0, 348, 0, testTargetGUID, 0, "different-attempt")
+mockTime = mockTime + 0.3
+assert(XelAssist:IsAuraPending("Immolate")
+    and XelAssist.Core.PlayerNormalQueue:Current()
+        == XelAssistTestAmbiguousOwner,
+    "a rejected same-spell CAST0 must not poison another exact attempt")
+fireEvent("UNIT_CASTEVENT",
+    "player-guid", testTargetGUID, "FAIL", 348, 0)
+mockTime = mockTime + 0.3
+assert(XelAssist:IsAuraPending("Immolate")
+    and XelAssist.Core.PlayerNormalQueue:Current()
+        == XelAssistTestAmbiguousOwner,
+    "a rejected identityless UNIT FAIL must not poison an exact live attempt")
+fireEvent("SPELL_CAST_RESULT_SELF",
+    0, 348, testTargetGUID, 77, "exact-current")
+fireEvent("SPELL_FAILED_SELF", 348, 77, 1, "exact-current")
+fireEvent("SPELL_GO_SELF",
+    0, 348, "player-guid", testTargetGUID)
+mockTime = mockTime + 0.3
+assert(not XelAssist:IsAuraPending("Immolate")
+    and not XelAssist.Combat.Resistance:Submission(
+        testTargetGUID, "player-guid", 348),
+    "an identityless GO must not resurrect an exact failed reservation")
 
 resetCastState()
 XelAssist.Combat.Resistance:Submitted(immolateAction, "target-a", { duration = 15 })
@@ -821,6 +917,16 @@ for i = 1, table.getn(XelAssist.UI.HUD.frame.follow) do
         "evaluation failure must clear every stale future row")
 end
 XelAssist.Graph.Evaluate = evaluator
+XelAssistTestSupportedNampowerVersion = GetNampowerVersion
+GetNampowerVersion = function() return 4, 6, 2 end
+XelAssist:CheckDependencies()
+assert(not XelAssist.executionEnabled
+    and table.concat(XelAssist.missing, ",") == "Nampower 4.7.0+",
+    "pre-attempt-ID Nampower must not enable ambiguous queue execution")
+GetNampowerVersion = XelAssistTestSupportedNampowerVersion
+XelAssist:CheckDependencies()
+assert(XelAssist.executionEnabled,
+    "restoring Nampower 4.7 must restore execution")
 XelAssist.executionEnabled = false; XelAssist.missing = { "Nampower" }
 XelAssist.UI.HUD:Refresh(true)
 assert(string.find(XelAssist.UI.HUD.lastReason, "Dependencies missing: Nampower"), "dependency state was not surfaced")
@@ -828,7 +934,8 @@ assert(not XelAssist.UI.HUD.frame.main:IsEnabled() and XelAssist.UI.HUD.frame:Ge
     "dependency hold must remain visibly non-executable")
 XelAssist.executionEnabled = true
 XelAssist.Graph.Evaluate = function()
-    return { action = { name = "Frostbolt", rank = 1, rankText = "Rank 1", facts = { kind = "damage" } },
+    return { action = { name = "Frostbolt", spellId = 116,
+            rank = 1, rankText = "Rank 1", facts = { kind = "damage" } },
         target = "target", targetGUID = testTargetGUID,
         targetRelation = "hostile",
         targetRef = { unit = "target", guid = testTargetGUID,
@@ -841,13 +948,113 @@ assert(XelAssist.UI.HUD.frame.main:IsEnabled() and XelAssist.UI.HUD.frame:GetHei
     "a later valid recommendation must restore execution without stale future rows")
 local priorExecutionCanAttack = UnitCanAttack
 UnitCanAttack = function(_, unit) return unit == "target" end
+XelAssistTestQueueHook = function(_, guid)
+    assert(guid == testTargetGUID,
+        "the mocked normal queue must receive the captured hostile GUID")
+    fireEvent("SPELL_QUEUE_EVENT", 2, 116)
+end
 XelAssist:Execute()
+XelAssistTestQueueHook = nil
 UnitCanAttack = priorExecutionCanAttack
 assert(queuedSpell == "Frostbolt(Rank 1)" and not directlyCast,
     "selected-target actions must use the Nampower queue: reason="
         .. tostring(XelAssist.lastReason) .. " guid="
         .. tostring(testTargetGUID) .. " queued=" .. tostring(queuedSpell)
         .. " direct=" .. tostring(directlyCast))
+fireEvent("SPELL_CAST_EVENT", 1, 116, 0, testTargetGUID, 0, "501")
+fireEvent("SPELL_QUEUE_EVENT", 3, 116)
+fireEvent("SPELL_GO_SELF", 0, 116, "player-guid", testTargetGUID)
+assert(XelAssist.Core.PlayerNormalQueue:Current(),
+    "identityless compatibility GO evidence must not release an ID-bound attempt")
+fireEvent("SPELL_CAST_RESULT_SELF", 1, 116, testTargetGUID, 0, "501")
+assert(not XelAssist.Core.PlayerNormalQueue:Current(),
+    "the mocked queued lifecycle must release on its exact result ID")
+
+-- Nampower can discard a normal queue with code 3 before any cast attempt.
+-- That terminal drop must also retire the graph reservation so the very next
+-- physical input can submit the DoT again.
+resetCastState()
+XelAssistTestQueueCountBeforeDrop = queueCount
+XelAssist.Graph.Evaluate = function()
+    return { action = { name = "Immolate", spellId = 348,
+            rank = 1, rankText = "Rank 1", actor = "player",
+            executor = "playerSpell", facts = { kind = "dot" } },
+        target = "target", targetGUID = testTargetGUID,
+        targetRelation = "hostile",
+        targetRef = { unit = "target", guid = testTargetGUID,
+            relation = "hostile", source = "selected" },
+        reason = "drop retry test", confidence = "client data", value = 1,
+        threat = 1, wait = 0, cast = 0, downtime = 0,
+        observed = {}, follow = {}, path = {},
+        tooltip = { gcd = 1.5, normalGcd = true, duration = 15 } }, nil, false
+end
+priorExecutionCanAttack = UnitCanAttack
+UnitCanAttack = function(_, unit) return unit == "target" end
+XelAssistTestQueueHook = function(_, guid)
+    assert(guid == testTargetGUID)
+    fireEvent("SPELL_QUEUE_EVENT", 2, 348)
+end
+XelAssist:Execute()
+XelAssistTestDroppedPendingKey = XelAssist:PendingAuraKey(
+    "Immolate", testTargetGUID, "player-guid")
+assert(queueCount == XelAssistTestQueueCountBeforeDrop + 1
+    and XelAssist.pendingAuras[XelAssistTestDroppedPendingKey],
+    "the accepted queued DoT must establish its tap guard")
+fireEvent("SPELL_QUEUE_EVENT", 3, 348)
+XelAssistTestDroppedLifecycle = XelAssist:Lifecycle(
+    348, "player-guid", nil, false)
+assert(not XelAssist.Core.PlayerNormalQueue:Current()
+    and not XelAssist.pendingAuras[XelAssistTestDroppedPendingKey]
+    and XelAssistTestDroppedLifecycle
+    and XelAssistTestDroppedLifecycle.state == "dropped",
+    "an asynchronous normal queue drop must clear its exact graph reservation")
+XelAssist:Execute()
+assert(queueCount == XelAssistTestQueueCountBeforeDrop + 2,
+    "the first input after an asynchronous drop must be allowed to resubmit")
+XelAssistTestDroppedPendingKey = XelAssist:PendingAuraKey(
+    "Immolate", testTargetGUID, "player-guid")
+fireEvent("SPELLCAST_FAILED")
+fireEvent("SPELL_FAILED_SELF", 348, 77, 1, "drop-retry")
+fireEvent("SPELL_QUEUE_EVENT", 2, 348)
+fireEvent("SPELL_CAST_EVENT", 0, 348, 0, testTargetGUID, 0, "drop-retry")
+fireEvent("SPELL_QUEUE_EVENT", 3, 348)
+mockTime = mockTime + 0.3
+XelAssist:SweepPendingAuras()
+XelAssistTestRetryOwner = XelAssist.Core.PlayerNormalQueue:Current()
+XelAssistTestRetryPending = XelAssist.pendingAuras[
+    XelAssistTestDroppedPendingKey]
+XelAssistTestRetrySubmission = XelAssist.Combat.Resistance:Submission(
+    testTargetGUID, "player-guid", 348)
+assert(XelAssist.Core.PlayerNormalQueue:Current()
+    and XelAssist.Core.PlayerNormalQueue:Current().phase == "queued"
+    and XelAssist.pendingAuras[XelAssistTestDroppedPendingKey]
+    and XelAssist.Combat.Resistance:Submission(
+        testTargetGUID, "player-guid", 348),
+    "a later owned failure/retry must survive identityless failure, CAST0, old pop, and grace expiry: owner="
+        .. tostring(XelAssistTestRetryOwner and XelAssistTestRetryOwner.phase)
+        .. " pending=" .. tostring(XelAssistTestRetryPending ~= nil)
+        .. " submission=" .. tostring(XelAssistTestRetrySubmission ~= nil))
+fireEvent("SPELL_QUEUE_EVENT", 3, 348)
+XelAssistTestQueueHook = nil
+UnitCanAttack = priorExecutionCanAttack
+
+-- Server result precedes legacy failure and a synchronous retry. The new
+-- generation must survive both the old failure event and a stale old result.
+mockTime = mockTime + 1
+XelAssistTestRetryRecord = XelAssist.Core.PlayerNormalQueue:Arm(
+    { name = "Frostbolt", spellId = 116, facts = { kind = "damage" } },
+    { gcd = 1.5 }, "Frostbolt(Rank 1)", testTargetGUID, 0, 0)
+fireEvent("SPELL_CAST_EVENT", 1, 116, 0, testTargetGUID, 0, "601")
+fireEvent("SPELL_CAST_RESULT_SELF", 0, 116, testTargetGUID, 65, "601")
+fireEvent("SPELL_FAILED_SELF", 116, 65, 1, "601")
+fireEvent("SPELL_QUEUE_EVENT", 2, 116)
+fireEvent("SPELL_CAST_EVENT", 1, 116, 0, testTargetGUID, 0, "602")
+fireEvent("SPELL_CAST_RESULT_SELF", 1, 116, testTargetGUID, 0, "601")
+assert(XelAssist.Core.PlayerNormalQueue:Current() == XelAssistTestRetryRecord,
+    "a stale pre-retry result must not release the new attempt generation")
+fireEvent("SPELL_CAST_RESULT_SELF", 1, 116, testTargetGUID, 0, "602")
+assert(not XelAssist.Core.PlayerNormalQueue:Current(),
+    "the retry's exact server result must release its owned generation")
 queuedSpell, directlyCast, directUnit = nil, nil, nil
 testFriendlyGUIDs.party1, testAssistUnits.party1 = "ally-a", true
 XelAssist.Graph.Evaluate = function()
@@ -863,7 +1070,7 @@ assert(directCastCount == validFriendlyCastCount + 1
     and queueCount == validFriendlyQueueCount
     and directlyCast == "Flash Heal(Rank 1)" and directUnit == "ally-a"
     and not queuedSpell,
-    "an exact friendly reference must bypass the hostile queue and cast to its captured GUID")
+    "with the normal slot free, an exact friendly reference must cast to its captured GUID")
 
 resetCastState()
 local waitingFriendlyCasts, waitingFriendlyQueue = directCastCount, queueCount
@@ -995,6 +1202,7 @@ assert(directCastCount == selectedAllyCastCount + 1
     "a friendly selected-target reference must never enter the hostile Nampower queue")
 testTargetGUID, testAssistUnits.target = nil, nil
 
+resetCastState()
 queuedSpell, directlyCast, directUnit = nil, nil, nil
 testPetGUID, testAssistUnits.pet = "pet-guid", true
 XelAssist.Graph.Evaluate = function()

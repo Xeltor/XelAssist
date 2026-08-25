@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.8.4
+
+- Added a session-only owner for Nampower 4.7.0+'s single normal-GCD player-spell slot.
+  A second `/xa` press cannot replace a queued Serpent Sting, DoT, or other
+  selected-hostile normal action while its exact outcome is unresolved. On-swing and non-GCD
+  queue classes remain independently executable. Live Spell.dbc attributes and
+  recovery categories now classify Raptor Strike and other next-swing actions
+  without typed rotation metadata. Delayed hostile casts now pass
+  the validated opaque target GUID into Nampower instead of resolving whichever
+  enemy happens to be selected when the queue later pops. Friendly, ground,
+  pet-lifecycle, and GCD-triggering item paths now protect and establish the
+  same ownership instead of bypassing it.
+- Distinguished client attempt, queue pop, server acceptance, and server
+  failure evidence. A pop or pre-server cast event no longer invents completion;
+  an unambiguous server-result attempt ID releases the slot, while Nampower's
+  synchronous failure-then-retry event order preserves ownership. If the server
+  packet cannot be correlated uniquely among same-spell attempts, Nampower emits
+  no usable ID and XelAssist retains its bounded conservative latch.
+- Kept missing events conservative but bounded, reset all queue evidence on
+  world entry, clear graph/resistance reservations when Nampower drops a queued
+  action before attempting it, and preserve a reentrant retry across the failed
+  generation's later pop. Ambiguous or mismatched failure/cast evidence cannot
+  poison another exact same-spell generation. Added target/spell/attempt
+  mismatch, same-spell prior-cast, retry, timeout, independent queue,
+  execution-boundary, and runtime-routing tests.
+  Authenticated in-world Hunter validation remains pending and is not claimed.
+
 ## 0.8.3
 
 - Replaced Auto Shot's fixed 8–35 yard admission with Nampower's exact numeric
