@@ -1,4 +1,4 @@
-# XelAssist 0.8.17
+# XelAssist 0.8.18
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -179,6 +179,11 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
   and damage multipliers, while mixed direct damage stays outside the weapon
   coefficient;
 - future resource, health, target-health, aura, threat-drop, and cooldown state;
+- bounded session-only target survival pressure learned from repeated exact
+  health observations. Cast, channel, and periodic output is integrated over
+  the resulting evidence window, so a direct or zero-mana action can beat a
+  long DoT on a mob already dying quickly. Large heals, health-regime changes,
+  observation gaps, and inexact health reset or withhold the model;
 - captured future spatial contracts that never call live APIs or invent
   movement. Predicted rows disclose the range, line-of-sight, behind, and
   stationary facts that must remain true or be proven at execution time. An

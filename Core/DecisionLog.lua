@@ -44,7 +44,13 @@ function L:Record(plan, mode)
         resistanceUncertaintyMultiplier = plan.resistance and plan.resistance.uncertaintyMultiplier,
         resistanceConfidence = plan.resistance and plan.resistance.confidence,
         resistanceSamples = plan.resistance and plan.resistance.samples,
-        resistanceSource = plan.resistance and plan.resistance.source })
+        resistanceSource = plan.resistance and plan.resistance.source,
+        survivalTimeToDie = plan.survival and plan.survival.timeToDie,
+        survivalIncomingDps = plan.survival and plan.survival.incomingDps,
+        survivalObservedFor = plan.survival and plan.survival.observedFor,
+        survivalConfidence = plan.survival and plan.survival.confidence,
+        survivalReason = plan.survival and plan.survival.reason,
+        survivalDecisionFactor = plan.survival and plan.survival.decisionFactor })
     while table.getn(XelAssistLog) > 200 do table.remove(XelAssistLog, 1) end
 end
 
@@ -121,6 +127,17 @@ local function resistanceDetail(row)
     return detail
 end
 
+local function survivalDetail(row)
+    if row.survivalReason then
+        return " · survival gap [" .. tostring(row.survivalReason) .. "]"
+    end
+    if not row.survivalTimeToDie then return "" end
+    return string.format(" · survival %.1fs @ %.0f/s [%s, %d%% output]",
+        row.survivalTimeToDie, row.survivalIncomingDps or 0,
+        tostring(row.survivalConfidence or "partial data"),
+        math.floor((row.survivalDecisionFactor or 1) * 100 + 0.5))
+end
+
 function L:PrintRecent()
     local first = math.max(1, table.getn(XelAssistLog) - 4)
     local i
@@ -128,7 +145,8 @@ function L:PrintRecent()
         local row = XelAssistLog[i]
         msg("log " .. i .. ": " .. row.action .. " R" .. (row.rank or 0)
             .. " — " .. row.reason .. " (" .. row.confidence .. ", "
-            .. (row.status or "unknown") .. ")" .. resistanceDetail(row))
+            .. (row.status or "unknown") .. ")" .. resistanceDetail(row)
+            .. survivalDetail(row))
     end
     if table.getn(XelAssistLog) == 0 then msg("decision log is empty.") end
 end

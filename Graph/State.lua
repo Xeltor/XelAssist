@@ -203,6 +203,7 @@ local function newState(mode, context)
         healHealth = context.healHealth, healMax = context.healMax,
         targetHealth = target.health, targetMax = target.healthMax,
         targetHealthExact = target.healthExact,
+        targetSurvival = target.survival,
         targetCreatureType = target.creatureType,
         targetResistances = target.resistances,
         targetResistance = target.resistance,

@@ -14,6 +14,7 @@ local PlayerSwingScoring = XelAssist.Graph.PlayerSwingScoring
 local Triggered = XelAssist.Combat.TriggeredActions
 local ComboScoring = XelAssist.Graph.ComboScoring
 local Admission = XelAssist.Graph.ActionAdmission
+local SurvivalPressure = XelAssist.Graph.SurvivalPressure
 local function legalityAndTiming(action, state, descriptor)
     local allowed, blocker, tooltip, target, actionStart, resolved =
         Targets:Legal(action, state, descriptor)
@@ -361,6 +362,7 @@ local function candidate(context)
         threat = context.threat, estimated = context.estimated,
         tooltip = context.tooltip, power = context.expectedPower,
         powerEvidence = context.powerEvidence,
+        survival = context.survival,
         comboAvailability = context.comboAvailability,
         effectivePower = context.effectivePower, rawPower = context.power,
         supportAoeUnknown = facts.aoe and context.friendlySupport and true or false,
@@ -405,6 +407,7 @@ function Scoring:Evaluate(action, state, descriptor)
     projectDamageAndResistance(context)
     PlayerSwingScoring:Project(context)
     projectAmbientTargetHealth(context)
+    if SurvivalPressure then SurvivalPressure:Adjust(context) end
     if action.facts.execute and state.targetMax > 0
         and (context.targetHealthAtImpact or state.targetHealth) * 100
             / state.targetMax > action.facts.execute then return nil, "execute range" end
@@ -414,6 +417,7 @@ function Scoring:Evaluate(action, state, descriptor)
         return candidate(context)
     end
     scoreKindUtility(context)
+    if SurvivalPressure then SurvivalPressure:Explain(context) end
     ComboScoring:Apply(context)
     applyActionAdjustments(context)
     ThreatScoring:Apply(context)

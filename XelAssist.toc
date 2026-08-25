@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.17
+## Version: 0.8.18
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -53,6 +53,7 @@ Combat\ResistanceSubmissions.lua
 Combat\Resistance.lua
 Game\Actors.lua
 Game\Friendlies.lua
+Game\TargetSurvival.lua
 Game\Hostiles.lua
 Combat\Observations.lua
 Game\Inventory.lua
@@ -95,9 +96,11 @@ Graph\ComboEffects.lua
 Graph\ComboScoring.lua
 Graph\OngoingEffects.lua
 Graph\ActionConsumption.lua
+Graph\DotProjection.lua
 Graph\ActionEffects.lua
 Graph\Timeline.lua
 Graph\ActionPower.lua
+Graph\SurvivalPressure.lua
 Graph\Scoring.lua
 Graph\Transitions.lua
 Graph\SearchPolicy.lua
@@ -114,6 +117,7 @@ UI\RecommendationStability.lua
 UI\RecommendationController.lua
 UI\RunwayPlaceholder.lua
 UI\RunwayRenderer.lua
+UI\SurvivalTooltip.lua
 UI\HUD.lua
 UI\Settings.lua
 UI\Minimap.lua

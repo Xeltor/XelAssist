@@ -350,7 +350,7 @@ assert(XelAssistCharDB.visibleSteps == 3 and XelAssistCharDB.graphDepth == nil
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.17" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.18" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(not runtime.apis.comboOwner and not runtime.apis.comboDuration,
@@ -471,12 +471,16 @@ local estimatedFollowAction = { name = "Arcane Intellect", rank = 1, actor = "pl
     facts = { kind = "buff" } }
 local displayPlan = { action = tooltipAction, target = "target", reason = "test resistance",
     confidence = "partial data", value = 1, threat = 1, downtime = 1.5, observed = {},
+    survival = { available = true, timeToDie = 4.2, incomingDps = 120,
+        observedFor = 3.5, confidence = "observed", decisionFactor = 0.64 },
     rootBlockers = { ["Backstab:1:player"] = { name = "Backstab", rank = 1,
         actor = "player", reasons = { ["must be behind target"] = 1 } } },
     resistance = tooltipResistance, follow = { followAction, estimatedFollowAction }, path = {
         { action = tooltipAction, target = "target", resistance = tooltipResistance },
         { action = followAction, target = "target", reason = "future exploit", downtime = 1.5,
             resistance = tooltipResistance,
+            survival = { available = true, timeToDie = 3.1, incomingDps = 120,
+                observedFor = 3.5, confidence = "observed", decisionFactor = 0.5 },
             spatialConditionFingerprint = "range:effect:pet:target:remain::30",
             spatialConditions = { { kind = "range",
                 detail = "effect remains within 30 yd" } } },
@@ -489,6 +493,8 @@ local tooltipText = table.concat(gameTooltipLines, "|")
 assert(string.find(tooltipText, "Graph-scored factor 120%", 1, true)
     and string.find(tooltipText, "Fire: 80% expected output", 1, true)
     and string.find(tooltipText, "penetration unknown", 1, true)
+    and string.find(tooltipText, "Target survival ~4.2s", 1, true)
+    and string.find(tooltipText, "action output 64%", 1, true)
     and string.find(tooltipText, "Backstab — must be behind target", 1, true)
     and not string.find(tooltipText, "penetration 0", 1, true),
     "main tooltip must explain output, scored factor, unknowns and gated alternatives")
@@ -681,6 +687,8 @@ local futureTooltip = table.concat(gameTooltipLines, "|")
 assert(string.find(futureTooltip, "Graph-scored factor 120%", 1, true)
     and string.find(futureTooltip, "0.0s wait", 1, true)
     and string.find(futureTooltip, "1.5s occupied", 1, true)
+    and string.find(futureTooltip, "Target survival ~3.1s", 1, true)
+    and string.find(futureTooltip, "action output 50%", 1, true)
     and string.find(futureTooltip, "If effect remains within 30 yd", 1, true),
     "predicted tooltip must expose conditions, resistance, wait and occupancy")
 gameTooltipLines = {}; this = actionFrame.main; this.OnEnter()
@@ -776,15 +784,20 @@ XelAssist:RecordDecision(displayPlan, "smart")
 assert(XelAssistLog[1].resistanceDecisionMultiplier == 1.2
     and XelAssistLog[1].resistanceConfidence == "observed"
     and XelAssistLog[1].resistanceSamples == 3
-    and XelAssistLog[1].resistanceMode == "mixed",
-    "decision log must retain the resistance value and evidence actually scored")
+    and XelAssistLog[1].resistanceMode == "mixed"
+    and XelAssistLog[1].survivalTimeToDie == 4.2
+    and XelAssistLog[1].survivalIncomingDps == 120
+    and XelAssistLog[1].survivalDecisionFactor == 0.64,
+    "decision log must retain the resistance and survival evidence actually scored")
 chatMessages = {}
 XelAssist:Command("log")
 local readableLog = table.concat(chatMessages, "|")
 assert(string.find(readableLog, "Mixed 120% scored", 1, true)
     and string.find(readableLog, "Physical 50%@60%", 1, true)
-    and string.find(readableLog, "Nature 80%@40% uncertain", 1, true),
-    "the readable decision log must print its mixed score, component shares and uncertainty")
+    and string.find(readableLog, "Nature 80%@40% uncertain", 1, true)
+    and string.find(readableLog, "survival 4.2s @ 120/s", 1, true)
+    and string.find(readableLog, "64% output", 1, true),
+    "the readable decision log must print resistance components and survival pressure")
 
 do
     local savedFallbackRefresh = XelAssist.UI.HUD.RequestRefresh

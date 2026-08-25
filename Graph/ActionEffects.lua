@@ -8,27 +8,7 @@ local HostileEffects = XelAssist.Graph.HostileEffects
 local Readiness = XelAssist.Graph.ReadinessEffects
 local CompanionEventThreat = XelAssist.Graph.CompanionEventThreat
 local EventAuras = XelAssist.Graph.EventAuras
-local function dotPowerSplit(candidate)
-    local resistance = candidate.resistance
-    if not (resistance and resistance.mode == "hybrid"
-        and type(resistance.components) == "table") then
-        return 0, candidate.power
-    end
-    local direct, periodic, unassigned, total = 0, 0, 0, 0
-    local i
-    for i = 1, table.getn(resistance.components) do
-        local component = resistance.components[i]
-        local share = tonumber(component.decisionShare) or 0
-        total = total + share
-        if component.componentPhase == "direct" then direct = direct + share
-        elseif component.componentPhase == "periodic" then periodic = periodic + share
-        else unassigned = unassigned + share end
-    end
-    if total <= 0 then return 0, candidate.power end
-    periodic = periodic + unassigned
-    return candidate.power * direct / total,
-        candidate.power * periodic / total
-end
+local DotProjection = XelAssist.Graph.DotProjection
 
 function A:Context(source, candidate)
     local action, facts = candidate.action, candidate.action.facts
@@ -121,24 +101,6 @@ local function applyModifierProjection(out, source, context)
         Effects:ApplyTargetModifier(out, context.action, context.targetFacts,
             source, context.projectedDelivery, prior, fallback, context.targetGUID)
     end
-end
-
-local function dotProjection(candidate)
-    local direct, periodic, duration, elapsed = 0, 0, nil, 0
-    if candidate.action.facts.kind ~= "dot" then
-        return direct, periodic, duration, elapsed
-    end
-    if candidate.dotRawPeriodicPower ~= nil then
-        periodic = candidate.dotPeriodicExpectedPower or 0
-        direct = math.max(0, candidate.power - periodic)
-    else
-        direct, periodic = dotPowerSplit(candidate)
-    end
-    duration = math.max(1, tonumber(candidate.tooltip.duration) or 12)
-    elapsed = math.min(duration,
-        math.max(0, (candidate.occupancy or 0)
-            - math.max(0, candidate.cast or 0)))
-    return direct, periodic, duration, elapsed
 end
 
 local function applyFriendlyTarget(out, candidate, context)
@@ -377,8 +339,7 @@ local function applyAura(out, source, candidate, context,
             periodicRate = facts.kind == "dot"
                 and dotPeriodic / dotDuration or nil,
             periodicRawRate = facts.kind == "dot"
-                and candidate.dotRawPeriodicPower
-                and candidate.dotRawPeriodicPower / dotDuration or nil,
+                and DotProjection:RawPeriodicRate(candidate, dotDuration) or nil,
             periodicAction = facts.kind == "dot" and action or nil,
             periodicTooltip = facts.kind == "dot"
                 and { school = candidate.tooltip.school } or nil,
@@ -417,7 +378,7 @@ function A:Apply(out, source, candidate, context)
     applyModifierProjection(out, source, context)
     Readiness:Apply(out, candidate, context)
     local dotDirect, dotPeriodic, dotDuration, dotElapsed =
-        dotProjection(candidate)
+        DotProjection:Candidate(candidate)
     local targetLocal = applyFriendlyTarget(out, candidate, context)
     local primaryHandled = applyDamageOrSupport(
         out, source, candidate, context, targetLocal,

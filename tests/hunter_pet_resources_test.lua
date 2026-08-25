@@ -182,6 +182,7 @@ XelAssist.Graph = { State = {}, Effects = {}, HostileEffects = {},
     ReadinessEffects = {}, EventAuras = {} }
 dofile("Graph/CompanionResources.lua")
 dofile("Graph/ActionConsumption.lua")
+dofile("Graph/DotProjection.lua")
 dofile("Graph/ActionEffects.lua")
 local chosenActor = { ownerClass = "HUNTER", guid = hunterGuid,
     resource = 100, resourceMax = 100 }

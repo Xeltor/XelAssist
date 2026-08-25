@@ -330,6 +330,14 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
 - Periodic damage is capped to the damage an exact-health target can still
   consume, then charged for unrealized ticks and mana. This allows a direct or
   zero-mana recovery action such as Shoot to beat a DoT on a dying target.
+  Repeated exact-health observations additionally learn a bounded, target-local
+  all-source damage trend. The graph integrates cast landing probability and
+  channel/periodic output over its lower/upper survival window; it does not turn
+  the estimate into a certain death event. The learner requires a material loss
+  over at least one second and resets on large healing, max-health changes,
+  observation gaps, or inexact health. Unsupported per-recipient area survival
+  remains an explicit recommendation gap instead of applying the selected
+  target's estimate to every recipient.
   Applied periodic effects continue advancing health in later graph windows;
   hybrid direct damage lands immediately and only its periodic share is spread
   over the aura duration. Existing DoTs and channels re-evaluate resistance and
@@ -421,14 +429,16 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   weapon bases are decomposed before scoring. Triggered child spells, absorbs,
   and server-scripted modifiers can still remain estimated; those recommendations
   are visibly marked `estimated` and logged.
-- Future movement, target swaps, incoming damage, other players' casts, proc
-  arrivals, and shared cooldown categories cannot be predicted. The independent
+- Future movement, target swaps, discrete incoming-damage events, other players'
+  casts, proc arrivals, and shared cooldown categories cannot be predicted.
+  Recent exact all-source health loss provides probabilistic survival pressure,
+  not a claim that the same future events will recur. The independent
   producer continuously publishes fresh complete plans; each physical press
   consumes at most one publication and never starts graph work itself.
-- Combo gain and spend transitions retain probabilistic landed/missed outcomes,
-  but target time-to-die beyond exact current health is not yet a learned
-  survival model, so short-lived-target finisher timing remains bounded
-  heuristic reasoning rather than a full encounter forecast.
+- Combo gain and spend transitions retain probabilistic landed/missed outcomes.
+  Learned target survival can value short-lived-target finisher timing only
+  while a fresh exact-health trend exists; it remains bounded evidence rather
+  than a full encounter forecast.
 - Combo-scaled duration endpoints for Slice and Dice, Rupture, Expose Armor,
   and similar finishers are decoded when the matching ClassicAPI bridge is
   available and remain conservative otherwise. Duration-aware periodic and

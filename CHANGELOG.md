@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.18
+
+- Added bounded target-survival learning from exact hostile health trends.
+  Recent all-source pressure now discounts casts, channels, and DoTs that are
+  unlikely to land or pay back before death, while large heals, observation
+  gaps, max-health changes, and inexact health reset the session-only evidence.
+  Recommendation tooltips and privacy-safe logs expose the estimate, observed
+  rate, confidence, and action-output factor.
+- Kept survival evidence target-local across graph copies and made unsupported
+  per-recipient area survival forecasting an explicit capability gap.
+
 ## 0.8.17
 
 - Made runway painting incremental: a changed future branch updates only its

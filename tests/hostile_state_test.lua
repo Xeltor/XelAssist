@@ -33,6 +33,9 @@ local selectedRecord = {
     key = selectedGuid, guid = selectedGuid, unit = "target", source = "selected",
     selected = true, executable = true, dead = false,
     health = 700, healthMax = 1000, healthExact = true,
+    survival = { available = true, incomingDps = 100, timeToDie = 7,
+        lowerTimeToDie = 5.25, upperTimeToDie = 9.45,
+        observedFor = 3, samples = 7, confidence = "observed" },
     distance = 18, distanceKind = "exact", lineOfSight = true, behind = false,
     geometry = { pet = { distance = 2, distanceKind = "exact",
         lineOfSight = true, behind = false } },
@@ -48,6 +51,7 @@ local otherRecord = {
     key = otherGuid, guid = otherGuid, unit = "mouseover", source = "mouseover",
     selected = false, executable = false, dead = false,
     health = 320, healthMax = 800, healthExact = false,
+    survival = { available = false, reason = "exact hostile health unavailable" },
     distance = 9, distanceKind = "estimated", lineOfSight = nil, behind = nil,
     geometry = { pet = { distance = 4, distanceKind = "exact",
         lineOfSight = true, behind = true } },
@@ -207,6 +211,8 @@ assert(table.getn(resistanceCalls) == 2
 
 assert(state.targetGUID == selectedGuid and state.targetHealth == 700
     and state.targetMax == 1000 and state.targetHealthExact
+    and state.targetSurvival == selected.survival
+    and state.targetSurvival.timeToDie == 7
     and state.targetCreatureType == "Demon"
     and state.targetDistance == 18 and state.targetDistanceKind == "exact"
     and state.targetLineOfSight == true and state.playerBehindTarget == false,
@@ -258,6 +264,7 @@ assert(selected.projectedAuras.Projected and selected.targetAuras.Observed
 local otherContext = XelAssist.Graph.State:HostileContext(state, otherGuid)
 assert(otherContext and otherContext ~= state and otherContext.targetContextKey == otherGuid
     and otherContext.targetGUID == otherGuid and otherContext.targetHealth == 320
+    and otherContext.targetSurvival == other.survival
     and otherContext.hostile and state.targetGUID == selectedGuid
     and state.targetContextKey == nil,
     "off-target contexts must be detached scalar views without changing selection")
@@ -352,7 +359,9 @@ assert(copy.targetAuras == copiedSelected.targetAuras
     and copy.targetResistances == copiedSelected.resistances
     and copy.targetDamageTaken == copiedSelected.damageTaken
     and copy.baseTargetDamageTaken == copiedSelected.baseDamageTaken
-    and copy.targetModifierEffects == copiedSelected.modifierEffects,
+    and copy.targetModifierEffects == copiedSelected.modifierEffects
+    and copy.targetSurvival == copiedSelected.survival
+    and copy.targetSurvival ~= selected.survival,
     "copied selected mirrors must alias the copied record, never the source record")
 
 copiedSelected.health = 111
@@ -423,6 +432,7 @@ dofile("Graph/Effects.lua")
 dofile("Graph/EventAuras.lua")
 dofile("Graph/ReadinessEffects.lua")
 dofile("Graph/ActionConsumption.lua")
+dofile("Graph/DotProjection.lua")
 dofile("Graph/ComboEffects.lua")
 dofile("Graph/ActionEffects.lua")
 

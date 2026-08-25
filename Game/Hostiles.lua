@@ -3,6 +3,7 @@
 -- records without treating an unavailable fact as safe or false.
 XelAssist.Game.Hostiles = {}
 local H = XelAssist.Game.Hostiles
+local TargetSurvival = XelAssist.Game.TargetSurvival
 
 H.MAX_TARGETS = 5
 
@@ -198,6 +199,9 @@ local function enrich(record, selectedGuid)
     record.executableSource = record.executable and "selected hostile target" or nil
     record.health, record.healthMax, record.healthExact, record.healthAvailable =
         healthState(record.unit)
+    record.survival = TargetSurvival and TargetSurvival:Observe(record.guid,
+        record.health, record.healthMax, record.healthExact,
+        GetTime and GetTime() or 0) or nil
     record.harmfulAuras = auraState(record.unit, "HARMFUL")
     record.helpfulAuras = auraState(record.unit, "HELPFUL")
     record.geometry = { player = actorGeometry("player", record.unit) }

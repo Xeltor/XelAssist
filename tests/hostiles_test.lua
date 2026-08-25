@@ -127,6 +127,7 @@ end
 UnitChannelInfo = UnitCastingInfo
 XelAssist.targetCastGUID, XelAssist.targetCastUntil = enemyA, 104
 
+dofile("Game/TargetSurvival.lua")
 dofile("Game/Hostiles.lua")
 local H = XelAssist.Game.Hostiles
 local snapshot = H:Snapshot()
@@ -211,6 +212,16 @@ for i = 1, table.getn(snapshot.order) do
     assert(repeated.order[i] == snapshot.order[i],
         "hostile cap ordering must be deterministic")
 end
+
+now, units.target.health = 100.5, 600
+H:Snapshot()
+now, units.target.health = 101, 500
+local pressured = H:Snapshot().byKey[enemyA]
+assert(pressured.survival and pressured.survival.available
+    and pressured.survival.incomingDps == 200
+    and pressured.survival.timeToDie == 2.5
+    and pressured.survival.confidence == "limited samples",
+    "exact repeated hostile snapshots must attach learned survival pressure")
 
 -- Missing providers and percentage health must stay explicitly incomplete.
 XelAssist.Game.Capabilities = {}

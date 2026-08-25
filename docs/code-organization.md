@@ -49,6 +49,8 @@ never class rotations or ordered priority lists.
   `Game/HitBonuses.lua` owns the capability-gated equipped-hit snapshot and
   keeps unresolved talent/aura contributions explicit.
   `Game/Hostiles.lua` owns bounded GUID-deduplicated hostile observation, while
+  `Game/TargetSurvival.lua` owns bounded session-only exact-health trend
+  evidence without persisting or rendering opaque identity, and
   `Game/SpellTopology.lua` translates installed-client DBC effect-target and
   radius fields without deciding which action is useful. The session-only
   `Game/Pets/EffectRuntime.lua` ledger correlates confirmed casts, observable
@@ -85,6 +87,10 @@ never class rotations or ordered priority lists.
 - `Graph/State.lua` is the live observation boundary for planning, and
   `Graph/HostileState.lua` owns target-local copies, context switching, and
   commits back to the canonical bounded hostile collection.
+  `Graph/SurvivalPressure.lua` converts learned target pressure into bounded
+  cast, channel, and periodic expected output without defining class strategy.
+  `Graph/DotProjection.lua` owns the direct/periodic transition split and keeps
+  that expected survival factor causal across later aura ticks.
   `Graph/ChannelCommitment.lua` owns the remaining-value comparison between
   continuing and deliberately clipping a live player channel.
   `Graph/AreaRecipients.lua` resolves conservative per-effect recipient sets;
@@ -128,6 +134,7 @@ never class rotations or ordered priority lists.
   graph time, and bounded search without inventing future actions, while
   `UI/RunwayRenderer.lua` incrementally paints only visibly changed future
   slots and refreshes their underlying tooltip contracts independently.
+  `UI/SurvivalTooltip.lua` renders the privacy-safe survival evidence contract.
   `UI/HUDCooldown.lua`
   suppresses duplicate native timer writes, while
   `UI/RecommendationStability.lua` atomically publishes material compatible

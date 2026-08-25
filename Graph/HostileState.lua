@@ -53,6 +53,7 @@ local function sync(state, record)
     state.targetHealth = record and (tonumber(record.health) or 0) or 0
     state.targetMax = record and (tonumber(record.healthMax) or 0) or 0
     state.targetHealthExact = record and record.healthExact == true or false
+    state.targetSurvival = record and record.survival or nil
     state.targetCreatureType = record and record.encounter
         and record.encounter.creatureType or nil
     state.targetReaction = record and (record.reaction
@@ -357,7 +358,8 @@ function H:Observe(encounter)
     end
     return { hostiles = hostiles, selected = selected, hostile = hostile,
         guid = guid, ref = ref, health = health, healthMax = maximum,
-        healthExact = exact, distance = distance, distanceKind = distanceKind,
+        healthExact = exact, survival = selected and selected.survival or nil,
+        distance = distance, distanceKind = distanceKind,
         geometry = geometry, casting = casting,
         castRemaining = selected and (tonumber(selected.castRemaining) or 0)
             or casting and (XelAssist.targetCastUntil - GetTime()) or 0,

@@ -4,6 +4,7 @@ local Theme = XelAssist.UI.Theme
 local HUDCooldown = XelAssist.UI.HUDCooldown
 local RecommendationController = XelAssist.UI.RecommendationController
 local RunwayRenderer = XelAssist.UI.RunwayRenderer
+local SurvivalTooltip = XelAssist.UI.SurvivalTooltip
 local setFittedText = Theme.SetFittedText
 local FALLBACK_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 local BASE_HEIGHT = 76
@@ -237,6 +238,7 @@ local function showPredictionTooltip()
                     0.78, 0.72, 0.92)
             end
             addResistanceLines(candidate, true)
+            SurvivalTooltip:Add(candidate)
         end
     end
     GameTooltip:Show()
@@ -360,6 +362,7 @@ function UI:Build()
                 math.floor(plan.threat or 0)), 0.72, 0.75, 0.82)
             local resistance = plan.resistance
             if resistance then addResistanceLines(plan, false) end
+            SurvivalTooltip:Add(plan)
             local observed = plan.observed or {}
             if observed.distance then
                 GameTooltip:AddLine(string.format("Range evidence %.1f yd · %s", observed.distance,

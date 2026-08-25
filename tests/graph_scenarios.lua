@@ -63,9 +63,11 @@ dofile("Graph/ComboEffects.lua")
 dofile("Graph/ComboScoring.lua")
 dofile("Graph/OngoingEffects.lua")
 dofile("Graph/ActionConsumption.lua")
+dofile("Graph/DotProjection.lua")
 dofile("Graph/ActionEffects.lua")
 dofile("Graph/Timeline.lua")
 dofile("Graph/ActionPower.lua")
+dofile("Graph/SurvivalPressure.lua")
 dofile("Graph/Scoring.lua")
 dofile("Graph/Transitions.lua")
 dofile("Graph/SearchPolicy.lua")
@@ -601,6 +603,19 @@ scenarioActions = { action("Immolate", 1, "dot", 500, 100),
     action("Shoot", 1, "damage", 80, 0, { recovery = true }) }
 plan = expect("dot target lifetime", "Shoot")
 assert(plan.reason == "preserves resources", "a dying target should favor the zero-mana finisher over wasted ticks")
+
+currentState = state("smart")
+currentState.targetSurvival = { available = true, incomingDps = 250,
+    timeToDie = 4, lowerTimeToDie = 3, upperTimeToDie = 5.4,
+    observedFor = 3.5, samples = 9, confidence = "observed",
+    source = "exact hostile health trend" }
+scenarioActions = { action("Immolate", 1, "dot", 500, 100,
+        { testDuration = 15 }),
+    action("Shoot", 1, "damage", 100, 0, { recovery = true }) }
+plan = expect("learned target survival rejects wasted dot", "Shoot")
+assert(plan.action.name == "Shoot"
+    and plan.path[1].survival and plan.path[1].survival.decisionFactor == 1,
+    "learned group damage pressure must favor immediate free damage over a dot that cannot pay back")
 
 currentState = state("smart"); currentState.playerLevel = 60
 currentState.targetResistances = { 0, 0, 240, 0, 0, 0, 0 }
@@ -1736,16 +1751,20 @@ local chosenDot = action("Chosen Poison", 1, "dot", 100, 20,
     { testDuration = 10, testPeriodicInterval = 2 })
 local chosenDotCandidate = causalCandidate(chosenDot, 0, 1.5, 0, 100, 20)
 chosenDotCandidate.targetKey = "target-guid"
-chosenDotCandidate.threat = 100
+chosenDotCandidate.power = 50
+chosenDotCandidate.threat = 50
 chosenDotCandidate.dotRawPeriodicPower = 100
-chosenDotCandidate.dotPeriodicExpectedPower = 100
+chosenDotCandidate.dotPeriodicExpectedPower = 50
+chosenDotCandidate.survival = { available = true, periodicFactor = 0.5,
+    decisionFactor = 0.5 }
 local afterChosenDot = XelAssist.Graph.Transitions:Advance(
     chosenDotState, chosenDotCandidate)
 chosenDotRecord = afterChosenDot.hostiles.byKey["target-guid"]
 assert(chosenDotRecord.health == 100
+    and chosenDotRecord.projectedAuras["Chosen Poison"].periodicRawRate == 5
     and (not chosenDotRecord.projectedThreat
         or not chosenDotRecord.projectedThreat.player),
-    "a chosen DoT must not front-load threat before its first tick")
+    "a chosen DoT must retain survival-adjusted periodic evidence without front-loading threat")
 local waitAction = action("Threat Clock Wait", 1, "buff", 0, 0,
     { self = true })
 local waitCandidate = { action = waitAction, target = "player",
@@ -1756,10 +1775,10 @@ local waitCandidate = { action = waitAction, target = "player",
 local afterChosenTick = XelAssist.Graph.Transitions:Advance(
     afterChosenDot, waitCandidate)
 chosenDotRecord = afterChosenTick.hostiles.byKey["target-guid"]
-assert(chosenDotRecord.health == 80
-    and chosenDotRecord.projectedThreat.player == 20
-    and chosenDotRecord.threat.playerDelta == 20,
-    "chosen DoT threat must accrue from actual health-capped ticks")
+assert(chosenDotRecord.health == 90
+    and chosenDotRecord.projectedThreat.player == 10
+    and chosenDotRecord.threat.playerDelta == 10,
+    "survival-adjusted DoT threat must accrue from actual health-capped ticks")
 
 local exclusiveClockState = state("smart")
 local exclusiveClockRecord = pinCombatHostile(exclusiveClockState, 100)
@@ -1906,8 +1925,14 @@ assert(expiredStackRecord.projectedAuras["Cast Poison"].stacks == 1
 
 local unknownDotState = state("smart")
 local unknownDotRecord = pinCombatHostile(unknownDotState, 50, false)
+XelAssistTestUnknownDotCandidate = causalCandidate(chosenDot, 0, 1.5, 0, 100, 20)
+XelAssistTestUnknownDotCandidate.targetKey = "target-guid"
+XelAssistTestUnknownDotCandidate.threat = 100
+XelAssistTestUnknownDotCandidate.dotRawPeriodicPower = 100
+XelAssistTestUnknownDotCandidate.dotPeriodicExpectedPower = 100
 local afterUnknownDot = XelAssist.Graph.Transitions:Advance(
-    unknownDotState, chosenDotCandidate)
+    unknownDotState, XelAssistTestUnknownDotCandidate)
+XelAssistTestUnknownDotCandidate = nil
 unknownDotRecord = afterUnknownDot.hostiles.byKey["target-guid"]
 assert(unknownDotRecord.projectedThreat.player == 100
     and unknownDotRecord.projectedThreatTimingUnknown,
