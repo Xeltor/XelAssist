@@ -10,6 +10,7 @@ local Transitions = G.Transitions
 local Policy = G.SearchPolicy
 local SearchBranches = G.SearchBranches
 local Diagnostics = G.PlanDiagnostics
+local MovementSetup = G.MovementSetup
 
 function G:ActiveTargetModifiers(encounter, targetResistance)
     return State:ActiveTargetModifiers(encounter, targetResistance)
@@ -107,6 +108,8 @@ local function topCandidates(state, counter, actions)
         end
     end
     local candidates = flattenCandidates(buckets)
+    local movement = MovementSetup and MovementSetup:Candidate(state, blockers)
+    if movement then table.insert(candidates, movement) end
     SearchBranches:Retain(candidates, Policy.WIDTH, candidateBefore)
     counter.count = counter.count + table.getn(candidates)
     return candidates, blockers
@@ -120,6 +123,25 @@ local function copySteps(steps, candidate)
 end
 
 local function inheritSpatial(candidate, path)
+    if path.movementSetupTargetGUID
+        and candidate.targetGUID == path.movementSetupTargetGUID then
+        candidate.spatialConditions = candidate.spatialConditions or {}
+        local condition = { kind = "range", stage = "command",
+            actor = candidate.action.actor or "player",
+            target = candidate.targetGUID, assumption = "move",
+            conditionalOnly = true, movementSetup = true,
+            detail = "player must complete the preceding range adjustment" }
+        condition.fingerprint = "range:command:"
+            .. tostring(condition.actor) .. ":" .. tostring(condition.target)
+            .. ":move::"
+        table.insert(candidate.spatialConditions, condition)
+        candidate.spatialConditionFingerprint =
+            candidate.spatialConditionFingerprint
+                and candidate.spatialConditionFingerprint .. "|"
+                    .. condition.fingerprint
+                or condition.fingerprint
+        candidate.spatialConditionalOnly = true
+    end
     if not path.spatialConditions then return end
     if not candidate.spatialConditions then
         candidate.spatialConditions = path.spatialConditions
@@ -192,6 +214,11 @@ local function bestSearchPath(state, started, counter, depth, actions)
                         spatialConditionFingerprint =
                             candidate.spatialConditionFingerprint,
                         spatialConditionalOnly = conditional,
+                        movementSetupTargetGUID = candidate.action
+                            and candidate.action.facts
+                            and candidate.action.facts.movementSetup
+                            and candidate.targetGUID
+                            or path.movementSetupTargetGUID,
                         graphOrder = pathOrder,
                     })
                 end

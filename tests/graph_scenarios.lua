@@ -35,6 +35,8 @@ dofile("Graph/CompanionThreat.lua")
 dofile("Graph/CompanionEventThreat.lua")
 dofile("Graph/ActionAdmission.lua")
 dofile("Graph/StealthSetup.lua")
+dofile("Graph/MovementSetup.lua")
+dofile("Graph/SpatialEffects.lua")
 dofile("Graph/SpatialRequirements.lua")
 dofile("Graph/Targets.lua")
 dofile("Graph/Effects.lua")
@@ -528,9 +530,22 @@ assert(plan.confidence == "partial data" and table.getn(plan.unknowns) > 0,
     "exact potency with unknown range/health must expose partial confidence")
 
 currentState = state("smart"); XelAssist.Graph.testRangeBlocked = true
+XelAssistCharDB.graphDepth = 2
 scenarioActions = { action("Out There", 1, "damage", 900, 0) }
 local missing = XelAssist.Graph:Evaluate("smart", true)
-assert(missing == nil, "out-of-range action must not be recommended")
+XelAssistTestAfterMovement = missing and XelAssist.Graph.Transitions:Advance(
+    currentState, missing.path[1])
+assert(missing and missing.action.name == "Move into range"
+    and missing.action.executor == "instruction"
+    and missing.follow[1] and missing.follow[1].name == "Out There"
+    and missing.path[2].spatialConditionalOnly,
+    "out-of-range actions must remain visible beyond a non-executable movement instruction")
+assert(XelAssistTestAfterMovement
+    and XelAssistTestAfterMovement.movementSetupTargetGUID
+        == currentState.targetGUID
+    and XelAssistTestAfterMovement.time > currentState.time,
+    "the movement instruction must open a target-pinned future branch without changing live distance")
+XelAssistTestAfterMovement = nil
 XelAssist.Graph.testRangeBlocked = false
 
 currentState = state("smart"); currentState.distance = 4; XelAssist.Graph.testRangeUnknown = true
@@ -541,7 +556,8 @@ assert(tooClose == nil and tooCloseReason == "Move farther away",
     "minimum range must block too-close actions: " .. tostring(tooCloseReason))
 currentState.distance = 40
 local tooFar, tooFarReason = XelAssist.Graph:Evaluate("smart", true)
-assert(tooFar == nil and tooFarReason == "Move into range",
+assert(tooFar and tooFar.action.name == "Move into range"
+    and tooFar.follow[1] and tooFar.follow[1].name == "Dead Zone Shot",
     "maximum range must block too-far actions: " .. tostring(tooFarReason))
 XelAssist.Graph.testRangeUnknown = false
 
@@ -1112,14 +1128,18 @@ meleeFiller.mock.gcd = 2.5
 do
     currentState.targetDistance, currentState.distance = 12, 12
     currentState.targetDistanceKind, currentState.distanceKind = "hitbox", "hitbox"
-    scenarioActions, XelAssistCharDB.graphDepth = { meleeStart }, 1
+    scenarioActions, XelAssistCharDB.graphDepth = { meleeStart }, 2
     local rangedAttack, rangedReason = XelAssist.Graph:Evaluate("smart", true)
-    assert(rangedAttack == nil and rangedReason == "Move into range",
+    assert(rangedAttack and rangedAttack.action.name == "Move into range"
+        and rangedAttack.follow[1]
+        and rangedAttack.follow[1].name == "Attack",
         "Attack must require proven melee effect reach even when its command is accepted")
     scenarioActions = { action("Soft Trigger", 1, "damage", 100, 0,
         { effectMaxRange = 5, effectRangeHitbox = true }) }
     local softEffect, softReason = XelAssist.Graph:Evaluate("smart", true)
-    assert(softEffect == nil and softReason == "Move into range",
+    assert(softEffect and softEffect.action.name == "Move into range"
+        and softEffect.follow[1]
+        and softEffect.follow[1].name == "Soft Trigger",
         "soft commands must not be valued when their payload has zero effect")
     currentState.targetDistance, currentState.distance = 4, 4
     expect("soft effect proven melee reach", "Soft Trigger")
@@ -1183,10 +1203,13 @@ currentState.targetDistanceKind, currentState.distanceKind = "hitbox", "hitbox"
 do
     local rangedSetup = action("Ranged Setup", 1, "damage", 900, 0,
         { ranged = true, testMaxRange = 30, testCooldown = 10 })
-    scenarioActions, XelAssistCharDB.graphDepth = { rangedSetup, meleeStart }, 2
-    plan = expect("future melee cannot invent approach", "Ranged Setup")
-    assert(not plan.path[2],
-        "elapsed graph time must not turn an out-of-range melee edge into a legal follow-up")
+    scenarioActions, XelAssistCharDB.graphDepth = { rangedSetup, meleeStart }, 3
+    plan = expect("future melee keeps explicit movement edge", "Ranged Setup")
+    assert(plan.path[2] and plan.path[2].action.name == "Move into range"
+        and plan.path[2].action.executor == "instruction"
+        and plan.path[3] and plan.path[3].action.name == "Attack"
+        and plan.path[3].spatialConditionalOnly,
+        "an out-of-range future must pass through a visible non-executable movement edge")
     currentState.targetDistance, currentState.distance = 4, 4
     plan = expect("future melee carries spatial condition", "Ranged Setup")
     assert(plan.path[2] and plan.path[2].action.name == "Attack"
@@ -1312,6 +1335,7 @@ currentState.playerAttack = { supported = true, active = false,
 local stealth = action("Stealth", 1, "buff", 0, 0,
     { self = true, outOfCombat = true, stealthPreparation = true,
         testAppliesStealth = true })
+stealth.facts.movementSpeedMultiplier = 0.5
 local approachBackstab = action("Backstab", 1, "builder", 400, 60,
     { melee = true, behind = true, testMaxRange = 5,
         testInitiatesCombat = true })
@@ -1320,6 +1344,16 @@ local approachSinister = action("Sinister Strike", 1, "builder", 200, 40,
 scenarioActions = { stealth, approachBackstab, approachSinister }
 XelAssistCharDB.graphDepth = 3
 XelAssist.Graph.testRangeBlocked = true
+currentState.hostile, currentState.targetGUID = false, nil
+local idleStealthPlan, idleStealthReason =
+    XelAssist.Graph:Evaluate("smart", true)
+assert(idleStealthPlan == nil and idleStealthReason
+    and XelAssist.Graph.StealthSetup:Blocker(currentState)
+        == "no stealth setup target",
+    "Stealth must not become an idle permanent recommendation without a target; got "
+        .. tostring(idleStealthPlan and idleStealthPlan.action
+            and idleStealthPlan.action.name) .. " / " .. tostring(idleStealthReason))
+currentState.hostile, currentState.targetGUID = true, "target-guid"
 plan = expect("stealth opens conditional rear approach", "Stealth")
 assert(plan.path[2] and plan.path[2].action.name == "Backstab"
     and plan.path[2].spatialConditionalOnly
@@ -1341,8 +1375,9 @@ assert(afterStealth.playerStealthed == true
     "Stealth must project the exact target-pinned approach opportunity")
 currentState.targetReaction = 4
 plan = expect("neutral target does not invent stealth approach", "Stealth")
-assert(not plan.path[2],
-    "the aggressive-mob approach edge must not be generalized to neutral targets")
+assert(plan.path[2] and plan.path[2].action.name == "Move into range"
+    and not plan.path[2].stealthApproach,
+    "a neutral target may retain the generic movement edge but must not invent an undetected rear approach")
 XelAssist.Graph.testRangeBlocked = false
 end
 AttackTarget = savedAttackTarget

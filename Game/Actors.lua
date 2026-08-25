@@ -195,6 +195,10 @@ function A:Actions()
 end
 
 function A:Facts(action)
+    if action.executor == "instruction" then
+        return { cost = 0, cast = 0, gcd = 0,
+            source = "graph instruction" }
+    end
     if action.executor == "item" and XelAssist.Game.Inventory then return XelAssist.Game.Inventory:Facts(action) end
     if action.actor == "pet" and action.executor == "petCommand" then
         return { cost = 0, cast = 0, gcd = 0, source = "pet command" }

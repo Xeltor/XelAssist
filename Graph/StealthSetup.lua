@@ -9,6 +9,26 @@ local function aggressive(state)
     return reaction ~= nil and reaction <= 3
 end
 
+function S:Blocker(state)
+    if not state or state.hostile ~= true or state.targetGUID == nil then
+        return "no stealth setup target"
+    end
+    if state.targetHealthExact and (tonumber(state.targetHealth) or 0) <= 0 then
+        return "target defeated"
+    end
+    return nil
+end
+
+function S:Score(context)
+    local multiplier = math.max(0, math.min(1,
+        tonumber(context.facts.movementSpeedMultiplier) or 1))
+    local movementCost = (1 - multiplier) * 500
+    context.value = 500 - movementCost
+    context.reason = multiplier < 1
+        and "prepares an opener with slower movement"
+        or "prepares a stealth opener"
+end
+
 function S:Apply(out, candidate)
     local tooltip = candidate.tooltip or {}
     local facts = candidate.action and candidate.action.facts or {}

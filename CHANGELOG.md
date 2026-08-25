@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.13
+
+- Replaced an out-of-range terminal with a non-executable, target-pinned
+  `Move into range` graph edge. The HUD can now show the real future action
+  beyond movement while every later row remains explicitly conditional; `/xa`
+  never dispatches the instruction or skips ahead to the predicted spell.
+- Stealth is no longer treated as an idle permanent self-buff. It requires a
+  live hostile setup target and its graph value now pays the known 50% movement
+  penalty, with that tradeoff visible in the recommendation reason.
+- Added capability-gated groundwork for ClassicAPI's exact combo-owner and
+  SpellDuration-range APIs. The addon remains conservative and functional when
+  those new DLL calls are absent.
+
 ## 0.8.12
 
 - Doubled the automatic strategic horizon to twenty-four decisions and extended

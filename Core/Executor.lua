@@ -382,6 +382,13 @@ end
 
 function XA:ExecuteItemPlan(plan, selected)
     local action = plan.action
+    if action.executor == "instruction" then
+        self.lastReason = action.name .. " — " .. plan.reason
+        if XelAssist.UI and XelAssist.UI.HUD then
+            XelAssist.UI.HUD:RequestRefresh(true, selected)
+        end
+        return
+    end
     if (tonumber(plan.wait) or 0) > 0 then
         self:Fallback("item action not ready"); return
     end

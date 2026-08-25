@@ -230,6 +230,13 @@ action with positive wait is submitted only through Nampower's forced selected-
 target queue; exact-friendly, ground, and item paths hold until they are ready.
 Future nodes are predictions, not queued casts; every `/xa` press takes a fresh
 snapshot and may choose differently.
+An exact out-of-range result creates a non-executable, target-pinned movement
+instruction rather than terminating the runway. The graph may continue through
+that edge, but measured distance is never changed: every downstream action is
+marked conditional on the player actually reaching its range band. Pressing
+`/xa` on the movement row safely holds and never executes a predicted row.
+Stealth similarly requires a concrete hostile setup target and prices its
+movement-speed penalty instead of behaving like free indefinite maintenance.
 The automatic horizon is twenty-four decisions or forty-five modeled seconds,
 with a five-path beam. Immediately actionable states receive a 256-state/8 ms
 budget; short observed cast/GCD slack receives 512 states/12 ms; out-of-combat

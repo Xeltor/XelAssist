@@ -489,7 +489,9 @@ function UI:Refresh(force, evaluationMode)
         f.main.icon:SetTexture(iconFor(action))
         Theme:SetIconActor(f.main.iconFrame, petAction and "pet" or "player")
         if f.main.icon.SetDesaturated then f.main.icon:SetDesaturated(false) end
-        f.main:SetAlpha(1); f.main:Enable()
+        f.main:SetAlpha(1)
+        if action.executor == "instruction" then f.main:Disable()
+        else f.main:Enable() end
         setFittedText(f.name, actionName(action), 286)
         setFittedText(f.reason, plan.reason .. " · " .. plan.confidence, 225)
         if HUDCooldown then HUDCooldown:Update(f.main, action) end

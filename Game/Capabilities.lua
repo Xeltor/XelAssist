@@ -621,6 +621,9 @@ function C:Facts(action)
         local ok, durationMs = pcall(GetSpellDuration, action.spellId)
         if ok and durationMs and durationMs > 0 then out.duration = durationMs / 1000 end
     end
+    if XelAssist.Game.ComboMechanics then
+        XelAssist.Game.ComboMechanics:ApplyDurationFacts(action, out)
+    end
     local dbcCost = dbc("manaCost")
     if dbcCost and dbcCost > 0 then out.cost = dbcCost end
     local basePoints = dbcArray("effectBasePoints")

@@ -243,6 +243,10 @@ local function contextBlocker(action, state)
     if facts.combatOnly and not state.inCombat then return "combat state" end
     if facts.stealthPreparation and state.playerStealthKnown == true
         and state.playerStealthed == true then return "already stealthed" end
+    if facts.stealthPreparation and XelAssist.Graph.StealthSetup then
+        local blocker = XelAssist.Graph.StealthSetup:Blocker(state)
+        if blocker then return blocker end
+    end
     if kind == "summon" and not facts.petLifecycle then
         if state.pet then return "companion already active" end
         if state.inCombat then return "unsafe summon" end

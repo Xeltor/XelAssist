@@ -5,6 +5,7 @@ XelAssist.Graph.SpatialRequirements = {}
 local S = XelAssist.Graph.SpatialRequirements
 local Range = XelAssist.Game.Range
 local StealthSetup = XelAssist.Graph.StealthSetup
+local MovementSetup = XelAssist.Graph.MovementSetup
 
 local function isFuture(state)
     return (tonumber(state and state.time) or 0) > 0
@@ -91,6 +92,15 @@ end
 
 local function projectedRangeVerdict(action, state, descriptor, verdict,
     reason, record)
+    if MovementSetup
+        and MovementSetup:CanApproach(action, state, descriptor) then
+        record.assumption, record.conditionalOnly = "move", true
+        record.movementSetup = true
+        record.detail = "move into " .. bandText(record.minimum,
+            record.maximum) .. " before using this action"
+        addCondition(descriptor, record)
+        return nil
+    end
     if verdict == false and StealthSetup
         and StealthSetup:CanApproach(action, state, descriptor) then
         record.assumption, record.conditionalOnly = "approach", true
@@ -302,6 +312,7 @@ local function positionBlocker(action, state, descriptor, tooltip)
 end
 
 function S:Blocker(action, state, descriptor, target, tooltip)
+    if action.facts and action.facts.movementSetup then return nil end
     local blocker = positionBlocker(action, state, descriptor, tooltip)
     if blocker then return blocker end
     return rangeBlocker(action, state, descriptor, target, tooltip)

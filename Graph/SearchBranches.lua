@@ -21,8 +21,13 @@ local function setupValue(candidate)
 end
 
 function B:Retain(candidates, width, before)
-    local setup, bestSetup, earliest, earliestAt, i = nil, 0, nil, nil, nil
+    local setup, bestSetup, movement, earliest, earliestAt, i =
+        nil, 0, nil, nil, nil, nil
     for i = 1, table.getn(candidates) do
+        if candidates[i].action and candidates[i].action.facts
+            and candidates[i].action.facts.movementSetup then
+            movement = candidates[i]
+        end
         local value = setupValue(candidates[i])
         if value > bestSetup then setup, bestSetup = candidates[i], value end
         local at = tonumber(candidates[i].actionStart) or math.huge
@@ -33,6 +38,7 @@ function B:Retain(candidates, width, before)
     while table.getn(candidates) > width do table.remove(candidates) end
     local required = {}
     if setup then required[setup] = true end
+    if movement then required[movement] = true end
     if earliest then required[earliest] = true end
     local branch
     for branch in pairs(required) do

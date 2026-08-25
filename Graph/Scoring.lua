@@ -269,8 +269,12 @@ local function scoreStateUtility(context)
             context.reason = "recovers combat resources"
         end
     elseif kind == "buff" then
-        context.value = 500 + (context.tooltip.duration or 0) * 4
-        context.reason = "adds missing utility"
+        if facts.stealthPreparation and XelAssist.Graph.StealthSetup then
+            XelAssist.Graph.StealthSetup:Score(context)
+        else
+            context.value = 500 + (context.tooltip.duration or 0) * 4
+            context.reason = "adds missing utility"
+        end
     elseif kind == "debuff" then
         local tooltip = context.tooltip
         if tooltip.targetArmorReduction
