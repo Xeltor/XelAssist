@@ -62,6 +62,11 @@ never class rotations or ordered priority lists.
   fallback, while `OnSwingEvents.lua` bridges native state and actual GO/miss
   recipients into graph evidence. None persists
   an actor identity or hardcodes a private-server regeneration rate.
+  `Game/Player/Engagement.lua` owns exact DBC Attack-start/stop and stealth
+  semantics. `EnergyEvidence.lua`, `EnergyEvents.lua`, and `Resources.lua` own
+  live player-energy cadence learning, attribution/reset events, and projected
+  resource arithmetic respectively. `Game/SpatialEvidence.lua` owns immediate
+  blocking and settled recovery for noisy live geometry edges.
 - `Combat` owns declarative player and companion spell meaning, stateless
   delivery rules, transient observations, and target evidence. Pet knowledge is
   ID-first metadata over live-discovered actions, never a family priority list.
@@ -87,6 +92,10 @@ never class rotations or ordered priority lists.
   `Graph/Timeline.lua` orders projected combat events without owning their
   mechanics. `Graph/ActorScoring.lua` and `Graph/ThreatScoring.lua` keep
   controlled-actor utility and actor-owned threat out of core potency scoring.
+  `Graph/PlayerEngagement.lua` projects productive Attack starts;
+  `Graph/ComboEffects.lua` and `ComboScoring.lua` own generic DBC combo
+  transitions and marginal efficiency; `Graph/SearchPolicy.lua` owns the
+  automatic time/state horizon independently of visible HUD rows.
   Targeting, scoring, transitions, and search consume passed state and do not
   mutate live game state.
 - `UI` renders plans and settings. `UI/Theme.lua` owns the shared combat-instrument
@@ -94,7 +103,10 @@ never class rotations or ordered priority lists.
   live-discovered actions governed by the major-cooldown policy. The visual HUD
   remains fixed-height and owns no update callback; a dedicated child driver
   refreshes prebuilt rows after target changes settle, without querying or
-  reanchoring the visual frame from inside presentation. UI modules do not score
+  reanchoring the visual frame from inside presentation. `UI/HUDCooldown.lua`
+  suppresses duplicate native timer writes, while
+  `UI/RecommendationStability.lua` atomically publishes material compatible
+  paths without mixing branches. UI modules do not score
   actions or execute cached previews.
 - `Core` owns startup and the one-input execution boundary.
   `Core/DecisionLog.lua` owns bounded privacy-safe history and event status

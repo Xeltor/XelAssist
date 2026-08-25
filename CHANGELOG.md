@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.8.7
+
+- Separated graph search from presentation depth. Planning now explores up to
+  eight decisions or twelve modeled seconds with a four-path beam, 128-state
+  cap, six-millisecond soft budget, and elapsed-time discount; the character
+  setting controls only the one-to-five rows shown in the HUD.
+- Stabilized recommendation publication at the five-Hz display boundary.
+  Equivalent plans no longer repaint or restart cooldown spirals, compatible
+  budget-short paths retain their already validated suffix, and incompatible
+  branches cannot be spliced. Movement, range, line-of-sight, and behind
+  failures block immediately but must remain recovered for 150 ms before
+  re-admitting an action.
+- Opened transient future geometry, movement, aura, usability, and pending
+  evidence instead of treating the root observation as permanent truth. The
+  root remains authoritative and executable; future rows expose partial data.
+- Added generic Spell.dbc combo generation and spend-all transitions. A
+  nonlethal low-point direct finisher is charged for throwing away marginal
+  combo efficiency, while exact lethal and capped-point spends remain valid.
+  Player energy regeneration is projected only after three clean, uncapped,
+  same-character ticks establish a conservative live cadence and Nampower's
+  player energize event can exclude procs/refunds.
+- Made productive hostile abilities own their exact Spell.dbc Attack-start
+  edge, eliminating a redundant bare Attack recommendation. Bare Attack is
+  suppressed while exact stealth is active; opener and stop-Attack attributes
+  remain authoritative. Added focused graph, DBC, energy, HUD, spatial, and
+  execution-boundary regressions. In-world UI and combat validation remains
+  pending and is not claimed by the local suite.
+
 ## 0.8.6
 
 - Restored the complete recommendation HUD and minimap entry on Vanilla 1.12

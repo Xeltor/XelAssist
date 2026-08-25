@@ -67,7 +67,7 @@ never acquires or changes a hostile target and never casts from an update handle
 ## Character and global settings
 
 Decision policy is stored per character: Smart/Single/Area/Support intent, role,
-graph depth, area-action permission, cooldown/reagent/consumable permission, companion
+visible decision steps, area-action permission, cooldown/reagent/consumable permission, companion
 actions, crowd-control permission, and companion threat posture. Display scale,
 position, lock state, and visibility are global.
 Finite consumables are always opt-in per character and default disabled.
@@ -89,17 +89,18 @@ numbers and action names, not player or target names.
 
 `/xa diagnostics` also refreshes a durable, privacy-safe runtime audit containing
 dependency/API availability, discovered versus inferred action-node counts,
-Hunter focus evidence, controlled-companion swing evidence, and player
+Hunter focus and player energy evidence, controlled-companion swing evidence, and player
 main-hand/on-swing ownership evidence. It reports
 whether each clock is learning, dormant, or executable; it does not persist pet
 identity.
 
 ## Graph model
 
-The evaluator is bounded to five actions, four branches, 80 expanded path states,
-and a 3 ms soft budget for future look-ahead. The complete immediate candidate
-set is always evaluated; crossing the budget returns the best current action and
-shortens the prediction runway instead of producing a HOLD. It accounts for:
+The evaluator automatically explores up to eight actions or twelve modeled
+seconds, four branches, and 128 expanded path states under a 6 ms soft budget.
+The HUD refreshes at 5 Hz and independently shows one to five requested steps.
+The first two decisions are completed before the soft limit can shorten the
+runway; an otherwise usable current action never becomes a budget HOLD. It accounts for:
 
 - current cast and GCD downtime, predicted action cast time, and own cooldowns;
 - explicit live range verdicts, minimum/maximum DBC ranges, and movement;
@@ -111,6 +112,11 @@ shortens the prediction runway instead of producing a HOLD. It accounts for:
 - group role, current target-of-target aggro, and relative action threat;
 - interrupts, proc/stance usability, combo points, buffs, debuffs, ranks,
   area policy, cooldown policy, and reagents;
+- generic DBC-discovered combo generation and finishing moves, including the
+  marginal value lost by spending a nonlethal direct-damage finisher too early;
+- session-only player energy timing learned from clean exact ticks, without a
+  hardcoded server cadence or allowing a predicted tick to make the current
+  macro press executable;
 - independent player and companion clocks; live pet identity, health, resource,
   target, action bar, spellbook ranks, cooldowns, autocast state, range, threat,
   commands, dispels, interrupts, crowd control, self-healing, sacrifice, and
@@ -137,7 +143,9 @@ shortens the prediction runway instead of producing a HOLD. It accounts for:
   health/threat inexact instead of becoming an invented or silently lost hit;
   ledger overflow retains target-local or global uncertainty until session reset.
   The generic player Attack command is likewise start-only and idempotent; its
-  button press is never modeled as melee damage;
+  button press is never modeled as melee damage. A productive DBC-proven opener
+  can establish the same sustained Attack edge, so bare Attack does not waste a
+  press or precede a stealth opener;
 - exact target-pinned player main-hand phase learned only from classified attack
   rounds. DBC-classified on-next-swing actions reserve one independent lane and
   their cost until that round, replace the ordinary white result rather than
@@ -147,6 +155,9 @@ shortens the prediction runway instead of producing a HOLD. It accounts for:
 - equipped weapon durability and ammunition, plus opt-in immediate-use healing
   and mana consumables discovered conservatively from live bag tooltips;
 - future resource, health, target-health, aura, threat-drop, and cooldown state.
+- root movement/range/line-of-sight/behind failures with immediate blocking and
+  short settled recovery, plus atomic recommendation/cooldown publication so
+  equivalent 5 Hz recomputations do not visually blink;
 - target/ally/controlled-actor identity plus instance, zone, creature ID,
   classification, raid marker, combat state, and owned timed aura evidence.
 - a deterministic, GUID-deduplicated snapshot of at most five hostiles visible

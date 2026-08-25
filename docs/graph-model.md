@@ -46,9 +46,15 @@ while `Graph/ReadinessEffects.lua` owns chosen-action cooldown clocks.
 `Game/Player/AttackRounds.lua` owns exact player main-hand phase evidence and
 `Game/Player/OnSwing.lua` owns Nampower 4.7.1's attempt-identified on-swing slot
 and conservatively owns the single live pending bit on Nampower 4.7.0.
+`Game/Player/EnergyEvidence.lua` learns a session-only exact player-energy
+cadence, `EnergyEvents.lua` owns its Nampower attribution/reset boundary, and
+`Resources.lua` performs conservative graph-clock arithmetic.
 `Graph/PlayerSwings.lua` schedules the corresponding target-pinned ambient
 rounds and applies full replacement-hit consequences, while
 `Graph/PlayerSwingScoring.lua` values only the gain over the displaced white hit.
+`Graph/ComboEffects.lua` owns DBC-derived combo transitions,
+`Graph/ComboScoring.lua` owns marginal finisher efficiency, and
+`Graph/SearchPolicy.lua` owns the bounded time horizon independently of the HUD.
 `Graph/State.lua`, `Graph/Targets.lua`, `Graph/Effects.lua`,
 `Graph/Scoring.lua`, `Graph/OngoingEffects.lua`, `Graph/ActionEffects.lua`,
 `Graph/Timeline.lua`, and `Graph/Transitions.lua` own one planning stage each;
@@ -212,20 +218,30 @@ The action's resource and cooldown state advance once even when several
 recipients resolve. Unknown target relation, unknown radius, cones, chain
 secondaries, and ground/dynamic-object placement do not manufacture recipients.
 
-The bounded beam compares complete discounted paths, so a future cooldown, aura,
+The bounded beam compares elapsed-time-discounted paths, so a future cooldown, aura,
 resource shortage, or downtime can change which current action wins. It returns
 one current action contract plus up to four simulated future actions. A current
 action with positive wait is submitted only through Nampower's forced selected-
 target queue; exact-friendly, ground, and item paths hold until they are ready.
 Future nodes are predictions, not queued casts; every `/xa` press takes a fresh
 snapshot and may choose differently.
-The 3 ms expansion clock begins after that live snapshot and is a soft limit on
-additional depth. Depth one always evaluates the complete immediate candidate
-set; if the clock or 80-state limit is crossed, the best current frontier is
-returned with `budgetLimited` evidence and the prediction runway is shortened.
+The automatic horizon is eight decisions or twelve modeled seconds, with a
+four-path beam, 128 expanded-state cap, and 6 ms expansion budget beginning
+after the live snapshot. The first two decisions complete before the soft
+budget can shorten later look-ahead. Utility is discounted by modeled elapsed
+time rather than layer number, so GCD, off-GCD, cast, and resource-wait edges
+pay their actual clock cost. The one-to-five HUD setting is presentation-only.
+If the limit is crossed, the best current frontier is returned with
+`budgetLimited` evidence; it does not become a HOLD.
 The decision runway renders each step as actor, target, action, modeled start
 time, and evidence state. Only the current step is clickable; graph errors and
 dependency holds disable it and remove stale future rows.
+The presenter publishes only material path/target/evidence changes. A compatible
+budget-short prefix may retain an already validated suffix, but a changed branch
+can never splice old future steps. Cooldown timers are rewritten only when their
+timer tuple changes. Blocking movement/range/LOS/behind evidence applies at
+once; recovery must remain positive for 150 ms. Transient live-only facts are
+authoritative at the root and marked OPEN rather than frozen into future nodes.
 Candidate pruning retains one meaningful target-modifier branch when raw
 immediate-damage branches would otherwise fill the beam, allowing a resistance
 or Armor setup to prove its value through a later exploit action. This is still
@@ -235,6 +251,11 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
 
 - Damage is valued by effective output per occupied GCD/cast window. Output past
   the target's remaining health is not rewarded.
+- Spell.dbc effect 80 supplies deterministic combo gains, while the installed
+  finishing-move attributes consume all points. A surviving target charges a
+  low-point direct finisher for discarded marginal efficiency; exact lethal
+  output and capped-point spends remain authoritative. This is mechanic data,
+  not a Rogue action order.
 - Armor or school resistance is applied to expected damage before it enters
   throughput, overkill, periodic-payback, future-health, leech, and threat math.
   This lets a smaller Shadow hit beat a larger Fire hit when target evidence
@@ -363,6 +384,16 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
 - Future movement, target swaps, incoming damage, other players' casts, proc
   arrivals, and shared cooldown categories cannot be predicted. Re-evaluation on
   every physical press is the correctness boundary.
+- Exact hit/miss outcome branches do not yet condition combo transitions: a
+  missed hostile finisher should retain points and a missed builder should not
+  gain them. Target time-to-die beyond exact current health is also not yet a
+  learned survival model, so short-lived-target finisher timing remains bounded
+  heuristic reasoning rather than a full encounter forecast.
+- Combo-scaled duration/utility curves for Slice and Dice, Rupture, Expose
+  Armor, and similar non-direct finishers are not yet decoded into marginal
+  scoring. The stock combo-count API also lacks a target identity in the current
+  snapshot, so an observed off-target hostile cannot yet be proven to own those
+  points. Spend semantics are known, but these cases remain model gaps.
 - Hostile discovery is not a nameplate scan or a complete encounter roster. It
   sees only the selected, mouseover, pet-target, and group-target unit tokens,
   deduplicates them by exact GUID, and caps the planning collection at five.
