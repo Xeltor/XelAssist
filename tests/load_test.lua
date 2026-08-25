@@ -935,6 +935,8 @@ local opaqueLifecycleKey = XelAssist:LifecycleKey(348, opaqueCasterGuid,
 assert(type(opaquePendingKey) == "table"
     and XelAssist.pendingAuras[opaquePendingKey].target == opaqueTargetGuid
     and XelAssist.pendingAuras[opaquePendingKey].casterGuid == opaqueCasterGuid
+    and XelAssist:IsAuraPending(
+        "Immolate", opaqueCasterGuid, opaqueTargetGuid)
     and type(opaqueLifecycleKey) == "table"
     and XelAssist.spellLifecycle[opaqueLifecycleKey].targetGuid == opaqueTargetGuid,
     "pending aura and lifecycle keys must preserve opaque target and caster identities")
@@ -1059,6 +1061,72 @@ assert(XelAssist:IsAuraPending("Immolate"),
 mockTime = mockTime + 0.02
 assert(not XelAssist:IsAuraPending("Immolate"),
     "the landed-aura visibility guard must expire without inventing aura duration")
+
+resetCastState()
+mockTime = 20
+XelAssist.Combat.Resistance:Submitted(
+    immolateAction, "target-a", { duration = 15 })
+XelAssist:TouchPendingSpell(
+    348, "started", 3.5, "player-guid", "target-a")
+XelAssist:MarkAuraPending(
+    "Immolate", 3.5, "target-a", 348, "player-guid", "debuff")
+XelAssistTestUndelayedApplication = XelAssist.pendingAuras[
+    XelAssist:PendingAuraKey("Immolate", "target-a", "player-guid")]
+XelAssistTestUndelayedDeadline = XelAssistTestUndelayedApplication.untilAt
+fireEvent("SPELL_DELAYED_SELF", "player-guid", 499)
+fireEvent("SPELL_DELAYED_SELF", "player-guid", 658)
+fireEvent("SPELL_DELAYED_SELF", "player-guid", 600)
+fireEvent("SPELL_DELAYED_SELF", "player-guid", 400)
+assert(math.abs(XelAssistTestUndelayedApplication.untilAt
+        - XelAssistTestUndelayedDeadline - 2.157) < 0.001
+    and math.abs(XelAssistTestUndelayedApplication.delaySeconds - 2.157) < 0.001,
+    "exact self pushback must extend the matching started application guard")
+mockTime = XelAssistTestUndelayedDeadline + 0.25
+assert(XelAssist:IsAuraPending("Immolate"),
+    "a pushed-back cast must not outlive its application reservation")
+fireEvent("AURA_CAST_ON_OTHER",
+    348, "player-guid", "target-a", 6, 3, 0, 0, 15000, 0)
+XelAssistTestDelayedApplication = XelAssist.pendingAuras[
+    XelAssist:PendingAuraKey("Immolate", "target-a", "player-guid")]
+assert(XelAssistTestDelayedApplication
+    and XelAssistTestDelayedApplication.state == "application-confirmed"
+    and math.abs(XelAssistTestDelayedApplication.untilAt
+        - mockTime - 0.75) < 0.001,
+    "a pushed-back cast must bridge from exact landing into visibility grace")
+mockTime = mockTime + 0.76
+assert(not XelAssist:IsAuraPending("Immolate"),
+    "the pushed-back application visibility guard must remain bounded")
+
+resetCastState()
+mockTime = 30
+XelAssist:MarkAuraPending(
+    "Immolate", 0.10, "off-target-guid", 348, "player-guid", "debuff")
+mockTime = mockTime + 0.11
+assert(not XelAssist:IsAuraPending(
+        "Immolate", "player", "off-target-guid"),
+    "the overrun regression must first sweep the provisional reservation")
+mockTime = mockTime + 0.24
+fireEvent("AURA_CAST_ON_OTHER",
+    348, "player-guid", "off-target-guid", 6, 3, 0, 0, 15000, 0)
+XelAssistTestRecoveredApplication = XelAssist.pendingAuras[
+    XelAssist:PendingAuraKey(
+        "Immolate", "off-target-guid", "player-guid")]
+assert(XelAssistTestRecoveredApplication
+    and XelAssistTestRecoveredApplication.target == "off-target-guid"
+    and XelAssistTestRecoveredApplication.casterGuid == "player-guid"
+    and XelAssistTestRecoveredApplication.spellId == 348
+    and XelAssistTestRecoveredApplication.state == "application-confirmed"
+    and math.abs(XelAssistTestRecoveredApplication.untilAt
+        - mockTime - 0.75) < 0.001,
+    "exact owned landing must rebuild an expired off-target visibility guard")
+mockTime = mockTime + 0.74
+assert(XelAssist:IsAuraPending(
+        "Immolate", "player", "off-target-guid"),
+    "the rebuilt landing guard must block through its full visibility gap")
+mockTime = mockTime + 0.02
+assert(not XelAssist:IsAuraPending(
+        "Immolate", "player", "off-target-guid"),
+    "the rebuilt off-target landing guard must expire normally")
 
 resetCastState()
 XelAssist.Combat.Resistance:Submitted(

@@ -3,6 +3,7 @@
 -- presents them.
 local XA = XelAssist
 local APPLICATION_VISIBILITY_GRACE = 0.75
+local MAX_APPLICATION_RESERVATION = 60
 
 function XA:TargetGUID()
     local exists, guid = UnitExists("target")
@@ -149,13 +150,25 @@ end
 -- repeated physical inputs cannot submit the same effect in that gap. Detach
 -- it from the caster's current in-flight slot: later identityless cast failures
 -- belong to newer work and must not poison an already landed application.
-function XA:ConfirmAuraPending(name, guid, casterGuid)
-    local key = self:PendingAuraKey(name, guid or self:TargetGUID(), casterGuid)
-    local record = key and self.pendingAuras and self.pendingAuras[key]
-    if not record then return false end
+function XA:ConfirmAuraPending(name, guid, casterGuid, spellId, auraBar)
+    if not name or guid == nil or casterGuid == nil then return false end
+    if type(self.pendingAuras) ~= "table" then self.pendingAuras = {} end
+    local key = self:PendingAuraKey(name, guid, casterGuid, true)
+    if not key then return false end
+    local record = self.pendingAuras[key]
     local at = GetTime()
+    if not record then
+        -- The cast may have exceeded its provisional deadline through pushback,
+        -- or may have been submitted outside XelAssist. Exact owned aura evidence
+        -- still proves a short anti-duplicate bridge for this identity tuple.
+        record = { name = name, target = guid, casterGuid = casterGuid,
+            spellId = spellId, auraBar = auraBar, submittedAt = at }
+        self.pendingAuras[key] = record
+    end
     record.state, record.confirmedAt, record.failureAt =
         "application-confirmed", at, nil
+    record.spellId = record.spellId or spellId
+    record.auraBar = record.auraBar or auraBar
     record.untilAt = at + APPLICATION_VISIBILITY_GRACE
     local current = self.currentPendingAuras
         and self.currentPendingAuras[record.casterGuid]
@@ -167,6 +180,34 @@ function XA:ConfirmAuraPending(name, guid, casterGuid)
     if lifecycle then
         lifecycle.state, lifecycle.confirmedAt, lifecycle.failureAt,
             lifecycle.lastAt = "application-confirmed", at, nil, at
+    end
+    return true
+end
+
+-- SPELL_DELAYED_SELF is exact evidence that the active player cast was pushed
+-- back. Its payload has no spell id, so extend only the caster's reservation
+-- while that exact record is still in the server-started phase. This prevents
+-- delay from being attributed to an older landed aura or a later non-aura cast.
+function XA:DelayCurrentPendingAura(casterGuid, delayMs)
+    local current = self.currentPendingAuras
+        and self.currentPendingAuras[casterGuid]
+    local record = current and self.pendingAuras
+        and self.pendingAuras[current.key]
+    if not record or record.casterGuid ~= casterGuid
+        or record.state ~= "started" then return false end
+    local delay = math.max(0, tonumber(delayMs) or 0) / 1000
+    if delay <= 0 then return false end
+    local hardUntil = (tonumber(record.submittedAt) or GetTime())
+        + MAX_APPLICATION_RESERVATION
+    record.untilAt = math.min(hardUntil,
+        (tonumber(record.untilAt) or GetTime()) + delay)
+    record.delayedAt = GetTime()
+    record.delaySeconds = (tonumber(record.delaySeconds) or 0) + delay
+    local lifecycle = self:Lifecycle(record.spellId, record.casterGuid,
+        record.target, false)
+    if lifecycle then
+        lifecycle.delayedAt, lifecycle.delaySeconds, lifecycle.lastAt =
+            GetTime(), (tonumber(lifecycle.delaySeconds) or 0) + delay, GetTime()
     end
     return true
 end
@@ -369,7 +410,12 @@ function XA:IsAuraPending(name, actor, target)
     else casterGuid = self:PlayerGUID() end
     local targetGuid
     if target then
-        local exists, guid = UnitExists(target)
+        local exists, guid
+        if type(target) == "string" then
+            local ok
+            ok, exists, guid = pcall(UnitExists, target)
+            if not ok then exists, guid = nil, nil end
+        end
         targetGuid = exists and guid or target
     else targetGuid = self:TargetGUID() end
     local key = self:PendingAuraKey(name, targetGuid, casterGuid)

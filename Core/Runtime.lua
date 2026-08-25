@@ -175,6 +175,7 @@ if type(GetOnSwingInfo) == "function" then
 end
 ev:RegisterEvent("SPELL_START_SELF")
 ev:RegisterEvent("SPELL_START_OTHER")
+ev:RegisterEvent("SPELL_DELAYED_SELF")
 ev:RegisterEvent("SPELL_GO_SELF")
 ev:RegisterEvent("SPELL_GO_OTHER")
 ev:RegisterEvent("SPELL_FAILED_SELF")
@@ -247,6 +248,9 @@ ev:SetScript("OnEvent", function()
         -- with no name, retain the legacy single-current reservation fallback.
         XA:ClearCurrentPendingAura(XA:PlayerGUID(), XA.playerCastName)
         XA.Game.Player.ChannelRuntime:Clear()
+    end
+    if event == "SPELL_DELAYED_SELF" then
+        XA:DelayCurrentPendingAura(arg1, arg2)
     end
     if event == "SPELL_FAILED_SELF" then
         PlayerOnSwingEvents:Handle(event, arg1, arg2, arg3, arg4)
@@ -343,13 +347,14 @@ ev:SetScript("OnEvent", function()
             or expectedBar == "debuff" and "target debuff bar full"
             or buffCapped and "target buff bar full" or "target debuff bar full"
         if owned and not auraCapped then
-            local landed, confirmed = XelAssist.Combat.Resistance:AuraLanded(arg3, arg1, arg2)
+            XelAssist.Combat.Resistance:AuraLanded(arg3, arg1, arg2)
             -- Hostile applications have a resistance evidence submission;
             -- friendly/self auras do not. In either case the exact aura event
             -- can precede UnitBuff/UnitDebuff visibility, so retain a brief
             -- target-scoped guard instead of reopening a duplicate-cast gap.
-            if spellName and (confirmed or pending) then
-                XA:ConfirmAuraPending(spellName, arg3, arg2)
+            if spellName then
+                XA:ConfirmAuraPending(
+                    spellName, arg3, arg2, arg1, expectedBar)
             end
         elseif owned and auraCapped and pending then
             pending.state = expectedBar == "buff" and "buff-cap-uncertain"
