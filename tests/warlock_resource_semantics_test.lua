@@ -37,6 +37,7 @@ GetSpellSlotTypeIdForName = function(name)
 end
 
 dofile("Game/ResourceExchange.lua")
+dofile("Game/ResourceCost.lua")
 dofile("Game/SpellEffectPower.lua")
 dofile("Game/SpellFactCache.lua")
 dofile("Game/Capabilities.lua")

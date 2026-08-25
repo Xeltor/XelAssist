@@ -46,6 +46,7 @@ XelAssist.Graph.AutoShotUncertainty = {
 }
 
 dofile("Graph/CompanionTargets.lua")
+dofile("Graph/PlayerRage.lua")
 dofile("Graph/PlayerSwings.lua")
 dofile("Graph/PlayerSwingScoring.lua")
 dofile("Game/SpellClassification.lua")
@@ -219,6 +220,31 @@ XelAssist.Game.Capabilities.BonusDamage = function() return 0 end
 dofile("Graph/ActionPower.lua")
 dofile("Graph/PeriodicScoring.lua")
 dofile("Graph/Scoring.lua")
+dofile("Graph/PlayerAttackCommitment.lua")
+
+local rageState = copy(state)
+rageState.resource, rageState.resourceMax, rageState.resourceType = 0, 100, 1
+rageState.playerLevel, rageState.targetHealth = 1, 500
+rageState.playerAttack.rageCosts = { 15 }
+rageState.playerAttack.attackRound.power = 10
+local commitment = XelAssist.Graph.PlayerAttackCommitment:Candidate(rageState)
+assert(commitment and commitment.action.name == "Continue Attack"
+    and commitment.action.executor == "instruction"
+    and math.abs(commitment.wait - 3) < 0.0001
+    and commitment.projectedRage == 18,
+    "zero-rage melee must publish a harmless wait through the next affordable threshold")
+local rageBuilt = XelAssist.Graph.Transitions:Advance(rageState, commitment)
+assert(rageBuilt.resource == 18 and rageBuilt.targetHealth == 480,
+    "two ordinary white rounds must add projected rage and damage exactly once")
+
+local rageArmed = copy(state)
+rageArmed.resourceType, rageArmed.playerLevel = 1, 1
+rageArmed.playerAttack.rageCosts = { 15 }
+rageArmed = XelAssist.Graph.Transitions:Advance(rageArmed, candidate)
+local armedWait = XelAssist.Graph.PlayerAttackCommitment:Candidate(rageArmed)
+local rageResolved = XelAssist.Graph.Transitions:Advance(rageArmed, armedWait)
+assert(rageResolved.resource == 20 and rageResolved.targetHealth == 120,
+    "a next-swing replacement must spend rage without also earning white-hit rage")
 
 local autoKill = copy(state)
 autoKill.targetHealth, autoKill.targetMax = 60, 60

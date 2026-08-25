@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.29
+
+- Added an exact-phase player melee continuation edge so a running Warrior
+  attack can remain the safe current instruction while the graph advances
+  ordinary main-hand rounds toward the next learned rage threshold or target
+  defeat. Repeated macro input on any instruction is non-executable and cannot
+  cancel or force-restart the continuous graph producer.
+- Projected conservative outgoing white-hit rage from the vanilla level/damage
+  conversion and applied it only when the ordinary swing actually resolves.
+  Heroic Strike and other next-swing replacements still pay once and receive no
+  duplicate white damage or white-hit rage.
+- Normalized raw Spell.dbc rage costs from internal tenths to the displayed
+  units returned by UnitMana, with full graph, load, and Lua 5.0 regressions.
+
 ## 0.8.28
 
 - Added a cached, fail-closed installed-client spell-semantics decoder that

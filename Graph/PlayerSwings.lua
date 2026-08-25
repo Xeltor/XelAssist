@@ -6,6 +6,7 @@ local S = XelAssist.Graph.PlayerSwings
 local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
 local Targets = XelAssist.Graph.CompanionTargets
+local PlayerRage = XelAssist.Graph.PlayerRage
 
 local MAX_EVENTS = 8
 local READY_DELAY = 0.05
@@ -63,6 +64,22 @@ function S:ImpactDelay(state)
     local round = state and state.playerAttack and state.playerAttack.attackRound
     if not (round and round.projectable) then return nil end
     return afterCastLocks(state, nil, round.nextSwingIn)
+end
+
+function S:ExpectedWhite(state, targetGuid)
+    local round = state and state.playerAttack and state.playerAttack.attackRound
+    local raw = round and tonumber(round.power)
+    if not raw or targetGuid == nil or round.targetGuid ~= targetGuid then
+        return nil, nil
+    end
+    local decision = 1
+    if XelAssist.Combat.Resistance then
+        local estimate = XelAssist.Combat.Resistance:Estimate(
+            WHITE_ACTION, "target", WHITE_TOOLTIP, state)
+        decision = Effects:Decision(estimate, state, true)
+    end
+    decision = math.max(0, tonumber(decision) or 0)
+    return raw * decision, decision
 end
 
 function S:Occupancy()
@@ -348,11 +365,14 @@ function S:Apply(out, entry)
             source = "projected player main-hand round" }
     else
         local round = out.playerAttack and out.playerAttack.attackRound
-        if not (round and round.normalDamageKnown == true
+        local dealt = round and round.normalDamageKnown == true
             and applyKnown(target, record, WHITE_ACTION, WHITE_TOOLTIP,
-                round.power, 1) ~= nil) then
+                round.power, 1) or nil
+        if dealt == nil then
             markUnknown(target, record,
                 "ordinary player swing outcome magnitude unavailable")
+        elseif PlayerRage then
+            PlayerRage:GainFromWhite(out, dealt)
         end
     end
     refreshRecord(out, record)

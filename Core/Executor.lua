@@ -390,9 +390,8 @@ function XA:ExecuteItemPlan(plan, selected)
     local action = plan.action
     if action.executor == "instruction" then
         self.lastReason = action.name .. " — " .. plan.reason
-        if XelAssist.UI and XelAssist.UI.HUD then
-            XelAssist.UI.HUD:RequestRefresh(true, selected)
-        end
+        -- A hold is a true input no-op. The continuous producer and live
+        -- combat events own refreshes; macro taps must never cancel its work.
         return
     end
     if (tonumber(plan.wait) or 0) > 0 then

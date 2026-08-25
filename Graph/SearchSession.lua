@@ -15,7 +15,6 @@ local PlanBuilder = G.PlanBuilder
 local Timeline = G.Timeline
 local Lifecycle = G.SearchLifecycle
 local Preparation, Investment = G.SearchPreparation, G.ResourceInvestment
-
 local function stringField(value)
     if type(value) == "string" then return value end
     return ""
@@ -184,6 +183,11 @@ local function advanceTop(session)
         local candidate = G.WandCommitment
             and G.WandCommitment:Candidate(top.state)
         if candidate then table.insert(top.candidates, candidate) end
+        top.stage = "player_attack"
+    elseif top.stage == "player_attack" then
+        local candidate = G.PlayerAttackCommitment
+            and G.PlayerAttackCommitment:Candidate(top.state)
+        if candidate then table.insert(top.candidates, candidate) end
         top.stage = "retain"
     elseif top.stage == "retain" then
         SearchBranches:Retain(top.candidates, Policy.WIDTH, candidateBefore)
@@ -268,9 +272,11 @@ local function advancePreparation(session)
         G.ChannelCommitment:Prepare(session.state, session.actions)
     elseif stage == 6 and G.WandCommitment then
         G.WandCommitment:Prepare(session.state, session.actions)
+    elseif stage == 7 and G.PlayerAttackCommitment then
+        G.PlayerAttackCommitment:Prepare(session.state, session.actions)
     end
     session.prepareStage = stage + 1
-    if session.prepareStage > 6 then initializeSearch(session) end
+    if session.prepareStage > 7 then initializeSearch(session) end
 end
 
 local function finalizePath(session)

@@ -18,6 +18,7 @@ dofile("Game/SpellPower.lua")
 dofile("Game/SpellEffectPower.lua")
 dofile("Game/SpellFactCache.lua")
 dofile("Game/Range.lua")
+dofile("Game/ResourceCost.lua")
 dofile("Game/ResourceExchange.lua")
 dofile("Game/HealthTransfer.lua")
 dofile("Game/Capabilities.lua")
@@ -73,8 +74,10 @@ dofile("Graph/ReadinessEffects.lua")
 dofile("Graph/PlayerEngagement.lua")
 dofile("Graph/ActorScoring.lua")
 dofile("Graph/ThreatScoring.lua")
+dofile("Graph/PlayerRage.lua")
 dofile("Graph/PlayerSwings.lua")
 dofile("Graph/PlayerSwingScoring.lua")
+dofile("Graph/PlayerAttackCommitment.lua")
 dofile("Graph/ComboEffects.lua")
 dofile("Graph/ComboScoring.lua")
 dofile("Graph/OngoingEffects.lua")
@@ -1448,6 +1451,33 @@ XelAssistCharDB.graphDepth = 1
 plan = expect("player Attack active repeat guard", "Melee Filler")
 assert(plan.action.name ~= "Attack",
     "an active player Attack must never re-enter the graph as a toggle press")
+
+do
+    local priorState, priorActions = currentState, scenarioActions
+    currentState = state("smart")
+    currentState.targetDistance, currentState.distance = 4, 4
+    currentState.targetDistanceKind, currentState.distanceKind = "hitbox", "hitbox"
+    currentState.resource, currentState.resourceMax = 0, 100
+    currentState.resourceType, currentState.playerLevel = 1, 1
+    currentState.playerResourceExact, currentState.playerResourceReserved = true, 0
+    currentState.targetHealth, currentState.targetMax = 500, 500
+    currentState.playerAttack = { supported = true, active = true,
+        activeKnown = true, onSwing = { occupied = false, pending = false,
+            exact = true }, attackRound = { projectable = true,
+            phaseKnown = true, verified = true,
+            targetGuid = currentState.targetGUID, nextSwingIn = 1,
+            interval = 2, power = 10, normalDamageKnown = true,
+            phaseSource = "exact Warrior scenario" } }
+    local heroic = action("Heroic Strike", 1, "damage", 20, 15,
+        { melee = true, onNextSwing = true })
+    scenarioActions, XelAssistCharDB.graphDepth = { meleeStart, heroic }, 3
+    plan = expect("Warrior rage runway", "Continue Attack")
+    assert(plan.action.executor == "instruction"
+        and plan.follow[1] and plan.follow[1].name == "Heroic Strike"
+        and plan.completedDepth == 3,
+        "an exact zero-rage attack must expose its newly funded action, not wait again")
+    currentState, scenarioActions = priorState, priorActions
+end
 
 currentState.playerAttack.active = false
 currentState.targetDistance, currentState.distance = 12, 12

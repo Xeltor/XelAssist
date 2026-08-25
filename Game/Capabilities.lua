@@ -610,7 +610,7 @@ function C:Facts(action)
     local cooldownGroup = dbc("category")
     local gcdMs = dbc("startRecoveryTime")
     local rangeIndex = dbc("rangeIndex")
-    out.school = dbc("school")
+    out.school, out.powerType = dbc("school"), dbc("powerType")
     local gcdCategory = XelAssist.Game.SpellClassification:Apply(
         action, out, dbc, dbcArray)
     XelAssist.Game.SpellPower:Apply(action, out, dbc, dbcArray)
@@ -630,7 +630,7 @@ function C:Facts(action)
     if XelAssist.Game.ComboMechanics then
         XelAssist.Game.ComboMechanics:ApplyDurationFacts(action, out)
     end
-    local dbcCost = dbc("manaCost")
+    local dbcCost = XelAssist.Game.ResourceCost:Normalize(out.powerType, dbc("manaCost"))
     if dbcCost and dbcCost > 0 then out.cost = dbcCost end
     local basePoints = dbcArray("effectBasePoints")
     local dieSides = dbcArray("effectDieSides")

@@ -106,7 +106,7 @@ local function resetEffects()
     effects = { direct = 0, queue = 0, petAbility = 0, petAttack = 0,
         petFollow = 0, petPassive = 0, log = 0, observation = 0,
         pending = 0, auto = 0, wand = 0, resistance = 0, playerAttack = 0,
-        petEffect = 0, item = 0 }
+        petEffect = 0, item = 0, refresh = 0 }
     hooks = {}
     playerDistance, playerDistanceKind = 3, "hitbox"
     petDistance, petDistanceKind = 3, "hitbox"
@@ -266,7 +266,9 @@ XelAssist.Game.PlayerAttack = {
         return true
     end,
 }
-XelAssist.UI.HUD = { Refresh = function() end, RequestRefresh = function() end }
+XelAssist.UI.HUD = { Refresh = function() end, RequestRefresh = function()
+    effects.refresh = effects.refresh + 1
+end }
 XelAssist.Core.RecommendationSnapshot = {
     Acquire = function() return currentPlan, nil end,
 }
@@ -323,6 +325,8 @@ currentPlan = hostilePlan({ name = "Continue Mind Flay", rank = 0,
     facts = { kind = "channelContinuation", channelContinuation = true } })
 XelAssist:Execute()
 assertNoExecution("a channel continuation instruction must be a safe macro hold")
+assert(effects.refresh == 0,
+    "instruction macro taps must not cancel or restart graph evaluation")
 assert(string.find(XelAssist.lastReason or "", "Continue Mind Flay", 1, true),
     "an instruction hold must remain visible as the current execution reason")
 

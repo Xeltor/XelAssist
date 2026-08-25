@@ -152,6 +152,12 @@ GetSpellRecField = function(spellId, field)
             startRecoveryTime = 1500, school = 0 }
         return replacement[field]
     end
+    if spellId == 78 then
+        local heroic = { attributes = 4, startRecoveryCategory = 0,
+            startRecoveryTime = 0, school = 0, powerType = 1,
+            manaCost = 150 }
+        return heroic[field]
+    end
     local values = { castTime = 2500, recoveryTime = 8000, categoryRecoveryTime = 6000,
         category = 44, startRecoveryTime = 1500, startRecoveryCategory = 133,
         rangeIndex = 7, manaCost = 60, attributes = 0,
@@ -197,6 +203,7 @@ dofile("Game/SpellPower.lua")
 dofile("Game/SpellEffectPower.lua")
 dofile("Game/SpellFactCache.lua")
 dofile("Game/Range.lua")
+dofile("Game/ResourceCost.lua")
 dofile("Game/Capabilities.lua")
 dofile("Graph/ActionPower.lua")
 
@@ -249,6 +256,14 @@ local replacementFacts = XelAssist.Game.Capabilities:Facts({ name = "Replacement
 assert(replacementFacts.attributes == 1024
     and replacementFacts.onNextSwing == true,
     "alternate DBC on-next-swing classification missing")
+local savedTooltipLines = tooltipLines
+tooltipLines = {}
+local heroicFacts = XelAssist.Game.Capabilities:Facts({ name = "Heroic Strike",
+    slot = 5, spellId = 78, bookType = BOOKTYPE_SPELL,
+    facts = { kind = "damage", melee = true } })
+tooltipLines = savedTooltipLines
+assert(heroicFacts.powerType == 1 and heroicFacts.cost == 15,
+    "raw DBC rage costs must be normalized from tenths to displayed rage")
 assert(facts.dbcAverage and facts.dbcAverage > 100, "DBC effect magnitude missing")
 assert(XelAssist.Game.Capabilities:GCDRemaining() == 0.3)
 local health, maximum, exact = XelAssist.Game.Capabilities:Health("target")

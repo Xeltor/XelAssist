@@ -1,4 +1,4 @@
-# XelAssist 0.8.28
+# XelAssist 0.8.29
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -72,6 +72,14 @@ target codes without collapsing target A and B. This layer is deliberately
 recommendation-neutral in 0.8.28: no action discovery or graph consumer calls
 it yet, and validation rejects accidental production callers until a compact
 consumer can be benchmarked without reducing search depth.
+
+Warrior melee now has a causal, non-executable continuation edge. Once an exact
+main-hand phase has been observed, the graph can wait through ordinary attacks,
+project their conservative damage-derived rage, and expose a later affordable
+ability instead of ending at a resource horizon. The wait coalesces swings up
+to the next learned rage threshold or target defeat. On-next-swing replacements
+still suppress the displaced white hit and its rage, and raw DBC rage costs are
+normalized to the same displayed units as live player power.
 
 ## Requirements
 
