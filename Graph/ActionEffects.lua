@@ -10,6 +10,7 @@ local CompanionEventThreat = XelAssist.Graph.CompanionEventThreat
 local EventAuras = XelAssist.Graph.EventAuras
 local DotProjection = XelAssist.Graph.DotProjection
 local ResourceExchange = XelAssist.Graph.ResourceExchange
+local HealthTransfer = XelAssist.Graph.HealthTransfer
 local WandCommitment = XelAssist.Graph.WandCommitment
 
 function A:Context(source, candidate)
@@ -200,6 +201,9 @@ local function applyDamageOrSupport(out, source, candidate, context,
         return true
     elseif facts.kind == "threatDrop" then
         out.hasAggro = false
+        return true
+    elseif facts.healthFundedChannel and HealthTransfer
+        and HealthTransfer:Finish(out, candidate) then
         return true
     elseif facts.kind == "petHeal" and out.actors and out.actors.pet then
         out.actors.pet.health = math.min(out.actors.pet.healthMax,

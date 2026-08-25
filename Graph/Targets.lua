@@ -436,6 +436,8 @@ function T:Legal(action, state, descriptor)
         actionStart, tooltip, config)
     if blocker then return false, blocker end blocker = XelAssist.Graph.ResourceExchange
         and XelAssist.Graph.ResourceExchange:Blocker(action, state, tooltip)
+    if blocker then return false, blocker end blocker = XelAssist.Graph.HealthTransfer
+        and XelAssist.Graph.HealthTransfer:Blocker(action, state, tooltip)
     if blocker then return false, blocker end
     return true, nil, tooltip, target, actionStart, descriptor, state
 end

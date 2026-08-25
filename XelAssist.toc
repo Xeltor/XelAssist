@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.26
+## Version: 0.8.27
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -21,6 +21,7 @@ Game\Range.lua
 Game\ComboMechanics.lua
 Game\HitBonuses.lua
 Game\ResourceExchange.lua
+Game\HealthTransfer.lua
 Game\Geometry.lua
 Game\Capabilities.lua
 Game\WeaponPower.lua
@@ -78,6 +79,7 @@ Graph\IncomingConsequences.lua
 Graph\HostileCastEvents.lua
 Graph\IncomingScoring.lua
 Graph\ResourceExchange.lua
+Graph\HealthTransfer.lua
 Graph\ComboState.lua
 Graph\CompanionTargets.lua
 Graph\CompanionCommandPolicy.lua

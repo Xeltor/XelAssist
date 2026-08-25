@@ -9,6 +9,12 @@ XelAssist.Combat.Knowledge = {
     ["Life Tap"] = { kind = "resource", self = true,
         transientResource = true, healthConversion = true,
         resourceType = "mana" },
+    ["Health Funnel"] = { kind = "petHeal", pet = true,
+        fixedTarget = "pet", channel = true, duration = 10,
+        channelTicks = 10, healthFundedChannel = true,
+        movementInterrupts = true, actionInterrupts = true,
+        healingThreatActor = "player",
+        spellIds = { 755, 3698, 3699, 3700, 11693, 11694, 11695 } },
     -- Attack only starts the client-owned melee state. Resolved white swings
     -- arrive independently through Nampower and are never damage from this press.
     ["Attack"] = { kind = "command", playerAttack = true, ambient = true,

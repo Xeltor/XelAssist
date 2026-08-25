@@ -79,6 +79,13 @@ function P:Estimate(action, tooltip, state, targetGUID)
     if action.facts.healthConversion and tooltip.resourceGain then
         base, estimated = tooltip.resourceGain, false
     end
+    if not base and action.facts.healthFundedChannel
+        and tooltip.healthTransfer and tooltip.healthTransfer.exact
+        and tonumber(tooltip.healthTransfer.totalHealing) then
+        base, estimated = tooltip.healthTransfer.totalHealing, false
+        evidence = { source = tooltip.healthTransfer.source,
+            exact = true, complete = true }
+    end
     if not base and Triggered and Triggered.ScriptedPower then
         base, estimated = Triggered:ScriptedPower(action, state)
     end
@@ -126,6 +133,7 @@ function P:Estimate(action, tooltip, state, targetGUID)
         estimated = true
     end
     if action.facts.kind == "petHeal"
+        and not action.facts.healthFundedChannel
         and tonumber(action.facts.channelTicks) then
         base = base * action.facts.channelTicks
     end

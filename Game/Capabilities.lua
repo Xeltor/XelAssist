@@ -15,7 +15,6 @@ local function tooltipText(slot, bookType)
     end
     return string.lower(text)
 end
-
 -- Unknown active spells can still become graph nodes when installed-client DBC
 -- identity or their live tooltip proves an unambiguous combat effect. This
 -- avoids guessing buffs, debuffs, targets, threat, or prerequisites from names.
@@ -24,9 +23,10 @@ function C:InferKnowledge(slot, bookType, spellId)
         local ok, passive = pcall(IsPassiveSpell, slot, bookType or BOOKTYPE_SPELL)
         if ok and (passive == true or passive == 1) then return nil end
     end
-    local dbcExchange = XelAssist.Game.ResourceExchange
-        and XelAssist.Game.ResourceExchange:InferDBC(spellId)
-    if dbcExchange then return dbcExchange end
+    local dbcInferred = XelAssist.Game.HealthTransfer
+        and XelAssist.Game.HealthTransfer:InferDBC(spellId)
+        or XelAssist.Game.ResourceExchange and XelAssist.Game.ResourceExchange:InferDBC(spellId)
+    if dbcInferred then return dbcInferred end
     local text = tooltipText(slot, bookType)
     if text == "" then return nil end
     local exchange = XelAssist.Game.ResourceExchange and XelAssist.Game.ResourceExchange:Infer(text)
@@ -755,6 +755,7 @@ function C:Facts(action)
     if XelAssist.Game.ResourceExchange then XelAssist.Game.ResourceExchange:Apply(action, out, description) end
     XelAssist.Game.SpellTiming:Apply(action, out)
     if XelAssist.Game.SpellEffectPower then XelAssist.Game.SpellEffectPower:Apply(action, out, dbc, dbcArray) end
+    if XelAssist.Game.HealthTransfer then XelAssist.Game.HealthTransfer:Apply(action, out, dbc, dbcArray) end
     XelAssist.Game.SpellFactCache:Store(factCache, cacheKey, out)
     return out
 end

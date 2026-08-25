@@ -254,6 +254,13 @@ therefore win while routine actions preserve valuable remaining ticks. Attack,
 Auto Shot, on-next-swing setup, and companion actions stay independent and do
 not falsely cancel the player's channel. Unknown channel identity receives a
 conservative hold value instead of being treated as free to cancel.
+Health-funded support channels use that same commitment branch but keep health
+payments and recipient healing as separate causal events. Exact start cost and
+each upkeep tick must leave the player alive; hostile damage at an equal
+timestamp resolves first, and an unaffordable tick terminates the projected
+channel without healing. Useful ticks stop once the controlled recipient is
+full, so partial channels and deliberate clipping compete on actual health
+transferred rather than the nominal full-duration tooltip total.
 An exact out-of-range result creates a non-executable, target-pinned movement
 instruction rather than terminating the runway. The graph may continue through
 that edge, but measured distance is never changed: every downstream action is

@@ -183,6 +183,8 @@ subprocess.run(["lua", str(root / "tests/spell_topology_test.lua")], cwd=root, c
 subprocess.run(["lua", str(root / "tests/geometry_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/capabilities_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/resource_exchange_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/health_transfer_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/health_transfer_graph_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/resource_investment_graph_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/warlock_resource_semantics_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/soul_shard_reserve_test.lua")], cwd=root, check=True)

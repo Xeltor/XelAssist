@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.27
+
+- Added a reusable graph-native health-transfer channel primitive, initially
+  backed by all seven exact installed-client Health Funnel ranks. It separates
+  zero mana cost from initial and per-second player-health payments, heals the
+  controlled companion only after each strictly nonlethal payment, and mirrors
+  both actors' health through causal graph state.
+- Integrated health-funded channels with incoming-damage ordering, partial
+  overheal, movement/action interruption, replacement channels, and weighted
+  continuation versus clipping. The graph plans only useful and affordable
+  ticks; a same-timestamp hostile hit resolves before upkeep and can safely stop
+  the channel without granting that tick's healing.
+- Added exact rank-signature, same-name exclusion, delayed-start, stale-plan,
+  implicit-pet-target, continuation-cadence, and no-mana regressions. Unverified
+  Soul Funnel talent behavior remains explicitly outside the model.
+
 ## 0.8.26
 
 - Added a generic bounded resource-investment lane. A health-to-mana action may

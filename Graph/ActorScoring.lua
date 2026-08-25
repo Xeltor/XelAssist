@@ -49,6 +49,8 @@ function A:Score(context)
         context.value, context.reason = state.hasAggro and not state.tank
             and 3800 or 900, "companion takes unwanted aggro"
     elseif kind == "petHeal" then
+        if XelAssist.Graph.HealthTransfer
+            and XelAssist.Graph.HealthTransfer:Score(context) then return true end
         local pet = state.actors and state.actors.pet
         local missing = pet and math.max(0, pet.healthMax - pet.health) or 0
         local effective = math.min(context.power, missing)

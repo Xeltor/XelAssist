@@ -379,6 +379,7 @@ local function candidate(context)
         channelCommitment = (context.clipsChannel or context.preservesChannel)
             and context.state.channelCommitment or nil,
         channelOpportunityValue = context.channelOpportunityValue,
+        healthTransfer = context.healthTransfer,
         recipientEffects = context.recipientEffects,
         areaRecipientGroups = context.areaRecipientGroups,
         areaUnknowns = context.areaUnknowns,
@@ -409,6 +410,15 @@ function Scoring:Evaluate(action, state, descriptor)
     if not context then return nil, blocker end
     local targetState = context.state
     resolveTargetNeed(context)
+    if action.facts.healthFundedChannel then
+        local prepared, reason
+        if XelAssist.Graph.HealthTransfer then
+            prepared, reason = XelAssist.Graph.HealthTransfer:Prepare(context)
+        end
+        if not prepared then
+            return nil, reason or "health transfer evidence unknown"
+        end
+    end
     projectDamageAndResistance(context)
     PlayerSwingScoring:Project(context)
     projectAmbientTargetHealth(context)

@@ -91,9 +91,12 @@ never class rotations or ordered priority lists.
   search.
 - `Game/SpellPower.lua` decodes OctoWoW's VMaNGOS weapon-effect aggregation
   from live Spell.dbc rows. `Game/SpellEffectPower.lua` derives only complete
-  scalar direct/periodic totals from installed-client effect arrays, and
-  `Game/SpellFactCache.lua` keeps actor-identity-bound tooltip/DBC facts local
-  to the current player or companion. `Game/WeaponPower.lua` owns the ordinary and
+  scalar direct/periodic totals from installed-client effect arrays.
+  `Game/HealthTransfer.lua` recognizes exact health-funded companion-channel
+  signatures and exposes their start, upkeep, cadence, and per-tick healing
+  without converting health power into mana cost. `Game/SpellFactCache.lua`
+  keeps actor-identity-bound tooltip/DBC facts local to the current player or
+  companion. `Game/WeaponPower.lua` owns the ordinary and
   normalized live equipped-weapon basis. `Graph/ActionPower.lua` combines those
   facts with scripted effects, tooltip evidence, and spell power;
   strategic utility and delivery stay outside raw potency.
@@ -112,7 +115,9 @@ never class rotations or ordered priority lists.
   `Graph/DotProjection.lua` owns the direct/periodic transition split and keeps
   that expected survival factor causal across later aura ticks.
   `Graph/ChannelCommitment.lua` owns the remaining-value comparison between
-  continuing and deliberately clipping a live player channel.
+  continuing and deliberately clipping a live player channel;
+  `Graph/HealthTransfer.lua` contributes exact nonlethal payment, tick healing,
+  incoming-damage ordering, and partial-channel value for health-funded support.
   `Graph/WandCommitment.lua` owns sustained Shoot continuation and clipping;
   `Graph/ResourceExchange.lua` owns conversion legality, value, and atomic
   state transitions; `Graph/ResourceInvestment.lua` retains a bounded setup

@@ -3,6 +3,7 @@
 -- branches; neither is a hardcoded priority rule.
 XelAssist.Graph.ChannelCommitment = {}
 local C = XelAssist.Graph.ChannelCommitment
+local HealthTransfer = XelAssist.Graph.HealthTransfer
 
 local ACTION = { name = "Continue channel", rank = 0, actor = "player",
     executor = "instruction", facts = { kind = "channelContinuation",
@@ -65,6 +66,16 @@ local function continuationValue(state, kind, power, remaining, known, missing)
 end
 
 local function friendlyTarget(state, guid, match)
+    local fixed = match and match.facts and match.facts.fixedTarget
+    local function fixedRecord()
+        local target = fixed
+            and XelAssist.Graph.State:FriendlyByUnit(state, fixed) or nil
+        if target then return target end
+        return fixed and state and state.actors and state.actors[fixed] or nil
+    end
+    if guid == nil and fixed then
+        return fixedRecord()
+    end
     if guid == nil then return nil end
     local target = XelAssist.Graph.State:FriendlyByKey(state, guid)
     if target then return target end
@@ -72,8 +83,7 @@ local function friendlyTarget(state, guid, match)
     for key, record in pairs(state.friendlies and state.friendlies.byKey or {}) do
         if record.guid == guid then return record end
     end
-    local fixed = match and match.facts and match.facts.fixedTarget
-    target = fixed and XelAssist.Graph.State:FriendlyByUnit(state, fixed) or nil
+    target = fixedRecord()
     if target and target.guid == guid then return target end
     return nil
 end
@@ -114,17 +124,32 @@ function C:Prepare(state, actions)
         and not friendly then
         power, known = 0, false
     end
+    local healthTransferData = match and tooltip
+        and tooltip.healthTransfer and tooltip.healthTransfer.exact
+        and match.facts.healthFundedChannel and tooltip.healthTransfer or nil
+    local healthTransferPlan = healthTransferData and HealthTransfer
+        and HealthTransfer:ContinuationPlan(
+            state, healthTransferData, remaining, total) or nil
+    local value = continuationValue(
+        state, kind, power, remaining, known, friendlyMissing)
+    if healthTransferData then
+        known, estimated = true, false
+        power = healthTransferPlan and healthTransferPlan.rawHealing or 0
+        value = healthTransferPlan
+            and HealthTransfer:Value(state, healthTransferPlan) or 0
+    end
     state.channelCommitment = {
         name = state.playerCastName or match and match.name or "current channel",
         spellId = state.playerCastSpellId,
-        targetGUID = state.playerCastTargetGUID,
+        targetGUID = state.playerCastTargetGUID or friendly and friendly.guid,
         targetMatches = targetMatches, selfChannel = selfChannel,
-        friendlyKey = friendly and friendly.key,
-        friendlyUnit = friendly and friendly.unit,
+        friendlyKey = friendly and (friendly.key or friendly.guid),
+        friendlyUnit = friendly and friendly.unit
+            or match and match.facts.fixedTarget,
         remaining = remaining, total = total, power = power,
         kind = kind, known = known, estimated = estimated,
-        value = continuationValue(
-            state, kind, power, remaining, known, friendlyMissing),
+        value = value, healthTransferData = healthTransferData,
+        healthTransferPlan = healthTransferPlan,
     }
 end
 
@@ -151,6 +176,11 @@ function C:CurrentValue(state)
     local commitment = state and state.channelCommitment
     if not commitment then return 0 end
     local current = math.max(0, tonumber(state.castRemaining) or 0)
+    if commitment.healthTransferData and HealthTransfer then
+        local plan = HealthTransfer:ContinuationPlan(state,
+            commitment.healthTransferData, current, commitment.total)
+        return plan and HealthTransfer:Value(state, plan) or 0
+    end
     local root = math.max(0.001, tonumber(commitment.remaining) or current)
     return math.max(0, tonumber(commitment.value) or 0)
         * math.min(1, current / root)
@@ -178,42 +208,71 @@ function C:Candidate(state)
     if not commitment then return nil end
     local current = math.max(0, tonumber(state.castRemaining) or 0)
     if current <= 0 then return nil end
+    local transferPlan = commitment.healthTransferData and HealthTransfer
+        and HealthTransfer:ContinuationPlan(state,
+            commitment.healthTransferData, current, commitment.total) or nil
+    if commitment.healthTransferData and not transferPlan then return nil end
     local fraction = math.min(1, current
         / math.max(0.001, tonumber(commitment.remaining) or current))
     local action = {}
     local key, value
     for key, value in pairs(ACTION) do action[key] = value end
     action.name = "Continue " .. tostring(commitment.name)
-    local friendly = commitment.friendlyKey ~= nil
-    return { action = action, value = state.channelCommitmentClaimed
-            and 1 or math.max(1, self:CurrentValue(state)),
+    local friendly = commitment.friendlyUnit ~= nil
+    local planned = transferPlan and transferPlan.plannedDuration or current
+    return { action = action, value = transferPlan
+            and math.max(1, HealthTransfer:Value(state, transferPlan))
+            or state.channelCommitmentClaimed
+                and 1 or math.max(1, self:CurrentValue(state)),
         reason = commitment.known
             and "preserves the remaining channel value"
             or "preserves an unpriced active channel",
         target = commitment.targetMatches and "target"
             or friendly and commitment.friendlyUnit or "player",
         targetKey = commitment.targetMatches and state.targetGUID
-            or friendly and commitment.friendlyKey or "player",
+            or friendly and (commitment.friendlyKey
+                or commitment.friendlyUnit) or "player",
         targetGUID = commitment.targetMatches and state.targetGUID
             or friendly and commitment.targetGUID or nil,
         targetRelation = commitment.targetMatches and "hostile"
             or friendly and commitment.friendlyUnit == "pet" and "pet"
             or friendly and "ally" or "self",
         targetSource = "active channel", cost = 0, costKnown = true,
-        cast = 0, wait = 0, occupancy = current,
-        downtime = current, valueDowntime = current,
+        cast = transferPlan and planned or 0, wait = 0, occupancy = planned,
+        downtime = planned, valueDowntime = planned,
         gcd = 0, normalGcd = false,
         tooltip = { cost = 0, cast = 0, gcd = 0,
             source = "active channel" },
-        power = (commitment.power or 0) * fraction,
-        rawPower = (commitment.power or 0) * fraction,
-        effectivePower = (commitment.power or 0) * fraction, effectDelivery = 1,
-        estimated = commitment.estimated, channelCommitment = commitment }
+        power = transferPlan and transferPlan.rawHealing
+            or (commitment.power or 0) * fraction,
+        rawPower = transferPlan and transferPlan.rawHealing
+            or (commitment.power or 0) * fraction,
+        effectivePower = transferPlan and transferPlan.effectiveHealing
+            or (commitment.power or 0) * fraction, effectDelivery = 1,
+        estimated = commitment.estimated, channelCommitment = commitment,
+        healthTransfer = transferPlan }
+end
+
+local function clearChannel(out)
+    out.playerCasting, out.playerChanneling = false, false
+    out.playerCastName, out.playerCastSpellId = nil, nil
+    out.playerCastTargetGUID, out.castRemaining = nil, 0
+    out.channelCommitment, out.channelCommitmentClaimed = nil, nil
+    if out.actorReadyAt then
+        out.actorReadyAt.player = tonumber(out.time) or 0
+    end
 end
 
 function C:Apply(out, candidate)
     local facts = candidate and candidate.action and candidate.action.facts or {}
     if facts.channelContinuation then
+        if candidate.healthTransfer and HealthTransfer then
+            HealthTransfer:Finish(out, candidate)
+            if out.playerChanneling then
+                out.channelCommitmentClaimed = nil
+            end
+            return true
+        end
         local commitment = candidate.channelCommitment or {}
         if commitment.targetMatches and (commitment.kind == "damage"
             or commitment.kind == "builder" or commitment.kind == "dot")
@@ -243,15 +302,17 @@ function C:Apply(out, candidate)
                     target.health + math.max(0, tonumber(candidate.power) or 0))
             end
         end
-        out.playerCasting, out.playerChanneling = false, false
-        out.playerCastName, out.playerCastSpellId = nil, nil
-        out.playerCastTargetGUID, out.castRemaining = nil, 0
+        clearChannel(out)
         return true
     end
+    if facts.movementSetup and out.playerChanneling then
+        clearChannel(out)
+    end
+    -- HealthTransfer started its replacement channel at the causal start event;
+    -- a clip marker describes the old channel and must not clear the new one.
+    if candidate and candidate.healthTransfer then return false end
     if candidate and candidate.clipsChannel then
-        out.playerCasting, out.playerChanneling = false, false
-        out.playerCastName, out.playerCastSpellId = nil, nil
-        out.playerCastTargetGUID, out.castRemaining = nil, 0
+        clearChannel(out)
     elseif candidate and candidate.preservesChannel then
         out.channelCommitmentClaimed = true
     end

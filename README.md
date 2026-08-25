@@ -1,4 +1,4 @@
-# XelAssist 0.8.26
+# XelAssist 0.8.27
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -57,6 +57,13 @@ shields absorb damage first, incoming damage can increase pre-heal and absorb
 value, and interrupts compete on the consequence they actually prevent. Mixed,
 scripted, periodic, area, channel, missing-recipient, and unknown-level spells
 remain explicit uncertainty with one bounded interrupt fallback.
+
+Health-funded companion channels use exact installed-client effect semantics
+rather than ordinary mana or pet-heal approximations. Health Funnel pays its
+initial player-health cost and each upkeep tick causally, heals only after a
+successful nonlethal payment, prices overhealing and incoming damage, and can
+be continued or deliberately clipped by the same weighted channel graph used
+by other classes. Unproven server-side talent modifiers remain unknown.
 
 ## Requirements
 

@@ -12,6 +12,7 @@ local PlayerSwings = XelAssist.Graph.PlayerSwings
 local WandCommitment = XelAssist.Graph.WandCommitment
 local EventAuras = XelAssist.Graph.EventAuras
 local HostileCasts = XelAssist.Graph.HostileCastEvents
+local HealthTransfer = XelAssist.Graph.HealthTransfer
 local AmbientTargetHealth = XelAssist.Graph.AmbientTargetHealth
 local NIL_PROBE_TARGET = {}
 
@@ -228,6 +229,11 @@ local function collectEvents(out, source, candidate, context)
     for i = 1, table.getn(hostileEvents) do
         order = append(events, hostileEvents[i], order, window)
     end
+    local transferEvents = HealthTransfer
+        and HealthTransfer:Events(out, source, candidate) or {}
+    for i = 1, table.getn(transferEvents) do
+        order = append(events, transferEvents[i], order, window)
+    end
     local autoTimeline = AutoShot
         and AutoShot:CreateTimeline(out, source, candidate, context)
     for i = 1, table.getn(autoTimeline and autoTimeline.events or {}) do
@@ -308,6 +314,8 @@ function L:BeforeAction(source, candidate)
                 AutoShot:ApplyTimelineEvent(out, autoTimeline, entry)
             elseif entry.owner == "hostileCast" then
                 HostileCasts:Apply(out, entry)
+            elseif entry.owner == "healthTransfer" then
+                HealthTransfer:ApplyEvent(out, candidate, context, entry)
             else
                 local beforeAuras = Ongoing:AuraSnapshot(out)
                 Ongoing:ApplyEvent(out, source, candidate, context, entry)
@@ -384,8 +392,11 @@ function L:Run(out, source, candidate, context)
                 and action.executor == "petAbility"
                 and (tonumber(candidate.cast) or 0) > 0
             local castStarted = not needsStart or context.actionStarted
+            local transferReady = not HealthTransfer
+                or HealthTransfer:CanResolve(candidate)
             if castStarted and not hostileDefeated(out, candidate)
                 and not actorDefeated(out, candidate)
+                and transferReady
                 and Actions:Consume(out, candidate, context) then
                 if PlayerSwings and PlayerSwings:Is(
                     candidate.action, candidate.tooltip) then
@@ -402,6 +413,8 @@ function L:Run(out, source, candidate, context)
             AutoShot:ApplyTimelineEvent(out, autoTimeline, entry)
         elseif entry.owner == "hostileCast" then
             HostileCasts:Apply(out, entry)
+        elseif entry.owner == "healthTransfer" then
+            HealthTransfer:ApplyEvent(out, candidate, context, entry)
         elseif entry.kind == "petAutocastTimelineCap" then
             local beforeAuras = applyPassive(
                 out, source, candidate, context, entry)
