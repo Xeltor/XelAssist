@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.8.10
+
+- Decoupled `/xa` from graph evaluation. The HUD driver now atomically publishes
+  complete recommendations, while each physical input may consume one fresh
+  publication without ever starting evaluation or forcing another evaluation
+  in the input call.
+- Added fail-closed age, mode, target-change, completeness, and one-shot guards.
+  Repeated taps between graph publications safely hold, and dispatch success or
+  rejection only schedules the next controller refresh.
+- Preserved Nampower's process-scoped player-energize registration across world
+  entry resets, restoring verified Rogue energy waits and real future actions.
+  A selected path that still lacks a recovery clock now shows a specific
+  resource gate instead of falsely reporting a graph horizon or timestamp.
+- Split recommendation production, future-row placeholders, path diagnostics,
+  and final dispatch readiness into focused modules so the input, graph, and HUD
+  boundaries remain independently reviewable.
+- Decoded OctoWoW's VMaNGOS weapon-effect aggregation instead of treating a
+  percentage lane as flat damage. Backstab rank one is now modeled as
+  `1.5 * normalized weapon + 15`, while Sinister Strike is modeled as
+  `normalized weapon + 3`; weapon formulas override misleading raw DBC
+  magnitudes.
+- Added delivered direct-damage-per-resource value alongside the existing
+  scarcity reserve. A durable, mitigated target therefore prefers the stronger
+  and more energy-efficient legal rear attack, while lethal damage, tank threat,
+  position, equipment, and affordability remain generic graph evidence.
+- Added a deterministic Rogue regression covering stealth, out-of-combat rear
+  position, exact melee reach, full energy, physical mitigation, Attack start,
+  stealth consumption, combo gain, and the frontal Sinister Strike fallback.
+- Current-action help now retains root candidate gates, so an alternative such
+  as Backstab reports whether position, resource, range, or live state excluded
+  it instead of leaving the player unable to distinguish strategy from evidence.
+
 ## 0.8.9
 
 - Centralized numeric/name spell-range queries and explicit command/effect

@@ -44,7 +44,9 @@ function E:ResetSession()
     self.powerType = nil
     self.lastObservedAt, self.lastSpendAt = nil, nil
     self.energizeGuid, self.energizeAt = nil, nil
-    self.externalEnergizeAvailable = false
+    -- Event registration is a process capability, not session evidence.  The
+    -- PLAYER_ENTERING_WORLD boundary must retire learned tick state without
+    -- forgetting that ambiguous spell energizes can still be attributed.
     self:ClearModel("session reset")
 end
 

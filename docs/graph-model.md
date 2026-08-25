@@ -386,12 +386,15 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   exact threat lead from the current APIs.
 - Vanilla hostile health may be percentage-scaled. Damage-to-health and finisher
   math is enabled only when Nampower exposes exact `health` and `maxHealth` fields.
-- Tooltip/DBC effect magnitude is still estimated for weapon formulas, triggered
-  child spells, absorb formulas, and effects whose final value depends on server
-  scripts. Those recommendations are visibly marked `estimated` and logged.
+- OctoWoW VMaNGOS weapon opcodes 17/31/58/121 are aggregated before scoring,
+  but normalized bases for non-1.70-speed weapons and mixed direct-plus-weapon
+  spells still need fuller decomposition. Triggered child spells, absorbs, and
+  server-scripted modifiers can also remain estimated; those recommendations
+  are visibly marked `estimated` and logged.
 - Future movement, target swaps, incoming damage, other players' casts, proc
-  arrivals, and shared cooldown categories cannot be predicted. Re-evaluation on
-  every physical press is the correctness boundary.
+  arrivals, and shared cooldown categories cannot be predicted. The independent
+  producer continuously publishes fresh complete plans; each physical press
+  consumes at most one publication and never starts graph work itself.
 - Exact hit/miss outcome branches do not yet condition combo transitions: a
   missed hostile finisher should retain points and a missed builder should not
   gain them. Target time-to-die beyond exact current health is also not yet a

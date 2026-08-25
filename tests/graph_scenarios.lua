@@ -13,6 +13,7 @@ dofile("Combat/AutoShotProjection.lua")
 dofile("Combat/PetKnowledge.lua")
 dofile("Game/SpellTiming.lua")
 dofile("Game/SpellClassification.lua")
+dofile("Game/SpellPower.lua")
 dofile("Game/Range.lua")
 dofile("Game/Capabilities.lua")
 dofile("Game/PlayerAttack.lua")
@@ -58,9 +59,11 @@ dofile("Graph/OngoingEffects.lua")
 dofile("Graph/ActionConsumption.lua")
 dofile("Graph/ActionEffects.lua")
 dofile("Graph/Timeline.lua")
+dofile("Graph/ActionPower.lua")
 dofile("Graph/Scoring.lua")
 dofile("Graph/Transitions.lua")
 dofile("Graph/SearchPolicy.lua")
+dofile("Graph/PlanDiagnostics.lua")
 dofile("Graph/Engine.lua")
 
 local pendingAura
@@ -68,6 +71,9 @@ XelAssist.IsAuraPending = function(_, name) return pendingAura == name end
 XelAssist.Combat.Observations = {
     Blocker = function() return nil end,
     ResistanceMultiplier = function(_, _, target, tooltip, s)
+        if XelAssist.Graph.testDelivery then
+            return XelAssist.Graph.testDelivery, "shared delivery test"
+        end
         local raw = target == "target" and s.targetResistances
             and tooltip.school and s.targetResistances[tooltip.school + 1]
         if raw and s.playerLevel then
@@ -218,6 +224,10 @@ local function action(name, rank, kind, power, cost, extra)
             duration = facts.testDuration, periodicInterval = facts.testPeriodicInterval,
             directDamage = facts.testDirectDamage, periodicDamage = facts.testPeriodicDamage,
             comboBonus = facts.testComboBonus,
+            weaponCoefficient = facts.testWeaponCoefficient,
+            weaponFlat = facts.testWeaponFlat,
+            weaponComboFlat = facts.testWeaponComboFlat,
+            weaponNormalized = facts.testWeaponNormalized,
             targetArmorReduction = facts.testArmorReduction,
             targetArmorPerCombo = facts.testArmorPerCombo,
             targetResistanceReduction = facts.testResistanceReduction,
@@ -1232,6 +1242,49 @@ assert(plan.startsPlayerAttack and not plan.follow[1]
     and afterStealthOpener.playerStealthKnown
     and afterStealthOpener.playerAttack.active,
     "the opener must consume projected stealth and prevent a repeated stealth action")
+
+currentState = state("smart")
+currentState.inCombat, currentState.pet = false, false
+currentState.playerStealthed, currentState.playerStealthKnown = true, true
+currentState.playerBehindTarget = true
+currentState.targetDistance, currentState.distance = 4, 4
+currentState.targetDistanceKind, currentState.distanceKind = "hitbox", "hitbox"
+currentState.resource, currentState.resourceMax, currentState.combo = 100, 100, 0
+currentState.playerAttack = { supported = true, active = false,
+    activeKnown = true, pending = false, clockKnown = true }
+XelAssistTestSavedWeaponDamage = XelAssist.Game.Capabilities.WeaponDamage
+XelAssist.Game.Capabilities.WeaponDamage = function() return 10 end
+XelAssistTestBackstab = action("Backstab", 1, "builder", 999, 60,
+    { melee = true, behind = true, testInitiatesCombat = true,
+        testWeaponCoefficient = 1.5, testWeaponFlat = 15,
+        testWeaponNormalized = true, gcd = 1 })
+XelAssistTestSinister = action("Sinister Strike", 1, "builder", 999, 40,
+    { melee = true, testInitiatesCombat = true,
+        testWeaponCoefficient = 1, testWeaponFlat = 3,
+        testWeaponNormalized = true, gcd = 1 })
+scenarioActions = { meleeStart, XelAssistTestBackstab, XelAssistTestSinister }
+XelAssist.Graph.testDelivery = 0.7
+XelAssistCharDB.graphDepth = 2
+plan = expect("rear dagger attack uses DBC weapon value", "Backstab")
+assert(plan.path[1].rawPower == 30,
+    "Backstab must be 1.5 times normalized weapon plus 15")
+XelAssistTestAfterBackstab = XelAssist.Graph.Transitions:Advance(
+    currentState, plan.path[1])
+assert(XelAssistTestAfterBackstab.resource == 40
+    and XelAssistTestAfterBackstab.combo == 1
+    and XelAssistTestAfterBackstab.playerStealthed == false
+    and XelAssistTestAfterBackstab.playerAttack.active,
+    "Backstab must spend energy, build combo, break stealth and start Attack")
+currentState.playerBehindTarget = false
+plan = expect("rear dagger attack retains positional gate", "Sinister Strike")
+assert(plan.rootBlockers
+    and plan.rootBlockers["Backstab:1:player"]
+    and plan.rootBlockers["Backstab:1:player"].reasons["must be behind target"],
+    "the root plan must retain why the stronger rear attack was gated")
+XelAssist.Graph.testDelivery = nil
+XelAssist.Game.Capabilities.WeaponDamage = XelAssistTestSavedWeaponDamage
+XelAssistTestSavedWeaponDamage, XelAssistTestBackstab = nil, nil
+XelAssistTestSinister, XelAssistTestAfterBackstab = nil, nil
 end
 AttackTarget = savedAttackTarget
 
@@ -2183,6 +2236,27 @@ assert(plan.path[2] and plan.path[2].action.name == "Generic Builder"
         .. tostring(plan.path[2] and plan.path[2].action.name) .. " -> "
         .. tostring(plan.path[3] and plan.path[3].action.name) .. " @ "
         .. tostring(plan.path[3] and plan.path[3].actionStart))
+
+currentState = state("smart")
+currentState.resource, currentState.resourceMax, currentState.resourceType = 100, 100, 3
+currentState.playerResourceClock = nil
+XelAssistCharDB.graphDepth = 4
+scenarioActions = { action("Energy Builder", 1, "builder", 20, 45) }
+plan = expect("unknown energy continuation", "Energy Builder")
+assert(table.getn(plan.path) == 2
+    and plan.terminal and plan.terminal.kind == "resource"
+    and plan.terminal.current == 10 and plan.terminal.required == 45
+    and plan.terminal.resourceName == "Energy"
+    and not plan.terminal.timingKnown,
+    "a terminal resource edge must be reported separately from graph horizon")
+XelAssistTestImpossibleTerminal = XelAssist.Graph.PlanDiagnostics:Terminal({
+    resource = 10, resourceMax = 40, resourceType = 3,
+    playerResourceReserved = 0,
+}, { resource = 1, resourceRequired = 45 })
+assert(XelAssistTestImpossibleTerminal
+    and XelAssistTestImpossibleTerminal.unreachable,
+    "a resource requirement above the character's cap must not be called a wait")
+XelAssistTestImpossibleTerminal = nil
 
 currentState = state("smart"); XelAssistCharDB.toggles.reagents = false
 scenarioActions = { action("Shadowburn", 1, "damage", 900, 100,

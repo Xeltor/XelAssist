@@ -14,6 +14,21 @@ local function petThreatFactor(state)
         state.actors and state.actors.pet)
 end
 
+local function priceResource(context, maximum, effective)
+    if context.cost <= 0 or maximum <= 0 then return end
+    context.value = context.value - context.cost / maximum * 240
+    local kind = context.facts.kind
+    if not context.state.tank
+        and (kind == "damage" or kind == "builder") then
+        -- Direct attacks need the same delivered-damage-per-resource signal
+        -- already used for periodic damage. This prevents a cheap weaker hit
+        -- from winning solely because of the fixed scarcity reserve.
+        context.value = context.value
+            + math.max(0, tonumber(effective) or 0)
+                / math.max(1, context.cost) * 45
+    end
+end
+
 function T:Apply(context)
     local state, facts, kind = context.state, context.facts, context.kind
     local resourceMax = state.resourceMax
@@ -23,9 +38,7 @@ function T:Apply(context)
     end
     if kind == "petThreat" then
         context.threat = 0
-        if context.cost > 0 and resourceMax > 0 then
-            context.value = context.value - context.cost / resourceMax * 240
-        end
+        priceResource(context, resourceMax, 0)
         return
     end
     local healing = kind == "heal" or kind == "hot" or kind == "petHeal"
@@ -73,9 +86,7 @@ function T:Apply(context)
         end
     end
     context.threat = threat
-    if context.cost > 0 and resourceMax > 0 then
-        context.value = context.value - context.cost / resourceMax * 240
-    end
+    priceResource(context, resourceMax, valueThreatPower)
     if facts.inferred or facts.runtimeUnverified then context.estimated = true end
     if context.estimated then context.value = context.value * 0.88 end
 end

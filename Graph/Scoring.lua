@@ -14,62 +14,6 @@ local PlayerSwingScoring = XelAssist.Graph.PlayerSwingScoring
 local Triggered = XelAssist.Combat.TriggeredActions
 local ComboScoring = XelAssist.Graph.ComboScoring
 local Admission = XelAssist.Graph.ActionAdmission
-local function potency(action, tooltip, state)
-    local combo = (action.facts.combo or tooltip.comboSpendAll)
-        and (tooltip.comboBonus or 0) * state.combo or 0
-    local base, estimated = nil, nil
-    if Triggered and Triggered.ScriptedPower then
-        base, estimated = Triggered:ScriptedPower(action, state)
-    end
-    if not base and tooltip.average then
-        base, estimated = tooltip.average + combo, false
-    end
-    if not base and tooltip.dbcAverage then
-        local weapon = action.facts.melee
-            and XelAssist.Game.Capabilities:WeaponDamage() or 0
-        if action.facts.ranged and tooltip.school == 0 then
-            weapon = XelAssist.Game.Capabilities:RangedDamage() or weapon
-        end
-        if not base then
-            base, estimated = tooltip.dbcAverage + combo + (weapon or 0), true
-        end
-    end
-    if not base then
-        base = math.max(10, action.rank * 24 + (tooltip.cost or 0) * 0.8)
-        estimated = true
-    end
-    if action.facts.kind == "petHeal"
-        and tonumber(action.facts.channelTicks) then
-        base = base * action.facts.channelTicks
-    end
-    if (action.facts.kind == "damage" or action.facts.kind == "dot")
-        and action.actor ~= "pet" then
-        local bonus = XelAssist.Game.Capabilities:BonusDamage(tooltip.school)
-        if bonus > 0 then
-            local coefficient
-            if action.facts.kind == "dot" then
-                coefficient = math.min(1, (tooltip.duration or 15) / 15)
-            else
-                coefficient = math.min(1,
-                    math.max(1.5, tooltip.cast or 0) / 3.5)
-            end
-            local area = action.facts.aoe or tooltip.topology
-                and tooltip.topology.area
-            if area then coefficient = coefficient * 0.5 end
-            base, estimated = base + bonus * coefficient, true
-        end
-    end
-    local damage = action.facts.kind == "damage" or action.facts.kind == "dot"
-        or action.facts.kind == "builder"
-    local effectActor = action.facts.damageActor
-        or action.facts.effectActor or action.actor
-    if damage and effectActor == "pet" and XelAssist.Game.Pets
-        and XelAssist.Game.Pets.Effects then
-        base = base * XelAssist.Game.Pets.Effects:DamageMultiplier(
-            state.actors and state.actors.pet)
-    end
-    return base, estimated
-end
 local function legalityAndTiming(action, state, descriptor)
     local allowed, blocker, tooltip, target, actionStart, resolved =
         Targets:Legal(action, state, descriptor)
@@ -78,7 +22,8 @@ local function legalityAndTiming(action, state, descriptor)
     local facts, power, estimated = action.facts, nil, nil
     local effectAction = Triggered and Triggered:ResultAction(action) or action
     local effectTooltip = Triggered and Triggered:EffectFacts(action, tooltip) or tooltip
-    power, estimated = potency(effectAction, effectTooltip, state)
+    power, estimated = XelAssist.Graph.ActionPower:Estimate(
+        effectAction, effectTooltip, state)
     local cast, nextSwing, gcd, normalGcd, cycle, occupancy =
         Admission:Timing(action, state, tooltip)
     local wait = math.max(0, (actionStart or state.time) - state.time)

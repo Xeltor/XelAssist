@@ -1,8 +1,9 @@
 XelAssist.UI.HUD = {}
 local UI = XelAssist.UI.HUD
 local Theme = XelAssist.UI.Theme
-local Stability = XelAssist.UI.RecommendationStability
 local HUDCooldown = XelAssist.UI.HUDCooldown
+local RecommendationController = XelAssist.UI.RecommendationController
+local RunwayPlaceholder = XelAssist.UI.RunwayPlaceholder
 local setFittedText = Theme.SetFittedText
 local FALLBACK_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 local BASE_HEIGHT = 76
@@ -51,6 +52,25 @@ local function routeCopy(action, target, targetRef)
         return actorCopy(action) .. " -> Ground placement"
     end
     return actorCopy(action) .. " -> " .. targetCopy(target, targetRef)
+end
+local function addRootBlockerLines(plan)
+    if type(plan.rootBlockers) ~= "table" then return end
+    local keys, key, row = {}, nil, nil
+    for key, row in pairs(plan.rootBlockers) do
+        if row.name ~= plan.action.name then table.insert(keys, key) end
+    end
+    table.sort(keys)
+    if table.getn(keys) == 0 then return end
+    GameTooltip:AddLine("Currently gated alternatives", 0.72, 0.75, 0.82)
+    local index
+    for index = 1, math.min(3, table.getn(keys)) do
+        row = plan.rootBlockers[keys[index]]
+        local reasons, reason = {}, nil
+        for reason in pairs(row.reasons or {}) do table.insert(reasons, reason) end
+        table.sort(reasons)
+        GameTooltip:AddLine((row.name or "Action") .. " — "
+            .. (reasons[1] or "unavailable"), 1, 0.72, 0.28)
+    end
 end
 local function timeCopy(value)
     value = math.max(0, tonumber(value) or 0)
@@ -242,9 +262,15 @@ function UI:SetVisiblePredictions(count)
 end
 
 function UI:MarkTargetDirty()
-    if Stability then Stability:Reset(self) end
-    self.targetDirty = true
-    self.elapsed = 0
+    return RecommendationController:MarkTargetDirty(self)
+end
+
+function UI:RequestRefresh(force, mode)
+    return RecommendationController:RequestRefresh(self, force, mode)
+end
+
+function UI:ClearExecutionMode()
+    return RecommendationController:ClearExecutionMode(self)
 end
 
 function UI:SetScale(value)
@@ -323,7 +349,7 @@ function UI:Build()
             GameTooltip:AddLine(UI.lastReason or "The graph is holding safely", 0.78, 0.80, 0.84)
         else
             GameTooltip:SetText("Execute recommendation")
-            GameTooltip:AddLine("Re-evaluates now and performs one action.", 0.72, 0.82, 1)
+            GameTooltip:AddLine("Consumes one fresh publication and performs at most one action.", 0.72, 0.82, 1)
             GameTooltip:AddLine(routeCopy(plan.action, plan.target),
                 plan.actor == "pet" and 0.72 or 0.82,
                 plan.actor == "pet" and 0.52 or 0.84,
@@ -347,6 +373,7 @@ function UI:Build()
             if plan.unknowns and table.getn(plan.unknowns) > 0 then
                 GameTooltip:AddLine("Unknown: " .. table.concat(plan.unknowns, ", "), 1, 0.72, 0.28)
             end
+            addRootBlockerLines(plan)
             GameTooltip:AddLine("Mode " .. string.upper(XelAssist.mode or "smart") .. " · role "
                 .. string.upper(XelAssistCharDB.role or "auto"), 0.55, 0.58, 0.64)
         end
@@ -435,43 +462,15 @@ function UI:Build()
         pip:Hide(); f.follow[i] = pip
     end
 
-    local driver = CreateFrame("Frame", "XelAssistHUDDriver", f)
-    driver:RegisterEvent("PLAYER_TARGET_CHANGED")
-    driver:SetScript("OnEvent", function()
-        if event == "PLAYER_TARGET_CHANGED" then UI:MarkTargetDirty() end
-    end)
-    driver:SetScript("OnUpdate", function()
-        if UI.targetDirty then
-            UI.targetDirty = nil
-            UI.elapsed = 0
-            return
-        end
-        UI.elapsed = (UI.elapsed or 0) + (arg1 or 0)
-        if UI.elapsed >= 0.20 then UI.elapsed = 0; UI:Refresh(false) end
-    end)
-    self.driver = driver
+    RecommendationController:Bind(self)
     self.frame = f
     if XelAssistDB.ui.shown == false then f:Hide() else f:Show() end
     self:Refresh(true)
 end
 
-function UI:Refresh(force)
+function UI:Refresh(force, evaluationMode)
     if not self.frame then return end
-    local plan, err
-    if XelAssist and XelAssist.executionEnabled == false then
-        err = "Dependencies missing: " .. table.concat(XelAssist.missing or {}, ", ")
-    else
-        local ok
-        ok, plan, err = pcall(function() return XelAssist.Graph:Evaluate(XelAssist.mode, true) end)
-        if not ok then
-            if XelAssist and XelAssist.RecordError then XelAssist:RecordError(plan) end
-            plan, err = nil, "Evaluation paused"
-        end
-    end
-    local changed
-    if Stability then
-        plan, err, changed = Stability:Select(self, plan, err, force)
-    else changed = true end
+    local plan, err, changed = RecommendationController:Evaluate(self, force, evaluationMode)
     if not changed then self.lastPlan = plan; return end
     local f = self.frame
     if plan then
@@ -532,16 +531,14 @@ function UI:Refresh(force)
                 placeholderShown = true; visible = visible + 1
                 pip.action = nil; pip.candidate = nil; pip.placeholder = true
                 pip.stepIndex = i + 1
-                pip.placeholderReason = plan.budgetLimited
-                    and "The graph's safe look-ahead budget ended before this step."
-                    or "The current graph has no reliable continuation for this step."
+                local route, name, detail = RunwayPlaceholder:Describe(plan)
+                pip.placeholderReason = detail
                 pip.icon:SetTexture(FALLBACK_ICON)
                 if pip.icon.SetDesaturated then pip.icon:SetDesaturated(true) end
                 Theme:SetIconActor(pip.iconFrame, "placeholder")
-                pip.route:SetText("GRAPH HORIZON")
+                pip.route:SetText(route)
                 pip.route:SetTextColor(0.48, 0.52, 0.58)
-                setFittedText(pip.name, plan.budgetLimited and "Look-ahead limit"
-                    or "No reliable next step", 112)
+                setFittedText(pip.name, name, 112)
                 pip.time:SetText("--")
                 pip.certainty:SetText("OPEN"); pip.certainty:SetTextColor(0.95, 0.73, 0.34)
                 pip:Show()

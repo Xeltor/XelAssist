@@ -73,6 +73,10 @@ never class rotations or ordered priority lists.
   delivery rules, transient observations, and target evidence. Pet knowledge is
   ID-first metadata over live-discovered actions, never a family priority list.
   It does not depend on graph search.
+- `Game/SpellPower.lua` decodes OctoWoW's VMaNGOS weapon-effect aggregation
+  from live Spell.dbc rows. `Graph/ActionPower.lua` combines that formula with
+  the live weapon basis, scripted effects, tooltip evidence, and spell power;
+  strategic utility and delivery stay outside raw potency.
 - `Graph/State.lua` is the live observation boundary for planning, and
   `Graph/HostileState.lua` owns target-local copies, context switching, and
   commits back to the canonical bounded hostile collection.
@@ -93,24 +97,33 @@ never class rotations or ordered priority lists.
   and `Graph/ReadinessEffects.lua` owns chosen-action cooldown clocks.
   `Graph/Timeline.lua` orders projected combat events without owning their
   mechanics. `Graph/ActorScoring.lua` and `Graph/ThreatScoring.lua` keep
-  controlled-actor utility and actor-owned threat out of core potency scoring.
+  controlled-actor utility, actor-owned threat, and delivered
+  damage-per-resource value out of core potency scoring.
   `Graph/PlayerEngagement.lua` projects productive Attack starts;
   `Graph/ComboEffects.lua` and `ComboScoring.lua` own generic DBC combo
   transitions and marginal efficiency; `Graph/SearchPolicy.lua` owns the
-  automatic time/state horizon independently of visible HUD rows.
+  automatic time/state horizon independently of visible HUD rows, and
+  `Graph/PlanDiagnostics.lua` describes only the selected path's terminal gate
+  without inventing an executable wait or action.
   Targeting, scoring, transitions, and search consume passed state and do not
   mutate live game state.
 - `UI` renders plans and settings. `UI/Theme.lua` owns the shared combat-instrument
   tokens and icon chrome, while `UI/CooldownPolicy.lua` explains only the
   live-discovered actions governed by the major-cooldown policy. The visual HUD
-  remains fixed-height and owns no update callback; a dedicated child driver
-  refreshes prebuilt rows after target changes settle, without querying or
-  reanchoring the visual frame from inside presentation. `UI/HUDCooldown.lua`
+  remains fixed-height and owns no update callback;
+  `UI/RecommendationController.lua` keeps its UIParent-owned producer alive even
+  while the visual frame is hidden and publishes complete plans after target
+  changes settle. `UI/RunwayPlaceholder.lua` distinguishes path-local gates,
+  graph time, and bounded search without inventing future actions.
+  `UI/HUDCooldown.lua`
   suppresses duplicate native timer writes, while
   `UI/RecommendationStability.lua` atomically publishes material compatible
-  paths without mixing branches. UI modules do not score
-  actions or execute cached previews.
+  paths without mixing branches. UI modules do not score actions or execute
+  recommendation publications.
 - `Core` owns startup and the one-input execution boundary.
+  `Core/RecommendationSnapshot.lua` atomically publishes one-shot, mode-matched
+  plans outside the input call, while `Core/DispatchReadiness.lua` owns the final
+  live player/companion usability check before dispatch.
   `Core/DecisionLog.lua` owns bounded privacy-safe history and event status
   correlation; `Core/Diagnostics.lua` owns the durable capability/evidence audit.
   `Core/TargetGuard.lua` pins hostile dispatch to the captured selected-target

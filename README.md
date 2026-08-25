@@ -1,4 +1,4 @@
-# XelAssist 0.8.9
+# XelAssist 0.8.10
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -10,7 +10,10 @@ Aegis_SBR and other installed addons are read-only research references, not
 runtime dependencies. XelAssist capability-checks the required SuperWoW,
 SuperAPI, Nampower, and available ClassicAPI DLL globals directly.
 
-Each physical press of `/xa` executes at most one recommendation. The on-screen
+The graph evaluates continuously outside `/xa`. Each physical press consumes at
+most one fresh, complete recommendation publication; macro spam cannot replay a
+publication, execute an expired result, or start graph evaluation in the input
+call. The on-screen
 decision runway shows the current action and up to four simulated future actions
 as actor-to-target contracts with modeled start times and visible evidence state.
 Predicted rows are never executable. The explanation describes the tradeoff that
@@ -61,9 +64,10 @@ for module ownership, Lua 5.0 constraints, review limits, and migration debt.
 4. Right-click the minimap button or use `/xa config` to set this character's
    role, optional-action policy, intent, and number of predicted actions.
 
-The primary recommendation is also clickable. A click takes a fresh snapshot and
-performs one action; it does not execute the preview cached on screen. XelAssist
-never acquires or changes a hostile target and never casts from an update handler.
+The primary recommendation is also clickable. A click consumes the same fresh,
+one-shot publication as `/xa` and performs at most one action; it never starts
+graph evaluation inside the input call. XelAssist never acquires or changes a
+hostile target and never casts from an update handler.
 
 ## Character and global settings
 
@@ -158,6 +162,9 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
   or area recipients holds the action instead of inventing a melee outcome;
 - equipped weapon durability and ammunition, plus opt-in immediate-use healing
   and mana consumables discovered conservatively from live bag tooltips;
+- OctoWoW VMaNGOS weapon-effect coefficients and delivered
+  damage-per-resource value, so a legal rear Backstab is compared with Sinister
+  Strike from graph evidence rather than a Rogue priority list;
 - future resource, health, target-health, aura, threat-drop, and cooldown state;
 - captured future spatial contracts that never call live APIs or invent
   movement. Predicted rows disclose the range, line-of-sight, behind, and

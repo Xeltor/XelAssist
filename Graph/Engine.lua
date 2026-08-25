@@ -8,6 +8,7 @@ local Effects = G.Effects
 local Scoring = G.Scoring
 local Transitions = G.Transitions
 local Policy = G.SearchPolicy
+local Diagnostics = G.PlanDiagnostics
 
 function G:ActiveTargetModifiers(encounter, targetResistance)
     return State:ActiveTargetModifiers(encounter, targetResistance)
@@ -121,7 +122,7 @@ local function retainSetupBranch(candidates)
 end
 
 local function topCandidates(state, counter, actions)
-    local buckets, order = {}, 0
+    local buckets, blockers, order = {}, {}, 0
     local i, targets, targetIndex, candidate, blocker
     for i = 1, table.getn(actions) do
         targets = Targets:Targets(actions[i], state)
@@ -134,13 +135,14 @@ local function topCandidates(state, counter, actions)
             elseif blocker then
                 counter.blockers[blocker] =
                     (counter.blockers[blocker] or 0) + 1
+                Diagnostics:Record(blockers, blocker, actions[i])
             end
         end
     end
     local candidates = flattenCandidates(buckets)
     retainSetupBranch(candidates)
     counter.count = counter.count + table.getn(candidates)
-    return candidates
+    return candidates, blockers
 end
 
 local function copySteps(steps, candidate)
@@ -190,11 +192,20 @@ local function bestSearchPath(state, started, counter, depth, actions)
         end
         local expanded, pathIndex, candidateIndex = {}, nil, nil
         for pathIndex = 1, table.getn(frontier) do
-            local path, candidates = frontier[pathIndex], nil
+            local path, candidates, blockers = frontier[pathIndex], nil, nil
             if Policy:WithinHorizon(path.state, rootTime) then
-                candidates = topCandidates(path.state, counter, actions)
-            else candidates = {} end
-            if table.getn(candidates) == 0 then table.insert(terminal, path) end
+                candidates, blockers = topCandidates(path.state, counter, actions)
+            else
+                candidates, blockers = {}, {}
+                path.horizonLimited = true
+            end
+            if level == 1 and pathIndex == 1 then
+                counter.rootBlockers = blockers.byAction
+            end
+            if table.getn(candidates) == 0 then
+                path.terminalBlockers = blockers
+                table.insert(terminal, path)
+            end
             for candidateIndex = 1, table.getn(candidates) do
                 local candidate = candidates[candidateIndex]
                 if candidate.value > 0 then
@@ -244,29 +255,6 @@ local function observedState(state)
         moving = state.moving, hasAggro = state.hasAggro, tank = state.tank,
         distance = state.distance, distanceKind = state.distanceKind,
         talentPoints = state.talentPoints }
-end
-
-local function blockerReason(state, blockers)
-    if (blockers["minimum range"] or 0) > 0 then return "Move farther away" end
-    if (blockers.range or 0) > 0 then return "Move into range" end
-    if (blockers.moving or 0) > 0 then return "Finish moving" end
-    if (blockers.resource or 0) > 0 then return "Not enough resources" end
-    if (blockers.cooldown or 0) > 0 then return "Waiting for cooldown" end
-    if (blockers["stealth opener protection"] or 0) > 0 then
-        return "Preserving stealth for an opener"
-    end
-    local i, injured = nil, false
-    for i = 1, table.getn(state.friendlies and state.friendlies.order or {}) do
-        if State:Missing(State:FriendlyByKey(
-            state, state.friendlies.order[i])) > 0 then
-            injured = true
-            break
-        end
-    end
-    if not state.hostile and not injured then
-        return "Select a target or injured ally"
-    end
-    return "No worthwhile action"
 end
 
 local function targetObservation(state, best, observed)
@@ -396,6 +384,7 @@ local function buildPlan(state, observed, path, counter, started)
     applyResistanceContrast(state, best)
     local confidence = table.getn(unknowns) > 0 and "partial data"
         or (best.estimated and "estimated" or "client data")
+    local terminal = Diagnostics:Terminal(path.state, path.terminalBlockers)
     return { action = best.action, follow = follow, reason = best.reason,
         effectAction = best.effectAction, effectTooltip = best.effectTooltip,
         target = best.target, targetKey = best.targetKey,
@@ -429,6 +418,9 @@ local function buildPlan(state, observed, path, counter, started)
         onNextSwing = best.onNextSwing,
         impactDelay = best.impactDelay, occupancy = best.occupancy,
         wait = best.wait, cast = best.cast, blockers = counter.blockers,
+        rootBlockers = counter.rootBlockers,
+        terminal = terminal,
+        horizonLimited = path.horizonLimited and true or false,
         path = path.steps }
 end
 
@@ -444,7 +436,7 @@ function G:Evaluate(mode, preview)
     local actions = availableActions()
     local path = bestSearchPath(state, started, counter, depth, actions)
     if not path.steps[1] then
-        return nil, blockerReason(state, counter.blockers), false
+        return nil, Diagnostics:Reason(state, counter.blockers), false
     end
     return buildPlan(state, observed, path, counter, started), nil, false
 end

@@ -70,6 +70,8 @@ function R:Earliest(state, cost, readyAt)
     local out = probe(state, readyAt)
     local available = (tonumber(out.resource) or 0) - out.playerResourceReserved
     if available >= cost then return readyAt end
+    local maximum = (tonumber(out.resourceMax) or 0) - out.playerResourceReserved
+    if maximum < cost then return nil end
     local clock, amount, interval, nextIn = self:ClockFor(out)
     if not clock then return nil end
     local ticks = math.ceil((cost - available) / amount)

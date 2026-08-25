@@ -6,6 +6,7 @@ table.getn = table.getn or function(value)
 end
 
 local selectedGuid, otherGuid, petGuid, playerGuid, allyGuid = {}, {}, {}, {}, {}
+local currentPlan
 local units = {}
 local function resetUnits()
     units = {
@@ -161,6 +162,7 @@ XelAssist.Game.Capabilities = {
         return true
     end,
     Usable = function() return true end,
+    IsReady = function() return true end,
     Distance = function()
         if hooks.distance then hooks.distance() end
         return playerDistance, playerDistanceKind
@@ -190,6 +192,7 @@ XelAssist.Game.Actors = {
         if hooks.actorDistance then hooks.actorDistance() end
         return petDistance, petDistanceKind
     end,
+    PetCooldown = function() return 0 end,
 }
 XelAssist.Game.Pets = { EffectRuntime = { Submitted = function()
     effects.petEffect = effects.petEffect + 1
@@ -217,7 +220,10 @@ XelAssist.Game.PlayerAttack = {
         return true
     end,
 }
-XelAssist.UI.HUD = { Refresh = function() end }
+XelAssist.UI.HUD = { Refresh = function() end, RequestRefresh = function() end }
+XelAssist.Core.RecommendationSnapshot = {
+    Acquire = function() return currentPlan, nil end,
+}
 DEFAULT_CHAT_FRAME = { AddMessage = function() end }
 XelAssist.executionEnabled, XelAssist.mode = true, "smart"
 XelAssist.CheckDependencies = function() end
@@ -240,6 +246,7 @@ dofile("Game/SpellClassification.lua")
 dofile("Game/Range.lua")
 dofile("Game/Pets/Actions.lua")
 dofile("Core/ExecutionReach.lua")
+dofile("Core/DispatchReadiness.lua")
 dofile("Core/PlayerNormalQueue.lua")
 dofile("Core/Executor.lua")
 
@@ -259,7 +266,6 @@ local function hostilePlan(action)
         threat = 0, wait = 0, cast = 0, downtime = 0,
         observed = {}, follow = {}, path = {}, tooltip = {} }
 end
-local currentPlan
 XelAssist.Graph.Evaluate = function() return currentPlan, nil, false end
 
 -- A normal selected hostile reaches only Nampower's selected-target queue.

@@ -32,7 +32,10 @@ assert(registered.UNIT_ENERGY_GUID and registered.SPELL_ENERGIZE_ON_SELF
     and Evidence.externalEnergizeAvailable and callback,
     "player energy learning must register one exact player energize exclusion path")
 
-Evidence:SetEnergizeEvidenceAvailable(true)
+event, arg1, arg2, arg3, arg4 = "PLAYER_ENTERING_WORLD", nil, nil, nil, nil
+callback()
+assert(Evidence.externalEnergizeAvailable,
+    "world entry must preserve the process-scoped energize attribution capability")
 Evidence:Observe("player-guid", 0, 100, 0, true, 3)
 Evidence:Observe("player-guid", 20, 100, 2, true, 3)
 Evidence:Observe("player-guid", 40, 100, 4, true, 3)
@@ -49,6 +52,8 @@ local state = { time = 0, resource = 20, resourceMax = 100,
         externalEnergizeExcluded = true } }
 assert(Resources:Earliest(state, 40, 0) == 1,
     "admission must wait for the first exact affordable tick")
+assert(Resources:Earliest(state, 110, 0) == nil,
+    "a cost above maximum available energy must be unreachable, not a timed wait")
 assert(Resources:Advance(state, 0.9) == 0 and state.resource == 20)
 assert(Resources:Advance(state, 0.2) == 20 and state.resource == 40)
 assert(Resources:Spend(state, 30) and state.resource == 10,
@@ -64,6 +69,8 @@ assert(Evidence:Snapshot("player-guid", 60, 100, 6) == nil,
     "spell energize evidence must invalidate passive tick attribution")
 
 Evidence:ResetSession()
+assert(Evidence.externalEnergizeAvailable,
+    "session resets must not erase registered energize attribution")
 event, arg1, arg2, arg3, arg4 = "UNIT_ENERGY_GUID", "other-guid", 1, 0, 0
 callback()
 assert(Evidence.guid == nil,

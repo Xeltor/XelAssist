@@ -176,6 +176,7 @@ end
 dofile("Combat/Knowledge.lua")
 dofile("Game/SpellTiming.lua")
 dofile("Game/SpellClassification.lua")
+dofile("Game/SpellPower.lua")
 dofile("Game/Range.lua")
 dofile("Game/Capabilities.lua")
 

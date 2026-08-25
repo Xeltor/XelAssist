@@ -186,7 +186,7 @@ function Config:Build()
     macro:SetScript("OnEnter", function()
         GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
         GameTooltip:SetText("Use /xa exactly as shown")
-        GameTooltip:AddLine("Each press re-evaluates combat and executes one current action.",
+        GameTooltip:AddLine("Each press consumes one fresh graph publication and executes at most one action.",
             0.72, 0.82, 1)
         GameTooltip:Show()
     end)

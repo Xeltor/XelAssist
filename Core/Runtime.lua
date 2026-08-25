@@ -90,8 +90,8 @@ function XA:CheckDependencies()
 end
 
 function XA:SetMode(mode)
-    self.mode = mode; XelAssistCharDB.mode = mode
-    msg("mode set to " .. mode .. ".")
+    self.mode = mode; XelAssistCharDB.mode = mode; msg("mode set to " .. mode .. ".")
+    if XelAssist.UI.HUD.ClearExecutionMode then XelAssist.UI.HUD:ClearExecutionMode() end
     XelAssist.UI.HUD:Refresh(true)
 end
 

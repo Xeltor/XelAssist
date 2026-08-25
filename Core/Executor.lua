@@ -3,6 +3,8 @@
 local XA = XelAssist
 local Guard = XelAssist.Core.TargetGuard
 local ExecutionReach = XelAssist.Core.ExecutionReach
+local DispatchReadiness = XelAssist.Core.DispatchReadiness
+local RecommendationSnapshot = XelAssist.Core.RecommendationSnapshot
 local PlayerNormalQueue = XelAssist.Core.PlayerNormalQueue
 local PlayerOnSwing = XelAssist.Game.Player
     and XelAssist.Game.Player.OnSwing
@@ -89,7 +91,7 @@ end
 function XA:Fallback(reason)
     self.lastReason = "Conservative hold — " .. reason
     if XelAssist.UI and XelAssist.UI.HUD then
-        XelAssist.UI.HUD:Refresh(true)
+        XelAssist.UI.HUD:RequestRefresh(true)
     end
 end
 
@@ -107,6 +109,8 @@ function XA:ExecutePetPlan(plan, selected)
     local duplicate = duplicateApplication(self, action, plan.tooltip, unit,
         exactTarget, actorRef.guid)
     if duplicate then self:Fallback(duplicate); return end
+    reason = DispatchReadiness:Pet(action)
+    if reason then self:Fallback(reason); return end
     local reachable
     reachable, reason = ExecutionReach:Validate(plan, unit)
     if not reachable then self:Fallback(reason); return end
@@ -122,7 +126,7 @@ function XA:ExecutePetPlan(plan, selected)
             exactTarget, action.spellId, actorRef.guid, auraBarForFacts(facts))
     end
     self.lastReason = action.name .. " — " .. plan.reason
-    XelAssist.UI.HUD:Refresh(true)
+    XelAssist.UI.HUD:RequestRefresh(true)
 end
 
 local function validateFriendly(owner, ref)
@@ -164,7 +168,7 @@ end
 local function rejectPlayer(owner, reason, directReason)
     if directReason then owner.lastReason = directReason
     else owner:Fallback(reason) end
-    XelAssist.UI.HUD:Refresh(true)
+    XelAssist.UI.HUD:RequestRefresh(true)
     return false
 end
 
@@ -241,6 +245,8 @@ local function validatePlayerContext(owner, plan, context)
         and not XelAssist.Game.Capabilities:SameUnitRef(context.castRef) then
         return rejectPlayer(owner, "ally changed")
     end
+    reason = DispatchReadiness:Player(action, context.usesHostileQueue)
+    if reason then return rejectPlayer(owner, reason) end
     if facts.requiresHunterCritical then
         local usable, usableReason = XelAssist.Game.Capabilities:Usable(action)
         if usable ~= true then
@@ -363,7 +369,7 @@ local function recordPlayerSubmission(owner, plan, selected, context)
             auraBarForFacts(facts))
     end
     owner.lastReason = action.name .. " — " .. plan.reason
-    XelAssist.UI.HUD:Refresh(true)
+    XelAssist.UI.HUD:RequestRefresh(true)
 end
 
 function XA:ExecutePlayerPlan(plan, selected)
@@ -400,7 +406,7 @@ function XA:ExecuteItemPlan(plan, selected)
     end
     self:RecordDecision(plan, selected)
     self.lastReason = action.name .. " — " .. plan.reason
-    XelAssist.UI.HUD:Refresh(true)
+    XelAssist.UI.HUD:RequestRefresh(true)
 end
 
 function XA:Execute(mode)
@@ -409,13 +415,19 @@ function XA:Execute(mode)
         if not self.executionEnabled then return end
     end
     local selected = mode or self.mode
-    local ok, plan, err, fallback = pcall(function()
-        local value, failure, held = XelAssist.Graph:Evaluate(selected, false)
-        return value, failure, held
-    end)
-    if not ok then self:RecordError(plan); self:Fallback("evaluation error"); return end
-    if fallback then self:Fallback(err or "incomplete data"); return end
-    if not plan then self:Fallback(err or "no legal action"); return end
+    local plan, err = RecommendationSnapshot:Acquire(selected)
+    if not plan then
+        self.lastReason = "Conservative hold — "
+            .. (err or "recommendation not ready")
+        if XelAssist.UI and XelAssist.UI.HUD then
+            XelAssist.UI.HUD:RequestRefresh(true, selected)
+        end
+        return
+    end
+    if XelAssist.UI and XelAssist.UI.HUD
+        and XelAssist.UI.HUD.ClearExecutionMode then
+        XelAssist.UI.HUD:ClearExecutionMode()
+    end
     local action = plan.action
     if action.executor == "item" then
         self:ExecuteItemPlan(plan, selected); return
