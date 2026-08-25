@@ -1,5 +1,7 @@
 XelAssist.UI.Settings = {}
 local Config = XelAssist.UI.Settings
+local Theme = XelAssist.UI.Theme
+local CooldownPolicy = XelAssist.UI.CooldownPolicy
 
 local function label(parent, text, template)
     local fs = parent:CreateFontString(nil, "OVERLAY", template or "GameFontNormal")
@@ -49,13 +51,15 @@ function Config:Build()
     local f = CreateFrame("Frame", "XelAssistConfigFrame", UIParent)
     f:SetWidth(360); f:SetHeight(570); f:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
     f:SetFrameStrata("DIALOG"); f:EnableMouse(true); f:SetMovable(true)
-    f:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true,
-        tileSize = 32, edgeSize = 32,
-        insets = { left = 11, right = 12, top = 12, bottom = 11 } })
+    Theme:ApplyInstrumentBackdrop(f)
+    f.classStripe = Theme:AddClassStripe(f)
+    f.sectionRails = { Theme:AddSectionRail(f, -101),
+        Theme:AddSectionRail(f, -199), Theme:AddSectionRail(f, -305),
+        Theme:AddSectionRail(f, -369) }
 
     local title = label(f, "XelAssist", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", f, "TOPLEFT", 22, -20)
+    title:SetTextColor(Theme:ClassColor())
     local subtitle = label(f, "Character decisions · global display", "GameFontHighlightSmall")
     subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -5)
     subtitle:SetTextColor(0.7, 0.72, 0.76)
@@ -77,12 +81,15 @@ function Config:Build()
 
     local risk = label(f, "This character · optional actions", "GameFontNormal")
     risk:SetPoint("TOPLEFT", f, "TOPLEFT", 22, -108)
-    local riskHelp = label(f, "Off by default. Enable only what one press may spend.", "GameFontHighlightSmall")
+    local riskHelp = label(f, "Off by default. These permissions apply to each /xa press.", "GameFontHighlightSmall")
     riskHelp:SetPoint("TOPLEFT", risk, "BOTTOMLEFT", 0, -4)
     riskHelp:SetTextColor(0.62, 0.65, 0.7)
 
     f.cooldowns = makeCheck(f, "Major cooldowns", "cooldowns", "toggle")
+    f.cooldowns:SetWidth(158)
     f.cooldowns:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -143)
+    f.cooldowns:SetScript("OnEnter", function() CooldownPolicy:ShowTooltip(this) end)
+    f.cooldowns:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.reagents = makeCheck(f, "Reagent abilities", "reagents", "toggle")
     f.reagents:SetPoint("TOPLEFT", f, "TOPLEFT", 188, -143)
 
@@ -147,20 +154,43 @@ function Config:Build()
     depth:SetMinMaxValues(1, 5); depth:SetValueStep(1)
     getglobal(depth:GetName() .. "Low"):SetText("1")
     getglobal(depth:GetName() .. "High"):SetText("5")
-    getglobal(depth:GetName() .. "Text"):SetText("Visible action steps")
+    getglobal(depth:GetName() .. "Text"):SetText("Decision steps shown")
     depth:SetScript("OnValueChanged", function()
         XelAssistCharDB.graphDepth = math.floor(this:GetValue() + 0.5)
         XelAssist.UI.HUD:Refresh(true)
     end)
     f.depth = depth
+    f.depthHelp = label(f,
+        "1 = current only. Higher values request reliable future steps.",
+        "GameFontHighlightSmall")
+    f.depthHelp:SetPoint("TOPLEFT", f, "TOPLEFT", 22, -506)
+    f.depthHelp:SetWidth(145); f.depthHelp:SetJustifyH("LEFT")
+    f.depthHelp:SetTextColor(0.55, 0.58, 0.64)
 
-    local macroLabel = label(f, "Macro command", "GameFontNormalSmall")
+    local macroLabel = label(f, "Fixed execute macro", "GameFontNormalSmall")
     macroLabel:SetPoint("TOPLEFT", f, "TOPLEFT", 185, -471)
-    local macro = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-    macro:SetWidth(125); macro:SetHeight(20); macro:SetPoint("TOPLEFT", macroLabel, "BOTTOMLEFT", 4, -4)
-    macro:SetAutoFocus(false); macro:SetText("/xa")
-    macro:SetScript("OnEscapePressed", function() this:ClearFocus() end)
-    macro:SetScript("OnEditFocusGained", function() this:HighlightText() end)
+    local macro = CreateFrame("Frame", nil, f)
+    macro:SetWidth(125); macro:SetHeight(22)
+    macro:SetPoint("TOPLEFT", f, "TOPLEFT", 185, -488)
+    macro.command = "/xa"
+    macro.background = macro:CreateTexture(nil, "BACKGROUND")
+    macro.background:SetAllPoints(macro)
+    macro.background:SetTexture(0.045, 0.060, 0.085, 0.92)
+    macro.marker = macro:CreateTexture(nil, "ARTWORK")
+    macro.marker:SetWidth(2); macro.marker:SetPoint("TOPLEFT", macro, "TOPLEFT", 0, 0)
+    macro.marker:SetPoint("BOTTOMLEFT", macro, "BOTTOMLEFT", 0, 0)
+    macro.marker:SetTexture(Theme:ClassColor())
+    macro.text = label(macro, macro.command, "GameFontNormal")
+    macro.text:SetPoint("LEFT", macro, "LEFT", 9, 0)
+    macro:EnableMouse(true)
+    macro:SetScript("OnEnter", function()
+        GameTooltip:SetOwner(this, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Use /xa exactly as shown")
+        GameTooltip:AddLine("Each press re-evaluates combat and executes one current action.",
+            0.72, 0.82, 1)
+        GameTooltip:Show()
+    end)
+    macro:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.macro = macro
 
     local reset = makeButton(f, "Reset position", 105, function() XelAssist.UI.HUD:ResetPosition() end)

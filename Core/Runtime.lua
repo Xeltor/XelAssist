@@ -1,6 +1,7 @@
 local XA = XelAssist
 local PlayerNormalQueue = XelAssist.Core.PlayerNormalQueue
 local PlayerQueueEvents = XelAssist.Core.PlayerQueueEvents
+local PlayerOnSwingEvents = XelAssist.Game.Player.OnSwingEvents
 local function msg(text, r, g, b)
     DEFAULT_CHAT_FRAME:AddMessage("XelAssist: " .. text, r or 0.35, g or 0.85, b or 1)
 end
@@ -31,11 +32,17 @@ function XA:EnableEvidenceEvents()
         for i = 1, table.getn(names) do
             if not cvarEnabled(names[i]) then pcall(SetCVar, names[i], "1") end
         end
+        local ok, value = true, nil
+        if GetCVar then ok, value = pcall(GetCVar, "NP_QueueOnSwingSpells") end
+        if not ok or tostring(value) ~= "0" then
+            pcall(SetCVar, "NP_QueueOnSwingSpells", "0")
+        end
     end
     local nampower = (GetNampowerVersion or QueueSpellByName) and true or false
     self.evidenceEvents = { damage = nampower, miss = nampower, autoAttack = nampower,
         aura = cvarEnabled(names[1]), start = cvarEnabled(names[2]),
-        go = cvarEnabled(names[3]), castResult = nampowerAtLeast(4, 7, 0) }
+        go = cvarEnabled(names[3]), castResult = nampowerAtLeast(4, 7, 0),
+        onSwingExact = type(GetOnSwingInfo) == "function" }
     return self.evidenceEvents
 end
 
@@ -161,6 +168,9 @@ ev:RegisterEvent("UI_ERROR_MESSAGE")
 ev:RegisterEvent("SPELL_QUEUE_EVENT")
 ev:RegisterEvent("SPELL_CAST_EVENT")
 if nampowerAtLeast(4, 7, 0) then ev:RegisterEvent("SPELL_CAST_RESULT_SELF") end
+if type(GetOnSwingInfo) == "function" then
+    pcall(ev.RegisterEvent, ev, "SPELL_ON_SWING_STATE")
+end
 ev:RegisterEvent("SPELL_START_SELF")
 ev:RegisterEvent("SPELL_START_OTHER")
 ev:RegisterEvent("SPELL_GO_SELF")
@@ -180,9 +190,17 @@ ev:RegisterEvent("AURA_CAST_ON_OTHER")
 ev:RegisterEvent("DEBUFF_ADDED_OTHER")
 ev:SetScript("OnEvent", function()
     if event == "ADDON_LOADED" and arg1 == "XelAssist" then
-        PlayerNormalQueue:Reset(); XA:Init()
+        PlayerNormalQueue:Reset()
+        PlayerOnSwingEvents:Reset("addon loaded")
+        XA:Init()
     end
-    if event == "PLAYER_ENTERING_WORLD" then PlayerNormalQueue:Reset() end
+    if event == "PLAYER_ENTERING_WORLD" then
+        PlayerNormalQueue:Reset()
+        PlayerOnSwingEvents:Reset("world transition")
+    end
+    if event == "SPELL_ON_SWING_STATE" then
+        PlayerOnSwingEvents:Handle(event, arg1, arg2, arg3, arg4)
+    end
     if event == "PLAYER_LOGIN" then
         local runtime = XA:RuntimeAudit()
         msg("v" .. XA.version .. " ready · " .. (runtime.actions or 0) .. " action nodes ("
@@ -227,6 +245,7 @@ ev:SetScript("OnEvent", function()
         XA.playerCastUntil, XA.playerCastName = nil, nil
     end
     if event == "SPELL_FAILED_SELF" then
+        PlayerOnSwingEvents:Handle(event, arg1, arg2, arg3, arg4)
         local _, playerGuid = UnitExists("player")
         local matched = PlayerNormalQueue:ServerFailure(arg1, nil, arg4)
         if PlayerQueueEvents:Allows(arg1, matched) then
@@ -242,9 +261,11 @@ ev:SetScript("OnEvent", function()
         XA:ClearPetCast(arg2, arg1)
     end
     if event == "SPELL_QUEUE_EVENT" then
+        PlayerOnSwingEvents:Handle(event, arg1, arg2)
         PlayerQueueEvents:Handle(XA, arg1, arg2)
     end
     if event == "SPELL_CAST_EVENT" then
+        PlayerOnSwingEvents:Handle(event, arg1, arg2, arg3, arg4, arg5, arg6)
         local matched, disposition = PlayerNormalQueue:CastEvent(
             arg1, arg2, arg3, arg4, arg6)
         if PlayerQueueEvents:Allows(arg2, matched) then
@@ -259,6 +280,7 @@ ev:SetScript("OnEvent", function()
         end
     end
     if event == "SPELL_CAST_RESULT_SELF" then
+        PlayerOnSwingEvents:Handle(event, arg1, arg2, arg3, arg4, arg5)
         PlayerNormalQueue:ServerResult(arg1, arg2, arg3, arg4, arg5)
     end
     if (event == "SPELL_START_SELF" or event == "SPELL_START_OTHER")
@@ -281,6 +303,10 @@ ev:SetScript("OnEvent", function()
             XA.petCastChannel = tonumber(arg8) == 1 and true or false
         end
     end
+    if event == "SPELL_GO_SELF" then
+        PlayerOnSwingEvents:Handle(event,
+            arg1, arg2, arg3, arg4, arg5, arg6)
+    end
     if (event == "SPELL_GO_SELF" or event == "SPELL_GO_OTHER")
         and XelAssist.Combat.Resistance and XelAssist.Combat.Resistance:IsOwnedCaster(arg3) then
         local routeEvidence = true
@@ -296,6 +322,9 @@ ev:SetScript("OnEvent", function()
             XA:ClearPetCast(arg2, arg3)
         end
     end
+    if event == "SPELL_MISS_SELF" then
+        PlayerOnSwingEvents:Handle(event, arg1, arg2, arg3, arg4)
+    end
     if (event == "SPELL_MISS_SELF" or event == "SPELL_MISS_OTHER")
         and XelAssist.Combat.Observations and XelAssist.Combat.Resistance
         and XelAssist.Combat.Resistance:IsOwnedCaster(arg1) then
@@ -307,6 +336,9 @@ ev:SetScript("OnEvent", function()
     end
     if (event == "SPELL_DAMAGE_EVENT_SELF" or event == "SPELL_DAMAGE_EVENT_OTHER")
         and XelAssist.Combat.Observations then
+        if event == "SPELL_DAMAGE_EVENT_SELF" then
+            PlayerOnSwingEvents:Handle(event, arg1, arg2, arg3)
+        end
         XelAssist.Combat.Observations:SpellDamage(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
     end
     if (event == "AUTO_ATTACK_SELF" or event == "AUTO_ATTACK_OTHER")
@@ -316,6 +348,10 @@ ev:SetScript("OnEvent", function()
         XelAssist.Game.Pets.EffectRuntime:ObserveAutoAttack(arg1, arg2, result)
         if XelAssist.Game.AttackRounds then
             XelAssist.Game.AttackRounds:Observe(arg1, arg2, result, GetTime())
+        end
+        if XelAssist.Game.Player and XelAssist.Game.Player.AttackRounds then
+            XelAssist.Game.Player.AttackRounds:Observe(
+                arg1, arg2, result, GetTime())
         end
     end
     if event == "AURA_CAST_ON_SELF" or event == "AURA_CAST_ON_OTHER" then

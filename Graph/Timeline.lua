@@ -8,6 +8,7 @@ local AutoShot = XelAssist.Graph.AutoShotEffects
 local Ongoing = XelAssist.Graph.OngoingEffects
 local Companion = XelAssist.Graph.CompanionEvents
 local CompanionResources = XelAssist.Graph.CompanionResources
+local PlayerSwings = XelAssist.Graph.PlayerSwings
 
 local function append(events, entry, order)
     entry.order = order
@@ -69,7 +70,8 @@ local function collectEvents(out, source, candidate, context, advanceWindow)
             priority = 20 }, order)
     end
     append(events, { owner = "action", kind = "chosenAction",
-        offset = context.applicationOffset, priority = 20 }, order)
+        offset = context.applicationOffset,
+        priority = candidate.ambientActionPriority or 20 }, order)
     sortEvents(events)
     return events, autoTimeline
 end
@@ -115,20 +117,25 @@ function L:BeforeAction(source, candidate)
         end
         elapsed = entry.offset
         if entry.owner == "action" and entry.kind == "chosenAction" then break end
-        prior = out.targetHealth
-        if entry.kind == "chosenActionStart" then
-            startChosen(out, candidate, context)
-        elseif entry.kind == "petAutocastTimelineCap" then
-            applyPassive(out, source, candidate, context, entry)
-        elseif entry.owner == "autoShot" then
-            AutoShot:ApplyTimelineEvent(out, autoTimeline, entry)
-        else
-            local beforeAuras = Ongoing:AuraSnapshot(out)
-            Ongoing:ApplyEvent(out, source, candidate, context, entry)
-            Ongoing:TrackEventAuras(out, beforeAuras, eventAuras)
-        end
-        if out.targetHealthExact and out.targetHealth < prior then
-            damageEvents = damageEvents + 1
+        local excluded = candidate.ambientExcludedKind == entry.kind
+            and candidate.ambientExcludedOffset
+            and math.abs(entry.offset - candidate.ambientExcludedOffset) < 0.0001
+        if not excluded then
+            prior = out.targetHealth
+            if entry.kind == "chosenActionStart" then
+                startChosen(out, candidate, context)
+            elseif entry.kind == "petAutocastTimelineCap" then
+                applyPassive(out, source, candidate, context, entry)
+            elseif entry.owner == "autoShot" then
+                AutoShot:ApplyTimelineEvent(out, autoTimeline, entry)
+            else
+                local beforeAuras = Ongoing:AuraSnapshot(out)
+                Ongoing:ApplyEvent(out, source, candidate, context, entry)
+                Ongoing:TrackEventAuras(out, beforeAuras, eventAuras)
+            end
+            if out.targetHealthExact and out.targetHealth < prior then
+                damageEvents = damageEvents + 1
+            end
         end
     end
     return { targetHealth = out.targetHealth,
@@ -136,6 +143,19 @@ function L:BeforeAction(source, candidate)
         damageEvents = damageEvents,
         autoLaunches = out.autoShot and out.autoShot.launches or 0,
         autoImpacts = out.autoShot and out.autoShot.impacts or 0 }
+end
+
+function L:BeforePlayerSwing(source, candidate, impactDelay)
+    local delay = tonumber(impactDelay)
+    if not delay then return self:BeforeAction(source, candidate) end
+    local probe, key, value = {}, nil, nil
+    for key, value in pairs(candidate) do probe[key] = value end
+    delay = math.max(0, delay)
+    probe.wait, probe.cast, probe.occupancy, probe.downtime = delay, 0, 0, delay
+    probe.ambientActionPriority = 1000000
+    probe.ambientExcludedKind = "playerMainSwing"
+    probe.ambientExcludedOffset = delay
+    return self:BeforeAction(source, probe)
 end
 
 function L:Run(out, source, candidate, context)
@@ -159,10 +179,15 @@ function L:Run(out, source, candidate, context)
             local castStarted = not needsStart or context.actionStarted
             if castStarted and not hostileDefeated(out, candidate)
                 and Actions:Consume(out, candidate, context) then
-                context.petEventContext = { applicationElapsed = 0 }
-                Actions:Apply(out, source, candidate, context)
-                context.petEventContext = nil
-                actionApplied = true
+                if PlayerSwings and PlayerSwings:Is(
+                    candidate.action, candidate.tooltip) then
+                    actionApplied = PlayerSwings:Arm(out, candidate)
+                else
+                    context.petEventContext = { applicationElapsed = 0 }
+                    Actions:Apply(out, source, candidate, context)
+                    context.petEventContext = nil
+                    actionApplied = true
+                end
             end
         elseif entry.owner == "autoShot" then
             AutoShot:ApplyTimelineEvent(out, autoTimeline, entry)

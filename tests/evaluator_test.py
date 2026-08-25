@@ -146,6 +146,8 @@ for semantic in ["kind", "threat", "execute", "recovery", "channel", "aoe"]:
 assert "local MAX_STATES = 80" in engine
 assert "local MAX_MS = 3" in engine
 assert "local WIDTH = 4" in engine and "local MAX_DEPTH = 5" in engine
+assert '"graph budget exceeded"' not in engine
+assert "budgetLimited" in engine
 assert "XelAssist.Game.Actors:Actions()" in graph
 assert "XelAssist.Game.Actors:Facts(action)" in graph
 assert "candidate.tooltip.cooldown" in graph

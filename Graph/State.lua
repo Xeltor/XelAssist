@@ -146,6 +146,11 @@ function S:Snapshot(mode)
         target.distanceKind, target.geometry)
     local playerAttack = XelAssist.Game.PlayerAttack
         and XelAssist.Game.PlayerAttack:Snapshot() or nil
+    local onSwing = playerAttack and playerAttack.onSwing
+    local onSwingCost = onSwing and onSwing.costKnown ~= false
+        and tonumber(onSwing.cost) or nil
+    local playerResourceReserved = onSwing and onSwing.occupied
+        and (onSwingCost or UnitMana("player") or 0) or 0
     local state = {
         mode = mode, hostile = target.hostile, targetGUID = target.guid,
         targetRef = target.ref, friendlies = friendlies, hostiles = target.hostiles,
@@ -172,6 +177,9 @@ function S:Snapshot(mode)
         actors = actors, inventory = inventory,
         autoShot = autoShot,
         playerAttack = playerAttack,
+        playerResourceReserved = playerResourceReserved,
+        playerResourceExact = not (onSwing and onSwing.occupied
+            and onSwingCost == nil),
         encounter = encounter, targetAuras = target.targetAuras,
         targetCasting = target.casting,
         targetCastRemaining = target.castRemaining,

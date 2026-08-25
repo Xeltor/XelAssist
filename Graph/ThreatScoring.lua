@@ -30,34 +30,47 @@ function T:Apply(context)
     end
     local healing = kind == "heal" or kind == "hot" or kind == "petHeal"
     local threatPower = (kind == "damage" or kind == "dot" or kind == "builder")
-        and (context.effectivePower or context.expectedPower) or (healing
+        and (context.fullEffectivePower or context.effectivePower
+            or context.expectedPower) or (healing
             and (context.effectivePower or 0) or context.power)
     local threat = threatPower * (facts.threat or (healing and 0.5 or 1))
+    local valueThreatPower = context.onNextSwing
+        and (context.marginalEffectivePower or context.marginalPower or 0)
+        or threatPower
+    local valueThreat = valueThreatPower
+        * (facts.threat or (healing and 0.5 or 1))
     if facts.deferredFlatThreat then
         threat = threatPower * (tonumber(facts.petThreatMultiplierOnCast) or 1)
+        valueThreat = valueThreatPower
+            * (tonumber(facts.petThreatMultiplierOnCast) or 1)
     end
     local actor = facts.damageActor or facts.effectActor
         or facts.healingThreatActor or context.action.actor
     if actor == "pet" then
         threat = threat * (facts.deferredFlatThreat and 1 or 0.9)
             * petThreatFactor(state)
+        valueThreat = valueThreat * (facts.deferredFlatThreat and 1 or 0.9)
+            * petThreatFactor(state)
         local petTank = XelAssistCharDB.petThreat == "tank"
             or (XelAssistCharDB.petThreat ~= "avoid" and state.groupSize == 0)
-        if petTank then context.value = context.value + threat * 0.4
+        if petTank then context.value = context.value + valueThreat * 0.4
         elseif state.groupSize > 0 then
-            context.value = context.value - threat * 0.25
+            context.value = context.value - valueThreat * 0.25
         end
-    elseif state.tank and threat > threatPower then
-        context.value = context.value + (threat - threatPower) * 0.5
+    elseif state.tank and valueThreat > valueThreatPower then
+        context.value = context.value
+            + (valueThreat - valueThreatPower) * 0.5
         context.reason = "builds threat"
     elseif (state.groupSize > 0 or state.pet) and not state.tank then
         -- Unknown future Auto Shot threat reserves additional threat without
         -- pretending the live victim observation already says player aggro.
         local risk = playerThreatRisk(state)
-        context.value = context.value - threat * (risk and 3 or 0.25)
+        context.value = context.value - valueThreat * (risk and 3 or 0.25)
         if risk then context.reason = state.hasAggro
             and "limits additional threat" or "limits threat while aggro is uncertain"
-        elseif threat > threatPower * 1.2 then context.reason = "lower threat for the group" end
+        elseif valueThreat > valueThreatPower * 1.2 then
+            context.reason = "lower threat for the group"
+        end
     end
     context.threat = threat
     if context.cost > 0 and resourceMax > 0 then

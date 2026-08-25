@@ -45,6 +45,8 @@ dofile("Graph/EventAuras.lua")
 dofile("Graph/ReadinessEffects.lua")
 dofile("Graph/ActorScoring.lua")
 dofile("Graph/ThreatScoring.lua")
+dofile("Graph/PlayerSwings.lua")
+dofile("Graph/PlayerSwingScoring.lua")
 dofile("Graph/OngoingEffects.lua")
 dofile("Graph/ActionConsumption.lua")
 dofile("Graph/ActionEffects.lua")
@@ -2221,5 +2223,24 @@ scenarioActions = { action("Arcane Intellect", 1, "buff", 0, 60) }
 plan = expect("action-specific group buff target", "Arcane Intellect")
 assert(plan.target == "party4",
     "a missing buff outside the urgent-healing cap must remain reachable")
+
+-- Live state collection may cross the search clock's soft limit even for a
+-- low-level character. It must shorten future look-ahead, never suppress the
+-- first usable action and turn the HUD into a graph-budget HOLD.
+currentState = state("smart")
+scenarioActions = { action("Sinister Strike", 1, "builder", 200, 45) }
+XelAssistCharDB.graphDepth = 3
+local budgetClock = 0
+XelAssist.Graph.Snapshot = function()
+    budgetClock = budgetClock + 1
+    return currentState
+end
+GetTime = function()
+    budgetClock = budgetClock + 0.01
+    return budgetClock
+end
+plan = expect("soft graph budget preserves immediate action", "Sinister Strike")
+assert(plan.budgetLimited == true and table.getn(plan.path) == 1,
+    "a crossed soft budget must return depth one and expose limited look-ahead")
 
 print("ok: rank, aggro, interrupt, movement, range, aura, cooldown and beam scenarios")

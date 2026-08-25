@@ -332,6 +332,10 @@ end
 local function effectBlocker(owner, action, state, descriptor, target,
     actionStart, tooltip)
     local facts, kind = action.facts, action.facts.kind
+    local playerSwings = XelAssist.Graph.PlayerSwings
+    local swingBlocker = playerSwings
+        and playerSwings:Blocker(action, state, descriptor, tooltip)
+    if swingBlocker then return swingBlocker end
     if (kind == "dot" or kind == "debuff")
         and owner:AuraActive(action, state, descriptor) then
         return "already active"

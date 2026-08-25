@@ -6,6 +6,7 @@ local O = XelAssist.Graph.OngoingEffects
 local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
 local Companion = XelAssist.Graph.CompanionEvents
+local PlayerSwings = XelAssist.Graph.PlayerSwings
 local EventAuras = XelAssist.Graph.EventAuras
 local MAX_HOSTILES = 5
 
@@ -359,8 +360,12 @@ end
 function O:Events(out, source, candidate, context)
     EventAuras:BeginScheduled(out)
     local events = Companion and Companion:Events(out, candidate) or {}
+    local playerEvents = PlayerSwings and PlayerSwings:Events(out, candidate) or {}
     local periodic = periodicEvents(out, source, candidate, context)
     local i
+    for i = 1, table.getn(playerEvents) do
+        table.insert(events, playerEvents[i])
+    end
     for i = 1, table.getn(periodic) do table.insert(events, periodic[i]) end
     return events
 end
@@ -382,6 +387,9 @@ function O:ApplyEvent(out, source, candidate, context, entry)
         if Companion then
             Companion:Apply(out, source, candidate, context, entry)
         end
+    elseif entry.kind == "playerMainSwing"
+        or entry.kind == "playerSwingTimelineCap" then
+        if PlayerSwings then PlayerSwings:Apply(out, entry) end
     elseif entry.kind == "periodicTick"
         or entry.kind == "periodicSegment" then
         applyPeriodic(out, source, candidate, context, entry)

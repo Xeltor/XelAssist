@@ -1,4 +1,4 @@
-# XelAssist 0.8.4
+# XelAssist 0.8.5
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -21,7 +21,11 @@ Actions on the selected target use Nampower 4.7.0+'s one normal-GCD spell queue.
 XelAssist protects an occupied slot across repeated macro taps until matching
 server evidence with an unambiguous opaque attempt ID resolves the cast; an
 ambiguous same-spell result remains conservatively latched until its bounded
-timeout. On-swing and non-GCD queues remain independent.
+timeout. With Nampower 4.7.1+, on-next-swing abilities use a separate exact
+attempt-owned lane; 4.7.0 retains a conservative single-owner fallback. Native
+replacement buffering is disabled so repeated input cannot overwrite the armed
+action. Their resource, cooldown, damage, and threat occur at the verified
+main-hand round rather than when the button is pressed. Non-GCD actions remain independent.
 Explicit party, mouseover, self, and ground targets retain SuperWoW's unit-targeted cast path.
 Hostile recommendations remain pinned to the captured selected-target GUID at
 dispatch; observing another enemy never gives XelAssist permission to target or
@@ -31,7 +35,7 @@ attack it.
 
 - OctoWoW's 1.12.1-compatible client
 - SuperWoW and its SuperAPI compatibility addon
-- Nampower 4.7.0 or newer with exact cast-attempt result events
+- Nampower 4.7.0 or newer; 4.7.1+ is recommended for exact on-swing generations
 
 The addon uses Nampower's guarded DBC access when present for per-rank cast time,
 GCD/queue class, on-next-swing classification, cooldown, duration, cost, and
@@ -85,14 +89,17 @@ numbers and action names, not player or target names.
 
 `/xa diagnostics` also refreshes a durable, privacy-safe runtime audit containing
 dependency/API availability, discovered versus inferred action-node counts,
-Hunter focus evidence, and controlled-companion swing evidence. It reports
+Hunter focus evidence, controlled-companion swing evidence, and player
+main-hand/on-swing ownership evidence. It reports
 whether each clock is learning, dormant, or executable; it does not persist pet
 identity.
 
 ## Graph model
 
-The evaluator is bounded to five actions, four branches, 80 expanded path states, and
-a 3 ms hot-path budget. It accounts for:
+The evaluator is bounded to five actions, four branches, 80 expanded path states,
+and a 3 ms soft budget for future look-ahead. The complete immediate candidate
+set is always evaluated; crossing the budget returns the best current action and
+shortens the prediction runway instead of producing a HOLD. It accounts for:
 
 - current cast and GCD downtime, predicted action cast time, and own cooldowns;
 - explicit live range verdicts, minimum/maximum DBC ranges, and movement;
@@ -131,6 +138,12 @@ a 3 ms hot-path budget. It accounts for:
   ledger overflow retains target-local or global uncertainty until session reset.
   The generic player Attack command is likewise start-only and idempotent; its
   button press is never modeled as melee damage;
+- exact target-pinned player main-hand phase learned only from classified attack
+  rounds. DBC-classified on-next-swing actions reserve one independent lane and
+  their cost until that round, replace the ordinary white result rather than
+  double-counting it, and are scored only for their marginal improvement over
+  the displaced white swing. Unknown phase, damage, geometry, target identity,
+  or area recipients holds the action instead of inventing a melee outcome;
 - equipped weapon durability and ammunition, plus opt-in immediate-use healing
   and mana consumables discovered conservatively from live bag tooltips;
 - future resource, health, target-health, aura, threat-drop, and cooldown state.

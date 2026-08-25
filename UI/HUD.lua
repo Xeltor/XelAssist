@@ -1,5 +1,7 @@
 XelAssist.UI.HUD = {}
 local UI = XelAssist.UI.HUD
+local Theme = XelAssist.UI.Theme
+local setFittedText = Theme.SetFittedText
 local FALLBACK_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 local BASE_HEIGHT = 76
 local STEP_HEIGHT = 24
@@ -15,31 +17,6 @@ local function actionName(action)
     local highest = XelAssist.Game.Capabilities:SpellRank(action.name)
     if action.rank and action.rank < highest then return action.name .. " · R" .. action.rank end
     return action.name
-end
-
-local function trimLastCharacter(value)
-    local index = string.len(value)
-    while index > 0 do
-        local byte = string.byte(value, index)
-        index = index - 1
-        if byte < 128 or byte >= 192 then break end
-    end
-    return string.sub(value, 1, index)
-end
-
-local function setFittedText(fontString, value, maxWidth)
-    value = tostring(value or "")
-    fontString:SetText(value)
-    if not fontString.GetStringWidth then return end
-    local ok, width = pcall(fontString.GetStringWidth, fontString)
-    if not ok or type(width) ~= "number" then return end
-    local fitted = value
-    while width > maxWidth and fitted ~= "" do
-        fitted = trimLastCharacter(fitted)
-        fontString:SetText(fitted .. "..")
-        ok, width = pcall(fontString.GetStringWidth, fontString)
-        if not ok or type(width) ~= "number" then return end
-    end
 end
 
 local function actorCopy(action)
@@ -107,13 +84,6 @@ local function certaintyCopy(plan, candidate)
         return "MODEL", 0.58, 0.72, 0.88
     end
     return "LIVE", 0.48, 0.82, 0.69
-end
-
-local function classColor()
-    local _, class = UnitClass("player")
-    local c = RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
-    if c then return c.r, c.g, c.b end
-    return 0.25, 0.72, 1
 end
 
 local function emptyCopy(reason)
@@ -239,6 +209,34 @@ local function addResistanceLines(plan, compact)
     end
 end
 
+local function showPredictionTooltip()
+    local pip = this
+    GameTooltip:SetOwner(pip, "ANCHOR_TOP")
+    if pip.placeholder == true then
+        GameTooltip:SetText("Future step " .. pip.stepIndex)
+        GameTooltip:AddLine(pip.placeholderReason, 0.78, 0.80, 0.84)
+        GameTooltip:AddLine("The rail stays visible because Settings requests look-ahead.",
+            0.55, 0.58, 0.64)
+    else
+        GameTooltip:SetText(actionName(pip.action))
+        local candidate = pip.candidate
+        GameTooltip:AddLine(candidate and candidate.reason
+            or "Predicted future action", 0.75, 0.78, 0.84)
+        if candidate then
+            GameTooltip:AddLine(pip.route:GetText() .. " · " .. pip.time:GetText(),
+                0.64, 0.69, 0.76)
+            local wait = math.max(0, tonumber(candidate.wait) or 0)
+            local occupied = tonumber(candidate.occupancy)
+                or math.max(0, (tonumber(candidate.downtime) or 0) - wait)
+            GameTooltip:AddLine(string.format(
+                "Predicted step %d · %.1fs wait · %.1fs occupied",
+                pip.stepIndex, wait, occupied), 0.55, 0.58, 0.64)
+            addResistanceLines(candidate, true)
+        end
+    end
+    GameTooltip:Show()
+end
+
 function UI:SavePosition()
     if not self.frame then return end
     local point, _, relativePoint, x, y = self.frame:GetPoint()
@@ -255,22 +253,12 @@ end
 
 function UI:SetVisiblePredictions(count)
     if not self.frame then return end
-    count = math.max(0, math.min(4, tonumber(count) or 0))
-    local height = BASE_HEIGHT + count * STEP_HEIGHT
-    local oldHeight = self.frameHeight or BASE_HEIGHT
-    if height == oldHeight then return end
-    local point, _, relativePoint, x, y = self.frame:GetPoint()
-    self.frame:SetHeight(height)
-    if point then
-        local delta = height - oldHeight
-        local adjustment = 0
-        if string.find(point, "TOP", 1, true) then adjustment = 0
-        elseif string.find(point, "BOTTOM", 1, true) then adjustment = -delta
-        else adjustment = -delta / 2 end
-        self.frame:ClearAllPoints()
-        self.frame:SetPoint(point, UIParent, relativePoint, x or 0, (y or 0) + adjustment)
-    end
-    self.frameHeight = height
+    self.visiblePredictions = math.max(0, math.min(4, tonumber(count) or 0))
+end
+
+function UI:MarkTargetDirty()
+    self.targetDirty = true
+    self.elapsed = 0
 end
 
 function UI:SetScale(value)
@@ -293,20 +281,12 @@ end
 
 function UI:Build()
     if self.frame then return end
-    local r, g, b = classColor()
+    local r, g, b = Theme:ClassColor()
     local f = CreateFrame("Frame", "XelAssistFrame", UIParent)
     local pos = XelAssistDB.ui.position
-    self.frameHeight = pos and tonumber(pos.height) or BASE_HEIGHT
-    if self.frameHeight < BASE_HEIGHT or self.frameHeight > BASE_HEIGHT + STEP_HEIGHT * 4 then
-        self.frameHeight = BASE_HEIGHT
-    end
-    f:SetWidth(372); f:SetHeight(self.frameHeight)
-    f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true,
-        tileSize = 16, edgeSize = 10,
-        insets = { left = 3, right = 3, top = 3, bottom = 3 } })
-    f:SetBackdropColor(0.025, 0.035, 0.055, 0.94)
-    f:SetBackdropBorderColor(0.22, 0.25, 0.31, 1)
+    self.frameHeight = BASE_HEIGHT
+    f:SetWidth(372); f:SetHeight(BASE_HEIGHT)
+    Theme:ApplyInstrumentBackdrop(f)
     f:SetFrameStrata("MEDIUM")
     if f.SetClampedToScreen then f:SetClampedToScreen(true) end
 
@@ -314,9 +294,7 @@ function UI:Build()
     else f:SetPoint("TOP", UIParent, "CENTER", 0, -180) end
     f:SetScale(XelAssistDB.ui.scale or 1)
 
-    local stripe = f:CreateTexture(nil, "ARTWORK")
-    stripe:SetWidth(3); stripe:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -5); stripe:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 4, 5)
-    stripe:SetTexture(r, g, b, 1)
+    f.classStripe = Theme:AddClassStripe(f)
 
     local actorBar = f:CreateTexture(nil, "ARTWORK")
     actorBar:SetHeight(2); actorBar:SetPoint("TOPLEFT", f, "TOPLEFT", 7, -72)
@@ -339,11 +317,13 @@ function UI:Build()
     status:SetTextColor(0.60, 0.64, 0.70)
     f.status = status
 
-    local main = CreateFrame("Button", "XelAssistActionButton", f, "ActionButtonTemplate")
+    local main = CreateFrame("Button", "XelAssistActionButton", f)
     main:SetWidth(52); main:SetHeight(52); main:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -12)
-    main.icon = getglobal("XelAssistActionButtonIcon") or main:CreateTexture(nil, "ARTWORK")
-    main.icon:SetAllPoints(main)
-    main.cooldown = getglobal("XelAssistActionButtonCooldown")
+    main.icon, main.iconFrame, main.cooldown = Theme:CreateActionIcon(main, 52, true)
+    main.iconFrame:SetPoint("CENTER", main, "CENTER", 0, 0)
+    main:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square")
+    main.step = main:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmallGray")
+    main.step:SetPoint("TOPLEFT", main, "TOPLEFT", 2, -2); main.step:SetText("01")
     main.binding = f:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmallGray")
     main.binding:SetPoint("TOPRIGHT", main, "TOPRIGHT", -2, -2)
     main.count = f:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
@@ -372,8 +352,8 @@ function UI:Build()
                 GameTooltip:AddLine(string.format("Range evidence %.1f yd · %s", observed.distance,
                     observed.distanceKind or "unknown"), 0.72, 0.75, 0.82)
             end
-            GameTooltip:AddLine(string.format("Graph %d states · %.2fms", plan.expanded or 0,
-                plan.elapsed or 0), 0.55, 0.58, 0.64)
+            GameTooltip:AddLine(string.format("Graph %d states · %.2fms%s", plan.expanded or 0,
+                plan.elapsed or 0, plan.budgetLimited and " · runway limited" or ""), 0.55, 0.58, 0.64)
             if observed.talentPoints then
                 GameTooltip:AddLine(string.format("Talent-adjusted client facts · %d points", observed.talentPoints),
                     0.55, 0.58, 0.64)
@@ -442,12 +422,8 @@ function UI:Build()
         pip.rail:SetWidth(2); pip.rail:SetPoint("TOPLEFT", pip, "TOPLEFT", 13, 0)
         pip.rail:SetPoint("BOTTOMLEFT", pip, "BOTTOMLEFT", 13, 0)
         pip.rail:SetTexture(r, g, b, 0.58)
-        pip.icon = pip:CreateTexture(nil, "ARTWORK")
-        pip.icon:SetWidth(20); pip.icon:SetHeight(20); pip.icon:SetPoint("LEFT", pip, "LEFT", 24, 0)
-        pip.border = pip:CreateTexture(nil, "OVERLAY")
-        pip.border:SetWidth(20); pip.border:SetHeight(20)
-        pip.border:SetPoint("CENTER", pip.icon, "CENTER", 0, 0)
-        pip.border:SetTexture("Interface\\Buttons\\UI-Quickslot2")
+        pip.icon, pip.iconFrame = Theme:CreateActionIcon(pip, 20, false)
+        pip.iconFrame:SetPoint("LEFT", pip, "LEFT", 24, 0)
         pip.step = pip:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmallGray")
         pip.step:SetPoint("LEFT", pip, "LEFT", 1, 0); pip.step:SetWidth(19)
         pip.step:SetJustifyH("CENTER"); pip.step:SetText(string.format("%02d", i + 1))
@@ -468,13 +444,26 @@ function UI:Build()
         pip.certainty:SetPoint("RIGHT", pip, "RIGHT", -2, 0); pip.certainty:SetWidth(37)
         pip.certainty:SetJustifyH("RIGHT")
         pip:EnableMouse(true)
+        pip:SetScript("OnEnter", showPredictionTooltip)
+        pip:SetScript("OnLeave", function() GameTooltip:Hide() end)
         pip:Hide(); f.follow[i] = pip
     end
 
-    f:SetScript("OnUpdate", function()
+    local driver = CreateFrame("Frame", "XelAssistHUDDriver", f)
+    driver:RegisterEvent("PLAYER_TARGET_CHANGED")
+    driver:SetScript("OnEvent", function()
+        if event == "PLAYER_TARGET_CHANGED" then UI:MarkTargetDirty() end
+    end)
+    driver:SetScript("OnUpdate", function()
+        if UI.targetDirty then
+            UI.targetDirty = nil
+            UI.elapsed = 0
+            return
+        end
         UI.elapsed = (UI.elapsed or 0) + (arg1 or 0)
         if UI.elapsed >= 0.10 then UI.elapsed = 0; UI:Refresh(false) end
     end)
+    self.driver = driver
     self.frame = f
     if XelAssistDB.ui.shown == false then f:Hide() else f:Show() end
     self:Refresh(true)
@@ -498,7 +487,7 @@ function UI:Refresh(force)
         self.lastPlan = plan
         local action = plan.action
         local petAction = (action.actor or "player") == "pet"
-        local classR, classG, classB = classColor()
+        local classR, classG, classB = Theme:ClassColor()
         setFittedText(f.route, routeCopy(action, plan.target, plan.targetRef), 210)
         f.route:SetTextColor(petAction and 0.72 or classR,
             petAction and 0.48 or classG, petAction and 0.92 or classB)
@@ -508,6 +497,7 @@ function UI:Refresh(force)
         f.status:SetTextColor(cr, cg, cb)
         if petAction then f.actorBar:Show() else f.actorBar:Hide() end
         f.main.icon:SetTexture(iconFor(action))
+        Theme:SetIconActor(f.main.iconFrame, petAction and "pet" or "player")
         if f.main.icon.SetDesaturated then f.main.icon:SetDesaturated(false) end
         f.main:SetAlpha(1); f.main:Enable()
         setFittedText(f.name, actionName(action), 286)
@@ -515,37 +505,21 @@ function UI:Refresh(force)
         updateCooldown(f.main, action)
         f.main.count:SetText(action.executor == "item" and tostring(action.count or "") or "")
         self.lastReason = actionName(action) .. " — " .. plan.reason
-        local i, visible = nil, 0
+        local i, visible, placeholderShown = nil, 0, false
+        local requested = math.max(0, math.min(4,
+            (tonumber(XelAssistCharDB.graphDepth) or 1) - 1))
         local pathTime = math.max(0, tonumber(plan.downtime) or 0)
         for i = 1, 4 do
-            local follow = plan.follow[i]
+            local follow = plan.follow and plan.follow[i]
             local pip = f.follow[i]
-            if follow and i < (XelAssistCharDB.graphDepth or 3) then
+            if follow and i <= requested and not placeholderShown then
                 pip.icon:SetTexture(iconFor(follow)); pip:Show()
+                if pip.icon.SetDesaturated then pip.icon:SetDesaturated(false) end
                 visible = visible + 1
-                if follow.actor == "pet" then pip.border:SetVertexColor(0.72, 0.48, 0.92)
-                else pip.border:SetVertexColor(1, 1, 1) end
-                pip:SetScript("OnEnter", function()
-                    GameTooltip:SetOwner(this, "ANCHOR_TOP")
-                    GameTooltip:SetText(actionName(this.action))
-                    local candidate = this.candidate
-                    GameTooltip:AddLine(candidate and candidate.reason or "Predicted future action", 0.75, 0.78, 0.84)
-                    if candidate then
-                        GameTooltip:AddLine(this.route:GetText() .. " · " .. this.time:GetText(),
-                            0.64, 0.69, 0.76)
-                        local wait = math.max(0, tonumber(candidate.wait) or 0)
-                        local occupied = tonumber(candidate.occupancy)
-                            or math.max(0, (tonumber(candidate.downtime) or 0) - wait)
-                        GameTooltip:AddLine(string.format(
-                            "Predicted step %d · %.1fs wait · %.1fs occupied",
-                            this.stepIndex, wait, occupied), 0.55, 0.58, 0.64)
-                        addResistanceLines(candidate, true)
-                    end
-                    GameTooltip:Show()
-                end)
-                pip:SetScript("OnLeave", function() GameTooltip:Hide() end)
+                Theme:SetIconActor(pip.iconFrame, follow.actor or "player")
                 pip.action = follow
                 pip.candidate = plan.path and plan.path[i + 1] or nil
+                pip.placeholder = nil
                 pip.stepIndex = i + 1
                 setFittedText(pip.route,
                     routeCopy(follow, pip.candidate and pip.candidate.target,
@@ -562,8 +536,25 @@ function UI:Refresh(force)
                     pathTime = math.max(pathTime, start or pathTime)
                         + math.max(0, tonumber(pip.candidate.downtime) or 0)
                 end
+            elseif i <= requested and not placeholderShown then
+                placeholderShown = true; visible = visible + 1
+                pip.action = nil; pip.candidate = nil; pip.placeholder = true
+                pip.stepIndex = i + 1
+                pip.placeholderReason = plan.budgetLimited
+                    and "The graph's safe look-ahead budget ended before this step."
+                    or "The current graph has no reliable continuation for this step."
+                pip.icon:SetTexture(FALLBACK_ICON)
+                if pip.icon.SetDesaturated then pip.icon:SetDesaturated(true) end
+                Theme:SetIconActor(pip.iconFrame, "placeholder")
+                pip.route:SetText("GRAPH HORIZON")
+                pip.route:SetTextColor(0.48, 0.52, 0.58)
+                setFittedText(pip.name, plan.budgetLimited and "Look-ahead limit"
+                    or "No reliable next step", 112)
+                pip.time:SetText("--")
+                pip.certainty:SetText("OPEN"); pip.certainty:SetTextColor(0.95, 0.73, 0.34)
+                pip:Show()
             else
-                pip.action = nil; pip.candidate = nil
+                pip.action = nil; pip.candidate = nil; pip.placeholder = nil
                 pip.route:SetText(""); pip.name:SetText(""); pip.time:SetText("")
                 pip.certainty:SetText(""); pip:Hide()
             end
@@ -577,6 +568,7 @@ function UI:Refresh(force)
         f.actorBar:Hide()
         local title, detail = emptyCopy(err)
         f.main.icon:SetTexture(FALLBACK_ICON)
+        Theme:SetIconActor(f.main.iconFrame, "placeholder")
         if f.main.icon.SetDesaturated then f.main.icon:SetDesaturated(true) end
         f.main:SetAlpha(0.52); f.main:Disable()
         f.main.count:SetText("")
@@ -585,6 +577,7 @@ function UI:Refresh(force)
         local i
         for i = 1, 4 do
             f.follow[i].action = nil; f.follow[i].candidate = nil
+            f.follow[i].placeholder = nil
             f.follow[i].route:SetText(""); f.follow[i].name:SetText("")
             f.follow[i].time:SetText(""); f.follow[i].certainty:SetText("")
             f.follow[i]:Hide()

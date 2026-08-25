@@ -12,7 +12,10 @@ end
 function S:Apply(action, out, dbc)
     out.attributes = dbc("attributes")
     if out.attributes ~= nil then
+        -- Classic data uses both the ordinary on-next-swing bit and the
+        -- server-controlled replacement bit. Nampower accepts either.
         out.onNextSwing = flagSet(out.attributes, 4)
+            or flagSet(out.attributes, 1024)
     end
 
     out.attributesEx4 = dbc("attributesEx4")

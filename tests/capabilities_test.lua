@@ -130,6 +130,11 @@ GetSpellRecField = function(spellId, field)
             startRecoveryTime = 1500, school = 0 }
         return raptor[field]
     end
+    if spellId == 2974 then
+        local replacement = { attributes = 1024, startRecoveryCategory = 0,
+            startRecoveryTime = 1500, school = 0 }
+        return replacement[field]
+    end
     local values = { castTime = 2500, recoveryTime = 8000, categoryRecoveryTime = 6000,
         category = 44, startRecoveryTime = 1500, startRecoveryCategory = 133,
         rangeIndex = 7, manaCost = 60, attributes = 0,
@@ -214,6 +219,12 @@ local raptorFacts = XelAssist.Game.Capabilities:Facts({ name = "Raptor Strike",
 assert(raptorFacts.attributes == 4 and raptorFacts.onNextSwing == true
     and raptorFacts.normalGcd == false,
     "DBC on-next-swing classification must not require typed action metadata")
+local replacementFacts = XelAssist.Game.Capabilities:Facts({ name = "Replacement",
+    slot = 4, spellId = 2974, bookType = BOOKTYPE_SPELL,
+    facts = { kind = "damage", melee = true } })
+assert(replacementFacts.attributes == 1024
+    and replacementFacts.onNextSwing == true,
+    "alternate DBC on-next-swing classification missing")
 assert(facts.dbcAverage and facts.dbcAverage > 100, "DBC effect magnitude missing")
 assert(XelAssist.Game.Capabilities:GCDRemaining() == 0.3)
 local health, maximum, exact = XelAssist.Game.Capabilities:Health("target")

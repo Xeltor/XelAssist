@@ -13,7 +13,10 @@ end
 
 function C:Consume(out, candidate, context)
     local action, facts = candidate.action, candidate.action.facts
-    if action.actor == "pet" and out.actors and out.actors.pet then
+    local swings = XelAssist.Graph.PlayerSwings
+    if swings and swings:Is(action, candidate.tooltip) then
+        return swings:Reserve(out, candidate)
+    elseif action.actor == "pet" and out.actors and out.actors.pet then
         if not (context and context.petCostPaid) then
             local resources = XelAssist.Graph.CompanionResources
             if not (resources and resources:BeginChosen(

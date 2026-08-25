@@ -36,6 +36,7 @@ function D:Audit(owner)
         spellRecords = GetSpellRecField and true or false,
         exactUnits = GetUnitField and true or false,
         castInfo = GetCastInfo and true or false,
+        onSwingInfo = GetOnSwingInfo and true or false,
         rangeData = GetSpellRangeData and true or false,
         movement = PlayerIsMoving and true or false,
         targetResistances = (UnitResistance or GetUnitField) and true or false }
@@ -43,11 +44,19 @@ function D:Audit(owner)
     runtime.evidenceEvents = { damage = evidence.damage, miss = evidence.miss,
         autoAttack = evidence.autoAttack, aura = evidence.aura,
         start = evidence.start, go = evidence.go,
-        castResult = evidence.castResult }
+        castResult = evidence.castResult,
+        onSwingExact = evidence.onSwingExact }
     local focus = XelAssist.Game.Pets and XelAssist.Game.Pets.FocusEvidence
     runtime.hunterFocus = focus and focus:Status() or nil
     local rounds = XelAssist.Game.AttackRounds
     runtime.companionSwings = rounds and rounds:Status() or nil
+    local playerRounds = XelAssist.Game.Player
+        and XelAssist.Game.Player.AttackRounds
+    runtime.playerSwings = playerRounds and playerRounds:Status() or nil
+    local owner = XelAssist.Game.Player and XelAssist.Game.Player.OnSwing
+    local onSwing = owner and owner:Snapshot() or nil
+    runtime.playerOnSwing = onSwing and { supported = onSwing.supported,
+        exact = onSwing.exact, occupied = onSwing.occupied } or nil
     local ok, actions = pcall(discoveredActions)
     if ok and type(actions) == "table" then
         local inferred, petActions, i = 0, 0, nil
@@ -90,7 +99,9 @@ function D:Print(owner)
         .. ", cast lifecycle=" .. (runtime.evidenceEvents.start
             and runtime.evidenceEvents.go and "on" or "off")
         .. ", exact cast results="
-        .. (runtime.evidenceEvents.castResult and "on" or "off") .. ".")
+        .. (runtime.evidenceEvents.castResult and "on" or "off")
+        .. ", exact next-swing="
+        .. (runtime.evidenceEvents.onSwingExact and "on" or "off") .. ".")
     local focus = runtime.hunterFocus
     if focus then
         local state = focus.executable and "executable"

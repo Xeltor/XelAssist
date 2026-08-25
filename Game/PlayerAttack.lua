@@ -46,11 +46,18 @@ function A:Snapshot()
         self.pendingUntil, self.pendingTargetGuid = nil, nil
         pending = false
     end
-    return { supported = type(GetCurrentCastingInfo) == "function"
+    local snapshot = { supported = type(GetCurrentCastingInfo) == "function"
             and type(AttackTarget) == "function",
         active = active, activeKnown = activeKnown,
         pending = pending, pendingTargetGuid = pending and self.pendingTargetGuid or nil,
         clockKnown = at ~= nil, source = pending and "submitted Attack command" or source }
+    if XelAssist.Game.Player and XelAssist.Game.Player.OnSwing then
+        snapshot.onSwing = XelAssist.Game.Player.OnSwing:Snapshot()
+    end
+    if XelAssist.Game.Player and XelAssist.Game.Player.AttackRounds then
+        XelAssist.Game.Player.AttackRounds:Attach(snapshot)
+    end
+    return snapshot
 end
 
 function A:CanStart(snapshot)
@@ -68,9 +75,18 @@ function A:CanStart(snapshot)
 end
 
 function A:Projected(targetGuid)
-    return { supported = true, active = true, activeKnown = true,
+    local snapshot = { supported = true, active = true, activeKnown = true,
         pending = false, clockKnown = true, source = "graph start",
         targetGuid = targetGuid }
+    if XelAssist.Game.Player and XelAssist.Game.Player.OnSwing then
+        snapshot.onSwing = XelAssist.Game.Player.OnSwing:Snapshot()
+    end
+    if XelAssist.Game.Player and XelAssist.Game.Player.AttackRounds then
+        snapshot.attackRound = { supported = true, phaseKnown = false,
+            verified = false, projectable = false,
+            reason = "Attack submitted; awaiting resolved player swing" }
+    end
+    return snapshot
 end
 
 function A:Start(targetGuid)

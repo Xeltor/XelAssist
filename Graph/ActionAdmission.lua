@@ -14,7 +14,9 @@ function A:Start(action, state, tooltip)
         return nil, "moving"
     end
     local actor = action.actor or "player"
+    local playerSwings = XelAssist.Graph.PlayerSwings
     local immediate = kind == "command"
+        or playerSwings and playerSwings:Is(action, tooltip)
         or facts.autoRepeat and state.playerChanneling
     local resources = XelAssist.Graph.CompanionResources
     if actor == "pet" and kind ~= "command" and resources
@@ -34,6 +36,9 @@ function A:Readiness(action, state, tooltip, actionStart)
     local resource = state.resource
     if action.actor == "pet" and state.actors and state.actors.pet then
         resource = state.actors.pet.resource
+    elseif action.actor ~= "pet" and resource ~= nil then
+        resource = resource - math.max(0,
+            tonumber(state.playerResourceReserved) or 0)
     end
     local resources = XelAssist.Graph.CompanionResources
     if resources and not resources:ChosenExact(

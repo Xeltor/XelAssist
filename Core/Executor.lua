@@ -3,6 +3,8 @@
 local XA = XelAssist
 local Guard = XelAssist.Core.TargetGuard
 local PlayerNormalQueue = XelAssist.Core.PlayerNormalQueue
+local PlayerOnSwing = XelAssist.Game.Player
+    and XelAssist.Game.Player.OnSwing
 
 local function applicationGuarded(facts, tooltip)
     local kind = facts and facts.kind
@@ -85,8 +87,9 @@ end
 
 function XA:Fallback(reason)
     self.lastReason = "Conservative hold — " .. reason
-    DEFAULT_CHAT_FRAME:AddMessage("XelAssist: " .. self.lastReason .. ".",
-        1, 0.65, 0.2)
+    if XelAssist.UI and XelAssist.UI.HUD then
+        XelAssist.UI.HUD:Refresh(true)
+    end
 end
 
 function XA:ExecutePetPlan(plan, selected)
@@ -188,6 +191,8 @@ local function playerContext(plan)
         and QueueSpellByName ~= nil
     context.normalQueue = not facts.playerAttack and not facts.autoRepeat
         and PlayerNormalQueue:MayOccupy(action, plan.tooltip)
+    context.onSwing = PlayerOnSwing
+        and PlayerOnSwing:Is(action, plan.tooltip) and true or false
     local reason
     context.hostileGuid, reason, context.hostilePlan =
         Guard:SelectedHostileAnchor(plan, context.unit, castRef)
@@ -203,6 +208,10 @@ local function validatePlayerContext(owner, plan, context)
     end
     if context.normalQueue then
         local blocker = PlayerNormalQueue:Blocker(action, plan.tooltip)
+        if blocker then return rejectPlayer(owner, blocker) end
+    end
+    if context.onSwing then
+        local blocker = PlayerOnSwing:Blocker(action, plan.tooltip)
         if blocker then return rejectPlayer(owner, blocker) end
     end
     local reason
@@ -282,12 +291,17 @@ local function dispatchPlayerContext(owner, plan, context)
         context.applicationGuid, reason = validateAutoShot(plan)
         if not context.applicationGuid then return rejectPlayer(owner, reason) end
     end
-    local queueRecord
+    local queueRecord, swingRecord
     if context.normalQueue and (facts.petLifecycle
         or context.usesHostileQueue or context.queueTargetGuid ~= nil) then
         queueRecord, reason = PlayerNormalQueue:Arm(action, plan.tooltip,
             context.castName, context.queueTargetGuid, plan.wait, plan.cast)
         if not queueRecord then return rejectPlayer(owner, reason) end
+    end
+    if context.onSwing then
+        swingRecord, reason = PlayerOnSwing:Arm(action, plan.tooltip,
+            context.queueTargetGuid, plan.rawPower, plan.cost, plan.costKnown)
+        if not swingRecord then return rejectPlayer(owner, reason) end
     end
     local dispatched, dispatchReason, dispatchGuid = dispatchPlayer(action, plan,
         context.castName, context.friendly, context.capturedGuid, context.unit)
@@ -296,7 +310,12 @@ local function dispatchPlayerContext(owner, plan, context)
         queueAccepted, dispatchReason =
             PlayerNormalQueue:Finalize(queueRecord, dispatched)
     end
-    if not dispatched or not queueAccepted then
+    local swingAccepted = true
+    if swingRecord then
+        swingAccepted, dispatchReason =
+            PlayerOnSwing:Finalize(swingRecord, dispatched)
+    end
+    if not dispatched or not queueAccepted or not swingAccepted then
         return rejectPlayer(owner, dispatchReason or "target changed")
     end
     if context.hostilePlan then context.applicationGuid = dispatchGuid end
@@ -314,7 +333,8 @@ local function recordPlayerSubmission(owner, plan, selected, context)
             context.reservationGuid, context.effectGuid, context.playerGuid)
     end
     owner:RecordDecision(plan, selected)
-    if XelAssist.Combat.Observations and not facts.playerAttack then
+    if XelAssist.Combat.Observations and not facts.playerAttack
+        and not context.onSwing then
         local observedAction = facts.effectTarget == "target"
             and not facts.deferredUntilPetMelee
             and (plan.effectAction or action) or action
@@ -385,11 +405,7 @@ function XA:Execute(mode)
     end)
     if not ok then self:RecordError(plan); self:Fallback("evaluation error"); return end
     if fallback then self:Fallback(err or "incomplete data"); return end
-    if not plan then
-        DEFAULT_CHAT_FRAME:AddMessage("XelAssist: " .. (err or "no legal action"),
-            0.35, 0.85, 1)
-        return
-    end
+    if not plan then self:Fallback(err or "no legal action"); return end
     local action = plan.action
     if action.executor == "item" then
         self:ExecuteItemPlan(plan, selected); return

@@ -13,6 +13,11 @@ SUPERWOW_VERSION = 2
 local serial = 0
 local createdFrames = {}
 local widget = {}
+function XelAssistTestNoteMethod(target, name)
+    local calls = rawget(target, "methodCalls")
+    if not calls then calls = {}; rawset(target, "methodCalls", calls) end
+    calls[name] = (calls[name] or 0) + 1
+end
 widget.__index = function(self, key)
     if key == "CreateFontString" or key == "CreateTexture" then
         return function() serial = serial + 1; return setmetatable({ name = "Mock" .. serial }, widget) end
@@ -20,6 +25,7 @@ widget.__index = function(self, key)
     if key == "GetName" then return function(s) return s.name end end
     if key == "GetFrameLevel" then return function() return 1 end end
     if key == "GetPoint" then return function(s, index)
+        XelAssistTestNoteMethod(s, "GetPoint")
         local points = rawget(s, "points")
         local point = points and points[index or 1]
         if point then return point[1], point[2], point[3], point[4], point[5] end
@@ -36,22 +42,43 @@ widget.__index = function(self, key)
     if key == "GetStringWidth" then return function(s) return string.len(s.text or "") * 5 end end
     if key == "GetFont" then return function() return "Fonts\\FRIZQT__.TTF", 10, "" end end
     if key == "SetText" then return function(s, value) s.text = value end end
+    if key == "SetBackdrop" then return function(s, value) s.backdrop = value end end
+    if key == "SetBackdropColor" then return function(s, r, g, b, a)
+        s.backdropColor = { r, g, b, a }
+    end end
+    if key == "SetBackdropBorderColor" then return function(s, r, g, b, a)
+        s.backdropBorderColor = { r, g, b, a }
+    end end
+    if key == "SetTexture" then return function(s, a, b, c, d)
+        s.texture = { a, b, c, d }
+    end end
+    if key == "SetHighlightTexture" then return function(s, value)
+        s.highlightTexture = value
+    end end
+    if key == "SetDesaturated" then return function(s, value) s.desaturated = value end end
     if key == "SetScale" then return function(s, value) s.scale = value end end
     if key == "SetWidth" then return function(s, value) s.width = value end end
-    if key == "SetHeight" then return function(s, value) s.height = value end end
+    if key == "SetHeight" then return function(s, value)
+        XelAssistTestNoteMethod(s, "SetHeight"); s.height = value
+    end end
     if key == "SetValue" then return function(s, value) s.value = value end end
     if key == "SetChecked" then return function(s, value) s.checked = value end end
     if key == "SetPoint" then return function(s, point, relative, relativePoint, x, y)
+        XelAssistTestNoteMethod(s, "SetPoint")
         local points = rawget(s, "points")
         if not points then points = {}; rawset(s, "points", points) end
         table.insert(points, { point, relative, relativePoint, x, y })
     end end
-    if key == "ClearAllPoints" then return function(s) rawset(s, "points", {}) end end
+    if key == "ClearAllPoints" then return function(s)
+        XelAssistTestNoteMethod(s, "ClearAllPoints"); rawset(s, "points", {})
+    end end
     if key == "Enable" then return function(s) s.enabled = true end end
     if key == "Disable" then return function(s) s.enabled = false end end
     if key == "Show" then return function(s) s.shown = true end end
     if key == "Hide" then return function(s) s.shown = false end end
-    if key == "SetScript" then return function(s, eventName, callback) s[eventName] = callback end end
+    if key == "SetScript" then return function(s, eventName, callback)
+        XelAssistTestNoteMethod(s, "SetScript"); s[eventName] = callback
+    end end
     if key == "RegisterEvent" then return function(s, eventName)
         local registered = rawget(s, "registered")
         if not registered then registered = {}; rawset(s, "registered", registered) end
@@ -60,10 +87,10 @@ widget.__index = function(self, key)
     return function() end
 end
 
-CreateFrame = function(_, name)
+CreateFrame = function(frameType, name, parent, template)
     serial = serial + 1
     local frame = setmetatable({ name = name or ("Mock" .. serial), shown = true,
-        enabled = true }, widget)
+        enabled = true, frameType = frameType, parent = parent, template = template }, widget)
     table.insert(createdFrames, frame)
     return frame
 end
@@ -110,7 +137,8 @@ end
 IsAddOnLoaded = function() return true end
 local mockTime = 0
 GetTime = function() return mockTime end
-GetNampowerVersion = function() return 4, 7, 0 end
+GetNampowerVersion = function() return 4, 7, 1 end
+GetOnSwingInfo = function() return XelAssistTestOnSwingNative end
 local cvars = {}
 GetCVar = function(name) return cvars[name] or "0" end
 SetCVar = function(name, value) cvars[name] = tostring(value) end
@@ -218,14 +246,76 @@ assert(XelAssist.UI.HUD.frame:GetWidth() == 372,
     "recommendation runway must reserve enough width for readable action contracts")
 assert(table.getn(XelAssist.UI.HUD.frame.follow) == 4, "future-action runway should expose four slots")
 assert(XelAssist.UI.Settings.frame and XelAssist.UI.Settings.frame.depth, "character graph controls did not build")
-assert(getglobal("XelAssistDepthSliderText"):GetText() == "Visible action steps",
-    "graph-depth control must describe the visible runway rather than implementation depth")
+assert(getglobal("XelAssistDepthSliderText"):GetText() == "Decision steps shown"
+    and string.find(XelAssist.UI.Settings.frame.depthHelp:GetText(),
+        "current only", 1, true),
+    "graph-depth control must explain the current-plus-future decision rail")
+assert(XelAssist.UI.HUD.frame.instrumentStyle
+    and XelAssist.UI.Settings.frame.instrumentStyle
+    and XelAssist.UI.HUD.frame.backdrop.edgeFile
+        == XelAssist.UI.Settings.frame.backdrop.edgeFile
+    and XelAssist.UI.HUD.frame.classStripe
+    and XelAssist.UI.Settings.frame.classStripe
+    and table.getn(XelAssist.UI.Settings.frame.sectionRails) == 4,
+    "settings must share the HUD instrument backdrop, border, class stripe and quiet rails")
+assert(rawget(XelAssist.UI.HUD.frame.main, "template") == nil
+    and XelAssist.UI.HUD.frame.main.iconFrame
+    and XelAssist.UI.HUD.frame.main.step:GetText() == "01"
+    and rawget(XelAssist.UI.HUD.frame.follow[1], "border") == nil,
+    "recommendation icons must use one clean frame and keep the numbered decision rail")
+assert(XelAssist.UI.Settings.frame.macro.frameType == "Frame"
+    and XelAssist.UI.Settings.frame.macro.command == "/xa"
+    and XelAssist.UI.Settings.frame.macro.text:GetText() == "/xa"
+    and rawget(XelAssist.UI.Settings.frame.macro, "OnEditFocusGained") == nil,
+    "the macro contract must be fixed /xa display text, never an editable field")
+gameTooltipLines = {}; this = XelAssist.UI.Settings.frame.macro; this.OnEnter()
+assert(string.find(table.concat(gameTooltipLines, "|"),
+    "executes one current action", 1, true),
+    "the fixed /xa help must explain its one-action execution contract")
+gameTooltipLines = {}; this = XelAssist.UI.Settings.frame.cooldowns; this.OnEnter()
+assert(XelAssist.UI.Settings.frame.cooldowns:GetWidth() == 158
+    and string.find(table.concat(gameTooltipLines, "|"),
+    "No currently learned graph-gated cooldown actions", 1, true),
+    "the cooldown label must be hoverable and truthfully report when none are learned")
+do
+    local savedActions, savedFacts = XelAssist.Game.Actors.Actions,
+        XelAssist.Game.Actors.Facts
+    local iceOne = { name = "Ice Block", rank = 1, actor = "player",
+        facts = { kind = "defensive", cooldown = true } }
+    local iceTwo = { name = "Ice Block", rank = 2, actor = "player",
+        facts = { kind = "defensive", cooldown = true } }
+    local slowBurst = { name = "Slow Burst", rank = 1, actor = "player",
+        facts = { kind = "damage" } }
+    XelAssist.Game.Actors.Actions = function()
+        return { iceOne, iceTwo, slowBurst,
+            { name = "Frostbolt", rank = 1, actor = "player",
+                facts = { kind = "damage" } },
+            { name = "Major Healing Potion", rank = 1, actor = "player",
+                facts = { kind = "heal", cooldown = true, consumable = true } } }
+    end
+    XelAssist.Game.Actors.Facts = function(_, action)
+        return { cooldown = action == slowBurst and 45 or 0 }
+    end
+    local learned = XelAssist.UI.CooldownPolicy:LearnedActions()
+    assert(table.getn(learned) == 2
+        and (learned[1].action == iceTwo or learned[2].action == iceTwo),
+        "cooldown help must deduplicate ranks and retain the learned highest rank")
+    gameTooltipLines = {}; this = XelAssist.UI.Settings.frame.cooldowns; this.OnEnter()
+    local policyTooltip = table.concat(gameTooltipLines, "|")
+    assert(string.find(policyTooltip, "Ice Block", 1, true)
+        and string.find(policyTooltip, "Slow Burst · 45s cooldown", 1, true)
+        and not string.find(policyTooltip, "Frostbolt", 1, true)
+        and not string.find(policyTooltip, "Major Healing Potion", 1, true)
+        and not string.find(policyTooltip, "Presence of Mind", 1, true),
+        "cooldown help must name only learned actions governed by the graph policy")
+    XelAssist.Game.Actors.Actions, XelAssist.Game.Actors.Facts = savedActions, savedFacts
+end
 assert(XelAssist.UI.Minimap.button, "minimap entry did not build")
 assert(XelAssistCharDB.graphDepth == 3 and XelAssistCharDB.role == "auto", "character defaults missing")
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.4" and runtime.nampower == "4.7.0", "runtime versions missing")
+assert(runtime.version == "0.8.5" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(runtime.evidenceEvents.damage and runtime.evidenceEvents.miss,
@@ -234,10 +324,16 @@ assert(runtime.evidenceEvents.autoAttack
     and eventFrame.registered.AUTO_ATTACK_SELF
     and eventFrame.registered.AUTO_ATTACK_OTHER,
     "exact Nampower white-swing evidence events were not registered and audited")
+assert(runtime.evidenceEvents.onSwingExact
+    and eventFrame.registered.SPELL_ON_SWING_STATE
+    and GetCVar("NP_QueueOnSwingSpells") == "0",
+    "exact on-swing ownership must register its event and disable native replacement buffering")
 local routedAutoAttack
 local originalAutoAttack = XelAssist.Combat.Resistance.AutoAttack
-routedAttackRound = nil
+routedAttackRound, routedPlayerRound = nil, nil
 XelAssistTestOriginalAttackRoundObserve = XelAssist.Game.AttackRounds.Observe
+XelAssistTestOriginalPlayerRoundObserve =
+    XelAssist.Game.Player.AttackRounds.Observe
 function XelAssist.Combat.Resistance:AutoAttack(a1, a2, a3, a4, a5, a6, a7, a8, a9)
     routedAutoAttack = { a1, a2, a3, a4, a5, a6, a7, a8, a9 }
     return { actor = "pet", hand = "main", outcome = "miss", hitInfo = a4,
@@ -246,9 +342,15 @@ end
 function XelAssist.Game.AttackRounds:Observe(attackerGuid, targetGuid, result, at)
     routedAttackRound = { attackerGuid, targetGuid, result, at }
 end
+function XelAssist.Game.Player.AttackRounds:Observe(
+    attackerGuid, targetGuid, result, at)
+    routedPlayerRound = { attackerGuid, targetGuid, result, at }
+end
 fireEvent("AUTO_ATTACK_SELF", "player-guid", "target-guid", 42, 4, 1, 2, 3, 4, 5)
 XelAssist.Combat.Resistance.AutoAttack = originalAutoAttack
 XelAssist.Game.AttackRounds.Observe = XelAssistTestOriginalAttackRoundObserve
+XelAssist.Game.Player.AttackRounds.Observe =
+    XelAssistTestOriginalPlayerRoundObserve
 assert(routedAutoAttack and routedAutoAttack[1] == "player-guid"
     and routedAutoAttack[2] == "target-guid" and routedAutoAttack[3] == 42
     and routedAutoAttack[4] == 4 and routedAutoAttack[9] == 5,
@@ -258,6 +360,11 @@ assert(routedAttackRound and routedAttackRound[1] == "player-guid"
     and routedAttackRound[3].outcome == "miss"
     and routedAttackRound[4] == mockTime,
     "core must route the classified round and exact observation time once")
+assert(routedPlayerRound and routedPlayerRound[1] == "player-guid"
+    and routedPlayerRound[2] == "target-guid"
+    and routedPlayerRound[3].exactDelivery
+    and routedPlayerRound[4] == mockTime,
+    "core must route the same classified packet to the separate player ledger")
 assert(runtime.evidenceEvents.aura and runtime.evidenceEvents.start
     and runtime.evidenceEvents.go and runtime.evidenceEvents.castResult
     and eventFrame.registered.SPELL_CAST_RESULT_SELF,
@@ -355,9 +462,46 @@ assert(string.find(tooltipText, "Physical 50% · 60% share", 1, true)
     and string.find(tooltipText, "uncertain", 1, true),
     "mixed resistance UI must expose each component's normalized share and uncertainty")
 local savedEvaluatorForTooltip = XelAssist.Graph.Evaluate
-XelAssist.Graph.Evaluate = function() return displayPlan, nil, false end
+XelAssist.Graph.Evaluate = function()
+    return nil, "Select a target or injured ally", false
+end
 XelAssist.UI.HUD:Refresh(true)
 local actionFrame = XelAssist.UI.HUD.frame
+do
+    local driver = XelAssist.UI.HUD.driver
+    assert(driver and rawget(actionFrame, "OnUpdate") == nil,
+        "the visual HUD must not own the refresh callback that mutates its regions")
+    local rootCalls = actionFrame.methodCalls
+    local geometryBefore = { getPoint = rootCalls.GetPoint or 0,
+        setHeight = rootCalls.SetHeight or 0,
+        clearPoints = rootCalls.ClearAllPoints or 0,
+        setPoint = rootCalls.SetPoint or 0 }
+    local rowScriptsBefore = {}
+    for i = 1, table.getn(actionFrame.follow) do
+        rowScriptsBefore[i] = actionFrame.follow[i].methodCalls.SetScript or 0
+    end
+    local settledEvaluations = 0
+    XelAssist.Graph.Evaluate = function()
+        settledEvaluations = settledEvaluations + 1
+        return displayPlan, nil, false
+    end
+    event = "PLAYER_TARGET_CHANGED"; driver.OnEvent()
+    arg1 = 0.11; driver.OnUpdate()
+    assert(settledEvaluations == 0,
+        "a new target must settle for one HUD tick before native presentation work")
+    arg1 = 0.11; driver.OnUpdate()
+    assert(settledEvaluations == 1
+        and (rootCalls.GetPoint or 0) == geometryBefore.getPoint
+        and (rootCalls.SetHeight or 0) == geometryBefore.setHeight
+        and (rootCalls.ClearAllPoints or 0) == geometryBefore.clearPoints
+        and (rootCalls.SetPoint or 0) == geometryBefore.setPoint,
+        "HOLD-to-plan OnUpdate must not query, resize, or reanchor its visual owner")
+    for i = 1, table.getn(actionFrame.follow) do
+        assert((actionFrame.follow[i].methodCalls.SetScript or 0) == rowScriptsBefore[i],
+            "prediction handlers must be installed once during HUD construction")
+    end
+end
+XelAssist.Graph.Evaluate = function() return displayPlan, nil, false end
 assert(actionFrame.route:GetText() == "You -> Target",
     "current action must visibly identify its actor and target")
 local labelGuid, replacementLabelGuid = {}, {}
@@ -386,8 +530,8 @@ XelAssist.UI.HUD:Refresh(true)
 assert(string.find(actionFrame.status:GetText(), "NOW", 1, true)
     and string.find(actionFrame.status:GetText(), "OPEN", 1, true),
     "current partial-data action must expose immediate timing and open evidence")
-assert(actionFrame:GetHeight() == 124,
-    "two visible predictions must add two 24px rows to the 76px current card")
+assert(actionFrame:GetHeight() == 76,
+    "future rows must render outside the fixed 76px current card without self-resizing")
 assert(actionFrame.main:IsEnabled(), "a valid current recommendation must enable execution")
 local mainPoint, mainRelative, mainRelativePoint, mainX, mainY = actionFrame.main:GetPoint()
 assert(mainPoint == "TOPLEFT" and mainRelative == actionFrame
@@ -421,6 +565,9 @@ assert(secondFollow:IsShown() and secondFollow:GetHeight() == 24
     and secondFollow.action == estimatedFollowAction
     and secondFollow.candidate == displayPlan.path[3],
     "estimated future row must remain visibly distinct without relying on color")
+assert(firstFollow.iconFrame.texture[1] == 0.72
+    and secondFollow.iconFrame.texture[1] == RAID_CLASS_COLORS.MAGE.r,
+    "the single icon frame must preserve companion violet versus player class color")
 assert(rawget(firstFollow, "OnClick") == nil and rawget(secondFollow, "OnClick") == nil,
     "future action rows must remain read-only")
 gameTooltipLines = {}; this = XelAssist.UI.HUD.frame.follow[1]; this.OnEnter()
@@ -443,7 +590,7 @@ assert(executeCalls == 1, "one main-button click must request exactly one execut
 XelAssistCharDB.graphDepth = 1
 XelAssist.UI.HUD:Refresh(true)
 assert(actionFrame:GetHeight() == 76 and not actionFrame.follow[1]:IsShown(),
-    "one visible step must collapse predictions without moving the current card")
+    "one visible step must hide predictions without resizing the current card")
 mainPoint, mainRelative, mainRelativePoint, mainX, mainY = actionFrame.main:GetPoint()
 assert(mainPoint == "TOPLEFT" and mainRelative == actionFrame
     and mainRelativePoint == "TOPLEFT" and mainX == 12 and mainY == -12,
@@ -459,6 +606,16 @@ XelAssist.Graph.Evaluate = function() return groundPlan, nil, false end
 XelAssist.UI.HUD:Refresh(true)
 assert(actionFrame.route:GetText() == "You -> Ground placement",
     "ground actions must not pretend to execute on the selected unit")
+assert(actionFrame:GetHeight() == 76 and actionFrame.follow[1]:IsShown()
+    and actionFrame.follow[1].placeholder
+    and actionFrame.follow[1].route:GetText() == "GRAPH HORIZON"
+    and actionFrame.follow[1].name:GetText() == "No reliable next step"
+    and not actionFrame.follow[2]:IsShown(),
+    "requested look-ahead must retain one truthful future placeholder rail")
+gameTooltipLines = {}; this = actionFrame.follow[1]; this.OnEnter()
+assert(string.find(table.concat(gameTooltipLines, "|"),
+    "no reliable continuation", 1, true),
+    "future placeholder help must explain why no predicted action is shown")
 
 local longFollowAction = { name = "An Extraordinarily Long Spell Name", rank = 1,
     actor = "player", facts = { kind = "heal" } }
@@ -501,6 +658,20 @@ assert(string.find(readableLog, "Mixed 120% scored", 1, true)
     and string.find(readableLog, "Physical 50%@60%", 1, true)
     and string.find(readableLog, "Nature 80%@40% uncertain", 1, true),
     "the readable decision log must print its mixed score, component shares and uncertainty")
+
+do
+    local savedFallbackRefresh = XelAssist.UI.HUD.Refresh
+    local fallbackRefreshes = 0
+    XelAssist.UI.HUD.Refresh = function()
+        fallbackRefreshes = fallbackRefreshes + 1
+    end
+    chatMessages = {}
+    XelAssist:Fallback("Move into range — Test Strike")
+    assert(table.getn(chatMessages) == 0 and fallbackRefreshes == 1
+        and string.find(XelAssist.lastReason, "Move into range", 1, true),
+        "routine execution holds must update the HUD without spamming chat")
+    XelAssist.UI.HUD.Refresh = savedFallbackRefresh
+end
 
 local function resetCastState()
     XelAssist.pendingAuras = {}
@@ -944,8 +1115,11 @@ XelAssist.Graph.Evaluate = function()
         threat = 1, downtime = 1.5, observed = {}, follow = {}, path = {} }, nil, false
 end
 XelAssist.UI.HUD:Refresh(true)
-assert(XelAssist.UI.HUD.frame.main:IsEnabled() and XelAssist.UI.HUD.frame:GetHeight() == 76,
-    "a later valid recommendation must restore execution without stale future rows")
+assert(XelAssist.UI.HUD.frame.main:IsEnabled()
+    and XelAssist.UI.HUD.frame:GetHeight() == 76
+    and XelAssist.UI.HUD.frame.follow[1].placeholder
+    and not XelAssist.UI.HUD.frame.follow[2]:IsShown(),
+    "a later valid recommendation must restore execution with only its truthful horizon row")
 local priorExecutionCanAttack = UnitCanAttack
 UnitCanAttack = function(_, unit) return unit == "target" end
 XelAssistTestQueueHook = function(_, guid)
@@ -1620,4 +1794,115 @@ assert(petActionCount == petBuffDispatches
     and not next(XelAssist.pendingAuras),
     "the pet dispatch boundary must recheck a live buff before issuing CastPetAction")
 liveBuffSpellIds.pet, testPetGUID, testAssistUnits.pet = nil, nil, nil
+
+-- Hunter Raptor Strike uses its own exact on-swing owner. Dispatch must close
+-- the lane before synchronous native callbacks, defer resistance submission,
+-- and re-anchor the player main-hand round only when native consumes it.
+resetCastState()
+XelAssistTestSavedHunterCanAttack, XelAssistTestSavedHunterAttackSpeed,
+    XelAssistTestSavedHunterDamage =
+    UnitCanAttack, UnitAttackSpeed, UnitDamage
+UnitCanAttack = function(_, unit) return unit == "target" end
+UnitAttackSpeed = function(unit)
+    assert(unit == "player")
+    return 2
+end
+UnitDamage = function(unit)
+    assert(unit == "player")
+    return 40, 60, 0, 0, 0, 0, 1
+end
+testTargetGUID, mockTime, XelAssistTestOnSwingNative =
+    "hunter-melee-target", 50, nil
+XelAssist.Game.Player.OnSwingEvents:Reset("Hunter execution test")
+XelAssistTestRaptorAction = { name = "Raptor Strike", spellId = 2973, rank = 1,
+    rankText = "Rank 1", actor = "player", executor = "playerSpell",
+    facts = { kind = "damage", melee = true, onNextSwing = true,
+        deliveryModel = "physical", deliverySubtype = "melee",
+        usesWeaponSkill = true } }
+XelAssistTestRaptorPlan = { action = XelAssistTestRaptorAction, target = "target",
+    targetGUID = testTargetGUID, targetRelation = "hostile",
+    targetRef = { unit = "target", guid = testTargetGUID,
+        relation = "hostile", source = "selected" },
+    reason = "test exact Hunter on-swing", confidence = "client data",
+    value = 1, threat = 80, rawPower = 80, power = 80,
+    cost = 10, costKnown = true, cast = 0, wait = 0,
+    occupancy = 0.05, downtime = 0.05, observed = {}, follow = {}, path = {},
+    tooltip = { onNextSwing = true, school = 0, cost = 10,
+        cooldown = 6, gcd = 1.5 } }
+XelAssist.Graph.Evaluate = function()
+    return XelAssistTestRaptorPlan, nil, false
+end
+XelAssistTestRaptorQueues = queueCount
+XelAssistTestQueueHook = function(_, guid)
+    assert(guid == testTargetGUID,
+        "Raptor Strike must retain the graph-selected hostile identity")
+    XelAssistTestOnSwingNative = { pending = 1, armed = 1, spellId = 2973,
+        targetGuid = testTargetGUID, attemptId = "9001", buffered = 0,
+        bufferedSpellId = 0, bufferedAttemptId = "0" }
+    fireEvent("SPELL_ON_SWING_STATE", 0, 2973, testTargetGUID, "9001")
+    fireEvent("SPELL_CAST_EVENT", 1, 2973, 2,
+        testTargetGUID, 0, "9001")
+end
+assert(not XelAssist.Combat.Resistance:Submission(
+    testTargetGUID, "player-guid", 2973))
+XelAssist:Execute()
+XelAssistTestQueueHook = nil
+XelAssistTestArmedRaptor = XelAssist.Game.Player.OnSwing:Snapshot()
+assert(queueCount == XelAssistTestRaptorQueues + 1
+    and XelAssistTestArmedRaptor.occupied
+    and XelAssistTestArmedRaptor.owner == "xelassist"
+    and XelAssistTestArmedRaptor.attemptId == "9001"
+    and not XelAssist.Combat.Resistance:Submission(
+        testTargetGUID, "player-guid", 2973),
+    "Raptor input must own one exact lane without early impact submission")
+XelAssist:Execute()
+assert(queueCount == XelAssistTestRaptorQueues + 1
+    and string.find(XelAssist.lastReason, "already armed", 1, true),
+    "a repeated Hunter input must not replace or buffer the armed strike")
+fireEvent("SPELL_DAMAGE_EVENT_SELF", testTargetGUID,
+    "player-guid", 2973, 80, 0, 0, 0, 0)
+assert(not XelAssist.Combat.Resistance:Submission(
+        testTargetGUID, "player-guid", 2973)
+    and XelAssist.Combat.Resistance:RecentSubmission(
+        testTargetGUID, "player-guid", 2973)
+    and XelAssist.Game.Player.AttackRounds:Status().phaseKnown,
+    "an exact damage packet before native code 5 must resolve impact without a stale submission")
+XelAssistTestOnSwingNative = nil
+fireEvent("SPELL_ON_SWING_STATE", 5, 2973, testTargetGUID, "9001")
+assert(not XelAssist.Combat.Resistance:Submission(
+        testTargetGUID, "player-guid", 2973),
+    "captured arm target must not be treated as the resolved swing victim")
+fireEvent("SPELL_GO_SELF", 0, 2973, "player-guid", testTargetGUID, 0, 1)
+assert(not XelAssist.Combat.Resistance:Submission(
+        testTargetGUID, "player-guid", 2973)
+    and XelAssist.Combat.Resistance:RecentSubmission(
+        testTargetGUID, "player-guid", 2973)
+    and not XelAssist.Game.Player.OnSwing:Snapshot().occupied
+    and XelAssist.Game.Player.AttackRounds:Status().phaseKnown,
+    "later native evidence must not resurrect a consumed impact submission")
+
+resetCastState()
+XelAssist.Game.Player.OnSwingEvents:Reset("missing actual Hunter target")
+XelAssist.Game.Player.AttackRounds:Reset("missing actual Hunter target")
+XelAssistTestMissingTargetRecord = assert(XelAssist.Game.Player.OnSwing:Arm(
+    XelAssistTestRaptorAction, XelAssistTestRaptorPlan.tooltip,
+    testTargetGUID, 80, 10, true))
+XelAssistTestOnSwingNative = { pending = 1, armed = 1, spellId = 2973,
+    targetGuid = testTargetGUID, attemptId = "9002", buffered = 0,
+    bufferedSpellId = 0, bufferedAttemptId = "0" }
+fireEvent("SPELL_ON_SWING_STATE", 0, 2973, testTargetGUID, "9002")
+fireEvent("SPELL_CAST_EVENT", 1, 2973, 2,
+    testTargetGUID, 0, "9002")
+assert(XelAssist.Game.Player.OnSwing:Finalize(
+    XelAssistTestMissingTargetRecord, true))
+XelAssistTestOnSwingNative = nil
+fireEvent("SPELL_ON_SWING_STATE", 5, 2973, testTargetGUID, "9002")
+fireEvent("SPELL_GO_SELF", 0, 2973, "player-guid", nil, 0, 1)
+assert(not XelAssist.Combat.Resistance:Submission(
+        testTargetGUID, "player-guid", 2973)
+    and not XelAssist.Game.Player.AttackRounds:Status().phaseKnown,
+    "a captured arm target must never substitute for a missing actual GO victim")
+UnitCanAttack, UnitAttackSpeed, UnitDamage = XelAssistTestSavedHunterCanAttack,
+    XelAssistTestSavedHunterAttackSpeed, XelAssistTestSavedHunterDamage
+testTargetGUID, XelAssistTestOnSwingNative = nil, nil
 print("ok: full TOC-order load, initialization, UI, config and minimap")

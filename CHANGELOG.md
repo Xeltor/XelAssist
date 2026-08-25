@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.8.5
+
+- Removed the target-acquisition crash boundary from the recommendation HUD.
+  The crash report faulted in WoW build 5875's `Region:GetPoint`; the live 0.8.2
+  HUD called that exact method while resizing and reanchoring `XelAssistFrame`
+  inside its own `OnUpdate` callback.
+  The current card is now fixed-height, prebuilt future rows extend below it
+  without mutating the callback owner, a dedicated driver owns refreshes, row
+  handlers are installed once, and a new target settles for one driver tick
+  before presentation. A mocked HOLD-to-plan regression forbids geometry or
+  handler mutation on the visual frame during that transition.
+- Unified the recommendation HUD and settings as one restrained combat
+  instrument: void-ink backdrop, gunmetal border, class stripe, quiet section
+  rails, and one clean class/companion-aware frame per action icon. The numbered
+  decision rail now keeps one truthful horizon placeholder visible when requested
+  look-ahead has no reliable continuation. Settings explain that horizon, show a
+  fixed `/xa` contract, and enumerate only the character's currently learned
+  graph-gated major cooldowns on mouseover, including an explicit none-learned
+  state.
+- Changed the 3 ms graph clock from a hard recommendation failure into a soft
+  future-look-ahead limit. Live snapshot collection no longer consumes that
+  clock, and the graph always completes the immediate candidate set before it
+  may shorten the runway. This prevents low-level or cold-client snapshots from
+  showing `graph budget exceeded` instead of a usable action; a deterministic
+  slow-snapshot regression reproduces the level-1 Rogue failure.
+- Added a generic, session-only player main-hand round model from exact
+  classified Nampower attack evidence. DBC-classified on-next-swing abilities
+  such as Raptor Strike reserve a separate one-action lane and resource cost,
+  stay pinned to the selected hostile, and commit cost, cooldown, damage, and
+  threat only at the verified round. The yellow result replaces one ordinary
+  white result, while scoring values only the marginal upgrade, so neither
+  damage nor utility is double-counted.
+- Added exact Nampower 4.7.1 on-swing ownership through `GetOnSwingInfo()` and
+  `SPELL_ON_SWING_STATE` attempt generations. XelAssist arms ownership before
+  dispatch to survive synchronous callbacks, disables native replacement
+  buffering, blocks repeated taps, preserves reentrant retry generations, and
+  retains ambiguous failures conservatively. Actual GO/miss recipients establish
+  submission and swing evidence; a captured pre-cast target is never treated as
+  proof that the later melee result hit it.
+- Split player round observation, event routing, on-swing ownership, graph
+  scheduling, and marginal scoring into focused modules under `Game/Player/`
+  and `Graph/`. Added exact-generation, target-change, replacement, resource,
+  cooldown, timing, ordinary-white, area-topology, runtime-routing, and soft
+  budget regressions. Authenticated in-world Hunter and Rogue validation remains
+  pending and is not claimed.
+
 ## 0.8.4
 
 - Added a session-only owner for Nampower 4.7.0+'s single normal-GCD player-spell slot.

@@ -9,6 +9,8 @@ local ActorScoring = XelAssist.Graph.ActorScoring
 local ThreatScoring = XelAssist.Graph.ThreatScoring
 local Timeline = XelAssist.Graph.Timeline
 local HostileEffects = XelAssist.Graph.HostileEffects
+local PlayerSwings = XelAssist.Graph.PlayerSwings
+local PlayerSwingScoring = XelAssist.Graph.PlayerSwingScoring
 local Triggered = XelAssist.Combat.TriggeredActions
 
 local function potency(action, tooltip, state)
@@ -81,10 +83,13 @@ local function legalityAndTiming(action, state, descriptor)
     if cast == nil then cast = tooltip.cast or (facts.channel and 3 or 0) end
     if facts.channel and cast <= 0 then cast = tooltip.duration or 3 end
     if state.instantNext and cast > 0 then cast = 0 end
+    local nextSwing = PlayerSwings and PlayerSwings:Is(action, tooltip)
+    if nextSwing then cast = 0 end
     local defaultGCD = action.actor == "pet" and 0.1 or 1.5
-    local occupancy = math.max(0.05,
+    local occupancy = nextSwing and PlayerSwings:Occupancy() or math.max(0.05,
         facts.gcd or tooltip.gcd or defaultGCD, cast)
     local wait = math.max(0, (actionStart or state.time) - state.time)
+    local impactDelay = nextSwing and PlayerSwings:ImpactDelay(state) or nil
     local kind = facts.kind
     local damageKind = kind == "damage" or kind == "dot" or kind == "builder"
     return {
@@ -94,6 +99,8 @@ local function legalityAndTiming(action, state, descriptor)
         effectTooltip = effectTooltip,
         actionStart = actionStart, cast = cast, occupancy = occupancy,
         wait = wait, downtime = wait + occupancy, cost = tooltip.cost or 0,
+        onNextSwing = nextSwing and true or false,
+        impactDelay = impactDelay,
         costKnown = tooltip.cost ~= nil,
         power = power, expectedPower = power, estimated = estimated,
         value = 0, reason = kind, damageKind = damageKind,
@@ -122,9 +129,11 @@ local function estimateResistance(context)
     local action, state = context.effectAction, context.state
     local tooltip = context.effectTooltip
     local resistanceState = state
-    if context.wait + context.cast > 0 then
+    local impactDelay = context.impactDelay
+        or context.wait + context.cast
+    if impactDelay > 0 then
         resistanceState = Effects:StateAtImpact(
-            state, context.wait + context.cast)
+            state, impactDelay)
     end
     local resistance
     if XelAssist.Combat.Resistance then
@@ -197,7 +206,9 @@ local function projectAmbientTargetHealth(context)
     local descriptor = context.descriptor or {}
     context.targetRelation = descriptor.relation
     context.targetGUID = descriptor.guid
-    local probe = Timeline:BeforeAction(state, context)
+    local probe = context.onNextSwing
+        and Timeline:BeforePlayerSwing(state, context, context.impactDelay)
+        or Timeline:BeforeAction(state, context)
     context.targetHealthAtImpact = probe.targetHealth
     context.autoShotLaunchesBeforeImpact = probe.autoLaunches
     context.autoShotImpactsBeforeImpact = probe.autoImpacts
@@ -213,13 +224,15 @@ local function scoreDamageAndHealing(context)
     local targetHealth = context.targetHealthAtImpact or state.targetHealth
     if kind == "damage" or kind == "builder" then
         if HostileEffects and HostileEffects:Score(context) then return true end
-        local effective = state.targetHealthExact and targetHealth > 0
-            and math.min(expected, targetHealth) or expected
+        local effective = PlayerSwingScoring:Effective(
+            context, targetHealth, state.targetHealthExact)
         context.effectivePower = effective
-        context.value = 250 + effective * 4 / math.max(0.5, context.downtime)
-        if state.targetHealthExact and targetHealth > 0
-            and expected >= targetHealth then
+        context.value = PlayerSwingScoring:DamageValue(context, effective)
+        if PlayerSwingScoring:Finishes(
+            context, targetHealth, state.targetHealthExact) then
             context.value, context.reason = context.value + 700, "finishes the target"
+        elseif context.onNextSwing then
+            context.reason = "upgrades the next melee swing"
         elseif facts.recovery then
             context.value = context.value + ((state.resourceMax > 0
                 and (1 - state.resource / state.resourceMax) * 300) or 0)
@@ -403,6 +416,12 @@ local function candidate(context)
         totalEffectivePower = context.totalEffectivePower,
         collateralExpectedPower = context.collateralExpectedPower,
         companionUnknowns = context.companionUnknowns,
+        onNextSwing = context.onNextSwing,
+        impactDelay = context.impactDelay,
+        displacedWhitePower = context.displacedWhitePower,
+        marginalPower = context.marginalPower,
+        marginalEffectivePower = context.marginalEffectivePower,
+        playerSwingUnknowns = context.playerSwingUnknowns,
     }
 end
 
@@ -411,6 +430,7 @@ function Scoring:Evaluate(action, state, descriptor)
     if not context then return nil, blocker end
     resolveTargetNeed(context)
     projectDamageAndResistance(context)
+    PlayerSwingScoring:Project(context)
     projectAmbientTargetHealth(context)
     if context.ambientDefeatsTarget then
         context.value, context.reason = -100000,

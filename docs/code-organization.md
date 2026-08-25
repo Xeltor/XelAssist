@@ -55,8 +55,13 @@ never class rotations or ordered priority lists.
   and `Resources.lua` owns conservative graph-clock arithmetic.
   `Game/AttackRounds.lua` owns session-only classified companion swing evidence,
   `AttackRoundEvents.lua` owns its invalidation boundary, and
-  `PlayerAttack.lua` owns idempotent live player-Attack submission. None persists
-  a pet identity or hardcodes a private-server regeneration rate.
+  `PlayerAttack.lua` owns idempotent live player-Attack submission.
+  `Game/Player/AttackRounds.lua` and `AttackRoundEvents.lua` own exact,
+  target-pinned player main-hand phase evidence. `Game/Player/OnSwing.lua` owns
+  one exact Nampower 4.7.1 attempt-generation lane with a conservative 4.7.0
+  fallback, while `OnSwingEvents.lua` bridges native state and actual GO/miss
+  recipients into graph evidence. None persists
+  an actor identity or hardcodes a private-server regeneration rate.
 - `Combat` owns declarative player and companion spell meaning, stateless
   delivery rules, transient observations, and target evidence. Pet knowledge is
   ID-first metadata over live-discovered actions, never a family priority list.
@@ -68,6 +73,9 @@ never class rotations or ordered priority lists.
   `Graph/HostileEffects.lua` applies eligible hostile-local effects without
   spending one action more than once. `Graph/AutoShotEffects.lua` and
   `Graph/CompanionEvents.lua` own target-pinned ambient events;
+  `Graph/PlayerSwings.lua` owns player main-hand and on-next-swing timeline
+  consequences, while `Graph/PlayerSwingScoring.lua` owns displaced-white
+  marginal utility;
   `Graph/CompanionTargets.lua` owns their identity boundary and
   `Graph/CompanionSwings.lua` owns ordinary melee scheduling.
   `Graph/CompanionScheduler.lua` arbitrates one pet cast/GCD clock;
@@ -81,8 +89,13 @@ never class rotations or ordered priority lists.
   controlled-actor utility and actor-owned threat out of core potency scoring.
   Targeting, scoring, transitions, and search consume passed state and do not
   mutate live game state.
-- `UI` renders plans and settings. It does not score actions or execute cached
-  previews.
+- `UI` renders plans and settings. `UI/Theme.lua` owns the shared combat-instrument
+  tokens and icon chrome, while `UI/CooldownPolicy.lua` explains only the
+  live-discovered actions governed by the major-cooldown policy. The visual HUD
+  remains fixed-height and owns no update callback; a dedicated child driver
+  refreshes prebuilt rows after target changes settle, without querying or
+  reanchoring the visual frame from inside presentation. UI modules do not score
+  actions or execute cached previews.
 - `Core` owns startup and the one-input execution boundary.
   `Core/DecisionLog.lua` owns bounded privacy-safe history and event status
   correlation; `Core/Diagnostics.lua` owns the durable capability/evidence audit.
@@ -116,7 +129,6 @@ Current migration debt is deliberately bounded:
 | --- | --- |
 | `Combat/Resistance.lua` | identity/store, learning, estimator, summary |
 | `Game/Capabilities.lua` | spellbook, spell facts, units/range, equipment |
-| `Game/SpellClassification.lua` | DBC-derived normal-GCD and on-next-swing queue classes |
 | `Core/Runtime.lua` | startup/commands versus combat-event routing |
 | `UI/HUD.lua` | formatting, tooltip, layout, recommendation presenter |
 

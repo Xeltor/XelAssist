@@ -117,15 +117,12 @@ local function retainSetupBranch(candidates)
     table.sort(candidates, candidateBefore)
 end
 
-local function topCandidates(state, started, counter)
+local function topCandidates(state, counter)
     local buckets, actions, order = {}, availableActions(), 0
     local i, targets, targetIndex, candidate, blocker
     for i = 1, table.getn(actions) do
         targets = Targets:Targets(actions[i], state)
         for targetIndex = 1, table.getn(targets) do
-            if (GetTime() - started) * 1000 > MAX_MS then
-                return nil, "graph budget exceeded"
-            end
             candidate, blocker = Scoring:Evaluate(
                 actions[i], state, targets[targetIndex])
             if candidate then
@@ -140,9 +137,6 @@ local function topCandidates(state, started, counter)
     local candidates = flattenCandidates(buckets)
     retainSetupBranch(candidates)
     counter.count = counter.count + table.getn(candidates)
-    if counter.count > MAX_STATES then
-        return nil, "graph budget exceeded"
-    end
     return candidates
 end
 
@@ -158,16 +152,24 @@ local function pathBefore(a, b)
     return (a.graphOrder or 0) < (b.graphOrder or 0)
 end
 
+local function searchBudgetReached(started, counter)
+    return counter.count >= MAX_STATES
+        or (GetTime() - started) * 1000 > MAX_MS
+end
+
 local function bestSearchPath(state, started, counter, depth)
     local frontier = { { state = state, steps = {}, total = 0,
         graphOrder = 1 } }
-    local terminal, pathOrder, level, err = {}, 1, nil, nil
+    local terminal, pathOrder, level = {}, 1, nil
     for level = 1, depth do
+        if level > 1 and searchBudgetReached(started, counter) then
+            counter.budgetLimited = true
+            break
+        end
         local expanded, pathIndex, candidateIndex = {}, nil, nil
         for pathIndex = 1, table.getn(frontier) do
             local path, candidates = frontier[pathIndex], nil
-            candidates, err = topCandidates(path.state, started, counter)
-            if not candidates then return nil, err end
+            candidates = topCandidates(path.state, counter)
             if table.getn(candidates) == 0 then table.insert(terminal, path) end
             for candidateIndex = 1, table.getn(candidates) do
                 local candidate = candidates[candidateIndex]
@@ -186,6 +188,10 @@ local function bestSearchPath(state, started, counter, depth)
         table.sort(expanded, pathBefore)
         while table.getn(expanded) > WIDTH do table.remove(expanded) end
         frontier = expanded
+        if searchBudgetReached(started, counter) then
+            counter.budgetLimited = true
+            break
+        end
     end
     local paths, i = {}, nil
     for i = 1, table.getn(frontier) do table.insert(paths, frontier[i]) end
@@ -310,6 +316,14 @@ local function recommendationUnknowns(state, best)
         end
         if not found then table.insert(out, reason) end
     end
+    for i = 1, table.getn(best.playerSwingUnknowns or {}) do
+        local reason = best.playerSwingUnknowns[i]
+        local found, j = false, nil
+        for j = 1, table.getn(out) do
+            if out[j] == reason then found = true; break end
+        end
+        if not found then table.insert(out, reason) end
+    end
     if (kind == "damage" or kind == "dot" or kind == "builder")
         and not state.targetHealthExact then
         table.insert(out, "exact target health")
@@ -322,8 +336,8 @@ local function applyResistanceContrast(state, best)
     local kind, resistance = best.action.facts.kind, best.resistance
     local damage = kind == "damage" or kind == "dot" or kind == "builder"
     if not (XelAssist.Combat.Resistance and resistance and damage) then return end
-    local impact = Effects:StateAtImpact(state,
-        (best.wait or 0) + (best.cast or 0))
+    local impact = Effects:StateAtImpact(state, best.impactDelay
+        or (best.wait or 0) + (best.cast or 0))
     local contrast = XelAssist.Combat.Resistance:Contrast(impact, resistance)
     if contrast then best.reason = contrast
     elseif not resistance.unknown and (resistance.multiplier or 1) <= 0.85
@@ -354,6 +368,7 @@ local function buildPlan(state, observed, path, counter, started)
         castTargetRef = best.castTargetRef,
         actor = best.action.actor or "player", confidence = confidence,
         unknowns = unknowns, expanded = counter.count,
+        budgetLimited = counter.budgetLimited and true or false,
         elapsed = (GetTime() - started) * 1000, value = best.value,
         threat = best.threat, downtime = best.downtime, observed = observed,
         resistance = best.resistance, tooltip = best.tooltip,
@@ -366,22 +381,29 @@ local function buildPlan(state, observed, path, counter, started)
         totalExpectedPower = best.totalExpectedPower,
         totalEffectivePower = best.totalEffectivePower,
         collateralExpectedPower = best.collateralExpectedPower,
-        power = best.power, effectDelivery = best.effectDelivery,
-        cost = best.cost, occupancy = best.occupancy,
+        power = best.power, rawPower = best.rawPower,
+        marginalPower = best.marginalPower,
+        displacedWhitePower = best.displacedWhitePower,
+        effectDelivery = best.effectDelivery,
+        cost = best.cost, costKnown = best.costKnown,
+        onNextSwing = best.onNextSwing,
+        impactDelay = best.impactDelay, occupancy = best.occupancy,
         wait = best.wait, cast = best.cast, blockers = counter.blockers,
         path = path.steps }
 end
 
 function G:Evaluate(mode, preview)
-    local started = GetTime()
     local counter = { count = 0, blockers = {} }
     local state = self:Snapshot(mode)
     local observed = observedState(state)
+    -- Snapshot collection is a live-evidence boundary, not graph expansion.
+    -- Start the soft horizon clock afterwards and always finish depth one so
+    -- slow client APIs can shorten the runway without suppressing an action.
+    local started = GetTime()
     local depth = tonumber(XelAssistCharDB.graphDepth) or 3
     if depth < 1 then depth = 1 end
     if depth > MAX_DEPTH then depth = MAX_DEPTH end
-    local path, err = bestSearchPath(state, started, counter, depth)
-    if not path then return nil, err, true end
+    local path = bestSearchPath(state, started, counter, depth)
     if not path.steps[1] then
         return nil, blockerReason(state, counter.blockers), false
     end

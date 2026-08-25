@@ -43,6 +43,12 @@ resource, tie, cast-event, cast-runtime, and chosen-consumption helpers, and
 `Graph/CompanionEventThreat.lua` owns companion threat consequences.
 `Graph/EventAuras.lua` advances event-created aura clocks by opaque hostile key,
 while `Graph/ReadinessEffects.lua` owns chosen-action cooldown clocks.
+`Game/Player/AttackRounds.lua` owns exact player main-hand phase evidence and
+`Game/Player/OnSwing.lua` owns Nampower 4.7.1's attempt-identified on-swing slot
+and conservatively owns the single live pending bit on Nampower 4.7.0.
+`Graph/PlayerSwings.lua` schedules the corresponding target-pinned ambient
+rounds and applies full replacement-hit consequences, while
+`Graph/PlayerSwingScoring.lua` values only the gain over the displaced white hit.
 `Graph/State.lua`, `Graph/Targets.lua`, `Graph/Effects.lua`,
 `Graph/Scoring.lua`, `Graph/OngoingEffects.lua`, `Graph/ActionEffects.lua`,
 `Graph/Timeline.lua`, and `Graph/Transitions.lua` own one planning stage each;
@@ -73,6 +79,11 @@ Architecture tests prevent the old monolith or a dependency cycle from returning
    conservatively subject to dodge/parry/block/mechanic uncertainty. Ignoring
    resistances bypasses positive resistance without discarding a real negative
    resistance vulnerability.
+   Nampower 4.7.1 also supplies a reusable `GetOnSwingInfo()` snapshot and
+   attempt-identified `SPELL_ON_SWING_STATE` transitions. State changes precede
+   callbacks, so XelAssist can reconcile synchronous arm, consume, failure,
+   cancellation, replacement, and buffer-pop evidence without guessing from an
+   action-bar glow or a later generic cast event.
 3. The client tooltip: talent-adjusted cost and displayed damage/healing ranges;
    cached facts are invalidated when the client reports changed talent points.
 4. Conservative estimation from rank and cost when neither record nor tooltip
@@ -97,6 +108,14 @@ Encounter context records instance type, zone/subzone, target GUID and creature
 ID, level, classification, creature type, reaction, raid marker, ownership and
 controlled-unit classification. These are data join keys and constraints, never
 NPC-name dispatch into a scripted priority list.
+
+Player main-hand rounds form a third independent clock. Only an exact ordinary
+AUTO_ATTACK result or an exactly owned on-swing GO anchors phase; selecting a
+target, pressing Attack, or reading weapon speed never fabricates one. A queued
+on-next-swing action reserves its resource but does not spend it, start cooldown,
+or apply damage until the target-pinned round. At that event it replaces the
+ordinary white result. A following white round advances normally and cannot
+replay the special.
 
 The hostile root is a deterministic, GUID-deduplicated collection of at most
 five live identities exposed through `target`, `mouseover`, `pettarget`, and
@@ -200,6 +219,10 @@ action with positive wait is submitted only through Nampower's forced selected-
 target queue; exact-friendly, ground, and item paths hold until they are ready.
 Future nodes are predictions, not queued casts; every `/xa` press takes a fresh
 snapshot and may choose differently.
+The 3 ms expansion clock begins after that live snapshot and is a soft limit on
+additional depth. Depth one always evaluates the complete immediate candidate
+set; if the clock or 80-state limit is crossed, the best current frontier is
+returned with `budgetLimited` evidence and the prediction runway is shortened.
 The decision runway renders each step as actor, target, action, modeled start
 time, and evidence state. Only the current step is clickable; graph errors and
 dependency holds disable it and remove stale future rows.
@@ -317,7 +340,15 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   identity, target, attack-state, speed, aura, level, world, or control changes.
   Same-time autocast/white order creates a causal boundary that withholds all
   later companion events in that projected window.
-- Evaluation errors, missing dependencies, and budget overruns hold without a cast.
+- DBC-classified player on-next-swing actions use their own exact slot. They
+  require a verified active Attack target, main-hand phase, live normal-damage
+  magnitude, exact melee geometry, and a single proven recipient. Repeated taps
+  cannot replace the armed generation. Scoring subtracts the expected white hit
+  that the special replaces, while transition state commits the full special at
+  the round and charges its cost/cooldown once.
+- Evaluation errors and missing dependencies hold without a cast. Search-budget
+  pressure limits future depth but cannot suppress an otherwise usable immediate
+  recommendation.
 
 ## Known evidence gaps
 
@@ -352,6 +383,11 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   The live normal-damage envelope is retained for diagnostics, but white-round
   damage and threat remain unknown until crit, glancing, block, absorb, and
   resistance outcome magnitudes can be modeled without false precision.
+- A player round is executable only after exact classified main-hand evidence
+  and live normal-damage magnitude establish phase and replacement value. Before
+  the first such round, after a target/weapon/form/control change, or when melee
+  geometry is not exact, on-next-swing actions hold. Area on-next-swing abilities
+  remain withheld until every replacement and secondary recipient can be proven.
 - Hunter pet focus is observed exactly at each live snapshot and known pet costs
   are reserved across the shared autocast clock. Passive regeneration becomes
   executable only after three same-identity, uncapped `UNIT_FOCUS` gains establish
@@ -429,7 +465,8 @@ of a rewrite of a hand-authored rotation.
 
 `XelAssistCharDB.runtime` records a privacy-safe load audit: addon/schema and
 dependency versions, guarded API availability, required Nampower damage/miss
-event CVar status, discovered/inferred node counts, load time, and the latest
-graph failure. `/xa diagnostics` refreshes and prints that evidence without
+event CVar status, exact player/pet round and on-swing ownership status,
+discovered/inferred node counts, load time, and the latest graph failure.
+`/xa diagnostics` refreshes and prints that evidence without
 player, realm, target, or party names. `/xa resistance` prints per-school
 expected output split into delivery and landed-hit value, with unknowns preserved.

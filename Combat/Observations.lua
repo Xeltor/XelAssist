@@ -27,6 +27,32 @@ local function setPairValue(store, first, second, value)
     bucket[second] = value
 end
 
+local function submittedGuid(owner, action, guid, tooltip)
+    if not action or guid == nil then return end
+    if XelAssist.Combat.Resistance then
+        local exists, selectedGuid = UnitExists("target")
+        if exists and selectedGuid == guid then
+            XelAssist.Combat.Resistance:RememberUnit("target")
+        end
+        local refresh = XelAssist.Game.Capabilities
+            and XelAssist.Game.Capabilities.TargetHasDebuff
+            and exists and selectedGuid == guid
+            and XelAssist.Game.Capabilities:TargetHasDebuff(action.name) or false
+        XelAssist.Combat.Resistance:Submitted(action, guid, tooltip, refresh)
+    end
+    local school = tooltip and tooltip.school or nil
+    if XelAssist.Combat.Resistance then
+        school = XelAssist.Combat.Resistance:School(action, tooltip)
+    end
+    owner.last = { name = action.name, target = guid,
+        actor = action.actor or "player", at = GetTime(),
+        school = school, spellId = action.spellId }
+end
+
+function O:SubmittedGuid(action, guid, tooltip)
+    submittedGuid(self, action, guid, tooltip)
+end
+
 function O:Submitted(action, target, tooltip)
     if not action then return end
     if target ~= "target" then
@@ -36,16 +62,7 @@ function O:Submitted(action, target, tooltip)
         self.last = nil
         return
     end
-    if XelAssist.Combat.Resistance then
-        XelAssist.Combat.Resistance:RememberUnit("target")
-        local refresh = XelAssist.Game.Capabilities and XelAssist.Game.Capabilities.TargetHasDebuff
-            and XelAssist.Game.Capabilities:TargetHasDebuff(action.name) or false
-        XelAssist.Combat.Resistance:Submitted(action, targetGUID(), tooltip, refresh)
-    end
-    local school = tooltip and tooltip.school or nil
-    if XelAssist.Combat.Resistance then school = XelAssist.Combat.Resistance:School(action, tooltip) end
-    self.last = { name = action.name, target = targetGUID(), actor = action.actor or "player", at = GetTime(),
-        school = school, spellId = action.spellId }
+    submittedGuid(self, action, targetGUID(), tooltip)
 end
 
 function O:AddResistance(guid, school, weight)
