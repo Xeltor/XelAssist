@@ -12,6 +12,7 @@ local DotProjection = XelAssist.Graph.DotProjection
 local ResourceExchange = XelAssist.Graph.ResourceExchange
 local HealthTransfer = XelAssist.Graph.HealthTransfer
 local WandCommitment = XelAssist.Graph.WandCommitment
+local PlayerTaunt = XelAssist.Graph.PlayerTaunt
 
 function A:Context(source, candidate)
     local action, facts = candidate.action, candidate.action.facts
@@ -210,7 +211,10 @@ local function applyDamageOrSupport(out, source, candidate, context,
             out.actors.pet.health + candidate.power)
         XelAssist.Graph.CompanionCommandPolicy:UpdateRecovery(out.actors.pet)
         return true
-    elseif facts.kind == "taunt" and out.actors and out.actors.pet then
+    elseif PlayerTaunt and PlayerTaunt:Apply(out, candidate) then
+        return true
+    elseif facts.kind == "taunt" and context.action.actor == "pet"
+        and out.actors and out.actors.pet then
         local delivery = math.max(0, math.min(1,
             tonumber(candidate.effectDelivery) or 1))
         if delivery >= 0.999 then

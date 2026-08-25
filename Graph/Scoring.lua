@@ -297,9 +297,9 @@ local function scoreStateUtility(context)
             or "improves the next action"
     end
 end
-
 local function scoreKindUtility(context)
     if XelAssist.Graph.Charge and XelAssist.Graph.Charge:Score(context) then return end
+    if XelAssist.Graph.PlayerTaunt and XelAssist.Graph.PlayerTaunt:Score(context) then return end
     if scoreDamageAndHealing(context) then return end
     if ActorScoring:Score(context) then return end
     scoreStateUtility(context)

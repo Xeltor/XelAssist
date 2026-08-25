@@ -296,6 +296,7 @@ C_Spell = { IsSpellInRange = function(name, unit)
     return spellRangeVerdict
 end }
 dofile("Core/TargetGuard.lua")
+dofile("Core/WarriorTankGuard.lua")
 dofile("Game/SpellClassification.lua")
 dofile("Game/Range.lua")
 dofile("Game/Pets/Actions.lua")
@@ -374,6 +375,37 @@ hooks.ready = false
 XelAssist:Execute()
 assertNoExecution(
     "an off-GCD hostile transport must still revalidate its live cooldown")
+
+-- Player Taunt is immediate and victim-sensitive: it never enters Nampower's
+-- delayed hostile queue, and its final boundary rechecks current ownership.
+resetEffects()
+UnitAffectingCombat = function() return true end
+GetShapeshiftForm = function() return 2 end
+GetNumRaidMembers = function() return 0 end
+GetNumPartyMembers = function() return 1 end
+units.targettarget = { guid = allyGuid }
+currentPlan = hostilePlan(playerAction("Taunt", { kind = "taunt", gcd = 0,
+    playerTaunt = true, immediateDispatch = true,
+    requiresExactUsability = true, submissionGuarded = true }))
+currentPlan.action.spellId, currentPlan.action.slot,
+    currentPlan.tooltip.gcd = 355, 1, 0
+XelAssist:Execute()
+assert(effects.direct == 1 and effects.directName == "Taunt"
+    and effects.directUnit == nil and effects.queue == 0
+    and effects.pending == 1 and effects.log == 1,
+    "a live-safe Taunt must cast on the selected target without a truthy onSelf flag")
+
+resetEffects()
+units.targettarget = { guid = playerGuid }
+currentPlan = hostilePlan(playerAction("Taunt", { kind = "taunt", gcd = 0,
+    playerTaunt = true, immediateDispatch = true,
+    requiresExactUsability = true, submissionGuarded = true }))
+currentPlan.action.spellId, currentPlan.action.slot,
+    currentPlan.tooltip.gcd = 355, 1, 0
+XelAssist:Execute()
+assertNoExecution("Taunt must be cancelled if the enemy switched to the player")
+assert(string.find(XelAssist.lastReason or "", "already attacks player", 1, true),
+    "a final Taunt victim race must remain explainable")
 
 -- Shoot is a distinct client repeat boundary. It must never pass through the
 -- Hunter Auto Shot validator, and macro tapping must not toggle it off.

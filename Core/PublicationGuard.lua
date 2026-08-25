@@ -3,6 +3,7 @@
 -- only a publication that has become unsafe while sliced work was finishing.
 XelAssist.Core.PublicationGuard = {}
 local P = XelAssist.Core.PublicationGuard
+local WarriorTankGuard = XelAssist.Core.WarriorTankGuard
 
 local function friendly(relation)
     return relation == "ally" or relation == "friendly"
@@ -119,6 +120,10 @@ function P:Validate(plan)
     if not valid then return false, reason end
     valid, reason = recipientIdentity(plan)
     if not valid then return false, reason end
+    if WarriorTankGuard then
+        valid, reason = WarriorTankGuard:Validate(plan)
+        if not valid then return false, reason end
+    end
     valid, reason = affordable(plan)
     if not valid then return false, reason end
     valid, reason = reagentAvailable(plan)

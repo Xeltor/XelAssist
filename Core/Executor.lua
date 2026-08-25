@@ -8,6 +8,7 @@ local WandExecution = XelAssist.Core.WandExecution
 local PlayerNormalQueue = XelAssist.Core.PlayerNormalQueue
 local PlayerOnSwing = XelAssist.Game.Player
     and XelAssist.Game.Player.OnSwing
+local WarriorTankGuard = XelAssist.Core.WarriorTankGuard
 local function applicationGuarded(facts, tooltip)
     if facts and facts.submissionGuarded then return true end
     local kind = facts and facts.kind
@@ -54,7 +55,6 @@ local function autoShotEvidence(expectedGuid, action)
         lineOfSight = geometry and geometry.lineOfSight },
         expectedGuid, action and action.spellId)
 end
-
 local function duplicateApplication(owner, action, tooltip, unit, guid, casterGuid)
     if not applicationGuarded(action.facts, tooltip) then return nil end
     local key = owner:PendingAuraKey(action.name, guid, casterGuid)
@@ -70,7 +70,6 @@ local function duplicateApplication(owner, action, tooltip, unit, guid, casterGu
     end
     return nil
 end
-
 local function petRefForPlan(plan)
     local actionRef = plan.action.actorRef or plan.actorRef
     local pet = plan.observed and plan.observed.actors and plan.observed.actors.pet
@@ -84,7 +83,6 @@ local function petRefForPlan(plan)
     if not ref then return nil, "companion identity unavailable" end
     return ref, nil
 end
-
 function XA:Fallback(reason)
     self.lastReason = "Conservative hold — " .. reason
     if XelAssist.UI and XelAssist.UI.HUD then
@@ -125,14 +123,12 @@ function XA:ExecutePetPlan(plan, selected)
     self.lastReason = action.name .. " — " .. plan.reason
     XelAssist.UI.HUD:RequestRefresh(true)
 end
-
 local function validateFriendly(owner, ref)
     if not ref then return nil, nil, "ally identity unavailable" end
     local unit, reason = XelAssist.Game.Capabilities:ValidateFriendlyRef(ref)
     if not unit then return nil, nil, reason or "ally changed" end
     return unit, ref.guid, nil
 end
-
 local function dispatchPlayer(action, plan, castName, friendly, selfQueue, capturedGuid, unit)
     local castRef = plan.castTargetRef or plan.targetRef
     local guid, reason, hostile
@@ -153,6 +149,7 @@ local function dispatchPlayer(action, plan, castName, friendly, selfQueue, captu
     elseif action.facts.autoRepeat then CastSpellByName(castName)
     elseif action.facts.petLifecycle then CastSpellByName(castName)
     elseif action.facts.ground then CastSpellByName(castName, "CLICK")
+    elseif action.facts.immediateDispatch then CastSpellByName(castName)
     elseif selfQueue then QueueSpellByName(castName, capturedGuid or "player")
     elseif friendly then CastSpellByName(castName, capturedGuid)
     elseif hostile and QueueSpellByName then QueueSpellByName(castName, guid)
@@ -191,7 +188,8 @@ local function playerContext(plan)
     context.normalQueue = not facts.playerAttack and not facts.autoRepeat
         and PlayerNormalQueue:MayOccupy(action, plan.tooltip)
     context.usesHostileQueue = not facts.playerAttack and not facts.autoRepeat
-        and not facts.petLifecycle and not facts.ground and not context.friendly
+        and not facts.petLifecycle and not facts.ground and not facts.immediateDispatch
+        and not context.friendly
         and QueueSpellByName ~= nil
     context.usesSelfQueue = not facts.petLifecycle and not facts.ground
         and (relation == "self" or relation == "player") and context.normalQueue
@@ -302,6 +300,8 @@ local function dispatchPlayerContext(owner, plan, context)
     local reachable
     reachable, reason = ExecutionReach:Validate(plan, context.unit)
     if not reachable then return rejectPlayer(owner, reason) end
+    local tankSafe, tankReason = WarriorTankGuard:Validate(plan)
+    if not tankSafe then return rejectPlayer(owner, tankReason) end
     local queueRecord, swingRecord
     if context.normalQueue and (facts.petLifecycle
         or context.usesHostileQueue or context.queueTargetGuid ~= nil) then

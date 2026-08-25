@@ -14,6 +14,7 @@ local EventAuras = XelAssist.Graph.EventAuras
 local HostileCasts = XelAssist.Graph.HostileCastEvents
 local HealthTransfer = XelAssist.Graph.HealthTransfer
 local AmbientTargetHealth = XelAssist.Graph.AmbientTargetHealth
+local PlayerTaunt = XelAssist.Graph.PlayerTaunt
 local NIL_PROBE_TARGET = {}
 
 local function memoActionKey(action)
@@ -195,6 +196,7 @@ local function advanceState(out, elapsed, persistentAuras, eventAuras)
     advanceWand(out, elapsed)
     Ongoing:AdvanceState(out, elapsed, persistentAuras)
     Ongoing:AdvanceEventAuras(out, eventAuras, elapsed)
+    if PlayerTaunt then PlayerTaunt:Advance(out) end
     if HostileCasts then HostileCasts:Advance(out, elapsed) end
 end
 

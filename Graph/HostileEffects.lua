@@ -390,6 +390,9 @@ function H:ProjectPetTaunt(out, candidate, action)
     record.threat.tauntDelivery = delivery
     record.threat.projectedSource = action and action.name
     if delivery >= 0.999 then
+        record.tauntFocusUntil, record.tauntFocusExpired = nil, nil
+        record.projectedTauntedByPlayer = nil
+        record.threat.projectedOwnershipUnknown = nil
         record.threat.projectedPlayerHasAggro = false
         record.threat.projectedPetHasAggro = true
         record.threat.projectedVictimGuid = pet.guid

@@ -31,6 +31,13 @@ XelAssist.Game.Capabilities.ValidateFriendlyRef = function(_, ref)
 end
 local auraPending = false
 function XelAssist:IsAuraPending() return auraPending end
+local warriorSafe = true
+XelAssist.Core.WarriorTankGuard = { Validate = function(_, current)
+    if current.action.facts.playerTaunt and not warriorSafe then
+        return false, "Taunt victim changed"
+    end
+    return true, nil
+end }
 
 dofile("Core/PublicationGuard.lua")
 local Guard = XelAssist.Core.PublicationGuard
@@ -50,6 +57,13 @@ local bolt = plan({ name = "Shadow Bolt", actor = "player",
     executor = "playerSpell", facts = { kind = "damage" } })
 assert(Guard:Validate(bolt),
     "an affordable action with stable identities must publish")
+local taunt = plan({ name = "Taunt", actor = "player",
+    executor = "playerSpell", facts = { kind = "taunt", playerTaunt = true } })
+taunt.cost, taunt.costKnown, warriorSafe = 0, true, false
+local tauntValid, tauntReason = Guard:Validate(taunt)
+assert(not tauntValid and tauntReason == "Taunt victim changed",
+    "publication must invoke the exact live Warrior tank guard")
+warriorSafe = true
 playerResource = 20
 local valid, reason = Guard:Validate(bolt)
 assert(not valid and reason == "resource changed",

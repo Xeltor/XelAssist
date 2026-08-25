@@ -1,4 +1,4 @@
-# XelAssist 0.8.30
+# XelAssist 0.8.31
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -89,6 +89,17 @@ The root snapshot must prove the action usable and outside combat, and the live
 dispatch boundary checks both facts again before accepting a macro press. A
 target-scoped in-flight reservation prevents repeated fresh publications from
 resubmitting it while combat and cooldown evidence catch up.
+
+Player Taunt is a distinct threat-ownership edge, not a damage action or a
+Warrior priority rule. In tank posture, the graph may recommend it only from a
+live selected hostile that is provably attacking the player's current pet or a
+current party/raid member. It projects the bounded forced-target window without
+inventing a numeric threat lead or rewriting the immutable observed victim.
+Publication and immediate dispatch independently revalidate Defensive Stance,
+exact usability, cooldown, five-yard reach, hostile identity, victim
+identity, and roster ownership; a target that has already switched to the
+player cancels the recommendation instead of wasting Taunt. A proven ally or
+pet pull remains valid before the player's own combat flag arrives.
 
 ## Requirements
 
@@ -188,6 +199,8 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
   marginal scarcity pricing for shard consumers instead of a typed rotation;
 - talent-adjusted client tooltip facts, refreshed whenever talent points change;
 - group role, current target-of-target aggro, and relative action threat;
+- exact root-only Warrior Taunt rescue for a current pet or group member, with
+  target/victim/roster race protection and no fabricated damage or threat total;
 - interrupts, proc/stance usability, combo points, buffs, debuffs, ranks,
   area policy, cooldown policy, and reagents;
 - generic DBC-discovered combo generation and finishing moves, including

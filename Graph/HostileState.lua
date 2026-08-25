@@ -78,15 +78,19 @@ local function sync(state, record)
     state.targetCastProbability = record and record.castProbability or nil
     if record and record.threat then
         state.targetPlayerThreatDeltaExact = record.threat.playerDeltaExact ~= false
-        if record.threat.projectedPlayerHasAggro ~= nil then
+        if record.threat.projectedOwnershipUnknown then
+            state.hasAggro = nil
+        elseif record.threat.projectedPlayerHasAggro ~= nil then
             state.hasAggro = record.threat.projectedPlayerHasAggro
         else state.hasAggro = record.threat.playerHasAggro end
         -- Only the selected/root compatibility view may update actor-global
         -- pet aggro. Off-target contexts are shallow views and must not leak.
-        if state.targetContextKey == nil
-            and record.threat.projectedPetHasAggro ~= nil
-            and state.actors and state.actors.pet then
-            state.actors.pet.hasAggro = record.threat.projectedPetHasAggro
+        if state.targetContextKey == nil and state.actors and state.actors.pet then
+            if record.threat.projectedOwnershipUnknown then
+                state.actors.pet.hasAggro = nil
+            elseif record.threat.projectedPetHasAggro ~= nil then
+                state.actors.pet.hasAggro = record.threat.projectedPetHasAggro
+            end
         end
     else
         state.hasAggro = record and record.hasPlayerAggro

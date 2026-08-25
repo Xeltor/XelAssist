@@ -104,6 +104,9 @@ function T:ApplyTaunt(target, out, ambient, record, selected, delivery)
         record.threat.tauntDelivery = delivery
         record.threat.projectedSource = ambient.name
         if delivery >= 0.999 then
+            record.tauntFocusUntil, record.tauntFocusExpired = nil, nil
+            record.projectedTauntedByPlayer = nil
+            record.threat.projectedOwnershipUnknown = nil
             record.threat.projectedPlayerHasAggro = false
             record.threat.projectedPetHasAggro = true
             record.threat.projectedVictimGuid = pet and pet.guid or nil

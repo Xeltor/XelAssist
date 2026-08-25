@@ -355,7 +355,7 @@ local function effectBlocker(owner, action, state, descriptor, target,
         and actionStart >= state.targetCastRemaining then
         return "interrupt too late"
     end
-    if kind == "taunt" then
+    if kind == "taunt" and not facts.playerTaunt then
         local petTank = config.petThreat == "tank"
             or (config.petThreat ~= "avoid" and state.groupSize == 0)
         if not petTank or (state.actors.pet and state.actors.pet.hasAggro) then
@@ -427,6 +427,9 @@ function T:Legal(action, state, descriptor)
     if blocker then return false, blocker end
     blocker = XelAssist.Graph.Charge
         and XelAssist.Graph.Charge:Blocker(action, state, descriptor)
+    if blocker then return false, blocker end
+    blocker = XelAssist.Graph.PlayerTaunt
+        and XelAssist.Graph.PlayerTaunt:Blocker(action, state, descriptor)
     if blocker then return false, blocker end
     local actionStart
     actionStart, blocker = Admission:Start(action, state, tooltip)

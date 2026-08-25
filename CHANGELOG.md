@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.31
+
+- Added player Taunt as an exact root-only threat-rescue edge, distinct from
+  companion taunts. It can take a selected hostile from the player's current
+  pet or a current party/raid member while projecting only the bounded
+  forced-target ownership window, never damage or a fabricated numeric threat
+  lead.
+- Required tank posture, Defensive Stance, exact rank/usability, cooldown,
+  five-yard reach, and current victim evidence. Publication and
+  immediate dispatch revalidate target, victim, and roster identity so a stale
+  recommendation cannot Taunt an outsider or an enemy already attacking the
+  player, while a proven ally pull remains rescuable before the player's own
+  combat flag arrives.
+- Added deterministic ally, pet, outsider, unknown-victim, partial-delivery,
+  projected-repeat, three-second ownership-expiry, search-runway, stale-target,
+  victim-race, roster-race, and immediate-versus-hostile-queue regressions
+  without increasing the production graph benchmark.
+
 ## 0.8.30
 
 - Added Warrior Charge as an exact causal engage edge. The installed rank
