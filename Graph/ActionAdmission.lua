@@ -10,7 +10,8 @@ function A:Start(action, state, tooltip)
         cast = tooltip.duration or 3
     end
     if state.instantNext and cast and cast > 0 then cast = 0 end
-    if action.actor ~= "pet" and state.moving and cast and cast > 0 then
+    if action.actor ~= "pet" and (state.time or 0) <= 0
+        and state.moving and cast and cast > 0 then
         return nil, "moving"
     end
     local actor = action.actor or "player"
@@ -28,6 +29,21 @@ function A:Start(action, state, tooltip)
     if actor == "pet" and kind ~= "command" and at > (state.time or 0) then
         return nil, "companion casting"
     end
+    local playerResources = XelAssist.Game.Player
+        and XelAssist.Game.Player.Resources
+    if actor == "player" and playerResources then
+        local available = (tonumber(state.resource) or 0)
+            - (tonumber(state.playerResourceReserved) or 0)
+        if (state.time or 0) <= 0
+            and available < (tonumber(tooltip.cost) or 0) then
+            return nil, "resource"
+        end
+        local ready = playerResources:Earliest(state, tooltip.cost, at)
+        if ready then at = math.max(at, ready)
+        elseif (tonumber(state.resource) or 0)
+            - (tonumber(state.playerResourceReserved) or 0)
+            < (tonumber(tooltip.cost) or 0) then return nil, "resource" end
+    end
     return at, nil
 end
 
@@ -37,8 +53,11 @@ function A:Readiness(action, state, tooltip, actionStart)
     if action.actor == "pet" and state.actors and state.actors.pet then
         resource = state.actors.pet.resource
     elseif action.actor ~= "pet" and resource ~= nil then
-        resource = resource - math.max(0,
-            tonumber(state.playerResourceReserved) or 0)
+        local playerResources = XelAssist.Game.Player
+            and XelAssist.Game.Player.Resources
+        resource = playerResources and playerResources:ResourceAt(
+            state, actionStart) or resource - math.max(0,
+                tonumber(state.playerResourceReserved) or 0)
     end
     local resources = XelAssist.Graph.CompanionResources
     if resources and not resources:ChosenExact(

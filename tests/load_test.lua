@@ -323,11 +323,12 @@ do
 end
 assert(XelAssist.UI.Minimap.button,
     "minimap entry must still build when the optional HUD cooldown is unavailable")
-assert(XelAssistCharDB.graphDepth == 3 and XelAssistCharDB.role == "auto", "character defaults missing")
+assert(XelAssistCharDB.visibleSteps == 3 and XelAssistCharDB.graphDepth == nil
+    and XelAssistCharDB.role == "auto", "character defaults missing")
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.6" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.7" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(runtime.evidenceEvents.damage and runtime.evidenceEvents.miss,
@@ -498,10 +499,10 @@ do
         return displayPlan, nil, false
     end
     event = "PLAYER_TARGET_CHANGED"; driver.OnEvent()
-    arg1 = 0.11; driver.OnUpdate()
+    arg1 = 0.21; driver.OnUpdate()
     assert(settledEvaluations == 0,
         "a new target must settle for one HUD tick before native presentation work")
-    arg1 = 0.11; driver.OnUpdate()
+    arg1 = 0.21; driver.OnUpdate()
     assert(settledEvaluations == 1
         and (rootCalls.GetPoint or 0) == geometryBefore.getPoint
         and (rootCalls.SetHeight or 0) == geometryBefore.setHeight
@@ -599,7 +600,7 @@ this = actionFrame.main; this.OnClick()
 XelAssist.Execute = savedExecute
 assert(executeCalls == 1, "one main-button click must request exactly one execution")
 
-XelAssistCharDB.graphDepth = 1
+XelAssistCharDB.visibleSteps = 1
 XelAssist.UI.HUD:Refresh(true)
 assert(actionFrame:GetHeight() == 76 and not actionFrame.follow[1]:IsShown(),
     "one visible step must hide predictions without resizing the current card")
@@ -607,7 +608,7 @@ mainPoint, mainRelative, mainRelativePoint, mainX, mainY = actionFrame.main:GetP
 assert(mainPoint == "TOPLEFT" and mainRelative == actionFrame
     and mainRelativePoint == "TOPLEFT" and mainX == 12 and mainY == -12,
     "depth changes must not move the current action inside the frame")
-XelAssistCharDB.graphDepth = 3
+XelAssistCharDB.visibleSteps = 3
 
 local groundAction = { name = "Blizzard", rank = 1, actor = "player",
     facts = { kind = "damage", ground = true } }

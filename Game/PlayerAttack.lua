@@ -6,6 +6,7 @@ XelAssist.Game.PlayerAttack = {}
 local A = XelAssist.Game.PlayerAttack
 
 local SUBMISSION_GUARD = 0.75
+local MAX_SUBMISSION_GUARD = 15
 
 local function now()
     if type(GetTime) ~= "function" then return nil end
@@ -31,26 +32,28 @@ end
 
 function A:Reset()
     self.pendingUntil, self.pendingTargetGuid = nil, nil
+    self.pendingSubmittedAt, self.pendingSource = nil, nil
 end
 
 function A:Snapshot()
     local active, activeKnown, source = liveState()
     local at = now()
     if self.pendingUntil and at and (self.pendingUntil <= at
-        or self.pendingUntil - at > SUBMISSION_GUARD) then
-        self.pendingUntil, self.pendingTargetGuid = nil, nil
+        or self.pendingSubmittedAt and at < self.pendingSubmittedAt) then
+        self:Reset()
     end
     local pending = at and self.pendingUntil and self.pendingUntil > at
         and true or false
     if active == true then
-        self.pendingUntil, self.pendingTargetGuid = nil, nil
+        self:Reset()
         pending = false
     end
     local snapshot = { supported = type(GetCurrentCastingInfo) == "function"
             and type(AttackTarget) == "function",
         active = active, activeKnown = activeKnown,
         pending = pending, pendingTargetGuid = pending and self.pendingTargetGuid or nil,
-        clockKnown = at ~= nil, source = pending and "submitted Attack command" or source }
+        clockKnown = at ~= nil,
+        source = pending and self.pendingSource or source }
     if XelAssist.Game.Player and XelAssist.Game.Player.OnSwing then
         snapshot.onSwing = XelAssist.Game.Player.OnSwing:Snapshot()
     end
@@ -74,9 +77,9 @@ function A:CanStart(snapshot)
     return true, nil
 end
 
-function A:Projected(targetGuid)
+function A:Projected(targetGuid, source)
     local snapshot = { supported = true, active = true, activeKnown = true,
-        pending = false, clockKnown = true, source = "graph start",
+        pending = false, clockKnown = true, source = source or "graph start",
         targetGuid = targetGuid }
     if XelAssist.Game.Player and XelAssist.Game.Player.OnSwing then
         snapshot.onSwing = XelAssist.Game.Player.OnSwing:Snapshot()
@@ -84,9 +87,37 @@ function A:Projected(targetGuid)
     if XelAssist.Game.Player and XelAssist.Game.Player.AttackRounds then
         snapshot.attackRound = { supported = true, phaseKnown = false,
             verified = false, projectable = false,
+            targetGuid = targetGuid,
             reason = "Attack submitted; awaiting resolved player swing" }
     end
     return snapshot
+end
+
+function A:ProjectedStopped(targetGuid, source)
+    return { supported = true, active = false, activeKnown = true,
+        pending = false, clockKnown = true,
+        source = source or "graph stop", targetGuid = targetGuid,
+        onSwing = { occupied = false, pending = false, exact = true,
+            source = "graph Attack stop" },
+        attackRound = { supported = true, phaseKnown = false,
+            verified = false, projectable = false, targetGuid = targetGuid,
+            reason = "Attack stopped; awaiting a new resolved player swing" } }
+end
+
+function A:Stopped()
+    self:Reset()
+end
+
+function A:Submitted(targetGuid, duration, source)
+    local submittedAt = now()
+    if not submittedAt then return false, "combat clock unavailable" end
+    duration = math.max(SUBMISSION_GUARD,
+        math.min(MAX_SUBMISSION_GUARD, tonumber(duration) or SUBMISSION_GUARD))
+    self.pendingSubmittedAt = submittedAt
+    self.pendingUntil = submittedAt + duration
+    self.pendingTargetGuid = targetGuid
+    self.pendingSource = source or "submitted Attack command"
+    return true, nil
 end
 
 function A:Start(targetGuid)
@@ -96,8 +127,10 @@ function A:Start(targetGuid)
     if not submittedAt then return false, "combat clock unavailable" end
     local ok = pcall(AttackTarget)
     if not ok then return false, "player Attack command failed" end
+    self.pendingSubmittedAt = submittedAt
     self.pendingUntil = submittedAt + SUBMISSION_GUARD
     self.pendingTargetGuid = targetGuid
+    self.pendingSource = "submitted Attack command"
     return true, nil
 end
 

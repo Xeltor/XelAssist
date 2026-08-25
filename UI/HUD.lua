@@ -1,6 +1,8 @@
 XelAssist.UI.HUD = {}
 local UI = XelAssist.UI.HUD
 local Theme = XelAssist.UI.Theme
+local Stability = XelAssist.UI.RecommendationStability
+local HUDCooldown = XelAssist.UI.HUDCooldown
 local setFittedText = Theme.SetFittedText
 local FALLBACK_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 local BASE_HEIGHT = 76
@@ -97,34 +99,6 @@ local function emptyCopy(reason)
     elseif reason == "No worthwhile action" then return "Hold", "No action improves the current state"
     elseif reason == "Evaluation paused" then return "Holding safely", "Graph data could not be evaluated"
     else return "Holding safely", reason or "No action queued" end
-end
-
-local function updateCooldown(button, action)
-    local cooldown = button.cooldown
-    if not cooldown or not CooldownFrame_SetTimer then return end
-    CooldownFrame_SetTimer(cooldown, 0, 0, 0)
-    if action and action.executor == "item" then
-        if GetItemIdCooldown and action.itemId then
-            local ok, info = pcall(GetItemIdCooldown, action.itemId)
-            if ok and type(info) == "table" then
-                local start, duration = info.individualStartS, (info.individualDurationMs or 0) / 1000
-                if (info.categoryRemainingMs or 0) > (info.individualRemainingMs or 0) then
-                    start, duration = info.categoryStartS, (info.categoryDurationMs or 0) / 1000
-                end
-                if start and duration > 0 then CooldownFrame_SetTimer(cooldown, start, duration, 1) end
-                return
-            end
-        end
-        if GetContainerItemCooldown and action.bag and action.bagSlot then
-            local start, duration, enabled = GetContainerItemCooldown(action.bag, action.bagSlot)
-            if start and duration then CooldownFrame_SetTimer(cooldown, start, duration, enabled or 1) end
-        end
-        return
-    end
-    local slot = action and XelAssist.Game.Capabilities:SpellSlot(action.name)
-    if not slot then return end
-    local start, duration, enabled = GetSpellCooldown(slot, BOOKTYPE_SPELL)
-    if start and duration then CooldownFrame_SetTimer(cooldown, start, duration, enabled or 1) end
 end
 
 local function roundedPercent(value)
@@ -257,6 +231,7 @@ function UI:SetVisiblePredictions(count)
 end
 
 function UI:MarkTargetDirty()
+    Stability:Reset(self)
     self.targetDirty = true
     self.elapsed = 0
 end
@@ -461,7 +436,7 @@ function UI:Build()
             return
         end
         UI.elapsed = (UI.elapsed or 0) + (arg1 or 0)
-        if UI.elapsed >= 0.10 then UI.elapsed = 0; UI:Refresh(false) end
+        if UI.elapsed >= 0.20 then UI.elapsed = 0; UI:Refresh(false) end
     end)
     self.driver = driver
     self.frame = f
@@ -482,6 +457,9 @@ function UI:Refresh(force)
             plan, err = nil, "Evaluation paused"
         end
     end
+    local changed
+    plan, err, changed = Stability:Select(self, plan, err, force)
+    if not changed then self.lastPlan = plan; return end
     local f = self.frame
     if plan then
         self.lastPlan = plan
@@ -502,12 +480,13 @@ function UI:Refresh(force)
         f.main:SetAlpha(1); f.main:Enable()
         setFittedText(f.name, actionName(action), 286)
         setFittedText(f.reason, plan.reason .. " · " .. plan.confidence, 225)
-        updateCooldown(f.main, action)
+        HUDCooldown:Update(f.main, action)
         f.main.count:SetText(action.executor == "item" and tostring(action.count or "") or "")
         self.lastReason = actionName(action) .. " — " .. plan.reason
         local i, visible, placeholderShown = nil, 0, false
         local requested = math.max(0, math.min(4,
-            (tonumber(XelAssistCharDB.graphDepth) or 1) - 1))
+            (tonumber(XelAssistCharDB.visibleSteps)
+                or tonumber(XelAssistCharDB.graphDepth) or 1) - 1))
         local pathTime = math.max(0, tonumber(plan.downtime) or 0)
         for i = 1, 4 do
             local follow = plan.follow and plan.follow[i]
@@ -572,7 +551,7 @@ function UI:Refresh(force)
         if f.main.icon.SetDesaturated then f.main.icon:SetDesaturated(true) end
         f.main:SetAlpha(0.52); f.main:Disable()
         f.main.count:SetText("")
-        updateCooldown(f.main, nil)
+        HUDCooldown:Update(f.main, nil)
         setFittedText(f.name, title, 286); setFittedText(f.reason, detail, 225)
         local i
         for i = 1, 4 do

@@ -123,6 +123,9 @@ XelAssist.Combat.Knowledge = {
 
     -- Rogue
     ["Sinister Strike"] = { kind = "builder", melee = true }, ["Backstab"] = { kind = "builder", melee = true, behind = true },
+    ["Ambush"] = { kind = "builder", melee = true, behind = true },
+    ["Garrote"] = { kind = "dot", melee = true, behind = true,
+        comboBuilder = true, bleed = true, ignoresArmor = true },
     ["Riposte"] = { kind = "damage", melee = true, reactive = true },
     ["Surprise Attack"] = { kind = "builder", melee = true, reactive = true },
     ["Noxious Assault"] = { kind = "builder", melee = true, mixedDamage = true,

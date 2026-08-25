@@ -15,6 +15,8 @@ dofile("Game/SpellTiming.lua")
 dofile("Game/SpellClassification.lua")
 dofile("Game/Capabilities.lua")
 dofile("Game/PlayerAttack.lua")
+dofile("Game/Player/Engagement.lua")
+dofile("Game/Player/Resources.lua")
 dofile("Game/Pets/Resources.lua")
 dofile("Game/Pets/Actions.lua")
 dofile("Game/Pets/Effects.lua")
@@ -43,16 +45,20 @@ dofile("Graph/CompanionSwings.lua")
 dofile("Graph/CompanionEvents.lua")
 dofile("Graph/EventAuras.lua")
 dofile("Graph/ReadinessEffects.lua")
+dofile("Graph/PlayerEngagement.lua")
 dofile("Graph/ActorScoring.lua")
 dofile("Graph/ThreatScoring.lua")
 dofile("Graph/PlayerSwings.lua")
 dofile("Graph/PlayerSwingScoring.lua")
+dofile("Graph/ComboEffects.lua")
+dofile("Graph/ComboScoring.lua")
 dofile("Graph/OngoingEffects.lua")
 dofile("Graph/ActionConsumption.lua")
 dofile("Graph/ActionEffects.lua")
 dofile("Graph/Timeline.lua")
 dofile("Graph/Scoring.lua")
 dofile("Graph/Transitions.lua")
+dofile("Graph/SearchPolicy.lua")
 dofile("Graph/Engine.lua")
 
 local pendingAura
@@ -204,10 +210,13 @@ local function action(name, rank, kind, power, cost, extra)
             minRange = facts.testMinRange, maxRange = facts.testMaxRange, school = facts.testSchool,
             duration = facts.testDuration, periodicInterval = facts.testPeriodicInterval,
             directDamage = facts.testDirectDamage, periodicDamage = facts.testPeriodicDamage,
+            comboBonus = facts.testComboBonus,
             targetArmorReduction = facts.testArmorReduction,
             targetArmorPerCombo = facts.testArmorPerCombo,
             targetResistanceReduction = facts.testResistanceReduction,
             targetDamageTaken = facts.testDamageTaken,
+            initiatesCombat = facts.testInitiatesCombat,
+            requiresStealth = facts.testRequiresStealth,
             topology = facts.testTopology } }
 end
 
@@ -402,6 +411,16 @@ currentState = state("smart"); currentState.moving = true
 scenarioActions = { action("Long Cast", 1, "damage", 900, 0, { cast = 3 }),
     action("Instant", 1, "damage", 250, 0, { cast = 0 }) }
 expect("movement downtime", "Instant")
+
+currentState = state("smart"); currentState.moving = true
+XelAssistCharDB.graphDepth = 2
+scenarioActions = { action("Future Cast", 1, "damage", 900, 0, { cast = 3 }),
+    action("Current Instant", 1, "damage", 250, 0,
+        { cast = 0, testCooldown = 10 }) }
+plan = expect("future movement becomes open", "Current Instant")
+assert(plan.path[2] and plan.path[2].action.name == "Future Cast"
+    and plan.path[2].confidence == "partial data",
+    "current movement must block now-casts without freezing every future state")
 
 currentState = state("smart")
 scenarioActions = { action("Mind Flay", 1, "damage", 900, 100,
@@ -1007,6 +1026,58 @@ XelAssistCharDB.graphDepth = 1
 plan = expect("player Attack active repeat guard", "Melee Filler")
 assert(plan.action.name ~= "Attack",
     "an active player Attack must never re-enter the graph as a toggle press")
+
+do
+currentState = state("smart")
+currentState.actorReadyAt = { player = 0, pet = 0 }
+currentState.resource, currentState.resourceMax = 100, 100
+currentState.combo = 0
+currentState.playerAttack = { supported = true, active = false,
+    activeKnown = true, pending = false, clockKnown = true }
+local productiveStrike = action("Sinister Strike", 1, "builder", 5, 40,
+    { melee = true, testInitiatesCombat = true })
+scenarioActions = { meleeStart, productiveStrike }
+XelAssistCharDB.graphDepth = 2
+plan = expect("productive melee start subsumes Attack", "Sinister Strike")
+assert(plan.startsPlayerAttack and plan.value > 800
+    and plan.path[1].startsPlayerAttack
+    and not (plan.path[2] and plan.path[2].action.name == "Attack"),
+    "a legal combat-initiating melee ability must own the Attack setup edge")
+local afterProductiveStart = XelAssist.Graph.Transitions:Advance(
+    currentState, plan.path[1])
+assert(afterProductiveStart.playerAttack.active
+    and afterProductiveStart.playerAttack.targetGuid == currentState.targetGUID
+    and afterProductiveStart.combo == 1
+    and afterProductiveStart.resource == 60,
+    "the productive opener must pin sustained Attack without inventing another input")
+
+currentState.resource = 0
+XelAssistCharDB.graphDepth = 1
+plan = expect("bare Attack remains no-resource fallback", "Attack")
+assert(not plan.startsPlayerAttack,
+    "the bare command must remain a fallback when the productive action is illegal")
+
+currentState.playerStealthed, currentState.playerStealthKnown = true, true
+scenarioActions = { meleeStart }
+local protected, protectedReason = XelAssist.Graph:Evaluate("smart", true)
+assert(protected == nil and protectedReason == "Preserving stealth for an opener",
+    "bare Attack must never destroy an exactly observed stealth state")
+
+currentState.resource = 100
+local stealthOpener = action("Ambush", 1, "builder", 100, 60,
+    { melee = true, behind = true, testInitiatesCombat = true,
+        testRequiresStealth = true })
+scenarioActions = { meleeStart, stealthOpener }
+XelAssistCharDB.graphDepth = 2
+plan = expect("stealth opener owns engagement", "Ambush")
+local afterStealthOpener = XelAssist.Graph.Transitions:Advance(
+    currentState, plan.path[1])
+assert(plan.startsPlayerAttack and not plan.follow[1]
+    and afterStealthOpener.playerStealthed == false
+    and afterStealthOpener.playerStealthKnown
+    and afterStealthOpener.playerAttack.active,
+    "the opener must consume projected stealth and prevent a repeated stealth action")
+end
 AttackTarget = savedAttackTarget
 
 local function hunterAutoState(health, nextLaunch, distance)
@@ -1923,6 +1994,41 @@ plan = expect("finisher consumes combo", "Eviscerate")
 assert(plan.follow[1] and plan.follow[1].name == "Sinister Strike",
     "a finisher must consume combo points in future state")
 
+-- Octo patch-5 R1-shaped facts: the graph must discover the builder/finisher
+-- cycle from combo transitions and the DBC per-point curve, not a Rogue list.
+currentState = state("smart"); currentState.combo = 1
+currentState.resource, currentState.resourceMax = 100, 100
+currentState.targetHealth, currentState.targetMax = 1000, 1000
+XelAssistCharDB.graphDepth = 2
+local dbcFinisher = action("Generic Finisher", 1, "damage", 3.5, 30,
+    { combo = true, testComboBonus = 5 })
+local dbcBuilder = action("Generic Builder", 1, "builder", 8, 40)
+scenarioActions = { dbcFinisher, dbcBuilder }
+expect("surviving target retains combo value", "Generic Builder")
+
+currentState.targetHealth, currentState.targetMax = 8.2, 1000
+expect("lethal one-point finisher", "Generic Finisher")
+
+currentState.targetHealth, currentState.targetMax = 1000, 1000
+currentState.combo = 5
+expect("capped combo realizes value", "Generic Finisher")
+
+currentState = state("smart"); currentState.combo = 0
+currentState.resource, currentState.resourceMax, currentState.resourceType = 100, 100, 3
+currentState.playerResourceClock = { verified = true, resourceType = 3,
+    amount = 20, interval = 2.4, phaseKnown = false,
+    externalEnergizeExcluded = true }
+XelAssistCharDB.graphDepth = 4
+scenarioActions = { dbcFinisher, dbcBuilder }
+plan = expect("energy-clock combo runway", "Generic Builder")
+assert(plan.path[2] and plan.path[2].action.name == "Generic Builder"
+    and plan.path[3] and plan.path[3].action.name == "Generic Builder"
+    and plan.path[3].actionStart >= 3,
+    "a verified tick clock must extend an efficient builder runway through future affordability; got "
+        .. tostring(plan.path[2] and plan.path[2].action.name) .. " -> "
+        .. tostring(plan.path[3] and plan.path[3].action.name) .. " @ "
+        .. tostring(plan.path[3] and plan.path[3].actionStart))
+
 currentState = state("smart"); XelAssistCharDB.toggles.reagents = false
 scenarioActions = { action("Shadowburn", 1, "damage", 900, 100,
         { reagent = true, reagentName = "Soul Shard", execute = 20 }),
@@ -2240,7 +2346,7 @@ GetTime = function()
     return budgetClock
 end
 plan = expect("soft graph budget preserves immediate action", "Sinister Strike")
-assert(plan.budgetLimited == true and table.getn(plan.path) == 1,
-    "a crossed soft budget must return depth one and expose limited look-ahead")
+assert(plan.budgetLimited == true and table.getn(plan.path) == 2,
+    "the bounded graph must complete two decisions before publishing a limited rail")
 
 print("ok: rank, aggro, interrupt, movement, range, aura, cooldown and beam scenarios")

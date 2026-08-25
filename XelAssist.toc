@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.6
+## Version: 0.8.7
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -13,7 +13,12 @@ Game\SpellTiming.lua
 Game\SpellTopology.lua
 Game\SpellClassification.lua
 Game\Capabilities.lua
+Game\SpatialEvidence.lua
 Game\PlayerAttack.lua
+Game\Player\Engagement.lua
+Game\Player\EnergyEvidence.lua
+Game\Player\EnergyEvents.lua
+Game\Player\Resources.lua
 Game\Player\AttackRounds.lua
 Game\Player\AttackRoundEvents.lua
 Game\Player\OnSwing.lua
@@ -68,21 +73,27 @@ Graph\CompanionSwings.lua
 Graph\CompanionEvents.lua
 Graph\EventAuras.lua
 Graph\ReadinessEffects.lua
+Graph\PlayerEngagement.lua
 Graph\ActorScoring.lua
 Graph\ThreatScoring.lua
 Graph\PlayerSwings.lua
 Graph\PlayerSwingScoring.lua
+Graph\ComboEffects.lua
+Graph\ComboScoring.lua
 Graph\OngoingEffects.lua
 Graph\ActionConsumption.lua
 Graph\ActionEffects.lua
 Graph\Timeline.lua
 Graph\Scoring.lua
 Graph\Transitions.lua
+Graph\SearchPolicy.lua
 Graph\Engine.lua
 
 # Presentation and execution boundary
 UI\Theme.lua
 UI\CooldownPolicy.lua
+UI\HUDCooldown.lua
+UI\RecommendationStability.lua
 UI\HUD.lua
 UI\Settings.lua
 UI\Minimap.lua

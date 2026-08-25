@@ -605,7 +605,8 @@ function C:Facts(action)
     local gcdMs = dbc("startRecoveryTime")
     local rangeIndex = dbc("rangeIndex")
     out.school = dbc("school")
-    local gcdCategory = XelAssist.Game.SpellClassification:Apply(action, out, dbc)
+    local gcdCategory = XelAssist.Game.SpellClassification:Apply(
+        action, out, dbc, dbcArray)
     if castMs then out.cast = castMs / 1000 end
     if recoveryMs and recoveryMs > 0 then out.cooldown = recoveryMs / 1000 end
     if categoryRecoveryMs and categoryRecoveryMs > 0 then out.categoryCooldown = categoryRecoveryMs / 1000 end

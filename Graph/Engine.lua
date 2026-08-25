@@ -7,11 +7,7 @@ local Targets = G.Targets
 local Effects = G.Effects
 local Scoring = G.Scoring
 local Transitions = G.Transitions
-
-local MAX_STATES = 80
-local MAX_MS = 3
-local WIDTH = 4
-local MAX_DEPTH = 5
+local Policy = G.SearchPolicy
 
 function G:ActiveTargetModifiers(encounter, targetResistance)
     return State:ActiveTargetModifiers(encounter, targetResistance)
@@ -106,19 +102,19 @@ local function retainSetupBranch(candidates)
         local value = setupValue(candidates[i])
         if value > bestValue then best, bestValue = candidates[i], value end
     end
-    while table.getn(candidates) > WIDTH do table.remove(candidates) end
+    while table.getn(candidates) > Policy.WIDTH do table.remove(candidates) end
     if not best then return end
     for i = 1, table.getn(candidates) do
         if candidates[i] == best then return end
     end
-    if table.getn(candidates) >= WIDTH then
-        candidates[WIDTH] = best
+    if table.getn(candidates) >= Policy.WIDTH then
+        candidates[Policy.WIDTH] = best
     else table.insert(candidates, best) end
     table.sort(candidates, candidateBefore)
 end
 
-local function topCandidates(state, counter)
-    local buckets, actions, order = {}, availableActions(), 0
+local function topCandidates(state, counter, actions)
+    local buckets, order = {}, 0
     local i, targets, targetIndex, candidate, blocker
     for i = 1, table.getn(actions) do
         targets = Targets:Targets(actions[i], state)
@@ -152,33 +148,33 @@ local function pathBefore(a, b)
     return (a.graphOrder or 0) < (b.graphOrder or 0)
 end
 
-local function searchBudgetReached(started, counter)
-    return counter.count >= MAX_STATES
-        or (GetTime() - started) * 1000 > MAX_MS
-end
-
-local function bestSearchPath(state, started, counter, depth)
+local function bestSearchPath(state, started, counter, depth, actions)
+    local rootTime = tonumber(state.time) or 0
     local frontier = { { state = state, steps = {}, total = 0,
         graphOrder = 1 } }
     local terminal, pathOrder, level = {}, 1, nil
     for level = 1, depth do
-        if level > 1 and searchBudgetReached(started, counter) then
+        if level > 2 and Policy:BudgetReached(started, counter) then
             counter.budgetLimited = true
             break
         end
         local expanded, pathIndex, candidateIndex = {}, nil, nil
         for pathIndex = 1, table.getn(frontier) do
             local path, candidates = frontier[pathIndex], nil
-            candidates = topCandidates(path.state, counter)
+            if Policy:WithinHorizon(path.state, rootTime) then
+                candidates = topCandidates(path.state, counter, actions)
+            else candidates = {} end
             if table.getn(candidates) == 0 then table.insert(terminal, path) end
             for candidateIndex = 1, table.getn(candidates) do
                 local candidate = candidates[candidateIndex]
                 if candidate.value > 0 then
                     pathOrder = pathOrder + 1
+                    local advanced = Transitions:Advance(path.state, candidate)
                     table.insert(expanded, {
-                        state = Transitions:Advance(path.state, candidate),
+                        state = advanced,
                         steps = copySteps(path.steps, candidate),
-                        total = path.total + candidate.value / level,
+                        total = path.total + candidate.value
+                            * Policy:Weight(rootTime, candidate),
                         graphOrder = pathOrder,
                     })
                 end
@@ -186,9 +182,10 @@ local function bestSearchPath(state, started, counter, depth)
         end
         if table.getn(expanded) == 0 then break end
         table.sort(expanded, pathBefore)
-        while table.getn(expanded) > WIDTH do table.remove(expanded) end
+        while table.getn(expanded) > Policy.WIDTH do table.remove(expanded) end
         frontier = expanded
-        if searchBudgetReached(started, counter) then
+        counter.completedDepth = level
+        if level >= 2 and Policy:BudgetReached(started, counter) then
             counter.budgetLimited = true
             break
         end
@@ -216,6 +213,9 @@ local function blockerReason(state, blockers)
     if (blockers.moving or 0) > 0 then return "Finish moving" end
     if (blockers.resource or 0) > 0 then return "Not enough resources" end
     if (blockers.cooldown or 0) > 0 then return "Waiting for cooldown" end
+    if (blockers["stealth opener protection"] or 0) > 0 then
+        return "Preserving stealth for an opener"
+    end
     local i, injured = nil, false
     for i = 1, table.getn(state.friendlies and state.friendlies.order or {}) do
         if State:Missing(State:FriendlyByKey(
@@ -385,6 +385,7 @@ local function buildPlan(state, observed, path, counter, started)
         marginalPower = best.marginalPower,
         displacedWhitePower = best.displacedWhitePower,
         effectDelivery = best.effectDelivery,
+        startsPlayerAttack = best.startsPlayerAttack,
         cost = best.cost, costKnown = best.costKnown,
         onNextSwing = best.onNextSwing,
         impactDelay = best.impactDelay, occupancy = best.occupancy,
@@ -400,10 +401,9 @@ function G:Evaluate(mode, preview)
     -- Start the soft horizon clock afterwards and always finish depth one so
     -- slow client APIs can shorten the runway without suppressing an action.
     local started = GetTime()
-    local depth = tonumber(XelAssistCharDB.graphDepth) or 3
-    if depth < 1 then depth = 1 end
-    if depth > MAX_DEPTH then depth = MAX_DEPTH end
-    local path = bestSearchPath(state, started, counter, depth)
+    local depth = Policy:Depth()
+    local actions = availableActions()
+    local path = bestSearchPath(state, started, counter, depth, actions)
     if not path.steps[1] then
         return nil, blockerReason(state, counter.blockers), false
     end

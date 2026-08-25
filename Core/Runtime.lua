@@ -59,7 +59,8 @@ function XA:Init()
     if XelAssistDB.ui.scale == nil then XelAssistDB.ui.scale = 1 end
     if XelAssistDB.ui.shown == nil then XelAssistDB.ui.shown = true end
     if XelAssistDB.ui.minimap == nil then XelAssistDB.ui.minimap = true end
-    if XelAssistCharDB.graphDepth == nil then XelAssistCharDB.graphDepth = 3 end
+    XelAssistCharDB.visibleSteps = XelAssistCharDB.visibleSteps or XelAssistCharDB.graphDepth or 3
+    XelAssistCharDB.graphDepth = nil
     if XelAssistCharDB.role == nil then XelAssistCharDB.role = "auto" end
     if XelAssistCharDB.allowAoe == nil then XelAssistCharDB.allowAoe = false end
     if XelAssistCharDB.petThreat == nil then XelAssistCharDB.petThreat = "auto" end

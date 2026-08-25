@@ -84,8 +84,15 @@ local function sync(state, record)
     end
     state.targetDistance = record and record.distance or nil
     state.targetDistanceKind = record and record.distanceKind or nil
-    state.targetLineOfSight = record and record.lineOfSight
-    state.playerBehindTarget = record and record.behind
+    local spatial = record and state.spatialTargetGUID ~= nil
+        and record.guid == state.spatialTargetGUID
+    if spatial then
+        state.targetLineOfSight = state.spatialTargetLineOfSight
+        state.playerBehindTarget = state.spatialPlayerBehindTarget
+    else
+        state.targetLineOfSight = record and record.lineOfSight
+        state.playerBehindTarget = record and record.behind
+    end
 end
 
 local function commit(state, record)

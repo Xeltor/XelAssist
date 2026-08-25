@@ -85,7 +85,8 @@ end
 function D:Print(owner)
     local runtime = self:Audit(owner)
     msg("mode=" .. owner.mode .. ", execution=" .. (owner.executionEnabled and "ready" or "disabled")
-        .. ", graph=utility, depth=" .. (XelAssistCharDB.graphDepth or 3)
+        .. ", graph=utility, horizon=auto, shown="
+        .. (XelAssistCharDB.visibleSteps or 3)
         .. ", nodes=" .. (runtime.actions or 0) .. ", inferred=" .. (runtime.inferred or 0)
         .. ", fallback=conservative hold, schema=" .. (runtime.schema or 4) .. ".")
     msg("SuperWoW=" .. (runtime.superWoW or "missing") .. ", Nampower="

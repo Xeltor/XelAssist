@@ -1,5 +1,7 @@
 XelAssist = { Game = {}, Combat = {}, Graph = {} }
-XelAssistCharDB = { role = "damage" }
+XelAssistCharDB = { role = "damage", toggles = {
+    petActions = true, consumables = true, cooldowns = true,
+    reagents = true, petControl = true } }
 table.getn = table.getn or function(value)
     local count = 0
     while value[count + 1] ~= nil do count = count + 1 end
@@ -76,6 +78,7 @@ XelAssist.Game.Actors = {
         distance = 2, distanceKind = "exact", lineOfSight = true,
         behind = false, hasAggro = false } } end,
     Actions = function() return actions end,
+    Facts = function(_, action) return action.tooltip or {} end,
 }
 XelAssist.Game.Encounter = {
     Snapshot = function()
@@ -86,7 +89,10 @@ XelAssist.Game.Encounter = {
 XelAssist.Game.Hostiles = {
     Snapshot = function() return observedHostiles end,
 }
-XelAssist.Game.Inventory = { Snapshot = function() return { itemCounts = {} } end }
+XelAssist.Game.Inventory = {
+    Snapshot = function() return { itemCounts = {} } end,
+    Blocker = function() return nil end,
+}
 XelAssist.Game.Friendlies = { Snapshot = function() return nil end }
 XelAssist.Game.Capabilities = {
     CurrentCast = function() return nil, 0, false, 0, false end,
@@ -99,6 +105,9 @@ XelAssist.Game.Capabilities = {
     TalentPoints = function() return {} end,
     UnitHasBuff = function() return false end,
     GCDRemaining = function() return 0 end,
+    Usable = function() return true end,
+    CastName = function(_, action) return action.name end,
+    InRange = function() return true end,
 }
 
 local resistanceCalls = {}
@@ -156,7 +165,8 @@ XelAssist.Combat.TargetModifiers = {
     end,
 }
 
-GetTime = function() return 100 end
+local now = 100
+GetTime = function() return now end
 PlayerIsMoving = function() return false end
 UnitExists = function(unit)
     if unit == "target" then return true, selectedGuid end
@@ -177,6 +187,7 @@ UnitClass = function() return "Warlock", "WARLOCK" end
 GetShapeshiftForm = function() return 0 end
 UnitCreatureType = function() return "Demon" end
 
+dofile("Game/SpatialEvidence.lua")
 dofile("Graph/HostileState.lua")
 dofile("Graph/State.lua")
 
@@ -200,6 +211,7 @@ assert(state.targetGUID == selectedGuid and state.targetHealth == 700
     and state.targetDistance == 18 and state.targetDistanceKind == "exact"
     and state.targetLineOfSight == true and state.playerBehindTarget == false,
     "selected hostile scalars must populate the legacy execution view")
+
 assert(state.targetCasting and state.targetCastRemaining == 1.75
     and state.targetCastProbability == 1 and state.hasAggro,
     "cast and threat evidence must stay local to the selected hostile")
@@ -411,6 +423,7 @@ dofile("Graph/Effects.lua")
 dofile("Graph/EventAuras.lua")
 dofile("Graph/ReadinessEffects.lua")
 dofile("Graph/ActionConsumption.lua")
+dofile("Graph/ComboEffects.lua")
 dofile("Graph/ActionEffects.lua")
 
 local modifierName = "Shadow Vulnerability"
@@ -531,5 +544,40 @@ assert(offExpired.targetContextKey == otherGuid
     and not offExpiredRecord.projectedAuras[modifierName]
     and math.abs(offExpiredRecord.damageTaken[3] - 0.04) < 0.0001,
     "off-target expiration must commit back to the same hostile and nowhere else")
+
+selectedRecord.lineOfSight = false
+XelAssist.Graph.State:Snapshot("smart")
+now = 100.05
+selectedRecord.lineOfSight, selectedRecord.behind = true, true
+local spatialState = XelAssist.Graph.State:Snapshot("smart")
+XelAssist.Graph.State:SyncSelectedHostile(spatialState)
+assert(spatialState.targetLineOfSight == false
+    and spatialState.playerBehindTarget == false,
+    "selected-hostile synchronization must preserve settled LOS and behind evidence")
+
+XelAssist.Graph.TargetSelection = {
+    VariableFriendlyAction = function() return false end,
+    Targets = function() return {} end,
+}
+XelAssist.Graph.ActionAdmission = {
+    Start = function() return 0, nil end,
+    Readiness = function() return nil end,
+}
+dofile("Graph/Targets.lua")
+local spatialAction = { name = "Backstab", actor = "player", executor = "spell",
+    rank = 1, facts = { kind = "damage", behind = true },
+    tooltip = { minRange = 0, maxRange = 5 } }
+local spatialDescriptor = XelAssist.Graph.State:Descriptor(
+    "target", "hostile", "selected", selectedGuid, selectedGuid, selectedRecord)
+local legal, reason = XelAssist.Graph.Targets:Legal(
+    spatialAction, spatialState, spatialDescriptor)
+assert(not legal and reason == "line of sight",
+    "selected target legality must not replace settled LOS with its raw record")
+spatialState.spatialTargetLineOfSight = true
+XelAssist.Graph.State:SyncSelectedHostile(spatialState)
+legal, reason = XelAssist.Graph.Targets:Legal(
+    spatialAction, spatialState, spatialDescriptor)
+assert(not legal and reason == "must be behind target",
+    "selected target legality must retain settled behind evidence after sync")
 
 print("ok: target-local hostile graph state, compatibility aliases and copy isolation")

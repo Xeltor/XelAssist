@@ -45,6 +45,12 @@ local function advancePetEffects(out, elapsed)
     end
 end
 
+local function advancePlayerResources(out, elapsed)
+    local resources = XelAssist.Game.Player
+        and XelAssist.Game.Player.Resources
+    if resources then resources:Advance(out, elapsed) end
+end
+
 local function collectEvents(out, source, candidate, context, advanceWindow)
     local events, order = {}, 1
     local ongoingEvents
@@ -111,6 +117,7 @@ function L:BeforeAction(source, candidate)
         local prior = out.targetHealth
         local step = entry.offset - elapsed
         advancePetEffects(out, step)
+        advancePlayerResources(out, step)
         Ongoing:AdvanceEventAuras(out, eventAuras, step)
         if out.targetHealthExact and out.targetHealth < prior then
             damageEvents = damageEvents + 1
@@ -167,6 +174,7 @@ function L:Run(out, source, candidate, context)
         local entry = events[i]
         local step = entry.offset - elapsed
         advancePetEffects(out, step)
+        advancePlayerResources(out, step)
         Ongoing:AdvanceEventAuras(out, eventAuras, step)
         elapsed = entry.offset
         if entry.kind == "chosenActionStart" then
@@ -201,6 +209,7 @@ function L:Run(out, source, candidate, context)
     end
     local remainder = candidate.downtime - elapsed
     advancePetEffects(out, remainder)
+    advancePlayerResources(out, remainder)
     Ongoing:AdvanceEventAuras(out, eventAuras, remainder)
     if autoTimeline then AutoShot:FinishTimeline(out, autoTimeline) end
     out.chosenActionPrevented = not actionApplied and true or nil

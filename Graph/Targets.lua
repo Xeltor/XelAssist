@@ -3,16 +3,9 @@ local T = XelAssist.Graph.Targets
 local S = XelAssist.Graph.State
 local Selection = XelAssist.Graph.TargetSelection
 local Admission = XelAssist.Graph.ActionAdmission
-
 local APPLICATION_BLOCK_THRESHOLD = 0.75
-
-function T:VariableFriendlyAction(action)
-    return Selection:VariableFriendlyAction(action)
-end
-
-function T:Targets(action, state)
-    return Selection:Targets(action, state)
-end
+function T:VariableFriendlyAction(action) return Selection:VariableFriendlyAction(action) end
+function T:Targets(action, state) return Selection:Targets(action, state) end
 local function friendlyAuraActive(action, state, descriptor)
     local record = descriptor and descriptor.record
         or descriptor and S:FriendlyByKey(state, descriptor.key)
@@ -37,9 +30,8 @@ local function friendlyAuraActive(action, state, descriptor)
 end
 
 function T:AuraActive(action, state, descriptor)
-    if descriptor and descriptor.relation ~= "hostile" then
-        return friendlyAuraActive(action, state, descriptor)
-    end
+    if descriptor and descriptor.relation ~= "hostile" then return
+        friendlyAuraActive(action, state, descriptor) end
     local future = state.auras[action.name]
     if action.facts.stackable then
         local futureProbability = type(future) == "table"
@@ -63,7 +55,10 @@ function T:AuraActive(action, state, descriptor)
         end
     end
     local aura = state.targetAuras and state.targetAuras[action.name]
-    if not aura then return XelAssist.Game.Capabilities:TargetHasDebuff(action.name) end
+    if not aura and (state.time or 0) <= 0 then
+        return XelAssist.Game.Capabilities:TargetHasDebuff(action.name)
+    end
+    if not aura then return false end
     if (tonumber(aura.applicationProbability) or 1) < APPLICATION_BLOCK_THRESHOLD then
         return false
     end
@@ -72,7 +67,6 @@ function T:AuraActive(action, state, descriptor)
     if aura.remaining ~= nil and aura.remaining <= refresh then return false end
     return true
 end
-
 function T:Relevant(action, state, descriptor)
     local kind = action.facts.kind
     local friendly = descriptor and descriptor.relation ~= "hostile"
@@ -126,8 +120,7 @@ function T:Relevant(action, state, descriptor)
     end
     return support
 end
-
-local function policyBlocker(action, state)
+local function policyBlocker(action, state, tooltip)
     local facts = action.facts
     if action.actor == "pet" and not XelAssistCharDB.toggles.petActions then
         return "companion policy"
@@ -136,6 +129,9 @@ local function policyBlocker(action, state)
         return "consumable policy"
     end
     if facts.playerAttack then
+        if state.playerStealthed == true then
+            return "stealth opener protection"
+        end
         if not (XelAssist.Game.PlayerAttack
             and XelAssist.Game.PlayerAttack.CanStart)
             or not state.playerAttack then
@@ -178,7 +174,8 @@ local function policyBlocker(action, state)
         and state.resourceType ~= 0 then
         return "resource type"
     end
-    if facts.combo and state.combo <= 0 then return "combo points" end
+    if (facts.combo or tooltip and tooltip.comboSpendAll)
+        and state.combo <= 0 then return "combo points" end
     if facts.execute and state.targetMax > 0
         and state.targetHealth * 100 / state.targetMax > facts.execute then
         return "execute range"
@@ -211,20 +208,21 @@ local function targetBlocker(action, state, descriptor, target)
 end
 local function usabilityBlocker(action, state, descriptor, target, tooltip)
     local facts, kind = action.facts, action.facts.kind
+    local future = (state.time or 0) > 0
     if not facts.consumable
         and (facts.cooldown or (tooltip.cooldown and tooltip.cooldown >= 30))
         and not XelAssistCharDB.toggles.cooldowns then
         return "cooldown policy"
     end
     local usable, usableReason
-    if action.actor == "pet" then
+    if not future and action.actor == "pet" then
         if GetPetActionsUsable then
             local ok, value = pcall(GetPetActionsUsable)
             if ok and (value == false or value == 0) then
                 usable, usableReason = false, "pet state"
             end
         end
-    elseif action.executor ~= "item" then
+    elseif not future and action.executor ~= "item" then
         usable, usableReason = XelAssist.Game.Capabilities:Usable(action)
     end
     local petBlocker = XelAssist.Game.Pets and XelAssist.Game.Pets.Actions
@@ -241,6 +239,7 @@ end
 
 local function positionBlocker(action, state, descriptor)
     local facts, kind = action.facts, action.facts.kind
+    local future = (state.time or 0) > 0
     if facts.autoRepeat and state.playerCasting
         and not state.playerChanneling then return "casting" end
     local actorLineOfSight
@@ -250,17 +249,22 @@ local function positionBlocker(action, state, descriptor)
         and state.actors and state.actors.pet then
         actorLineOfSight = state.actors.pet.lineOfSight
     end
-    if descriptor.record and descriptor.record.lineOfSight ~= nil then
+    local stableSelected = descriptor.relation == "hostile"
+        and state.spatialTargetGUID ~= nil
+        and descriptor.guid == state.spatialTargetGUID
+    if not stableSelected and descriptor.record
+        and descriptor.record.lineOfSight ~= nil then
         actorLineOfSight = descriptor.record.lineOfSight
     end
-    if actorLineOfSight == false then return "line of sight" end
+    if not future and actorLineOfSight == false then return "line of sight" end
     local actorBehind
     if descriptor.relation == "hostile" then actorBehind = state.playerBehindTarget end
     if descriptor.relation == "hostile" and action.actor == "pet"
         and state.actors and state.actors.pet then
         actorBehind = state.actors.pet.behind
     end
-    if facts.behind and actorBehind == false then return "must be behind target" end
+    if not future and facts.behind
+        and actorBehind == false then return "must be behind target" end
     if facts.outOfCombat and state.inCombat then return "combat state" end
     if facts.combatOnly and not state.inCombat then return "combat state" end
     if kind == "summon" and not facts.petLifecycle then
@@ -272,6 +276,7 @@ end
 
 local function rangeBlocker(action, state, descriptor, target, tooltip)
     local facts = action.facts
+    if (state.time or 0) > 0 then return nil end
     if facts.autoRepeat then
         local auto = state.autoShot
         local expected = descriptor.guid or state.targetGUID
@@ -293,6 +298,10 @@ local function rangeBlocker(action, state, descriptor, target, tooltip)
     if action.actor ~= "pet" and action.executor ~= "item" and not implicitPetTarget then
         liveRange = XelAssist.Game.Capabilities:InRange(
             XelAssist.Game.Capabilities:CastName(action), target)
+        if XelAssist.Game.SpatialEvidence then
+            liveRange = XelAssist.Game.SpatialEvidence:Range(
+                action, descriptor.guid or state.targetGUID, liveRange)
+        end
     end
     if liveRange == false then return "range" end
     -- Unknown direct range remains unknown; only then use discovered geometry.
@@ -312,14 +321,22 @@ local function rangeBlocker(action, state, descriptor, target, tooltip)
         maxRange = facts.effectMaxRange or maxRange
     end
     if liveRange == nil and rangeDistance then
+        local rangeReason
         if minRange and rangeDistance < minRange then
-            return "minimum range"
+            rangeReason = "minimum range"
+        elseif maxRange and maxRange > 0 and rangeDistance > maxRange then
+            rangeReason = "range"
+        elseif facts.commandMaxRange and state.targetDistance
+            and state.targetDistance > facts.commandMaxRange then
+            rangeReason = "command range"
         end
-        if maxRange and maxRange > 0 and rangeDistance > maxRange then
-            return "range"
+        local geometryRange = rangeReason == nil
+        if XelAssist.Game.SpatialEvidence then
+            geometryRange = XelAssist.Game.SpatialEvidence:Range(
+                action, descriptor.guid or state.targetGUID, geometryRange)
         end
-    end
-    if facts.commandMaxRange and state.targetDistance
+        if geometryRange == false then return rangeReason or "range" end
+    elseif facts.commandMaxRange and state.targetDistance
         and state.targetDistance > facts.commandMaxRange then
         return "command range"
     end
@@ -336,6 +353,8 @@ local function effectBlocker(owner, action, state, descriptor, target,
     local swingBlocker = playerSwings
         and playerSwings:Blocker(action, state, descriptor, tooltip)
     if swingBlocker then return swingBlocker end
+    if tooltip.requiresStealth and state.playerStealthKnown == true
+        and state.playerStealthed ~= true then return "requires stealth" end
     if (kind == "dot" or kind == "debuff")
         and owner:AuraActive(action, state, descriptor) then
         return "already active"
@@ -345,7 +364,7 @@ local function effectBlocker(owner, action, state, descriptor, target,
         and descriptor.castGuid or descriptor.guid or target
     if (kind == "dot" or kind == "debuff" or kind == "crowdControl"
         or kind == "buff" or kind == "hot" or kind == "absorb" or kind == "resource")
-        and XelAssist and XelAssist.IsAuraPending
+        and (state.time or 0) <= 0 and XelAssist and XelAssist.IsAuraPending
         and XelAssist:IsAuraPending(action.name, action.actor,
             pendingTarget) then
         return "application pending"
@@ -383,7 +402,8 @@ local function effectBlocker(owner, action, state, descriptor, target,
         and facts.requiresCreature ~= state.targetCreatureType then
         return "creature immunity"
     end
-    if kind == "crowdControl" and XelAssist.Game.Capabilities:TargetHasDebuff(action.name) then
+    if kind == "crowdControl" and (state.time or 0) <= 0
+        and XelAssist.Game.Capabilities:TargetHasDebuff(action.name) then
         return "already controlled"
     end
     local friendlySupport = descriptor.relation ~= "hostile"
@@ -400,9 +420,15 @@ end
 function T:Legal(action, state, descriptor)
     if not descriptor or not descriptor.unit then return false, "target" end
     if not self:Relevant(action, state, descriptor) then return false, "intent" end
-    local blocker = policyBlocker(action, state)
+    local tooltip = XelAssist.Game.Actors:Facts(action)
+    if (state.time or 0) > 0 then
+        local projected, key, value = {}, nil, nil
+        for key, value in pairs(descriptor) do projected[key] = value end
+        projected.projectionOpen, descriptor = true, projected
+    end
+    local blocker = policyBlocker(action, state, tooltip)
     if blocker then return false, blocker end
-    local target, tooltip = descriptor.unit, XelAssist.Game.Actors:Facts(action)
+    local target = descriptor.unit
     blocker = targetBlocker(action, state, descriptor, target)
     if blocker then return false, blocker end
     blocker = usabilityBlocker(action, state, descriptor, target, tooltip)

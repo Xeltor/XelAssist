@@ -331,13 +331,10 @@ local function applyActorOrInventory(out, candidate, context)
         out.actors.pet = nil
     end
 end
-
 local function applyCombatState(out, candidate, context)
     local facts = context.facts
     HostileEffects:FinalizeSelected(out, candidate, facts)
-    if facts.kind == "builder" then
-        out.combo = math.min(5, (out.combo or 0) + 1)
-    elseif facts.combo then out.combo = 0 end
+    XelAssist.Graph.ComboEffects:Apply(out, candidate, facts)
 end
 
 local function applyAura(out, source, candidate, context,
@@ -443,6 +440,7 @@ function A:Apply(out, source, candidate, context)
         HostileEffects:ApplyPrimaryThreat(out, candidate, context)
     end
     applyCombatState(out, candidate, context)
+    if XelAssist.Graph.PlayerEngagement then XelAssist.Graph.PlayerEngagement:Apply(out, candidate) end
     applyAura(out, source, candidate, context, targetLocal,
         dotPeriodic, dotDuration, dotElapsed)
     syncFriendlyCompatibility(out)

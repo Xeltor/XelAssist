@@ -156,7 +156,7 @@ function Config:Build()
     getglobal(depth:GetName() .. "High"):SetText("5")
     getglobal(depth:GetName() .. "Text"):SetText("Decision steps shown")
     depth:SetScript("OnValueChanged", function()
-        XelAssistCharDB.graphDepth = math.floor(this:GetValue() + 0.5)
+        XelAssistCharDB.visibleSteps = math.floor(this:GetValue() + 0.5)
         XelAssist.UI.HUD:Refresh(true)
     end)
     f.depth = depth
@@ -219,7 +219,7 @@ function Config:Refresh()
     f.cooldowns.Refresh(); f.reagents.Refresh(); f.consumables.Refresh(); f.petActions.Refresh(); f.petControl.Refresh()
     f.aoe.Refresh(); f.locked.Refresh(); f.shown.Refresh(); f.minimap.Refresh()
     f.slider:SetValue(XelAssistDB.ui.scale or 1)
-    f.depth:SetValue(XelAssistCharDB.graphDepth or 3)
+    f.depth:SetValue(XelAssistCharDB.visibleSteps or 3)
 end
 
 function Config:Toggle()

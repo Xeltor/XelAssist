@@ -143,9 +143,12 @@ for spell in representative_spells:
 for semantic in ["kind", "threat", "execute", "recovery", "channel", "aoe"]:
     assert re.search(rf"\b{semantic}\s*=", actions), semantic
 
-assert "local MAX_STATES = 80" in engine
-assert "local MAX_MS = 3" in engine
-assert "local WIDTH = 4" in engine and "local MAX_DEPTH = 5" in engine
+search_policy = (ROOT / "Graph/SearchPolicy.lua").read_text()
+assert "P.MAX_STATES = 128" in search_policy
+assert "P.MAX_MS = 6" in search_policy
+assert "P.WIDTH = 4" in search_policy and "P.MAX_DECISIONS = 8" in search_policy
+assert "P.MAX_SECONDS = 12" in search_policy and "P.DISCOUNT_SECONDS = 4.5" in search_policy
+assert "level > 2" in engine and "level >= 2" in engine
 assert '"graph budget exceeded"' not in engine
 assert "budgetLimited" in engine
 assert "XelAssist.Game.Actors:Actions()" in graph
@@ -160,7 +163,8 @@ assert "targetHealthAtImpact" in graph and "ambient attack resolves first" in gr
 assert "resistance = XelAssist.Combat.Resistance:Estimate" in graph
 assert re.search(r"power\s*=\s*(?:context\.)?expectedPower", graph) and "threatPower" in graph
 assert ".targetHealthExact" in graph and "function C:Health" in capabilities
-assert "XelAssistCharDB.graphDepth" in graph
+assert "XelAssistCharDB.graphDepth" in search_policy
+assert "XelAssistCharDB.visibleSteps" in (ROOT / "UI/HUD.lua").read_text()
 assert "TargetNearestEnemy" not in graph + core
 assert "TargetUnit(" not in graph + core
 assert "ClearTarget(" not in graph + core

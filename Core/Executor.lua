@@ -328,6 +328,13 @@ local function recordPlayerSubmission(owner, plan, selected, context)
     if facts.autoRepeat and XelAssist.Combat.AutoShot then
         XelAssist.Combat.AutoShot:Submitted(context.applicationGuid, action.spellId)
     end
+    local engagement = XelAssist.Game.Player
+        and XelAssist.Game.Player.Engagement
+    if engagement then
+        engagement:Submitted(action, plan.tooltip,
+            plan.targetRelation, context.applicationGuid or context.hostileGuid,
+            (tonumber(plan.wait) or 0) + (tonumber(plan.cast) or 0))
+    end
     if XelAssist.Game.Pets and XelAssist.Game.Pets.EffectRuntime then
         XelAssist.Game.Pets.EffectRuntime:Submitted(action,
             context.reservationGuid, context.effectGuid, context.playerGuid)

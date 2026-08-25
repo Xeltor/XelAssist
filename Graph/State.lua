@@ -117,7 +117,7 @@ local function autoShotState(inventory, hostile, moving, casting, channeling,
     return auto
 end
 
-function S:Snapshot(mode)
+local function snapshotContext()
     local actors = XelAssist.Game.Actors:Snapshot()
     local encounter = XelAssist.Game.Encounter and XelAssist.Game.Encounter:Snapshot() or nil
     local inventory = XelAssist.Game.Inventory and XelAssist.Game.Inventory:Snapshot() or nil
@@ -133,6 +133,13 @@ function S:Snapshot(mode)
     local castName, castRemaining, casting, gcdRemaining, channeling =
         currentPlayerCast()
     local moving = PlayerIsMoving and PlayerIsMoving() or false
+    local spatialLineOfSight, spatialBehind = target.geometry.lineOfSight,
+        target.geometry.behind
+    if XelAssist.Game.SpatialEvidence then
+        moving, spatialLineOfSight, spatialBehind =
+            XelAssist.Game.SpatialEvidence:Snapshot(target.guid, moving,
+                target.geometry.lineOfSight, target.geometry.behind)
+    end
     local role = XelAssistCharDB.role or "auto"
     local healDistance, healDistanceKind = primary and primary.distance,
         primary and primary.distanceKind
@@ -146,17 +153,43 @@ function S:Snapshot(mode)
         target.distanceKind, target.geometry)
     local playerAttack = XelAssist.Game.PlayerAttack
         and XelAssist.Game.PlayerAttack:Snapshot() or nil
+    local engagement = XelAssist.Game.Player and XelAssist.Game.Player.Engagement
+    local playerStealthed, playerStealthKnown, playerStealthSource = nil, false,
+        "stealth state unavailable"
+    if engagement then
+        playerStealthed, playerStealthKnown, playerStealthSource =
+            engagement:StealthState()
+    end
     local onSwing = playerAttack and playerAttack.onSwing
     local onSwingCost = onSwing and onSwing.costKnown ~= false
         and tonumber(onSwing.cost) or nil
     local playerResourceReserved = onSwing and onSwing.occupied
         and (onSwingCost or UnitMana("player") or 0) or 0
+    return {
+        actors = actors, encounter = encounter, inventory = inventory,
+        friendlies = friendlies, target = target, healUnit = healUnit,
+        healHealth = healHealth, healMax = healMax, castName = castName,
+        castRemaining = castRemaining, casting = casting,
+        gcdRemaining = gcdRemaining, channeling = channeling, moving = moving,
+        spatialLineOfSight = spatialLineOfSight, spatialBehind = spatialBehind,
+        role = role, healDistance = healDistance,
+        healDistanceKind = healDistanceKind, distance = distance,
+        distanceKind = distanceKind, autoShot = autoShot,
+        playerAttack = playerAttack, playerStealthed = playerStealthed,
+        playerStealthKnown = playerStealthKnown,
+        playerStealthSource = playerStealthSource, onSwing = onSwing,
+        onSwingCost = onSwingCost, playerResourceReserved = playerResourceReserved,
+    }
+end
+
+local function newState(mode, context)
+    local actors, target = context.actors, context.target
     local state = {
         mode = mode, hostile = target.hostile, targetGUID = target.guid,
-        targetRef = target.ref, friendlies = friendlies, hostiles = target.hostiles,
-        healUnit = healUnit,
+        targetRef = target.ref, friendlies = context.friendlies,
+        hostiles = target.hostiles, healUnit = context.healUnit,
         health = UnitHealth("player") or 0, healthMax = UnitHealthMax("player") or 0,
-        healHealth = healHealth, healMax = healMax,
+        healHealth = context.healHealth, healMax = context.healMax,
         targetHealth = target.health, targetMax = target.healthMax,
         targetHealthExact = target.healthExact,
         targetCreatureType = target.creatureType,
@@ -172,44 +205,71 @@ function S:Snapshot(mode)
         resourceMax = UnitManaMax("player") or 0,
         resourceType = UnitPowerType and UnitPowerType("player") or nil,
         combo = GetComboPoints and GetComboPoints() or 0,
-        moving = moving,
+        moving = context.moving,
         pet = actors.pet ~= nil, petLifecycle = actors.petLifecycle,
-        actors = actors, inventory = inventory,
-        autoShot = autoShot,
-        playerAttack = playerAttack,
-        playerResourceReserved = playerResourceReserved,
-        playerResourceExact = not (onSwing and onSwing.occupied
-            and onSwingCost == nil),
-        encounter = encounter, targetAuras = target.targetAuras,
+        actors = actors, inventory = context.inventory,
+        autoShot = context.autoShot, playerAttack = context.playerAttack,
+        playerStealthed = context.playerStealthed,
+        playerStealthKnown = context.playerStealthKnown,
+        playerStealthSource = context.playerStealthSource,
+        playerResourceReserved = context.playerResourceReserved,
+        playerResourceExact = not (context.onSwing and context.onSwing.occupied
+            and context.onSwingCost == nil),
+        encounter = context.encounter, targetAuras = target.targetAuras,
         targetCasting = target.casting,
         targetCastRemaining = target.castRemaining,
-        playerCasting = casting, playerChanneling = channeling and true or false,
-        playerCastName = castName,
-        castRemaining = castRemaining or 0,
+        playerCasting = context.casting,
+        playerChanneling = context.channeling and true or false,
+        playerCastName = context.castName,
+        castRemaining = context.castRemaining or 0,
         groupSize = (GetNumRaidMembers and GetNumRaidMembers() or 0)
             + (GetNumPartyMembers and GetNumPartyMembers() or 0),
         hasAggro = target.hasAggro,
         targetPlayerThreatDeltaExact = true,
-        tank = role == "tank" or (role == "auto" and inferredTank()), role = role,
-        distance = distance, distanceKind = distanceKind,
+        tank = context.role == "tank"
+            or (context.role == "auto" and inferredTank()), role = context.role,
+        distance = context.distance, distanceKind = context.distanceKind,
         targetDistance = target.distance, targetDistanceKind = target.distanceKind,
-        targetLineOfSight = target.geometry.lineOfSight,
-        playerBehindTarget = target.geometry.behind,
-        healDistance = healDistance, healDistanceKind = healDistanceKind,
+        targetLineOfSight = context.spatialLineOfSight,
+        playerBehindTarget = context.spatialBehind,
+        spatialTargetGUID = target.guid,
+        spatialTargetLineOfSight = context.spatialLineOfSight,
+        spatialPlayerBehindTarget = context.spatialBehind,
+        healDistance = context.healDistance,
+        healDistanceKind = context.healDistanceKind,
         talentPoints = XelAssist.Game.Capabilities:TalentPoints(),
         instantNext = XelAssist.Game.Capabilities:UnitHasBuff("player", "Nature's Swiftness")
             or XelAssist.Game.Capabilities:UnitHasBuff("player", "Presence of Mind"),
         auras = target.projectedAuras, absorbs = {}, readyAt = {}, time = 0,
-        actorReadyAt = { player = math.max(castRemaining or 0,
-            gcdRemaining or 0, XelAssist.Game.Capabilities:GCDRemaining()),
+        actorReadyAt = { player = math.max(context.castRemaining or 0,
+            context.gcdRemaining or 0, XelAssist.Game.Capabilities:GCDRemaining()),
             pet = actors.pet and (actors.pet.castRemaining or 0) or 0 },
     }
-    if target.hostiles then self:SyncSelectedHostile(state) end
-    if XelAssist.Graph.AutoShotUncertainty then
-        XelAssist.Graph.AutoShotUncertainty:Apply(state, autoShot)
+    return state
+end
+
+local function attachPlayerResource(state, actors)
+    local energy = XelAssist.Game.Player and XelAssist.Game.Player.EnergyEvidence
+    local resources = XelAssist.Game.Player and XelAssist.Game.Player.Resources
+    if energy and resources then
+        local clock = energy:Observe(actors.player and actors.player.guid,
+            state.resource, state.resourceMax, GetTime(), false,
+            state.resourceType)
+        resources:Attach(state, clock)
     end
-    state.distance = state.hostile and state.targetDistance or healDistance
-    state.distanceKind = state.hostile and state.targetDistanceKind or healDistanceKind
+end
+
+function S:Snapshot(mode)
+    local context = snapshotContext()
+    local state = newState(mode, context)
+    attachPlayerResource(state, context.actors)
+    if context.target.hostiles then self:SyncSelectedHostile(state) end
+    if XelAssist.Graph.AutoShotUncertainty then
+        XelAssist.Graph.AutoShotUncertainty:Apply(state, context.autoShot)
+    end
+    state.distance = state.hostile and state.targetDistance or context.healDistance
+    state.distanceKind = state.hostile and state.targetDistanceKind
+        or context.healDistanceKind
     return state
 end
 
@@ -310,6 +370,10 @@ function S:Copy(state)
     end
     if state.playerAttack then
         out.playerAttack = copyNested(state.playerAttack, 2, seen, nil, atomic)
+    end
+    if state.playerResourceClock then
+        out.playerResourceClock = copyNested(
+            state.playerResourceClock, 2, seen, nil, atomic)
     end
     if out.hostiles then
         if state.targetContextKey ~= nil then

@@ -12,9 +12,9 @@ local HostileEffects = XelAssist.Graph.HostileEffects
 local PlayerSwings = XelAssist.Graph.PlayerSwings
 local PlayerSwingScoring = XelAssist.Graph.PlayerSwingScoring
 local Triggered = XelAssist.Combat.TriggeredActions
-
+local ComboScoring = XelAssist.Graph.ComboScoring
 local function potency(action, tooltip, state)
-    local combo = action.facts.combo
+    local combo = (action.facts.combo or tooltip.comboSpendAll)
         and (tooltip.comboBonus or 0) * state.combo or 0
     local base, estimated = nil, nil
     if Triggered and Triggered.ScriptedPower then
@@ -375,6 +375,9 @@ local function applyActionAdjustments(context)
         context.value = context.value + (1 - state.health / state.healthMax)
             * 500 * math.max(0, delivered)
     end
+    if XelAssist.Graph.PlayerEngagement then
+        XelAssist.Graph.PlayerEngagement:Score(context)
+    end
 end
 
 local function candidate(context)
@@ -422,6 +425,8 @@ local function candidate(context)
         marginalPower = context.marginalPower,
         marginalEffectivePower = context.marginalEffectivePower,
         playerSwingUnknowns = context.playerSwingUnknowns,
+        startsPlayerAttack = context.startsPlayerAttack,
+        confidence = descriptor and descriptor.projectionOpen and "partial data" or nil,
     }
 end
 
@@ -438,6 +443,7 @@ function Scoring:Evaluate(action, state, descriptor)
         return candidate(context)
     end
     scoreKindUtility(context)
+    ComboScoring:Apply(context)
     applyActionAdjustments(context)
     ThreatScoring:Apply(context)
     return candidate(context)
