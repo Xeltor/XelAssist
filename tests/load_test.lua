@@ -263,12 +263,13 @@ function XelAssistTestExecutePublished()
 end
 local savedCurrentCast = XelAssist.Game.Capabilities.CurrentCast
 XelAssist.Game.Capabilities.CurrentCast = function()
-    return "Test Channel", 2, true, 0, true
+    return "Test Channel", 2, true, 0, true, 15407
 end
 local channelSnapshot = XelAssist.Graph.State:Snapshot("smart")
 XelAssist.Game.Capabilities.CurrentCast = savedCurrentCast
 assert(channelSnapshot.playerCasting and channelSnapshot.playerChanneling
-    and channelSnapshot.castRemaining == 2,
+    and channelSnapshot.castRemaining == 2
+    and channelSnapshot.playerCastSpellId == 15407,
     "graph state must preserve the native channel distinction")
 assert(XelAssist.UI.HUD.frame and XelAssist.UI.HUD.frame.main, "recommendation frame did not build")
 assert(XelAssist.UI.HUD.frame:GetWidth() == 372,
@@ -349,7 +350,7 @@ assert(XelAssistCharDB.visibleSteps == 3 and XelAssistCharDB.graphDepth == nil
 assert(XelAssistCharDB.toggles.consumables == false, "finite consumables must default disabled")
 assert(XelAssistCharDB.schema == 4, "saved-variable schema did not migrate")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.15" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.16" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(not runtime.apis.comboOwner and not runtime.apis.comboDuration,

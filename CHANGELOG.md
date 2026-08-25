@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.16
+
+- Replaced the hard player-channel lock with competing continuation and clip
+  branches. The graph prices remaining channel output, preserves independent
+  Attack/Auto Shot actions, and can clip for a higher-value interrupt, heal,
+  defensive, threat response, or damage action.
+- Added exact active channel spell/target identity when the client exposes it,
+  conservative unknown-channel handling, and projected remaining channel value.
+- Made every graph instruction a guaranteed non-executable macro hold, including
+  channel continuation and movement rows.
+
 ## 0.8.15
 
 - Made Stealth a dependency-backed setup edge: it now requires a discovered

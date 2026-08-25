@@ -87,15 +87,16 @@ function S:ActiveTargetModifiers(encounter, targetResistance)
 end
 
 local function currentPlayerCast()
-    local castName, castRemaining, casting, gcdRemaining, channeling =
+    local castName, castRemaining, casting, gcdRemaining, channeling, spellId =
         XelAssist.Game.Capabilities:CurrentCast()
     if not casting and XelAssist.playerCastUntil
         and XelAssist.playerCastUntil > GetTime() then
         castName, castRemaining, casting = XelAssist.playerCastName,
             XelAssist.playerCastUntil - GetTime(), true
-        channeling = false
+        channeling = XelAssist.playerCastChannel and true or false
+        spellId = XelAssist.playerCastSpellId
     end
-    return castName, castRemaining, casting, gcdRemaining, channeling
+    return castName, castRemaining, casting, gcdRemaining, channeling, spellId
 end
 
 local function autoShotState(inventory, hostile, moving, casting, channeling,
@@ -130,7 +131,7 @@ local function snapshotContext()
     local healUnit = primary and primary.unit or "player"
     local healHealth = primary and primary.health or UnitHealth("player") or 0
     local healMax = primary and primary.healthMax or UnitHealthMax("player") or 0
-    local castName, castRemaining, casting, gcdRemaining, channeling =
+    local castName, castRemaining, casting, gcdRemaining, channeling, castSpellId =
         currentPlayerCast()
     local moving = PlayerIsMoving and PlayerIsMoving() or false
     local spatialLineOfSight, spatialBehind = target.geometry.lineOfSight,
@@ -177,6 +178,8 @@ local function snapshotContext()
         friendlies = friendlies, target = target, healUnit = healUnit,
         healHealth = healHealth, healMax = healMax, castName = castName,
         castRemaining = castRemaining, casting = casting,
+        castSpellId = castSpellId,
+        castTargetGUID = XelAssist.playerCastTargetGUID,
         gcdRemaining = gcdRemaining, channeling = channeling, moving = moving,
         spatialLineOfSight = spatialLineOfSight, spatialBehind = spatialBehind,
         role = role, healDistance = healDistance,
@@ -231,6 +234,8 @@ local function newState(mode, context)
         playerCasting = context.casting,
         playerChanneling = context.channeling and true or false,
         playerCastName = context.castName,
+        playerCastSpellId = context.castSpellId,
+        playerCastTargetGUID = context.castTargetGUID,
         castRemaining = context.castRemaining or 0,
         groupSize = (GetNumRaidMembers and GetNumRaidMembers() or 0)
             + (GetNumPartyMembers and GetNumPartyMembers() or 0),

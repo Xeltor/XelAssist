@@ -11,7 +11,6 @@ local Policy = G.SearchPolicy
 local SearchBranches = G.SearchBranches
 local Diagnostics = G.PlanDiagnostics
 local MovementSetup = G.MovementSetup
-local StealthSetup = G.StealthSetup
 
 function G:ActiveTargetModifiers(encounter, targetResistance)
     return State:ActiveTargetModifiers(encounter, targetResistance)
@@ -111,6 +110,8 @@ local function topCandidates(state, counter, actions)
     local candidates = flattenCandidates(buckets)
     local movement = MovementSetup and MovementSetup:Candidate(state, blockers)
     if movement then table.insert(candidates, movement) end
+    local channel = G.ChannelCommitment and G.ChannelCommitment:Candidate(state)
+    if channel then table.insert(candidates, channel) end
     SearchBranches:Retain(candidates, Policy.WIDTH, candidateBefore)
     counter.count = counter.count + table.getn(candidates)
     return candidates, blockers
@@ -415,6 +416,7 @@ local function buildPlan(state, observed, path, counter, started)
         comboAvailability = best.comboAvailability,
         marginalPower = best.marginalPower,
         displacedWhitePower = best.displacedWhitePower,
+        clipsChannel = best.clipsChannel,
         effectDelivery = best.effectDelivery,
         startsPlayerAttack = best.startsPlayerAttack,
         cost = best.cost, costKnown = best.costKnown,
@@ -438,7 +440,8 @@ function G:Evaluate(mode, preview)
     local depth = Policy:Depth()
     counter.maxStates, counter.maxMs = Policy:Limits(state)
     local actions = availableActions()
-    if StealthSetup then StealthSetup:Prepare(state, actions) end
+    if G.StealthSetup then G.StealthSetup:Prepare(state, actions) end
+    if G.ChannelCommitment then G.ChannelCommitment:Prepare(state, actions) end
     local path = bestSearchPath(state, started, counter, depth, actions)
     if not path.steps[1] then
         return nil, Diagnostics:Reason(state, counter.blockers), false

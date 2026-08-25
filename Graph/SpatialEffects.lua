@@ -4,6 +4,9 @@ XelAssist.Graph.SpatialEffects = {}
 local S = XelAssist.Graph.SpatialEffects
 
 function S:Apply(out, candidate)
+    if XelAssist.Graph.ChannelCommitment then
+        XelAssist.Graph.ChannelCommitment:Apply(out, candidate)
+    end
     if XelAssist.Graph.StealthSetup then
         XelAssist.Graph.StealthSetup:Apply(out, candidate)
     end

@@ -436,7 +436,7 @@ function XA:Execute(mode)
         XelAssist.UI.HUD:ClearExecutionMode()
     end
     local action = plan.action
-    if action.executor == "item" then
+    if action.executor == "item" or action.executor == "instruction" then
         self:ExecuteItemPlan(plan, selected); return
     end
     if action.actor == "pet" then self:ExecutePetPlan(plan, selected); return end

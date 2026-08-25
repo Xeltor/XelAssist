@@ -40,9 +40,11 @@ function A:Start(action, state, tooltip)
     end
     local actor = action.actor or "player"
     local playerSwings = XelAssist.Graph.PlayerSwings
+    local channel = XelAssist.Graph.ChannelCommitment
     local immediate = kind == "command"
         or playerSwings and playerSwings:Is(action, tooltip)
         or facts.autoRepeat and state.playerChanneling
+        or channel and channel:CanClip(state, action)
     local resources = XelAssist.Graph.CompanionResources
     if actor == "pet" and kind ~= "command" and resources
         and not resources:ReadyExact(state, action) then

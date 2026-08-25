@@ -35,6 +35,7 @@ dofile("Graph/CompanionThreat.lua")
 dofile("Graph/CompanionEventThreat.lua")
 dofile("Graph/ActionAdmission.lua")
 dofile("Graph/StealthSetup.lua")
+dofile("Graph/ChannelCommitment.lua")
 dofile("Graph/MovementSetup.lua")
 dofile("Graph/SpatialEffects.lua")
 dofile("Graph/SpatialRequirements.lua")
@@ -1091,9 +1092,9 @@ assert(armedDuringChannel.playerCasting and armedDuringChannel.playerChanneling
     "arming Auto Shot must preserve and advance the channel's readiness state")
 currentState = armedDuringChannel
 scenarioActions = { autoFiller }
-plan = expect("action after armed channel", "Low Filler")
-assert(plan.wait > 2.9,
-    "ordinary Hunter actions must still wait for the armed channel to finish")
+plan = expect("ordinary action preserves valuable channel", "Continue current channel")
+assert(plan.action.executor == "instruction" and plan.wait == 0,
+    "an ordinary action must not clip an unpriced channel merely because the macro was pressed")
 currentState.playerCasting, currentState.playerChanneling = true, false
 currentState.castRemaining, currentState.actorReadyAt.player = 3, 3
 currentState.autoShot.active = false
@@ -1103,6 +1104,52 @@ assert(castBlockedAuto == nil,
     "a non-channel spell cast must still prevent an immediate Auto Shot toggle")
 currentState.playerCasting, currentState.castRemaining = false, 0
 currentState.actorReadyAt.player = 0
+scenarioActions = { autoStart, autoFiller }
+
+XelAssistTestHunterAfterCastState = currentState
+do
+    currentState = state("smart")
+    currentState.role = "damage"
+    currentState.targetHealth, currentState.targetMax = 1000, 1000
+    currentState.targetHealthExact = true
+    currentState.playerCasting, currentState.playerChanneling = true, true
+    currentState.playerCastName, currentState.playerCastSpellId = "Mind Flay", 15407
+    currentState.playerCastTargetGUID = currentState.targetGUID
+    currentState.castRemaining = 2
+    currentState.actorReadyAt = { player = 2, pet = 0 }
+    local activeChannel = action("Mind Flay", 1, "damage", 600, 45,
+        { channel = true, cast = 3, testDuration = 3, ranged = true })
+    activeChannel.spellId = 15407
+    local weakNuke = action("Weak Nuke", 1, "damage", 50, 0,
+        { ranged = true })
+    scenarioActions, XelAssistCharDB.graphDepth = { activeChannel, weakNuke }, 1
+    plan = expect("valuable channel beats routine clip", "Continue Mind Flay")
+    assert(plan.power == 400 and plan.action.executor == "instruction",
+        "continuation must price only the remaining fraction of the active channel")
+    local afterChannel = XelAssist.Graph.Transitions:Advance(
+        currentState, plan.path[1])
+    assert(afterChannel.targetHealth == 600
+        and not afterChannel.playerCasting and not afterChannel.playerChanneling,
+        "finishing the channel must project its remaining target value and release the actor")
+
+    currentState.targetCasting, currentState.targetCastRemaining = true, 1
+    local interrupt = action("Silence", 1, "interrupt", 0, 0,
+        { interrupt = true, ranged = true })
+    scenarioActions = { activeChannel, weakNuke, interrupt }
+    assert(not XelAssist.Graph.ChannelCommitment:CanClip(currentState,
+        { actor = "pet", facts = { kind = "interrupt" } }),
+        "an independently controlled actor must never cancel the player's channel")
+    plan = expect("urgent interrupt clips valuable channel", "Silence")
+    assert(plan.clipsChannel and plan.wait == 0,
+        "the weighted interrupt branch must start now and disclose that it clips")
+    local afterClip = XelAssist.Graph.Transitions:Advance(
+        currentState, plan.path[1])
+    assert(not afterClip.playerCasting and not afterClip.playerChanneling
+        and afterClip.castRemaining == 0,
+        "a chosen clipping action must release the projected channel commitment")
+end
+currentState = XelAssistTestHunterAfterCastState
+XelAssistTestHunterAfterCastState = nil
 scenarioActions = { autoStart, autoFiller }
 
 currentState.autoShot.active = true

@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.15
+## Version: 0.8.16
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -21,6 +21,7 @@ Game\WeaponPower.lua
 Game\SpatialEvidence.lua
 Game\PlayerAttack.lua
 Game\Player\Engagement.lua
+Game\Player\ChannelRuntime.lua
 Game\Player\EnergyEvidence.lua
 Game\Player\EnergyEvents.lua
 Game\Player\Resources.lua
@@ -66,6 +67,7 @@ Graph\CompanionThreat.lua
 Graph\CompanionEventThreat.lua
 Graph\ActionAdmission.lua
 Graph\StealthSetup.lua
+Graph\ChannelCommitment.lua
 Graph\MovementSetup.lua
 Graph\SpatialEffects.lua
 Graph\SpatialRequirements.lua

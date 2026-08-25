@@ -67,7 +67,9 @@ never class rotations or ordered priority lists.
   recipients into graph evidence. None persists
   an actor identity or hardcodes a private-server regeneration rate.
   `Game/Player/Engagement.lua` owns exact DBC Attack-start/stop and stealth
-  semantics. `EnergyEvidence.lua`, `EnergyEvents.lua`, and `Resources.lua` own
+  semantics. `Game/Player/ChannelRuntime.lua` owns the bounded native-event
+  fallback for active player channel identity. `EnergyEvidence.lua`,
+  `EnergyEvents.lua`, and `Resources.lua` own
   live player-energy cadence learning, attribution/reset events, and projected
   resource arithmetic respectively. `Game/SpatialEvidence.lua` owns immediate
   blocking and settled recovery for noisy live geometry edges.
@@ -83,6 +85,8 @@ never class rotations or ordered priority lists.
 - `Graph/State.lua` is the live observation boundary for planning, and
   `Graph/HostileState.lua` owns target-local copies, context switching, and
   commits back to the canonical bounded hostile collection.
+  `Graph/ChannelCommitment.lua` owns the remaining-value comparison between
+  continuing and deliberately clipping a live player channel.
   `Graph/AreaRecipients.lua` resolves conservative per-effect recipient sets;
   `Graph/HostileEffects.lua` applies eligible hostile-local effects without
   spending one action more than once. `Graph/AutoShotEffects.lua` and

@@ -371,6 +371,12 @@ local function candidate(context)
         wait = context.wait, occupancy = context.occupancy,
         gcd = context.gcd, normalGcd = context.normalGcd,
         actionStart = context.actionStart,
+        clipsChannel = XelAssist.Graph.ChannelCommitment
+            and context.clipsChannel and true or false,
+        preservesChannel = context.preservesChannel and true or false,
+        channelCommitment = (context.clipsChannel or context.preservesChannel)
+            and context.state.channelCommitment or nil,
+        channelOpportunityValue = context.channelOpportunityValue,
         recipientEffects = context.recipientEffects,
         areaRecipientGroups = context.areaRecipientGroups,
         areaUnknowns = context.areaUnknowns,
@@ -411,5 +417,8 @@ function Scoring:Evaluate(action, state, descriptor)
     ComboScoring:Apply(context)
     applyActionAdjustments(context)
     ThreatScoring:Apply(context)
+    if XelAssist.Graph.ChannelCommitment then
+        XelAssist.Graph.ChannelCommitment:Adjust(context)
+    end
     return candidate(context)
 end

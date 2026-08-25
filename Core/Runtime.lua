@@ -243,7 +243,7 @@ ev:SetScript("OnEvent", function()
         -- name is authoritative enough to clear only its matching reservation;
         -- with no name, retain the legacy single-current reservation fallback.
         XA:ClearCurrentPendingAura(XA:PlayerGUID(), XA.playerCastName)
-        XA.playerCastUntil, XA.playerCastName = nil, nil
+        XA.Game.Player.ChannelRuntime:Clear()
     end
     if event == "SPELL_FAILED_SELF" then
         PlayerOnSwingEvents:Handle(event, arg1, arg2, arg3, arg4)
@@ -418,10 +418,10 @@ ev:SetScript("OnEvent", function()
                 XA:UpdateDecisionStatus(arg4, "player", arg3)
             end
             if arg3 == "START" or arg3 == "CHANNEL" then
-                XA.playerCastUntil = GetTime() + ((arg5 or 1500) / 1000)
-                XA.playerCastName = SpellInfo and SpellInfo(arg4) or nil
+                XA.Game.Player.ChannelRuntime:Start(
+                    arg4, arg2, arg5, arg3 == "CHANNEL")
             elseif arg3 == "CAST" or arg3 == "FAIL" then
-                XA.playerCastUntil = nil; XA.playerCastName = nil
+                XA.Game.Player.ChannelRuntime:Clear()
             end
             if castSpell and routeEvidence and arg3 == "CAST" then
                 XA:TouchPendingSpell(arg4, "go", 2, playerGUID, arg2)

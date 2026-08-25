@@ -268,6 +268,17 @@ local function hostilePlan(action)
 end
 XelAssist.Graph.Evaluate = function() return currentPlan, nil, false end
 
+-- Graph instructions are display/hold contracts. Repeated macro presses must
+-- never route them through a spell, item, or target mutation API.
+resetEffects()
+currentPlan = hostilePlan({ name = "Continue Mind Flay", rank = 0,
+    actor = "player", executor = "instruction",
+    facts = { kind = "channelContinuation", channelContinuation = true } })
+XelAssist:Execute()
+assertNoExecution("a channel continuation instruction must be a safe macro hold")
+assert(string.find(XelAssist.lastReason or "", "Continue Mind Flay", 1, true),
+    "an instruction hold must remain visible as the current execution reason")
+
 -- A normal selected hostile reaches only Nampower's selected-target queue.
 resetEffects()
 currentPlan = hostilePlan(playerAction("Shadow Bolt"))

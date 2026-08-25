@@ -186,15 +186,17 @@ GetCastInfo = function()
     return { spellId = 116, castRemainingMs = 1250,
         gcdRemainingMs = 300, castType = 3 }
 end
-local _, castRemaining, casting, gcdRemaining, channeling =
+local _, castRemaining, casting, gcdRemaining, channeling, castSpellId =
     XelAssist.Game.Capabilities:CurrentCast()
-assert(casting and channeling and castRemaining == 1.25 and gcdRemaining == 0.3,
+assert(casting and channeling and castRemaining == 1.25 and gcdRemaining == 0.3
+    and castSpellId == 116,
     "the detailed cast record must preserve native channel state")
 GetCastInfo = nil
 GetCurrentCastingInfo = function() return 116, 0, 0, 0, 1 end
-_, castRemaining, casting, gcdRemaining, channeling =
+_, castRemaining, casting, gcdRemaining, channeling, castSpellId =
     XelAssist.Game.Capabilities:CurrentCast()
-assert(casting and channeling and castRemaining == 0 and gcdRemaining == 0,
+assert(casting and channeling and castRemaining == 0 and gcdRemaining == 0
+    and castSpellId == 116,
     "the compatibility cast API must preserve its channel flag")
 GetCastInfo, GetCurrentCastingInfo = savedGetCastInfo,
     savedGetCurrentCastingInfo

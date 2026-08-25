@@ -233,6 +233,14 @@ action with positive wait is submitted only through Nampower's forced selected-
 target queue; exact-friendly, ground, and item paths hold until they are ready.
 Future nodes are predictions, not queued casts; every `/xa` press takes a fresh
 snapshot and may choose differently.
+An active player channel is a weighted commitment rather than a hard cast lock.
+The graph compares a non-executable continuation branch, valued from the exact
+remaining time and the discovered channel action, with actions that would clip
+it immediately. Interrupts, urgent support, threat safety, or lethal damage may
+therefore win while routine actions preserve valuable remaining ticks. Attack,
+Auto Shot, on-next-swing setup, and companion actions stay independent and do
+not falsely cancel the player's channel. Unknown channel identity receives a
+conservative hold value instead of being treated as free to cancel.
 An exact out-of-range result creates a non-executable, target-pinned movement
 instruction rather than terminating the runway. The graph may continue through
 that edge, but measured distance is never changed: every downstream action is

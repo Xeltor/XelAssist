@@ -915,7 +915,7 @@ function C:CurrentCast()
             local name = spellId ~= 0 and SpellInfo and SpellInfo(spellId) or nil
             local gcd = (info.gcdRemainingMs or 0) / 1000
             return name, math.max(0, remaining), true, math.max(0, gcd),
-                tonumber(info.castType) == 3
+                tonumber(info.castType) == 3, spellId ~= 0 and spellId or nil
         end
     end
     if GetCurrentCastingInfo then
@@ -923,7 +923,8 @@ function C:CurrentCast()
         if ok and (casting == 1 or channeling == 1) then
             local spellId = castId ~= 0 and castId or visualId
             local name = spellId and spellId ~= 0 and SpellInfo and SpellInfo(spellId) or nil
-            return name, 0, true, 0, channeling == 1
+            return name, 0, true, 0, channeling == 1,
+                spellId and spellId ~= 0 and spellId or nil
         end
     end
     return nil, 0, false, 0
