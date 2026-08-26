@@ -156,6 +156,8 @@ local function attachMechanicEvidence(out, context)
     out.shamanEarthShockTransition = context.shamanEarthShockTransition
     out.stingingNettleTransition = context.stingingNettleTransition
     out.shamanStormstrikeConsumption = context.shamanStormstrikeConsumption
+    out.warriorShieldMasteryConsumption =
+        context.warriorShieldMasteryConsumption
     out.healthTransfer = context.healthTransfer
     out.shadowMend = context.shadowMend
 end

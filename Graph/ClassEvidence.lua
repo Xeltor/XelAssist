@@ -57,6 +57,7 @@ local WarriorExecute = XelAssist.Game.Player.WarriorExecute
 local WarriorDemoralizingShout =
     XelAssist.Game.Player.WarriorDemoralizingShout
 local WarriorShieldWall = XelAssist.Game.Player.WarriorShieldWall
+local WarriorShieldMastery = XelAssist.Game.Player.WarriorShieldMastery
 local WarriorBerserkerRage = XelAssist.Game.Player.WarriorBerserkerRage
 local WarriorBerserkerRageGraph = XelAssist.Graph.WarriorBerserkerRage
 local WarriorCostPassives = XelAssist.Game.Player.WarriorCostPassives
@@ -113,6 +114,7 @@ captureModule(WarriorReprisal)
 captureModule(WarriorExecute)
 captureModule(WarriorDemoralizingShout)
 captureModule(WarriorShieldWall)
+captureModule(WarriorShieldMastery)
 captureModule(WarriorBerserkerRage)
 captureModule(WarriorCostPassives)
 captureModule(WarlockFelDominationRuntime)

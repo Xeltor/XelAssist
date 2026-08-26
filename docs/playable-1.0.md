@@ -217,7 +217,7 @@ evidence-ranked queue includes:
 - Warlock pet-cast modifiers, Mana Funnel and Shadow Strikes; and
 - Warrior Devastate's private supplemental threat, off-target and cold-start
   Shield Block value,
-  Shield Mastery, Reprisal's private rage refund, weapon-dependent Master
+  Reprisal's private rage refund, weapon-dependent Master
   Strike and hidden cooldown modifiers.
 
 An exact observed-aura plus engine-effective cost/cast/cooldown/duration layer

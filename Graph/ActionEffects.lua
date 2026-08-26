@@ -371,7 +371,7 @@ local function syncFriendlyCompatibility(state)
     end
 end
 function A:Apply(out, source, candidate, context)
-    if XelAssist.Graph.ShamanStormstrike then XelAssist.Graph.ShamanStormstrike:Consume(out, candidate) end
+    if XelAssist.Graph.DamageProcAdjustments then XelAssist.Graph.DamageProcAdjustments:Consume(out, candidate) end
     if XelAssist.Graph.HunterFeignDeath then XelAssist.Graph.HunterFeignDeath:Consume(out, candidate) end
     if WarlockFelDomination then WarlockFelDomination:Consume(out, candidate) end
     if DruidClearcasting then DruidClearcasting:Consume(out, candidate) end

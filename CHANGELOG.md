@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.81
+
+- Added exact patch-5 Shield Mastery ownership and linked first-block/Riposte
+  topology. The graph now values the bounded fifty-percent extra block-value
+  packet, arms the five-second Revenge modifier from projected block
+  probability, and consumes it only across landed Revenge probability.
+- Corrected Shield Block charge projection so baseline blocks as well as the
+  added block chance consume charges. Defensive scoring and transitions now
+  share the same bounded probability model.
+
 ## 0.8.80
 
 - Prevent periodic damage such as Rend from using the generic early aura

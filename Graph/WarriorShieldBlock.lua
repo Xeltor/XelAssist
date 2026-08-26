@@ -23,6 +23,19 @@ local function application(projection)
     return value
 end
 
+local function mastery(evidence)
+    local value = evidence and evidence.warriorShieldMasteryEvidence
+    if not value then return { learned = false, exact = true } end
+    if not (value.available == true and value.exact == true) then return nil end
+    if value.learned ~= true then return { learned = false, exact = true } end
+    if value.portfolio ~= "warriorShieldMastery"
+        or value.rootSpellId ~= 45958 or value.blockSpellId ~= 45959
+        or value.riposteSpellId ~= 45962 or value.blockDuration ~= 0.25
+        or value.riposteDuration ~= 5 or value.blockValueMultiplier ~= 1.5
+        or value.revengeDamageMultiplier ~= 2.5 then return nil end
+    return value
+end
+
 local function defense(state)
     local swings = state and state.hostileSwings
     local profile = swings and swings.playerDefense
@@ -56,23 +69,26 @@ local function addedChance(profile)
     return math.max(0, math.min(75, 100 - profile.blockChance)) / 100
 end
 
-local function expectedBlocks(rounds, chance, charges)
+local function expectedBlocks(rounds, added, total, charges)
     local distribution = { [0] = 1 }
     local completed, round, blocks = 0, nil, nil
     for round = 1, rounds do
         local nextDistribution = {}
-        for blocks = 0, round - 1 do
+        for blocks = 0, charges do
             local probability = distribution[blocks] or 0
-            nextDistribution[blocks] = (nextDistribution[blocks] or 0)
-                + probability * (1 - chance)
-            nextDistribution[blocks + 1] = (nextDistribution[blocks + 1] or 0)
-                + probability * chance
+            if blocks < charges then
+                completed = completed + probability * added
+                nextDistribution[blocks] = (nextDistribution[blocks] or 0)
+                    + probability * (1 - total)
+                nextDistribution[blocks + 1] =
+                    (nextDistribution[blocks + 1] or 0)
+                        + probability * total
+            else
+                nextDistribution[blocks] = (nextDistribution[blocks] or 0)
+                    + probability
+            end
         end
         distribution = nextDistribution
-    end
-    for blocks = 0, rounds do
-        completed = completed + math.min(charges, blocks)
-            * (distribution[blocks] or 0)
     end
     return completed
 end
@@ -94,13 +110,21 @@ local function preview(state, value, applicationAt)
     if rounds <= 0 then return nil end
     local perBlock = math.min(lane.blockLowerBound,
         math.max(0, tonumber(lane.expectedDamage) or 0))
-    local blocks = expectedBlocks(rounds, chance, value.charges)
+    local total = math.min(1, profile.blockChance / 100 + chance)
+    local blocks = expectedBlocks(rounds, chance, total, value.charges)
+    local masteryProbability = value.shieldMastery
+        and 1 - math.pow(1 - total, rounds) or 0
+    local masteryPrevented = value.shieldMastery
+        and perBlock * (value.shieldMastery.blockValueMultiplier - 1)
+            * masteryProbability or 0
     return { exact = false, estimated = true,
         attackerKey = profile.selectedKey, selectedBehindPlayer = false,
         blockChance = profile.blockChance, addedBlockChance = chance,
         blockLowerBound = lane.blockLowerBound,
         blockSamples = lane.blockSamples, rounds = rounds,
-        expectedBlocks = blocks, prevented = perBlock * blocks,
+        expectedBlocks = blocks, prevented = perBlock * blocks
+            + masteryPrevented, shieldMasteryProbability = masteryProbability,
+        shieldMasteryPrevented = masteryPrevented,
         source = "same-regime observed block lower bound and selected frontal rounds" }
 end
 
@@ -128,8 +152,17 @@ function S:Prepare(action, state, tooltip)
         return nil, "usable shield unavailable", true
     end
     local out = copy(tooltip)
+    local masteryEvidence = mastery(facts)
+    if not masteryEvidence then
+        return nil, "Shield Mastery evidence incomplete", true
+    end
     out.warriorShieldBlockApplication = { exact = true, spellId = 2565,
-        charges = evidence.charges, duration = evidence.duration }
+        charges = evidence.charges, duration = evidence.duration,
+        shieldMastery = masteryEvidence.learned == true and {
+            exact = true, rootSpellId = masteryEvidence.rootSpellId,
+            blockValueMultiplier = masteryEvidence.blockValueMultiplier,
+            revengeDamageMultiplier = masteryEvidence.revengeDamageMultiplier,
+            riposteDuration = masteryEvidence.riposteDuration } or nil }
     out.classMechanic = "warriorShieldBlock"
     return out, nil, true
 end
@@ -157,9 +190,26 @@ function S:Apply(state, candidate)
         chargeDistribution = { [value.charges] = 1 },
         expiresAt = (tonumber(state.time) or 0) + value.duration,
         attackerKey = plan and plan.attackerKey,
+        baseBlockChance = plan and plan.blockChance
+            and plan.blockChance / 100 or nil,
         addedBlockChance = plan and plan.addedBlockChance,
         blockLowerBound = plan and plan.blockLowerBound,
         projected = true }
+    if value.shieldMastery then
+        state.warriorShieldMastery = state.warriorShieldMastery or {}
+        state.warriorShieldMastery.pendingProbability = 1
+        state.warriorShieldMastery.blockValueMultiplier =
+            value.shieldMastery.blockValueMultiplier
+        state.warriorShieldMastery.revengeDamageMultiplier =
+            value.shieldMastery.revengeDamageMultiplier
+        state.warriorShieldMastery.riposteDuration =
+            value.shieldMastery.riposteDuration
+        state.warriorShieldMastery.riposteProbability =
+            math.max(0, math.min(1, tonumber(
+                state.warriorShieldMastery.riposteProbability) or 0))
+        state.warriorShieldMastery.riposteRemaining = math.max(0,
+            tonumber(state.warriorShieldMastery.riposteRemaining) or 0)
+    end
     return true
 end
 
@@ -171,34 +221,62 @@ function S:AdjustProjectedSwing(state, event, amount)
         and window.attackerKey == event.attackerKey
         and event.victimKind == "player"
         and type(window.chargeDistribution) == "table"
+        and tonumber(window.baseBlockChance)
         and tonumber(window.addedBlockChance)
         and tonumber(window.blockLowerBound)) then return amount end
-    local chance, used, nextDistribution = window.addedBlockChance, 0, {}
+    local added, total = window.addedBlockChance,
+        math.min(1, window.baseBlockChance + window.addedBlockChance)
+    local used, consumed, nextDistribution = 0, 0, {}
     local remaining, probability
     for remaining, probability in pairs(window.chargeDistribution) do
         if remaining > 0 then
-            used = used + probability * chance
+            used = used + probability * added
+            consumed = consumed + probability * total
             nextDistribution[remaining] = (nextDistribution[remaining] or 0)
-                + probability * (1 - chance)
+                + probability * (1 - total)
             nextDistribution[remaining - 1] =
-                (nextDistribution[remaining - 1] or 0) + probability * chance
+                (nextDistribution[remaining - 1] or 0) + probability * total
         else
             nextDistribution[0] = (nextDistribution[0] or 0) + probability
         end
     end
     local prevented = math.min(amount, window.blockLowerBound) * used
+    local shieldMastery = state.warriorShieldMastery
+    if shieldMastery and shieldMastery.pendingProbability > 0 then
+        local triggered = shieldMastery.pendingProbability * total
+        shieldMastery.pendingProbability = shieldMastery.pendingProbability
+            * (1 - total)
+        shieldMastery.riposteProbability = math.max(
+            shieldMastery.riposteProbability or 0, triggered)
+        if triggered > 0 then
+            shieldMastery.riposteRemaining = shieldMastery.riposteDuration
+            prevented = prevented + math.min(math.max(0, amount - prevented),
+                window.blockLowerBound
+                    * (shieldMastery.blockValueMultiplier - 1)) * triggered
+        end
+    end
     window.chargeDistribution = nextDistribution
-    window.expectedCharges = math.max(0, window.expectedCharges - used)
+    window.expectedCharges = math.max(0, window.expectedCharges - consumed)
     if window.expectedCharges <= 0 then window.active = false end
     return math.max(0, amount - prevented)
 end
 
 function S:Advance(state, elapsed)
     local window = state and state.warriorShieldBlock
-    if not window then return end
-    if (tonumber(state.time) or 0) + (tonumber(elapsed) or 0)
+    if window and (tonumber(state.time) or 0) + (tonumber(elapsed) or 0)
         >= window.expiresAt then
         window.active, window.charges, window.expectedCharges = false, 0, 0
+        if state.warriorShieldMastery then
+            state.warriorShieldMastery.pendingProbability = 0
+        end
+    end
+    local masteryState = state and state.warriorShieldMastery
+    if masteryState and masteryState.riposteRemaining then
+        masteryState.riposteRemaining = math.max(0,
+            masteryState.riposteRemaining - (tonumber(elapsed) or 0))
+        if masteryState.riposteRemaining <= 0 then
+            masteryState.riposteProbability = 0
+        end
     end
 end
 
@@ -206,7 +284,46 @@ function S:Copy(source, target)
     if not target then return false end
     target.warriorShieldBlock = source and source.warriorShieldBlock
         and copy(source.warriorShieldBlock) or nil
+    target.warriorShieldMastery = source and source.warriorShieldMastery
+        and copy(source.warriorShieldMastery) or nil
     return target.warriorShieldBlock ~= nil
+end
+
+function S:AdjustRevenge(context)
+    local facts = context and context.action and context.action.facts
+    local evidence = mastery(facts)
+    if not (evidence and evidence.learned == true
+        and facts.warriorRevengeThreat == true) then return false, nil end
+    local current = context.state and context.state.warriorShieldMastery
+    local delay = math.max(0, tonumber(context.impactDelay)
+        or (tonumber(context.wait) or 0) + (tonumber(context.cast) or 0))
+    local probability = current and current.riposteRemaining > delay
+        and math.max(0, math.min(1,
+            tonumber(current.riposteProbability) or 0)) or 0
+    if probability <= 0 then return false, nil end
+    local base = tonumber(context.expectedPower)
+    if not base or base < 0 then
+        return false, "Shield Mastery Revenge power unavailable"
+    end
+    context.expectedPower = base * (1
+        + (evidence.revengeDamageMultiplier - 1) * probability)
+    context.warriorShieldMasteryConsumption = { exact = true,
+        activeProbability = probability, riposteSpellId = 45962 }
+    return true, nil
+end
+
+function S:ConsumeRevenge(state, candidate)
+    local marker = candidate and candidate.warriorShieldMasteryConsumption
+    local current = state and state.warriorShieldMastery
+    local delivery = tonumber(candidate and candidate.effectDelivery)
+    if not (marker and marker.exact == true and marker.riposteSpellId == 45962
+        and current and delivery and delivery >= 0 and delivery <= 1) then
+        return false
+    end
+    current.riposteProbability = math.max(0,
+        (tonumber(current.riposteProbability) or 0) * (1 - delivery))
+    if current.riposteProbability <= 0 then current.riposteRemaining = 0 end
+    return true
 end
 
 function S:ConsumeObservedBlock(state, event)
@@ -218,6 +335,12 @@ function S:ConsumeObservedBlock(state, event)
     window.charges = window.charges - 1
     window.expectedCharges = window.charges
     window.chargeDistribution = { [window.charges] = 1 }
+    local masteryState = state.warriorShieldMastery
+    if masteryState and masteryState.pendingProbability > 0 then
+        masteryState.pendingProbability = 0
+        masteryState.riposteProbability = 1
+        masteryState.riposteRemaining = masteryState.riposteDuration
+    end
     if window.charges == 0 then window.active = false end
     return true
 end

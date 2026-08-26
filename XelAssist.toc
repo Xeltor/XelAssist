@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.80
+## Version: 0.8.81
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -127,6 +127,7 @@ Game\Player\WarriorDemoralizingShout.lua
 Game\Player\WarriorShieldWall.lua
 Game\Player\WarriorDevastate.lua
 Game\Player\WarriorShieldBlock.lua
+Game\Player\WarriorShieldMastery.lua
 Game\Player\WarriorBerserkerRage.lua
 Game\Player\WarriorCostPassives.lua
 Game\ActionInference.lua
@@ -267,6 +268,7 @@ Graph\HunterDistractingShot.lua
 Graph\WarriorBattleShout.lua
 Graph\WarriorShieldWall.lua
 Graph\WarriorShieldBlock.lua
+Graph\DamageProcAdjustments.lua
 Graph\WarriorBerserkerRage.lua
 Graph\WarriorOverpoweringRage.lua
 Graph\WarriorReprisal.lua

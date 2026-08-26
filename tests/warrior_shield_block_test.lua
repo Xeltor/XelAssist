@@ -24,16 +24,16 @@ local tank={time=0,resourceType=1,resource=30,playerResourceExact=true,playerFor
 local context={state=tank,wait=0,cast=0,power=0,expectedPower=0,effectivePower=0}
 assert(G:Score(context,tip) and context.shieldBlockPrevention
  and context.shieldBlockPrevention.rounds==3
- and math.abs(context.shieldBlockPrevention.expectedBlocks-1.828125)<0.000001
- and math.abs(context.value-36.5625)<0.000001,
+ and math.abs(context.shieldBlockPrevention.expectedBlocks-1.77)<0.000001
+ and math.abs(context.value-35.4)<0.000001,
  "frontal selected rounds must earn bounded block prevention")
 assert(G:Apply(tank,{tooltip=tip,shieldBlockPrevention=context.shieldBlockPrevention}))
 local event={attackerKey="enemy",victimKind="player"}
 assert(math.abs(G:AdjustProjectedSwing(tank,event,30)-15)<0.000001)
 assert(math.abs(G:AdjustProjectedSwing(tank,event,30)-15)<0.000001)
-assert(math.abs(G:AdjustProjectedSwing(tank,event,30)-23.4375)<0.000001
- and math.abs(tank.warriorShieldBlock.expectedCharges-0.171875)<0.000001,
- "projected charge distribution must match bounded binomial prevention")
+assert(math.abs(G:AdjustProjectedSwing(tank,event,30)-24.6)<0.000001
+ and math.abs(tank.warriorShieldBlock.expectedCharges-0.112)<0.000001,
+ "baseline and added blocks must both consume the projected charge")
 tank.hostileSwings.playerDefense.selectedBehindPlayer=true
 context.state=tank;context.shieldBlockPrevention=nil
 assert(G:Score(context,tip) and not context.shieldBlockPrevention and context.value==0,

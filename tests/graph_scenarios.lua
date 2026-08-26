@@ -890,7 +890,7 @@ scenarioActions = { action("Shield Block", 1, "defensive", 0, 10, {
     action("Weak strike", 1, "damage", 5, 0, { melee = true }) }
 plan = expect("Warrior selected-attacker Shield Block", "Shield Block")
 assert(plan.shieldBlockPrevention
-    and math.abs(plan.shieldBlockPrevention.prevented - 36.5625) < 0.000001
+    and math.abs(plan.shieldBlockPrevention.prevented - 35.4) < 0.000001
     and plan.shieldBlockPrevention.rounds == 3,
     "the production plan must retain bounded Shield Block prevention evidence")
 

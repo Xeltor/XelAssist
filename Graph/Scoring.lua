@@ -33,6 +33,7 @@ local PriestFade = XelAssist.Graph.PriestFade
 local PriestShadowMend = XelAssist.Graph.PriestShadowMend
 local WarriorDemoralizingShout = XelAssist.Graph.WarriorDemoralizingShout
 local WarriorExecute = XelAssist.Graph.WarriorExecute
+local DamageProcAdjustments = XelAssist.Graph.DamageProcAdjustments
 local ShamanEarthShock = XelAssist.Graph.ShamanEarthShock
 local PaladinConsecration = XelAssist.Game.Player and XelAssist.Game.Player.PaladinConsecration
 local function legalityAndTiming(action, state, descriptor)
@@ -396,10 +397,8 @@ function Scoring:Evaluate(action, state, descriptor)
         if prepared == nil then return nil, reason end
     end
     projectDamageAndResistance(context)
-    if XelAssist.Graph.ShamanStormstrike then
-        local adjusted, reason = XelAssist.Graph.ShamanStormstrike:Adjust(context)
-        if not adjusted and reason then return nil, reason end
-    end
+    local procReason = DamageProcAdjustments and DamageProcAdjustments:Adjust(context)
+    if procReason then return nil, procReason end
     if PaladinConsecration then PaladinConsecration:Prepare(context) end
     if HunterStingingNettle then
         local _, reason, handled = HunterStingingNettle:Prepare(context)
