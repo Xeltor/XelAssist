@@ -29,6 +29,8 @@ release candidate. Until both exist, its 1.0 status is **not proven**.
   delivery, range, movement, positioning, aura application, cooldowns, finite
   stock and uncertainty remain target- and actor-owned. Unknown evidence cannot
   silently become success, zero cost, infinite stock or fixed utility.
+- Mouseover support admits proven player characters only; incidental friendly
+  NPCs under the cursor are not buff or healing recipients.
 - Consumables remain disabled by default and character policy controls finite
   resource use. Presentation remains global while combat behavior is primarily
   character-specific.

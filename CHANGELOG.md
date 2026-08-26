@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.38
+
+- Reduced the production search slice to 1.75 ms and made the 3.23 ms playable
+  frame ceiling an asserted benchmark gate. The graph retains its total work
+  and horizon across more frames instead of spending 4.25 ms in one live frame.
+- Stopped a bare Attack command from outranking a productive melee opener. An
+  initiating melee ability establishes the same ambient attack state, while
+  Attack remains a low-value fallback when no useful opener is available.
+- Added bounded hostile white-swing observations and projected post-mitigation
+  damage events. Stable, target-owned rounds can now influence survival timing
+  without inventing armor, block, shield, or rage counterfactuals.
+- Limited mouseover friendly discovery to proven player characters. Friendly
+  NPCs under the cursor no longer enter buff or healing recommendations.
+
 ## 0.8.37
 
 - Kept the committed recommendation card visually stable while a consumed

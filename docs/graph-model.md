@@ -173,6 +173,11 @@ or apply damage until the target-pinned round. At that event it replaces the
 ordinary white result. A following white round advances normally and cannot
 replay the special.
 
+Hostile white rounds are learned separately from attributed combat events. A
+stable target-owned cadence may schedule its observed post-mitigation expected
+damage into survival timing. This first conservative edge does not reverse that
+packet into speculative armor, block, absorb, rage, or shield consequences.
+
 The hostile root is a deterministic, GUID-deduplicated collection of at most
 five live identities exposed through `target`, `mouseover`, `pettarget`, and
 party/raid target tokens. Each record retains its aliases and target-local

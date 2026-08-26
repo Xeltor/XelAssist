@@ -97,7 +97,8 @@ function A:Score(context)
         -- swing phase there is no defensible damage or threat packet to price.
         context.power, context.expectedPower, context.effectivePower = 0, 0, 0
         context.estimated = false
-        context.value, context.reason = 800, "starts sustained melee attacks"
+        context.value, context.reason = 0.01,
+            "starts melee attacks for a future resolved swing"
     elseif kind == "command" then
         local pet = state.actors and state.actors.pet
         if context.action.command == "attack" then

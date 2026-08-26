@@ -113,7 +113,7 @@ assert(plan and reason == nil and fallback == false,
 assert(signature(plan) == signature(synchronous),
     "slicing must preserve the exact selected path and expansion budget")
 assert(session.slices > 1 and buildCalls == 1 and snapshotCalls == 1,
-    "the default 3 ms policy must genuinely resume across multiple slices")
+    "the default frame-safe policy must genuinely resume across multiple slices")
 assert(plan.slices == session.slices and plan.maxSliceMs == session.maxSliceMs,
     "completed plans must retain slice telemetry for live stutter diagnosis")
 assert(plan.elapsed < 50,

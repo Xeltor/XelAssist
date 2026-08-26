@@ -5,7 +5,8 @@ XelAssistGraphScenarioSetupOnly = true
 local Fixture = dofile("tests/graph_scenarios.lua")
 XelAssistGraphScenarioSetupOnly = nil
 
-local SLICE_MS = 3
+local SLICE_MS = XelAssist.Graph.SearchPolicy.SLICE_MS
+local FRAME_CEILING_MS = 3.23
 local FRAME_IDLE_MS = 16.667
 local EPSILON = 0.0001
 local profilerClock = 0
@@ -195,6 +196,9 @@ local function sliced(case)
         case.name .. " exceeded slice plus indivisible-call bound: "
             .. tostring(plan.maxSliceMs) .. " > "
             .. tostring(SLICE_MS + metrics.maxAtomic))
+    assert(plan.maxSliceMs <= FRAME_CEILING_MS + EPSILON,
+        case.name .. " exceeded the production frame ceiling: "
+            .. tostring(plan.maxSliceMs) .. " > " .. tostring(FRAME_CEILING_MS))
 
     local builds = metrics.builds
     local again, samePlan, sameReason, sameFallback =
@@ -302,7 +306,7 @@ local cases = {
     { name = "level-4 Warrior Charge", depth = 3,
         Build = levelFourWarrior, expected = "Charge",
         maxFactCalls = 3, rootRangeCalls = 2,
-        maxSlices = 3, maxActive = 10, maxSlice = 3.6, maxExpanded = 20 },
+        maxSlices = 5, maxActive = 10, maxSlice = 3.23, maxExpanded = 20 },
     { name = "level-7 Warlock pet and DoTs", depth = 4,
         Build = levelSevenWarlock, expected = "Corruption" },
     { name = "rank-heavy Warlock", depth = 3,

@@ -51,7 +51,6 @@ end
 function S:CommitActiveHostile(state)
     return XelAssist.Graph.HostileState:CommitActive(state)
 end
-
 function S:HostileContext(state, key)
     return XelAssist.Graph.HostileState:Context(state, key)
 end
@@ -59,7 +58,6 @@ end
 function S:SelectedHostileContext(state)
     return XelAssist.Graph.HostileState:SelectedContext(state)
 end
-
 function S:Missing(record)
     if not record then return 0 end
     return math.max(0, (tonumber(record.healthMax) or 0)
@@ -122,7 +120,6 @@ local function autoShotState(inventory, hostile, moving, casting, channeling,
     end
     return auto
 end
-
 local function wandState(hostile, moving, casting, channeling, targetGuid)
     if not XelAssist.Combat.Wand then return nil end
     local wand = XelAssist.Combat.Wand:Snapshot({ hostile = hostile and true or false,
@@ -135,7 +132,6 @@ local function wandState(hostile, moving, casting, channeling, targetGuid)
     end
     return wand
 end
-
 local function snapshotContext()
     local actors = XelAssist.Game.Actors:Snapshot()
     local encounter = XelAssist.Game.Encounter and XelAssist.Game.Encounter:Snapshot() or nil
@@ -194,6 +190,9 @@ local function snapshotContext()
         and XelAssist.Game.HitBonuses:Snapshot() or nil
     local weaponSkills = XelAssist.Game.Capabilities.WeaponSkills
         and XelAssist.Game.Capabilities:WeaponSkills() or nil
+    local hostileSwings = XelAssist.Game.HostileAttackRounds and
+        XelAssist.Game.HostileAttackRounds:Snapshot(target.hostiles,
+            friendlies, actors, GetTime and GetTime() or 0) or nil
     return {
         actors = actors, encounter = encounter, inventory = inventory,
         friendlies = friendlies, target = target, healUnit = healUnit,
@@ -211,7 +210,7 @@ local function snapshotContext()
         playerStealthSource = playerStealthSource, onSwing = onSwing,
         onSwingCost = onSwingCost, playerResourceReserved = playerResourceReserved,
         comboObservation = comboObservation, hitBonuses = hitBonuses,
-        weaponSkills = weaponSkills,
+        weaponSkills = weaponSkills, hostileSwings = hostileSwings,
     }
 end
 
@@ -241,6 +240,7 @@ local function newState(mode, context)
         combo = context.comboObservation.points or 0,
         comboTargetGUID = context.comboObservation.ownerGUID,
         hitBonuses = context.hitBonuses, weaponSkills = context.weaponSkills,
+        hostileSwings = context.hostileSwings,
         moving = context.moving,
         pet = actors.pet ~= nil, petLifecycle = actors.petLifecycle,
         actors = actors, inventory = context.inventory,
@@ -334,7 +334,6 @@ local function identityMap(field)
     local lower = string.lower(field)
     return lower == "bykey" or string.sub(lower, -5) == "bykey"
 end
-
 local function copyNested(value, depth, seen, field, atomic)
     if type(value) ~= "table" or depth <= 0 then return value end
     if identityField(field) or atomic and atomic[value] then return value end
@@ -424,6 +423,8 @@ function S:Copy(state)
     if state.wand then
         out.wand = copyNested(state.wand, 2, seen, nil, atomic)
     end
+    if state.hostileSwings then out.hostileSwings = copyNested(
+        state.hostileSwings, 4, seen, nil, atomic) end
     if state.playerAttack then
         out.playerAttack = copyNested(state.playerAttack, 2, seen, nil, atomic)
     end

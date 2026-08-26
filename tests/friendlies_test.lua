@@ -23,6 +23,10 @@ UnitIsDead = function(unit)
     local record = units[unit]
     return record and record.dead and true or false
 end
+UnitIsPlayer = function(unit)
+    local record = units[unit]
+    return record and record.player ~= false and true or false
+end
 UnitIsUnit = function(first, second)
     local a, b = units[first], units[second]
     return a and b and a.guid and a.guid == b.guid and true or false
@@ -164,20 +168,30 @@ assert(stringCopiedRecord ~= stringRecord
 units = {
     player = unit("player-guid", 1000, 1000, true, { distance = 0 }),
     pet = unit("pet-guid", 700, 1000, true),
-    mouseover = unit("pet-guid", 700, 1000, true),
+    mouseover = unit("pet-guid", 700, 1000, true, { player = false }),
 }
 local petSnapshot = XelAssist.Game.Friendlies:Snapshot({
     player = { unit = "player", guid = "player-guid" },
     pet = { unit = "pet", guid = "pet-guid" }, allies = {},
 })
 assert(petSnapshot.total == 2 and not petSnapshot.capped)
-assert(petSnapshot.order[1] == "g:pet-guid", "a mouseover pet must receive explicit priority")
+assert(petSnapshot.order[1] == "g:pet-guid", "the controlled pet must remain targetable")
 local pet = petSnapshot.byKey["g:pet-guid"]
 assert(pet and pet.unit == "pet" and pet.relation == "pet" and pet.source == "controlled")
 assert(pet.targetRef.relation == "pet" and pet.targetRef.source == "controlled")
-assert(pet.explicit == 2 and petSnapshot.byUnit.mouseover == pet.key
+assert(pet.explicit == 0 and petSnapshot.byUnit.mouseover == nil
     and petSnapshot.byUnit.pet == pet.key,
-    "the live player pet must be a GUID-deduped friendly target")
+    "an NPC mouseover must not create or reprioritize a buff target")
+
+units = {
+    player = unit("player-guid", 1000, 1000, true, { distance = 0 }),
+    mouseover = unit("friendly-npc", 500, 1000, true, { player = false }),
+}
+local npcMouseover = XelAssist.Game.Friendlies:Snapshot({
+    player = { unit = "player", guid = "player-guid" }, allies = {},
+})
+assert(npcMouseover.total == 1 and npcMouseover.byUnit.mouseover == nil,
+    "friendly NPC mouseovers must not enter healing or buff expansion")
 
 units = {
     player = unit("player-guid", 1000, 1000, true, { distance = 0 }),

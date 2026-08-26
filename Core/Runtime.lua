@@ -153,6 +153,20 @@ SLASH_XELASSIST1 = "/xassist"
 SLASH_XELASSIST2 = "/xa"
 SlashCmdList["XELASSIST"] = function(text) XA:Command(text) end
 
+local function resetRuntimeTrackers(reason)
+    PlayerNormalQueue:Reset()
+    PlayerOnSwingEvents:Reset(reason)
+    CastEventRouter:Reset()
+    if XelAssist.Game.HostileAttackRounds then
+        XelAssist.Game.HostileAttackRounds:Reset(reason)
+    end
+end
+local function observeHostileRound()
+    if event == "AUTO_ATTACK_OTHER" and XelAssist.Game.HostileAttackRounds then
+        XelAssist.Game.HostileAttackRounds:Observe(
+            arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, GetTime())
+    end
+end
 local ev = CreateFrame("Frame")
 ev:RegisterEvent("ADDON_LOADED")
 ev:RegisterEvent("PLAYER_LOGIN")
@@ -197,15 +211,11 @@ if CombatRevisionEvents then CombatRevisionEvents:Register(ev) end
 ev:SetScript("OnEvent", function()
     if CombatRevisionEvents then CombatRevisionEvents:Observe(event, arg1) end
     if event == "ADDON_LOADED" and arg1 == "XelAssist" then
-        PlayerNormalQueue:Reset()
-        PlayerOnSwingEvents:Reset("addon loaded")
-        CastEventRouter:Reset()
+        resetRuntimeTrackers("addon loaded")
         XA:Init()
     end
     if event == "PLAYER_ENTERING_WORLD" then
-        PlayerNormalQueue:Reset()
-        PlayerOnSwingEvents:Reset("world transition")
-        CastEventRouter:Reset()
+        resetRuntimeTrackers("world transition")
     end
     if event == "SPELL_ON_SWING_STATE" then
         PlayerOnSwingEvents:Handle(event, arg1, arg2, arg3, arg4)
@@ -323,6 +333,7 @@ ev:SetScript("OnEvent", function()
     end
     if (event == "AUTO_ATTACK_SELF" or event == "AUTO_ATTACK_OTHER")
         and XelAssist.Combat.Resistance then
+        observeHostileRound()
         local result = XelAssist.Combat.Resistance:AutoAttack(
             arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9)
         XelAssist.Game.Pets.EffectRuntime:ObserveAutoAttack(arg1, arg2, result)

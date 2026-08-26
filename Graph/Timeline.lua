@@ -12,6 +12,7 @@ local PlayerSwings = XelAssist.Graph.PlayerSwings
 local WandCommitment = XelAssist.Graph.WandCommitment
 local EventAuras = XelAssist.Graph.EventAuras
 local HostileCasts = XelAssist.Graph.HostileCastEvents
+local HostileSwings = XelAssist.Graph.HostileSwings
 local HealthTransfer = XelAssist.Graph.HealthTransfer
 local AmbientTargetHealth = XelAssist.Graph.AmbientTargetHealth
 local PlayerTaunt, ThreatDrop = XelAssist.Graph.PlayerTaunt, XelAssist.Graph.ThreatDrop
@@ -167,7 +168,6 @@ local function advancePetEffects(out, elapsed)
         XelAssist.Game.Pets.Effects:Advance(out, elapsed)
     end
 end
-
 local function advancePlayerResources(out, elapsed)
     local resources = XelAssist.Game.Player
         and XelAssist.Game.Player.Resources
@@ -176,7 +176,6 @@ end
 local function advanceWand(out, elapsed)
     if WandCommitment then WandCommitment:Advance(out, elapsed) end
 end
-
 local function advanceState(out, elapsed, persistentAuras, eventAuras)
     if elapsed <= 0 then return end
     local controlSnapshot = ControlDamage and ControlDamage:Snapshot(out)
@@ -191,7 +190,6 @@ local function advanceState(out, elapsed, persistentAuras, eventAuras)
     if HostileCasts then HostileCasts:Advance(out, elapsed) end
     if ControlDamage then ControlDamage:ResolveAdvance(out, controlSnapshot) end
 end
-
 local function finishPetReadyAt(out, candidate, actionApplied)
     local action = candidate and candidate.action
     local pet = out.actors and out.actors.pet
@@ -201,7 +199,6 @@ local function finishPetReadyAt(out, candidate, actionApplied)
     out.actorReadyAt.pet = math.max(tonumber(out.actorReadyAt.pet) or 0,
         (tonumber(out.time) or 0) + math.max(0, pet.actionReadyIn))
 end
-
 local function finishChosenBranches(out, candidate, context)
     local aura = out.auras and candidate.action
         and out.auras[candidate.action.name]
@@ -221,6 +218,10 @@ local function collectEvents(out, source, candidate, context)
         and HostileCasts:Events(out, candidate) or {}
     for i = 1, table.getn(hostileEvents) do
         order = append(events, hostileEvents[i], order, window)
+    end
+    local hostileSwingEvents = HostileSwings and HostileSwings:Events(out, candidate) or {}
+    for i = 1, table.getn(hostileSwingEvents) do
+        order = append(events, hostileSwingEvents[i], order, window)
     end
     local transferEvents = HealthTransfer
         and HealthTransfer:Events(out, source, candidate) or {}
@@ -272,7 +273,6 @@ local function applyPassive(out, source, candidate, context, entry)
     Ongoing:ApplyEvent(out, source, candidate, context, entry)
     return beforeAuras
 end
-
 local function applicationAmmunition(state, candidate)
     local consumption = XelAssist.Graph and XelAssist.Graph.ActionConsumption
     if not (consumption and consumption.ApplicationAmmunition) then return nil, false end
@@ -316,6 +316,7 @@ function L:BeforeAction(source, candidate)
                 AutoShot:ApplyTimelineEvent(out, autoTimeline, entry)
             elseif entry.owner == "hostileCast" then
                 HostileCasts:Apply(out, entry)
+            elseif entry.owner == "hostileSwing" then HostileSwings:Apply(out, entry)
             elseif entry.owner == "healthTransfer" then
                 HealthTransfer:ApplyEvent(out, candidate, context, entry)
             else
@@ -367,7 +368,6 @@ function L:BeforeScoredAction(source, candidate)
     end
     return result
 end
-
 function L:BeforePlayerSwing(source, candidate, impactDelay)
     local delay = tonumber(impactDelay)
     if not delay then return self:BeforeAction(source, candidate) end
@@ -380,7 +380,6 @@ function L:BeforePlayerSwing(source, candidate, impactDelay)
     probe.ambientExcludedOffset = delay
     return self:BeforeAction(source, probe)
 end
-
 function L:Run(out, source, candidate, context)
     local persistentAuras = Ongoing:PersistentAuraSnapshot(out)
     local events, autoTimeline = collectEvents(out, source, candidate, context)
@@ -423,6 +422,7 @@ function L:Run(out, source, candidate, context)
             AutoShot:ApplyTimelineEvent(out, autoTimeline, entry)
         elseif entry.owner == "hostileCast" then
             HostileCasts:Apply(out, entry)
+        elseif entry.owner == "hostileSwing" then HostileSwings:Apply(out, entry)
         elseif entry.owner == "healthTransfer" then
             HealthTransfer:ApplyEvent(out, candidate, context, entry)
         elseif entry.kind == "petAutocastTimelineCap" then

@@ -1502,7 +1502,8 @@ local meleeStart = action("Attack", 1, "command", 400, 0,
         melee = true, whiteAttack = true, cast = 0,
         effectMaxRange = 5, effectRangeHitbox = true })
 meleeStart.mock.gcd = 0
-local meleeFiller = action("Melee Filler", 1, "damage", 1, 0)
+local meleeFiller = action("Melee Filler", 1, "damage", 1, 0,
+    { initiatesCombat = true, melee = true })
 meleeFiller.mock.gcd = 2.5
 do
     currentState.targetDistance, currentState.distance = 12, 12
@@ -1559,17 +1560,16 @@ do
 end
 scenarioActions = { meleeStart, meleeFiller }
 XelAssistCharDB.graphDepth = 2
-plan = expect("player Attack ambient start", "Attack")
-assert(plan.power == 0 and plan.path[1].rawPower == 0 and plan.threat == 0
-    and plan.follow[1] and plan.follow[1].name == "Melee Filler",
-    "Attack must be a zero-packet setup followed by an ordinary action")
+plan = expect("productive melee action starts ambient Attack", "Melee Filler")
+assert(plan.power > 0 and plan.path[1].startsPlayerAttack,
+    "a productive opener must outrank the redundant bare Attack command")
 local afterMeleeStart = XelAssist.Graph.Transitions:Advance(
     currentState, plan.path[1])
-assert(afterMeleeStart.targetHealth == currentState.targetHealth
+assert(afterMeleeStart.targetHealth < currentState.targetHealth
     and afterMeleeStart.playerAttack.active
     and afterMeleeStart.playerAttack.activeKnown
     and not afterMeleeStart.playerAttack.pending,
-    "starting player Attack must not invent immediate damage or a swing")
+    "a productive melee opener must deal its own damage and establish Attack")
 currentState.playerAttack.active = true
 XelAssistCharDB.graphDepth = 1
 plan = expect("player Attack active repeat guard", "Melee Filler")

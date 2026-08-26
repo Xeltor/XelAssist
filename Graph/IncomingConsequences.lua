@@ -226,6 +226,27 @@ function I:Apply(state, cast)
     return result
 end
 
+-- Observed hostile white damage is already downstream of the server's armor,
+-- block, absorb, resistance and damage-taken pipeline. This narrow path avoids
+-- applying those layers twice while still projecting recipient survival.
+function I:ApplyResolvedDamage(state, guid, amount, estimated, source)
+    local recipient = self:Resolve(state, guid)
+    local health, maximum, exact
+    if recipient then health, maximum, exact = healthOf(recipient) end
+    amount = tonumber(amount)
+    if not recipient or health == nil or maximum == nil or maximum <= 0
+        or amount == nil or amount < 0 then return nil, "recipient damage unavailable" end
+    local after = math.max(0, health - amount)
+    local result = { kind = "damage", amount = amount,
+        effective = health - after, recipient = recipient.kind,
+        recipientGuid = guid, estimated = estimated and true or false,
+        partial = estimated and true or not exact, source = source }
+    setHealth(state, recipient, after, not result.partial)
+    if result.partial then state.incomingProjectionPartial = true end
+    state.lastIncomingConsequence = result
+    return result
+end
+
 function I:PreventedValue(state, cast)
     local preview, reason = self:Preview(state, cast)
     if not preview then return nil, reason end

@@ -51,6 +51,13 @@ local function assistable(unit)
     return truthyCall(UnitCanAssist, "player", unit)
 end
 
+local function playerMouseover(unit)
+    if unit ~= "mouseover" then return true end
+    if type(UnitIsPlayer) ~= "function" then return false end
+    local ok, value = pcall(UnitIsPlayer, unit)
+    return ok and value and value ~= 0 and true or false
+end
+
 local function alive(unit, actor)
     if actor and actor.dead then return false end
     if not UnitIsDead then return true end
@@ -278,7 +285,8 @@ function F:Snapshot(actors)
 
     local function add(unit, actor, source, explicit)
         local exists, liveGuid = identity(unit)
-        if not exists or not alive(unit, actor) or not assistable(unit) then return end
+        if not exists or not alive(unit, actor) or not assistable(unit)
+            or not playerMouseover(unit) then return end
         local guid = liveGuid or (actor and actor.guid)
         local key = keyFor(unit, guid)
         local record = working[key]
