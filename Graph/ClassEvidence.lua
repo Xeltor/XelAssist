@@ -20,6 +20,7 @@ local DruidCasterForms = XelAssist.Game.Player.DruidCasterForms
 local ShamanClearcasting = XelAssist.Game.Player.ShamanClearcasting
 local ShamanManaSpring = XelAssist.Game.Player.ShamanManaSpring
 local ShamanEarthShockRuntime = XelAssist.Game.Player.ShamanEarthShock
+local ShamanStormstrikeRuntime = XelAssist.Game.Player.ShamanStormstrike
 local ShamanLightningStrike = XelAssist.Game.Player.ShamanLightningStrike
 local ShamanEarthShock = XelAssist.Graph.ShamanEarthShock
 local PriestShield = XelAssist.Game.Player.PriestShield
@@ -89,6 +90,7 @@ captureModule(ShamanClearcasting)
 captureModule(ShamanManaSpring)
 captureModule(ShamanEarthShockRuntime)
 captureModule(ShamanLightningStrike)
+captureModule(ShamanStormstrikeRuntime)
 captureModule(XelAssist.Game.Player.ShamanChainHealTiming)
 captureModule(XelAssist.Game.Player.ShamanFlameShockTiming)
 captureModule(RogueFeint)

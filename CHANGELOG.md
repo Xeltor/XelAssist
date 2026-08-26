@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.54
+
+- Added unordered mid-level scenario tranches for all nine classes across
+  setup, engagement, starvation/recovery, disruption, death and post-combat
+  recovery. These are partial release evidence, not yet full role proof.
+- Added exact Octo Stormstrike ownership: a landed strike creates a bounded
+  twelve-second, two-charge, 25-percent direct Nature-damage amplifier.
+  Probabilistic hits preserve distinct charge and expiry branches.
+- Root snapshots now seal numeric Stormstrike charge/lifetime evidence. Direct
+  player Nature actions consume charges causally; unverified periodic, pet and
+  ambient consumption receives no invented benefit.
+
 ## 0.8.53
 
 - Added an unordered nine-class low-level scenario tranche covering setup,

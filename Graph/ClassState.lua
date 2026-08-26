@@ -116,6 +116,11 @@ local function attachShaman(state, token)
     if ShamanClearcastingRuntime then
         attached = ShamanClearcastingRuntime:Attach(state, token) or attached
     end
+    local stormstrike = XelAssist.Graph.ShamanStormstrike
+    local runtime = XelAssist.Game.Player.ShamanStormstrike
+    if stormstrike and runtime then
+        attached = stormstrike:Attach(state, runtime:Snapshot(token)) or attached
+    end
     return attached
 end
 local function attachPriest(state, token)
@@ -255,6 +260,7 @@ function S:Copy(source, target)
     end
     if ShamanClearcasting then ShamanClearcasting:Copy(source, target) end
     if ShamanManaSpring then ShamanManaSpring:Copy(source, target) end
+    if XelAssist.Graph.ShamanStormstrike then XelAssist.Graph.ShamanStormstrike:Copy(source, target) end
     if RogueSlice then RogueSlice:Copy(source, target) end
     if RogueRuthlessness then RogueRuthlessness:Copy(source, target) end
     if RoguePreparation then RoguePreparation:Copy(source, target) end
@@ -296,6 +302,7 @@ function S:Copy(source, target)
         or source.druidAncientBrutality ~= nil
         or source.shamanClearcasting ~= nil
         or source.shamanManaSpring ~= nil
+        or source.shamanStormstrike ~= nil
         or source.rogueSliceAndDice ~= nil
         or source.rogueRuthlessness ~= nil
         or source.roguePreparationReset ~= nil

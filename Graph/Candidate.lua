@@ -173,7 +173,7 @@ function C:Build(context)
         warriorDemoralizingShoutPackets = context.warriorDemoralizingShoutPackets, warriorExecuteExtraRage = context.warriorExecuteExtraRage,
         priestShadowformTransition = context.tooltip
             and context.tooltip.priestShadowformTransition,
-        classMechanicProjection = context.classMechanicProjection, shamanEarthShockTransition = context.shamanEarthShockTransition, stingingNettleTransition = context.stingingNettleTransition,
+        classMechanicProjection = context.classMechanicProjection, shamanEarthShockTransition = context.shamanEarthShockTransition, stingingNettleTransition = context.stingingNettleTransition, shamanStormstrikeConsumption = context.shamanStormstrikeConsumption,
         strategicSetup = setup and true or nil,
         strategicSetupKey = setup and setup.key,
         strategicSetupSourceForm = setup and setup.source,

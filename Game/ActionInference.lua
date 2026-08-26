@@ -7,7 +7,7 @@ local ROGUE_INFERENCE = { "RogueSliceAndDice", "RoguePreparation",
     "RogueFeint", "RogueSurpriseAttack", "RogueShiv", "RogueMarkForDeath" }
 local HUNTER_INFERENCE = { "HunterStings", "HunterFeignDeath", "HunterHawk", "HunterMark",
     "HunterDistractingShot", "HunterRapidFire", "HunterManaAspects" }
-local SHAMAN_INFERENCE = { "ShamanDivergentActions", "ShamanChainHealTiming", "ShamanEarthShock",
+local SHAMAN_INFERENCE = { "ShamanStormstrike", "ShamanDivergentActions", "ShamanChainHealTiming", "ShamanEarthShock",
     "ShamanMoltenBlast", "ShamanLightningStrike" }
 local PRIEST_INFERENCE = { "PriestDivergentActions", "PriestShield",
     "PriestShadowform", "PriestInnerFocus", "PriestPowerInfusion",
@@ -22,7 +22,7 @@ local ROOT_INVALIDATION = { "MageFrostfire", "MageAcceleratedArcana",
     "DruidAncientBrutality", "DruidBloodFrenzy",
     "PriestDivergentActions", "WarriorShieldBash", "HunterFeignDeath",
     "MageArcaneSurge", "ShamanDivergentActions", "HunterStings",
-    "PaladinDivergentGuards" }
+    "PaladinDivergentGuards", "ShamanStormstrike" }
 
 local function infer(module, spellId)
     if not (module and type(module.InferKnowledge) == "function") then

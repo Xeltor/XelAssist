@@ -6,10 +6,8 @@ local HostileEffects, Readiness = XelAssist.Graph.HostileEffects, XelAssist.Grap
 local CompanionEventThreat, EventAuras = XelAssist.Graph.CompanionEventThreat, XelAssist.Graph.EventAuras
 local DotProjection, ResourceExchange = XelAssist.Graph.DotProjection, XelAssist.Graph.ResourceExchange
 local HealthTransfer, WandCommitment = XelAssist.Graph.HealthTransfer, XelAssist.Graph.WandCommitment
-local PlayerTaunt = XelAssist.Graph.PlayerTaunt
-local StackedModifiers = XelAssist.Graph.StackedModifiers
-local DruidForms = XelAssist.Graph.DruidForms
-local DruidClearcasting = XelAssist.Graph.DruidClearcasting
+local PlayerTaunt, StackedModifiers = XelAssist.Graph.PlayerTaunt, XelAssist.Graph.StackedModifiers
+local DruidForms, DruidClearcasting = XelAssist.Graph.DruidForms, XelAssist.Graph.DruidClearcasting
 local MageClearcasting = XelAssist.Graph.MageClearcasting
 local ShamanClearcasting = XelAssist.Graph.ShamanClearcasting
 local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
@@ -374,6 +372,7 @@ local function syncFriendlyCompatibility(state)
     end
 end
 function A:Apply(out, source, candidate, context)
+    if XelAssist.Graph.ShamanStormstrike then XelAssist.Graph.ShamanStormstrike:Consume(out, candidate) end
     if XelAssist.Graph.HunterFeignDeath then XelAssist.Graph.HunterFeignDeath:Consume(out, candidate) end
     if WarlockFelDomination then WarlockFelDomination:Consume(out, candidate) end
     if DruidClearcasting then DruidClearcasting:Consume(out, candidate) end
@@ -421,6 +420,7 @@ function A:Apply(out, source, candidate, context)
         HostileEffects:ApplyPrimaryThreat(out, candidate, context)
     end
     if XelAssist.Graph.ShamanFlameShockRefresh then XelAssist.Graph.ShamanFlameShockRefresh:Apply(out, candidate) end
+    if XelAssist.Graph.ShamanStormstrike then XelAssist.Graph.ShamanStormstrike:Apply(out, candidate) end
     applyCombatState(out, candidate, context)
     if XelAssist.Graph.SoulShardReserve then
         XelAssist.Graph.SoulShardReserve:Apply(out, candidate)

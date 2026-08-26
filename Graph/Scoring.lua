@@ -2,14 +2,10 @@
 -- combat effects belong to their respective graph modules.
 XelAssist.Graph.Scoring = {}
 local Scoring = XelAssist.Graph.Scoring
-local State = XelAssist.Graph.State
-local Targets = XelAssist.Graph.Targets
-local Effects = XelAssist.Graph.Effects
-local ActorScoring = XelAssist.Graph.ActorScoring
-local ThreatScoring = XelAssist.Graph.ThreatScoring
-local Timeline = XelAssist.Graph.Timeline
-local HostileEffects = XelAssist.Graph.HostileEffects
-local PlayerSwings = XelAssist.Graph.PlayerSwings
+local State, Targets = XelAssist.Graph.State, XelAssist.Graph.Targets
+local Effects, ActorScoring = XelAssist.Graph.Effects, XelAssist.Graph.ActorScoring
+local ThreatScoring, Timeline = XelAssist.Graph.ThreatScoring, XelAssist.Graph.Timeline
+local HostileEffects, PlayerSwings = XelAssist.Graph.HostileEffects, XelAssist.Graph.PlayerSwings
 local PlayerSwingScoring = XelAssist.Graph.PlayerSwingScoring
 local Triggered = XelAssist.Combat.TriggeredActions
 local ComboScoring = XelAssist.Graph.ComboScoring
@@ -402,6 +398,10 @@ function Scoring:Evaluate(action, state, descriptor)
         if prepared == nil then return nil, reason end
     end
     projectDamageAndResistance(context)
+    if XelAssist.Graph.ShamanStormstrike then
+        local adjusted, reason = XelAssist.Graph.ShamanStormstrike:Adjust(context)
+        if not adjusted and reason then return nil, reason end
+    end
     if PaladinConsecration then PaladinConsecration:Prepare(context) end
     if HunterStingingNettle then
         local _, reason, handled = HunterStingingNettle:Prepare(context)

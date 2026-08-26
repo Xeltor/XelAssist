@@ -62,6 +62,12 @@ Every band exercises out-of-combat setup, engage, sustained combat, target death
 and recovery. Tank and healer classes also require role scenarios; pet classes
 require summon/absence, command, resource, threat and recovery scenarios.
 
+The current deterministic matrix contains unordered low-level tranches for all
+nine classes and partial mid-level tranches covering setup, engagement,
+starvation/recovery, disruption, death and post-combat recovery. The hybrid
+mid-level tranche does not yet prove form, Seal/Judgement or full totem role
+state machines, so no class row is promoted solely by these tests.
+
 ## Class playability contracts
 
 | Class | Core 1.0 proof obligations | Current status |
@@ -107,6 +113,9 @@ request to add a class priority rule:
   Molten Blast now refreshes only the caster's existing Flame Shock and preserves
   its tick phase. Earth/Water Shield charges and proc amounts are known, but the
   live three-second proc phase is not observable and repeated procs remain withheld.
+  Stormstrike now owns its exact two-charge direct-Nature amplifier and distinct
+  landed/missed expiry branches; periodic, pet and ambient charge consumption
+  remains explicitly uncredited pending an Octo event contract.
 - **Warrior:** low-level grouped play requires the character role to be set to
   Tank because Defensive Stance evidence does not exist yet; onboarding must
   make that explicit rather than inventing an automatic role. Mid/60 threat
