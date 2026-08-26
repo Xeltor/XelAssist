@@ -284,14 +284,9 @@ function UI:SetUpdating()
     local f = self.frame
     if not (f and self.lastPlan) then return end
     -- Keep the last complete recommendation visible while its replacement is
-    -- calculated. RecommendationSnapshot has already been invalidated, and the
-    -- button is disabled as a second visual/input boundary until publication.
-    f.xelCurrentRenderKey = false
-    f:SetAlpha(0.68)
-    f.status:SetText("UPDATING")
-    f.status:SetTextColor(0.60, 0.64, 0.70)
-    f.main:Disable()
-    self.lastReason = "Updating — previous recommendation is disabled"
+    -- calculated. RecommendationSnapshot is the real execution boundary, so
+    -- an apparently enabled committed button is still a safe no-op until the
+    -- next atomic publication. Do not mutate presentation on macro input.
 end
 
 function UI:RenderCommitted(force)
@@ -509,7 +504,19 @@ end
 
 function UI:Render(plan, err, changed)
     if not self.frame then return end
-    if not changed then self.lastPlan = plan; return end
+    if not changed then
+        -- A materially equivalent publication is executable again even though
+        -- its stable presentation does not need repainting.
+        self.lastPlan = plan
+        self.frame:SetAlpha(1)
+        if plan and plan.action and plan.action.executor ~= "instruction" then
+            self.frame.main:Enable()
+        else self.frame.main:Disable() end
+        if HUDCooldown then
+            HUDCooldown:Update(self.frame.main, plan and plan.action or nil)
+        end
+        return
+    end
     local f = self.frame
     f:SetAlpha(1)
     if plan then

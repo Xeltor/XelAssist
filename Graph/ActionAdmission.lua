@@ -34,6 +34,14 @@ end
 
 function A:Start(action, state, tooltip)
     local facts, kind = action.facts, action.facts.kind
+    if action.actor ~= "pet" and state.wand and state.wand.pending
+        and not facts.wandRepeat then
+        -- Shoot has been submitted but the client has not exposed its repeat
+        -- state yet. Any other player action in this acknowledgement window
+        -- can cancel the first bolt, so wait for exact active/inactive evidence
+        -- instead of recommending the action that destroys our own setup.
+        return nil, "wand start pending"
+    end
     local cast = castTime(action, state, tooltip)
     if action.actor ~= "pet" and state.moving and cast and cast > 0 then
         return nil, "moving"

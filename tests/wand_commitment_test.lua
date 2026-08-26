@@ -19,6 +19,7 @@ XelAssist = {
     },
 }
 dofile("Graph/WandCommitment.lua")
+dofile("Graph/ActionAdmission.lua")
 local W = XelAssist.Graph.WandCommitment
 local shoot = { name = "Shoot", actor = "player", facts = {
     kind = "autoRepeat", autoRepeat = true, wandRepeat = true },
@@ -79,4 +80,20 @@ assert(W:Candidate(state) == nil,
 state.targetDistance = nil
 assert(W:Candidate(state) == nil,
     "unknown exact wand range must not become a guaranteed future impact")
+local pending = { time = 0, wand = { pending = true } }
+local spell = { name = "Frostbolt", actor = "player",
+    facts = { kind = "damage" } }
+local petSpell = { name = "Bite", actor = "pet",
+    facts = { kind = "damage" } }
+local at, reason = XelAssist.Graph.ActionAdmission:Start(
+    spell, pending, { cost = 0, cast = 1.5, gcd = 1.5 })
+assert(at == nil and reason == "wand start pending",
+    "another player action must not cancel Shoot before its first state acknowledgement")
+XelAssist.Game.SpellClassification = {
+    NormalGcd = function() return false end,
+}
+at, reason = XelAssist.Graph.ActionAdmission:Start(
+    petSpell, pending, { cost = 0, cast = 0, gcd = 0 })
+assert(at == 0 and reason == nil,
+    "independent companion actions must remain legal while Shoot is pending")
 print("ok: sustained wand continuation and weighted clipping")

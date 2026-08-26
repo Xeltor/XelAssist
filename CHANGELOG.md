@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.37
+
+- Kept the committed recommendation card visually stable while a consumed
+  one-shot publication is replaced. Macro input no longer dims the entire HUD,
+  swaps its status text, clears render keys, or repaints an unchanged runway;
+  the invalidated atomic snapshot remains the actual execution safety boundary.
+- Made a submitted wand start an acknowledgement barrier for player actions.
+  Until the native Shoot repeat is confirmed active or inactive, another player
+  spell cannot cancel the first bolt; independently clocked companion actions
+  remain legal. This closes the observed Fire Blast, Shoot, immediate-cast
+  cancellation loop without introducing a Mage rotation rule.
+
 ## 0.8.36
 
 - Expanded every class through consequence-owned graph mechanics rather than

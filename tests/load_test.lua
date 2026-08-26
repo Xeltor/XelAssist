@@ -386,7 +386,7 @@ assert(XelAssistCharDB.schema == 5
     and XelAssistCharDB.toggles.engagedTargets == false,
     "saved-variable schema did not migrate with safe hostile-target defaults")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.36" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.37" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(not runtime.apis.comboOwner and not runtime.apis.comboDuration,
@@ -620,6 +620,22 @@ do
     XelAssist.UI.HUD.Render = function(owner, plan, err, changed)
         async.renderCalls = async.renderCalls + 1
         return async.savedRender(owner, plan, err, changed)
+    end
+    local stableAlpha = actionFrame:GetAlpha()
+    local stableStatus = actionFrame.status:GetText()
+    local stableRootRevision = actionFrame.xelCurrentRenderRevision
+    local stableRowRevisions = {}
+    for i = 1, table.getn(actionFrame.follow) do
+        stableRowRevisions[i] = actionFrame.follow[i].xelRenderRevision
+    end
+    XelAssist.UI.HUD:SetUpdating("input publication consumed")
+    assert(actionFrame:GetAlpha() == stableAlpha
+        and actionFrame.status:GetText() == stableStatus
+        and actionFrame.xelCurrentRenderRevision == stableRootRevision,
+        "an in-flight replacement must not flash or repaint the committed HUD")
+    for i = 1, table.getn(actionFrame.follow) do
+        assert(actionFrame.follow[i].xelRenderRevision == stableRowRevisions[i],
+            "an in-flight replacement must not repaint committed runway rows")
     end
     async.snapshot = XelAssist.Core.RecommendationSnapshot
     async.generationBeforeTarget = async.snapshot.generation or 0
