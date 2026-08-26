@@ -77,6 +77,9 @@ function S:Apply(state, entry)
     local shieldBlock = XelAssist.Graph.WarriorShieldBlock
     if shieldBlock then amount = shieldBlock:AdjustProjectedSwing(
         state, entry, amount) end
+    local companionDefensives = XelAssist.Graph.CompanionDefensives
+    if companionDefensives then amount = companionDefensives:AdjustIncoming(
+        state, entry, amount) end
     local result = Incoming:ApplyResolvedDamage(state, entry.victimGuid,
         amount, true, "projected hostile white swing")
     if not result then state.incomingProjectionPartial = true; return false end

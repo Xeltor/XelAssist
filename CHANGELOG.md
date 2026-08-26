@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.72
+
+- Sealed Hunter pet Shell Shield from the installed patch-5 spell row: ten
+  focus, a sixty-second cooldown, the normal pet GCD, and twelve seconds of
+  fifty-percent damage reduction are now exact autocast consequences.
+- Applied Shell Shield only to hostile swings whose exact victim is that pet.
+  The shared companion clock pays focus and cooldown before installing the
+  effect, and the effect expires on the existing actor timeline.
+- Preserved Shell Shield's thirty-five-percent melee-speed penalty without
+  inventing pet white damage: activation retires the projected pet swing phase
+  and records the offensive-timing uncertainty. Name fallbacks and changed DBC
+  topology remain effect-unknown.
+
 ## 0.8.71
 
 - Replaced the fixed periodic-progress score which could make one late Rend

@@ -11,6 +11,7 @@ local CastEvents = XelAssist.Graph.CompanionCastEvents
 local CastRuntime = XelAssist.Graph.CompanionCastRuntime
 local Targets = XelAssist.Graph.CompanionTargets
 local Swings = XelAssist.Graph.CompanionSwings
+local Defensives = XelAssist.Graph.CompanionDefensives
 
 function C:Events(out, candidate)
     local pet = out.actors and out.actors.pet
@@ -353,8 +354,9 @@ function C:Apply(out, source, candidate, context, entry)
     local _, ambient = Scheduler:FindAmbient(pet, entry)
     if not ambient then return false end
     if entry.targetIndependent then
-        return entry.kind == "petAutocastUnknown"
-            and CastRuntime:Reserve(out, pet, ambient, entry) or false
+        if not CastRuntime:Reserve(out, pet, ambient, entry) then return false end
+        if entry.kind == "petAutocastUnknown" then return true end
+        return Defensives and Defensives:Apply(out, ambient, entry) or false
     end
     if not entry.pendingCompletion then
         if not pet.targetExists then return false end

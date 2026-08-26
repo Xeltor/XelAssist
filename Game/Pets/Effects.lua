@@ -35,6 +35,17 @@ function E:ThreatMultiplier(pet)
     return value
 end
 
+function E:IncomingDamageMultiplier(pet)
+    if not pet then return 1 end
+    local value, _, effect = 1, nil, nil
+    for _, effect in pairs(pet.combatEffects or {}) do
+        if not effect.remaining or effect.remaining > 0 then
+            value = value * (tonumber(effect.incomingDamageMultiplier) or 1)
+        end
+    end
+    return value
+end
+
 function E:CrowdControlImmune(pet)
     if not pet then return false end
     local _, effect
@@ -104,6 +115,11 @@ function E:Apply(state, candidate, context)
                 duration = duration,
                 damageMultiplier = tonumber(effect.damageMultiplier) or 1,
                 threatMultiplier = tonumber(effect.threatMultiplier) or 1,
+                incomingDamageMultiplier = tonumber(
+                    effect.incomingDamageMultiplier) or 1,
+                meleeAttackTimeMultiplier = tonumber(
+                    effect.meleeAttackTimeMultiplier) or 1,
+                offensiveTimingExact = effect.offensiveTimingExact == true,
                 crowdControlImmune = effect.crowdControlImmune and true or false,
                 sourceSpellId = effect.sourceSpellId or candidate.action.spellId,
                 runtimeUnverified = effect.runtimeUnverified and true or false,

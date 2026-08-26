@@ -5,6 +5,7 @@ local S = XelAssist.Graph.CompanionScheduler
 local Tie = XelAssist.Graph.CompanionTieScheduler
 local Resources = XelAssist.Graph.CompanionResources
 local CastEvents = XelAssist.Graph.CompanionCastEvents
+local Defensives = XelAssist.Graph.CompanionDefensives
 
 local MAX_EVENTS = 8
 
@@ -24,6 +25,9 @@ local function isArea(ambient)
 end
 
 local function supported(ambient)
+    if ambient.kind == "petDefensive" then
+        return Defensives and Defensives:Profile(ambient) ~= nil
+    end
     if ambient.kind == "damage" or ambient.kind == "taunt"
         or ambient.kind == "petThreat" then return true end
     local duration = ambient.tooltip and tonumber(ambient.tooltip.duration)
@@ -149,9 +153,9 @@ local function livePending(pet, identity, remaining)
     if not ambient or not identity and not independent then return nil end
     local area, known = isArea(ambient), supported(ambient)
     local cost, costKnown = costOf(ambient)
-    local uncertain, reason = area or not known or independent, nil
+    local uncertain, reason = area or not known, nil
     if area then reason = "companion area recipients"
-    elseif not known or independent then reason = "companion autocast effect" end
+    elseif not known then reason = "companion autocast effect" end
     return CastEvents:Pending({ index = index, ambient = ambient,
         cooldown = math.max(0.1, tonumber(ambient.cooldown) or 1.5),
         cost = cost, costKnown = costKnown, uncertain = uncertain,
@@ -200,12 +204,15 @@ local function collectLanes(pet, record, candidate, identity, window)
             if legal ~= false then
                 local uncertain, unknownReason = markLaneUnknowns(pet,
                     candidate, area, known, costKnown, legal, reason)
-                if independent then
+                if independent and not known then
                     uncertain = true
                     unknownReason = unknownReason or "companion autocast effect"
                     pet.autocastEffectUnknown = true
                     addUnknown(candidate, "companion autocast effect")
                 end
+                local tradeoff = known and Defensives
+                    and Defensives:TradeoffUnknown(ambient)
+                if tradeoff then addUnknown(candidate, tradeoff) end
                 table.insert(lanes, { index = i, ambient = ambient,
                     ready = ready, cooldown = math.max(0.1,
                         tonumber(ambient.cooldown) or 1.5),

@@ -434,6 +434,8 @@ subprocess.run(["lua", str(root / "tests/hostile_cast_graph_test.lua")], cwd=roo
 subprocess.run(["lua", str(root / "tests/hostile_cast_timeline_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/cast_event_router_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/target_survival_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/pet_defensive_actions_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/companion_defensives_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/periodic_scoring_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/periodic_refresh_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/player_pushback_evidence_test.lua")], cwd=root, check=True)

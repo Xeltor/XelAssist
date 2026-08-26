@@ -9,10 +9,13 @@ UnitArmor = function() return 100, 100, 100, 0, 0 end
 UnitDefense = function() return 20, 0 end
 UnitLevel = function() return 10 end
 GetShapeshiftForm = function() return 0 end
-XelAssist = { Graph = { State = {} } }
+XelAssist = { Game = { Pets = {} }, Graph = { State = {} } }
+dofile("Game/Pets/DefensiveActions.lua")
+dofile("Game/Pets/Effects.lua")
 dofile("Graph/PlayerRage.lua")
 dofile("Graph/IncomingConsequences.lua")
 dofile("Graph/WarriorShieldBlock.lua")
+dofile("Graph/CompanionDefensives.lua")
 dofile("Graph/HostileSwings.lua")
 local S = XelAssist.Graph.HostileSwings
 local root = { actors = { player = { guid = playerGuid, health = 100,
@@ -62,6 +65,19 @@ assert(S:Apply(shielded, otherSwing)
     and math.abs(shielded.actors.player.health - 77.5) < 0.000001
     and math.abs(shielded.warriorShieldBlock.expectedCharges - 1.25) < 0.000001,
     "off-target attackers must receive no invented facing or block prevention")
+
+local petGuid = {}
+local petShielded = { actors = { pet = { guid = petGuid, health = 80,
+    healthMax = 100, healthExact = true, combatEffects = {
+        shellShield = { remaining = 12, incomingDamageMultiplier = 0.5,
+            meleeAttackTimeMultiplier = 1.35 } } } } }
+local petSwing = { kind = "hostileWhiteSwing", attackerGuid = hostileGuid,
+    attackerKey = hostileGuid, victimGuid = petGuid, victimKind = "pet",
+    amount = 20, generation = 1 }
+assert(S:Apply(petShielded, petSwing)
+    and petShielded.actors.pet.health == 70
+    and petShielded.lastHostileSwing.effective == 10,
+    "an active Shell Shield must halve only the companion's projected swing")
 
 local manaUser = { actors = { player = { guid = playerGuid, health = 100,
         healthMax = 100, healthExact = true } }, resource = 0,

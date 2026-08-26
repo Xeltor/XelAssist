@@ -75,10 +75,16 @@ XelAssist.Graph.CompanionThreat = {
         return true, pet.threatEstimate
     end,
 }
+local defensiveApplications = 0
 XelAssist.Game.Pets.Effects = {
     DamageMultiplier = function() return 1 end,
     ThreatMultiplier = function() return 1 end,
     Advance = function() end,
+    Apply = function(_, state)
+        defensiveApplications = defensiveApplications + 1
+        state.actors.pet.shellShieldApplied = true
+        return true
+    end,
     ConsumeMelee = function(_, _, _, targetGuid, delivery)
         table.insert(consumed, { guid = targetGuid, delivery = delivery })
     end,
@@ -148,6 +154,8 @@ local function targetLocalState(petGuid, current)
 end
 
 dofile("Graph/CompanionEventThreat.lua")
+dofile("Game/Pets/DefensiveActions.lua")
+dofile("Graph/CompanionDefensives.lua")
 dofile("Graph/CompanionTieScheduler.lua")
 dofile("Graph/CompanionResources.lua")
 dofile("Graph/CompanionCastEvents.lua")
@@ -474,8 +482,15 @@ noTarget.actors.pet.targetGuid = nil
 noTarget.actors.pet.targetsCurrent = false
 local shellShield, targetBite = {
     name = "Shell Shield", kind = "petDefensive", spellId = 26064,
-    facts = { kind = "petDefensive", self = true }, power = 0,
-    cost = 20, cooldown = 20, readyIn = 0, tooltip = {},
+    facts = { kind = "petDefensive", self = true,
+        petDefensiveProfile = { exact = true, kind = "shellShield",
+            spellId = 26064, duration = 12,
+            incomingDamageMultiplier = 0.5,
+            meleeAttackTimeMultiplier = 1.35,
+            offensiveTimingExact = false },
+        petCombatEffects = { { duration = 12,
+            incomingDamageMultiplier = 0.5 } } }, power = 0,
+    cost = 10, cooldown = 60, readyIn = 0, tooltip = { gcd = 1.5 },
 }, autocasts()[1]
 targetBite.spellId = 17253
 noTarget.actors.pet.autocasts = { shellShield, targetBite }
@@ -483,13 +498,16 @@ local noTargetEvents = C:Events(noTarget, candidate)
 assert(table.getn(noTargetEvents) == 1
     and noTargetEvents[1].targetIndependent
     and noTargetEvents[1].autocastSpellId == 26064
-    and noTargetEvents[1].kind == "petAutocastUnknown"
+    and noTargetEvents[1].kind == "petAutocast"
     and C:Apply(noTarget, noTarget, candidate, context,
         noTargetEvents[1])
-    and noTarget.actors.pet.resource == 80
-    and shellShield.readyIn == 19
+    and noTarget.actors.pet.resource == 90
+    and noTarget.actors.pet.shellShieldApplied
+    and defensiveApplications == 1
+    and noTarget.companionDefensiveTimingUnknown
+    and shellShield.readyIn == 59
     and targetBite.readyIn == 0,
-    "a self autocast without a hostile target must reserve the shared clock while hostile abilities remain withheld")
+    "an exact self defensive must reserve its clock and apply only its proven effect")
 
 local unaffordable = targetLocalState(guidA, false)
 local expensiveBite, affordableTorment = autocasts()[1], autocasts()[4]

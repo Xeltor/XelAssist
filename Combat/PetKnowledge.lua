@@ -175,6 +175,11 @@ function K:Facts(spellId, name, ownerClass)
     end
     if threat and threat > 0 then facts.petThreatGain = threat
     elseif threat and threat < 0 then facts.petThreatDrop = math.abs(threat) end
+    local defensive = XelAssist.Game.Pets
+        and XelAssist.Game.Pets.DefensiveActions
+    if defensive then
+        facts = defensive:CaptureFacts(spellId, facts, source)
+    end
     facts.petKnowledgeSource = source
     facts.petKnowledgeName = entry.name
     return facts

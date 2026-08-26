@@ -102,8 +102,10 @@ request to add a class priority rule:
   block packet, while an exact one/two-charge probability distribution reduces
   later projected damage and rage. Off-target facing, cold-start block magnitude,
   other counterfactual armor/absorb value, attack-power and speed debuffs,
-  defensive pet autocasts and avoidance-driven reactive windows remain global
-  gates for tank and healer proof.
+  avoidance-driven defensive pet autocasts and reactive windows remain global
+  gates for tank and healer proof. Shell Shield is now the bounded exception:
+  its exact pet-only mitigation composes with these rounds while its slowed
+  offensive timing is explicitly retired rather than projected unchanged.
 - **Mage:** custom Arcane Power changes cast speed, drains maximum mana every
   second, suppresses mana gain, cannot be cancelled and kills the caster below
   ten-percent mana. Icicles can shatter into large self-damage, while
@@ -154,9 +156,13 @@ request to add a class priority rule:
   withheld without a hostile-control or exact triggered-resource contract.
 - **Hunter and Warlock pets:** actor, command, resource, range, threat and
   recovery coverage is substantial, and Voidwalker Sacrifice already applies
-  the player shield before removing the demon. Defensive autocasts remain
-  effect-unknown until incoming melee exists. Manual Feed Pet is acceptable for
-  1.0 if compatible-food automation remains explicitly unavailable.
+  the player shield before removing the demon. Hunter Shell Shield now pays its
+  exact focus/cooldown and halves only the protected pet's projected incoming
+  damage for twelve seconds. Its thirty-five-percent attack slowdown retires
+  the pet swing phase because exact reset timing and white magnitude remain
+  unavailable; Grace avoidance and other defensive autocasts remain unknown.
+  Manual Feed Pet is acceptable for 1.0 if compatible-food automation remains
+  explicitly unavailable.
 - **Paladin and Druid tanks:** Consecration now has exact installed ground
   topology and conservatively credits one selected-hostile Holy pulse; later
   stationary-ground recipients and Octo's runtime pulse weighting remain
