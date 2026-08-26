@@ -1,5 +1,4 @@
--- Candidate potency and utility scoring. Legality, state projection, and
--- combat effects belong to their respective graph modules.
+-- Candidate scoring; legality and combat effects belong to their own modules.
 XelAssist.Graph.Scoring = {}
 local Scoring = XelAssist.Graph.Scoring
 local State, Targets = XelAssist.Graph.State, XelAssist.Graph.Targets
@@ -13,6 +12,7 @@ local Admission = XelAssist.Graph.ActionAdmission
 local SurvivalPressure = XelAssist.Graph.SurvivalPressure
 local IncomingScoring = XelAssist.Graph.IncomingScoring
 local PeriodicScoring = XelAssist.Graph.PeriodicScoring
+local PeriodicRefresh = XelAssist.Graph.PeriodicRefresh
 local Candidate = XelAssist.Graph.Candidate
 local ActionConsumption = XelAssist.Graph.ActionConsumption
 local ThreatDrop = XelAssist.Graph.ThreatDrop
@@ -35,8 +35,7 @@ local PriestShadowMend = XelAssist.Graph.PriestShadowMend
 local WarriorDemoralizingShout = XelAssist.Graph.WarriorDemoralizingShout
 local WarriorExecute = XelAssist.Graph.WarriorExecute
 local ShamanEarthShock = XelAssist.Graph.ShamanEarthShock
-local PaladinConsecration = XelAssist.Game.Player
-    and XelAssist.Game.Player.PaladinConsecration
+local PaladinConsecration = XelAssist.Game.Player and XelAssist.Game.Player.PaladinConsecration
 local function legalityAndTiming(action, state, descriptor)
     local allowed, blocker, tooltip, target, actionStart, resolved, targetState =
         Targets:Legal(action, state, descriptor)
@@ -415,6 +414,7 @@ function Scoring:Evaluate(action, state, descriptor)
     end
     if not (PersistentDamage and PersistentDamage:AdjustSurvival(context))
         and SurvivalPressure then SurvivalPressure:Adjust(context) end
+    if PeriodicRefresh then PeriodicRefresh:Adjust(context) end
     if action.facts.execute and targetState.targetMax > 0
         and (context.targetHealthAtImpact or targetState.targetHealth) * 100
             / targetState.targetMax > action.facts.execute then

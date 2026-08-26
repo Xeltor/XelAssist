@@ -13,6 +13,11 @@ function P:Score(context, targetHealth)
         fraction = math.min(1, targetHealth / math.max(1, expected))
     end
     context.effectivePower = effective
+    if context.periodicRefreshUnproductive then
+        context.value = -math.max(1, tonumber(context.cost) or 0)
+        context.reason = "refresh would displace remaining periodic damage"
+        return
+    end
     local progressFactor = context.survival
         and tonumber(context.survival.decisionFactor) or 1
     progressFactor = math.max(0, math.min(1, progressFactor)) * fraction

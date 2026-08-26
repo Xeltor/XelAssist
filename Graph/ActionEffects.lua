@@ -324,8 +324,7 @@ local function applyAura(out, source, candidate, context,
         and (not context.hasTargetModifier
             or context.targetModifierRemaining
                 and context.targetModifierRemaining > 0) then
-        out.auras[action.name] = {
-            remaining = remaining,
+        out.auras[action.name] = { spellId = action.spellId, remaining = remaining,
             duration = duration,
             mine = true,
             target = candidate.target,

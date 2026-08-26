@@ -206,7 +206,7 @@ function C:Build(context)
         resistance = context.resistance, effectDelivery = context.effectDelivery,
         dotRawDirectPower = context.dotRawDirectPower,
         dotRawPeriodicPower = context.dotRawPeriodicPower,
-        dotPeriodicExpectedPower = context.dotPeriodicExpectedPower,
+        dotPeriodicExpectedPower = context.dotPeriodicExpectedPower, periodicRefresh = context.periodicRefresh,
         wait = context.wait, occupancy = context.occupancy,
         gcd = context.gcd, normalGcd = context.normalGcd,
         actionStart = context.actionStart,

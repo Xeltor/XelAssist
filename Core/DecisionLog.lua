@@ -76,7 +76,13 @@ function L:Record(plan, mode)
         survivalReason = plan.survival and plan.survival.reason,
         survivalDecisionFactor = plan.survival and plan.survival.decisionFactor,
         survivalExpectedPeriodicTicks = plan.survival
-            and plan.survival.expectedPeriodicTicks })
+            and plan.survival.expectedPeriodicTicks,
+        periodicRefreshOldExpectedTicks = plan.periodicRefresh
+            and plan.periodicRefresh.oldExpectedTicks,
+        periodicRefreshDisplacedPower = plan.periodicRefresh
+            and plan.periodicRefresh.displacedPower,
+        periodicRefreshMarginalPower = plan.periodicRefresh
+            and plan.periodicRefresh.marginalPeriodicPower })
     while table.getn(XelAssistLog) > 200 do table.remove(XelAssistLog, 1) end
     recordSession(plan)
 end

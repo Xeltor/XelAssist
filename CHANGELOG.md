@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.68
+
+- Periodic refreshes now value only their marginal future ticks. An owned DoT's
+  remaining ticks are subtracted from a reapplication, including the imminent
+  tick that Vanilla resets when a refresh restarts the cadence. This prevents
+  late Rend refreshes from claiming damage the existing Rend would deliver
+  without spending another global cooldown and 10 rage.
+- Preserved exact spell-rank identity on projected periodic auras and added
+  bounded refresh displacement fields to the automatic decision log.
+
 ## 0.8.67
 
 - Bound every learned hostile white-swing lane to the exact victim armor,
