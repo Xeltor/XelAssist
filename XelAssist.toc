@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.52
+## Version: 0.8.53
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -38,6 +38,7 @@ Game\Player\DruidCatThreat.lua
 Game\Player\DruidCasterForms.lua
 Game\Player\PaladinAuraState.lua
 Game\Player\PaladinActions.lua
+Game\Player\PaladinDivergentGuards.lua
 Game\Player\PaladinRighteousness.lua
 Game\Player\PaladinMight.lua
 Game\Player\PaladinWisdom.lua
@@ -54,6 +55,7 @@ Game\Player\ShamanManaSpring.lua
 Game\Player\ShamanClearcasting.lua
 Game\Player\ShamanEarthShock.lua
 Game\Player\ShamanLightningStrike.lua
+Game\Player\ShamanDivergentActions.lua
 Game\Player\ShamanMoltenBlast.lua
 Game\Player\ShamanFlameShockTiming.lua
 Game\Player\ShamanChainHealTiming.lua
@@ -65,7 +67,9 @@ Game\Player\MageColdSnap.lua
 Game\Player\MageProcWindows.lua
 Game\Player\MageAcceleratedArcana.lua
 Game\Player\MageFrostfire.lua
+Game\Player\MageArcaneSurge.lua
 Game\Player\PriestShield.lua
+Game\Player\PriestDivergentActions.lua
 Game\Player\PriestShadowform.lua
 Game\Player\PriestImprovedShadowform.lua
 Game\Player\PriestAscendance.lua
@@ -88,6 +92,8 @@ Game\Player\HunterDistractingShot.lua
 Game\Player\HunterRapidFire.lua
 Game\Player\HunterStingingNettle.lua
 Game\Player\HunterManaAspects.lua
+Game\Player\HunterFeignDeath.lua
+Game\Player\HunterStings.lua
 Game\Player\WarlockFelDomination.lua
 Game\Player\WarlockDarkPact.lua
 Game\Player\WarlockSoulFire.lua
@@ -101,6 +107,7 @@ Game\Player\WarriorHeroicStrikeThreat.lua
 Game\Player\WarriorExecute.lua
 Game\Player\WarriorThunderClap.lua
 Game\Player\WarriorOverpower.lua
+Game\Player\WarriorShieldBash.lua
 Game\Player\WarriorDemoralizingShout.lua
 Game\Player\WarriorShieldWall.lua
 Game\Player\WarriorDevastate.lua
@@ -204,6 +211,7 @@ Graph\CrowdControl.lua
 Graph\DispelDecision.lua
 Graph\HunterAspects.lua
 Graph\HunterManaAspects.lua
+Graph\HunterFeignDeath.lua
 Graph\DruidShiftResources.lua
 Graph\DruidBearThreat.lua
 Graph\DruidCatThreat.lua

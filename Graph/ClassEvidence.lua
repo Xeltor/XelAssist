@@ -36,6 +36,8 @@ local HunterDistractingShot = XelAssist.Game.Player.HunterDistractingShot
 local HunterRapidFire = XelAssist.Game.Player.HunterRapidFire
 local HunterStingingNettle = XelAssist.Game.Player.HunterStingingNettle
 local HunterManaAspects = XelAssist.Game.Player.HunterManaAspects
+local HunterFeignDeath = XelAssist.Game.Player.HunterFeignDeath
+local HunterStings = XelAssist.Game.Player.HunterStings
 local PriestShadowform = XelAssist.Game.Player.PriestShadowform
 local PriestImprovedShadowform = XelAssist.Game.Player.PriestImprovedShadowform
 local PriestAscendanceRuntime = XelAssist.Game.Player.PriestAscendance
@@ -107,6 +109,8 @@ captureModule(HunterDistractingShot)
 captureModule(HunterRapidFire)
 captureModule(HunterStingingNettle)
 captureModule(HunterManaAspects)
+captureModule(HunterFeignDeath)
+captureModule(HunterStings)
 captureModule(PriestShadowform)
 captureModule(PriestImprovedShadowform)
 captureModule(PriestAscendanceRuntime)

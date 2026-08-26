@@ -2,8 +2,7 @@
 -- mechanic owner, while this module decides only when it happens.
 XelAssist.Graph.Timeline = {}
 local L = XelAssist.Graph.Timeline
-local State = XelAssist.Graph.State
-local Actions = XelAssist.Graph.ActionEffects
+local State, Actions = XelAssist.Graph.State, XelAssist.Graph.ActionEffects
 local AutoShot = XelAssist.Graph.AutoShotEffects
 local Ongoing = XelAssist.Graph.OngoingEffects
 local Companion = XelAssist.Graph.CompanionEvents
@@ -187,6 +186,7 @@ local function advanceState(out, elapsed, persistentAuras, eventAuras)
     Ongoing:AdvanceEventAuras(out, eventAuras, elapsed)
     if PlayerTaunt then PlayerTaunt:Advance(out) end
     if ThreatDrop then ThreatDrop:Advance(out, elapsed) end
+    if XelAssist.Graph.HunterFeignDeath then XelAssist.Graph.HunterFeignDeath:Advance(out, elapsed) end
     if HostileCasts then HostileCasts:Advance(out, elapsed) end
     if ControlDamage then ControlDamage:ResolveAdvance(out, controlSnapshot) end
 end

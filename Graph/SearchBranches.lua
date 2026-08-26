@@ -59,7 +59,7 @@ function B:Retain(candidates, width, before)
             if facts and facts.healthConversion then exchange = candidate end
             local value = setupValue(candidate)
             if value > bestSetup then setup, bestSetup = candidate, value end
-            local at = tonumber(candidate.actionStart) or math.huge
+            local at = tonumber(candidate.actionStart) or 1000000000
             if earliestAt == nil or at < earliestAt then
                 earliest, earliestAt = candidate, at
             end

@@ -33,6 +33,7 @@ local HunterHawk = XelAssist.Graph.HunterHawk
 local HunterRapidFireRuntime = XelAssist.Game.Player.HunterRapidFire
 local HunterRapidFire = XelAssist.Graph.HunterRapidFire
 local HunterManaAspects = XelAssist.Graph.HunterManaAspects
+local HunterFeignDeathRuntime = XelAssist.Game.Player.HunterFeignDeath
 local PriestShadowform = XelAssist.Graph.PriestShadowform
 local PriestImprovedShadowform = XelAssist.Game.Player.PriestImprovedShadowform
 local PriestAscendance = XelAssist.Graph.PriestAscendance
@@ -83,9 +84,12 @@ local function attachHunter(state, token)
         and HunterRapidFire:Attach(
             state, HunterRapidFireRuntime:Snapshot(token)) or false
     local mana = HunterManaAspects and HunterManaAspects:Attach(state) or false
+    local feign = XelAssist.Graph.HunterFeignDeath
+    feign = feign and HunterFeignDeathRuntime
+        and feign:Attach(state, HunterFeignDeathRuntime:Snapshot(token)) or false
     local alone = XelAssist.Graph.HunterAloneAgainstWorld
         and XelAssist.Graph.HunterAloneAgainstWorld:Attach(state, token) or false
-    return mark ~= nil or hawk or rapid or mana or alone
+    return mark ~= nil or hawk or rapid or mana or alone or feign
 end
 local function attachPaladin(state, token)
     if not Paladin then return false end
@@ -231,6 +235,9 @@ function S:Copy(source, target)
     if HunterHawk then HunterHawk:Copy(source, target) end
     if HunterRapidFire then HunterRapidFire:Copy(source, target) end
     if HunterManaAspects then HunterManaAspects:Copy(source, target) end
+    if XelAssist.Graph.HunterFeignDeath then
+        XelAssist.Graph.HunterFeignDeath:Copy(source, target)
+    end
     if XelAssist.Graph.HunterAloneAgainstWorld then
         XelAssist.Graph.HunterAloneAgainstWorld:Copy(source, target)
     end

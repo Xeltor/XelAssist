@@ -1,16 +1,11 @@
 -- Candidate-local changes; OngoingEffects owns timing during the action.
 XelAssist.Graph.ActionEffects = {}
 local A = XelAssist.Graph.ActionEffects
-local State = XelAssist.Graph.State
-local Effects = XelAssist.Graph.Effects
-local HostileEffects = XelAssist.Graph.HostileEffects
-local Readiness = XelAssist.Graph.ReadinessEffects
-local CompanionEventThreat = XelAssist.Graph.CompanionEventThreat
-local EventAuras = XelAssist.Graph.EventAuras
-local DotProjection = XelAssist.Graph.DotProjection
-local ResourceExchange = XelAssist.Graph.ResourceExchange
-local HealthTransfer = XelAssist.Graph.HealthTransfer
-local WandCommitment = XelAssist.Graph.WandCommitment
+local State, Effects = XelAssist.Graph.State, XelAssist.Graph.Effects
+local HostileEffects, Readiness = XelAssist.Graph.HostileEffects, XelAssist.Graph.ReadinessEffects
+local CompanionEventThreat, EventAuras = XelAssist.Graph.CompanionEventThreat, XelAssist.Graph.EventAuras
+local DotProjection, ResourceExchange = XelAssist.Graph.DotProjection, XelAssist.Graph.ResourceExchange
+local HealthTransfer, WandCommitment = XelAssist.Graph.HealthTransfer, XelAssist.Graph.WandCommitment
 local PlayerTaunt = XelAssist.Graph.PlayerTaunt
 local StackedModifiers = XelAssist.Graph.StackedModifiers
 local DruidForms = XelAssist.Graph.DruidForms
@@ -190,7 +185,11 @@ local function applyDamageOrSupport(out, source, candidate, context,
         if PriestFade and PriestFade:Is(context.action, candidate.tooltip) then
             return PriestFade:Apply(out, candidate)
         end
-        return ThreatDrop and ThreatDrop:Apply(out, candidate) or false
+        local applied = ThreatDrop and ThreatDrop:Apply(out, candidate) or false
+        if applied and XelAssist.Graph.HunterFeignDeath then
+            XelAssist.Graph.HunterFeignDeath:Apply(out, candidate)
+        end
+        return applied
     elseif facts.healthFundedChannel and HealthTransfer
         and HealthTransfer:Finish(out, candidate) then
         return true
@@ -375,6 +374,7 @@ local function syncFriendlyCompatibility(state)
     end
 end
 function A:Apply(out, source, candidate, context)
+    if XelAssist.Graph.HunterFeignDeath then XelAssist.Graph.HunterFeignDeath:Consume(out, candidate) end
     if WarlockFelDomination then WarlockFelDomination:Consume(out, candidate) end
     if DruidClearcasting then DruidClearcasting:Consume(out, candidate) end
     if MageClearcasting then MageClearcasting:Consume(out, candidate) end

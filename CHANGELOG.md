@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.53
+
+- Added an unordered nine-class low-level scenario tranche covering setup,
+  engagement, sustain and target death without relying on catalogue order.
+- Added exact Hunter Feign Death interruption, threat uncertainty, wake and
+  expiry boundaries, plus one-per-caster Sting exclusivity. Serpent Sting is
+  supported; unsafe drain, mitigation and delayed-control Stings fail closed.
+- Added exact Warrior Shield Bash rank, stance, shield, range, cost and
+  interrupt facts, while keeping unproven private threat withheld.
+- Added exact Mage Arcane Surge reactive ranks and resistance bypass, and
+  explicit fail-closed ownership for private Priest, Shaman and Paladin actions.
+- Fixed Lua 5.0 branch retention when a candidate has no scheduled start time.
+
 ## 0.8.52
 
 - Added zero-command session smoke evidence with exact addon version, class,

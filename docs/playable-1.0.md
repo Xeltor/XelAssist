@@ -112,7 +112,9 @@ request to add a class priority rule:
   make that explicit rather than inventing an automatic role. Mid/60 threat
   has exact learned Charge-in-combat legality and all four Overpower rank
   packets without inventing action-specific threat. Mid/60 threat still needs
-  exact Shield Bash, Hamstring, Disarm and Shield Slam packets. Defensive
+  exact Hamstring, Disarm and Shield Slam packets; Shield Bash now has exact
+  rank, cost, stance, equipment, range and interrupt semantics, with only its
+  private supplemental threat withheld. Defensive
   Tactics rank and shield ownership are observable, but its
   dummy-aura server arithmetic is not; cross-stance threat therefore remains
   unknown rather than guessed. Grouped Battle Shout is now usable through exact
@@ -154,8 +156,8 @@ evidence-ranked queue includes:
 
 - Druid remaining Moonkin/Tree party and tooltip-only consequences, Enrage's
   baseline/armor lifecycle, Blood Frenzy haste, plus Feral Adrenaline;
-- Hunter Snake/Swift Aspects proc generation, sting exclusivity, traps and Lock
-  and Load;
+- Hunter Snake/Swift Aspects proc generation, non-Serpent Sting consequences,
+  traps and Lock and Load;
 - Mage Hot Streak/Flash Freeze proc generation and post-proc baseline timing,
   Arcane Power, Temporal Convergence and Resonance Cascade;
 - Paladin Holy Shock proc generation/post-consumption baseline and Blessed

@@ -21,6 +21,10 @@ function P:Blocker(action, state, tooltip)
     local equipmentBlocker = equipment and equipment:Blocker(state, tooltip)
     if equipmentBlocker then return equipmentBlocker end
     local threatDrop = XelAssist.Graph.ThreatDrop
+    local feign = XelAssist.Graph.HunterFeignDeath
+    local feignBlocker, feignHandled = feign
+        and feign:Blocker(action, state, nil, tooltip)
+    if feignHandled then return feignBlocker end
     local threatDropBlocker = threatDrop
         and threatDrop:Blocker(action, state, tooltip)
     if threatDropBlocker then return threatDropBlocker end

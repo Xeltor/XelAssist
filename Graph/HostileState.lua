@@ -285,6 +285,9 @@ function H:AuraState(encounter)
         if type(aura) == "table" then
             local copy = copyAura(aura, 4)
             copy.exclusiveFamily = copy.exclusiveFamily or families[name]
+            local stings, stingFamily = XelAssist.Game.Player and XelAssist.Game.Player.HunterStings, nil
+            if copy.mine == true and stings and copy.spellId then stingFamily = stings:ObservedFamily(copy.spellId) end
+            copy.exclusiveFamily = copy.exclusiveFamily or stingFamily
             out[name] = copy
         else out[name] = aura end
     end

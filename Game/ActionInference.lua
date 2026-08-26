@@ -5,17 +5,24 @@ XelAssist.Game.ActionInference = {}
 local I = XelAssist.Game.ActionInference
 local ROGUE_INFERENCE = { "RogueSliceAndDice", "RoguePreparation",
     "RogueFeint", "RogueSurpriseAttack", "RogueShiv", "RogueMarkForDeath" }
-local HUNTER_INFERENCE = { "HunterHawk", "HunterMark",
+local HUNTER_INFERENCE = { "HunterStings", "HunterFeignDeath", "HunterHawk", "HunterMark",
     "HunterDistractingShot", "HunterRapidFire", "HunterManaAspects" }
-local SHAMAN_INFERENCE = { "ShamanChainHealTiming", "ShamanEarthShock",
+local SHAMAN_INFERENCE = { "ShamanDivergentActions", "ShamanChainHealTiming", "ShamanEarthShock",
     "ShamanMoltenBlast", "ShamanLightningStrike" }
+local PRIEST_INFERENCE = { "PriestDivergentActions", "PriestShield",
+    "PriestShadowform", "PriestInnerFocus", "PriestPowerInfusion",
+    "PriestChastise", "PriestFade", "PriestAscendance" }
 local WARRIOR_INFERENCE = { "WarriorThunderClap", "WarriorOverpower",
-    "WarriorDemoralizingShout", "WarriorHeroicStrikeThreat", "WarriorExecute",
+    "WarriorShieldBash", "WarriorDemoralizingShout",
+    "WarriorHeroicStrikeThreat", "WarriorExecute",
     "WarriorRevengeThreat", "WarriorBattleShout", "WarriorShieldWall",
     "WarriorDevastate", "WarriorShieldBlock" }
 local ROOT_INVALIDATION = { "MageFrostfire", "MageAcceleratedArcana",
     "ShamanChainHealTiming", "ShamanFlameShockTiming",
-    "DruidAncientBrutality", "DruidBloodFrenzy" }
+    "DruidAncientBrutality", "DruidBloodFrenzy",
+    "PriestDivergentActions", "WarriorShieldBash", "HunterFeignDeath",
+    "MageArcaneSurge", "ShamanDivergentActions", "HunterStings",
+    "PaladinDivergentGuards" }
 
 local function infer(module, spellId)
     if not (module and type(module.InferKnowledge) == "function") then
@@ -36,7 +43,9 @@ end
 
 function I:ClassKnowledge(spellId)
     local player = XelAssist.Game.Player or {}
-    local facts, reason, handled = infer(player.MageColdSnap, spellId)
+    local facts, reason, handled = infer(player.MageArcaneSurge, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.MageColdSnap, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.MagePresenceOfMind, spellId)
     if handled then return facts, reason, true end
@@ -44,19 +53,7 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.MageEvocation, spellId)
     if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.PriestShield, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.PriestShadowform, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.PriestInnerFocus, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.PriestPowerInfusion, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.PriestChastise, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.PriestFade, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.PriestAscendance, spellId)
+    facts, reason, handled = inferPortfolio(player, PRIEST_INFERENCE, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.DruidProwl, spellId)
     if handled then return facts, reason, true end
@@ -82,6 +79,8 @@ function I:ClassKnowledge(spellId)
     facts, reason, handled = infer(player.WarlockSoulFire, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PaladinHandOfReckoning, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.PaladinDivergentGuards, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PaladinActions, spellId)
     if handled then

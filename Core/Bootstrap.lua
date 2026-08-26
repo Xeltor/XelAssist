@@ -1,7 +1,7 @@
 -- One addon-owned namespace is the only runtime global API. WoW's 1.12
 -- loader executes files in TOC order, so every later module attaches here.
 XelAssist = XelAssist or {}
-XelAssist.version = "0.8.52"
+XelAssist.version = "0.8.53"
 XelAssist.mode = XelAssist.mode or "smart"
 XelAssist.Core = XelAssist.Core or {}
 XelAssist.Game = XelAssist.Game or {}
