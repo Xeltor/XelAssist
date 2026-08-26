@@ -39,7 +39,6 @@ XelAssist.Combat.Knowledge = {
     ["Revenge"] = { kind = "damage", melee = true, reactive = true, threat = 1.6 },
     ["Bloodthirst"] = { kind = "damage", melee = true, threat = 1.0 },
     ["Mortal Strike"] = { kind = "damage", melee = true, threat = 1.0 },
-    ["Shield Slam"] = { kind = "damage", melee = true, threat = 2.0 },
     ["Whirlwind"] = { kind = "damage", aoe = true, melee = true, threat = 1.0 },
     ["Slam"] = { kind = "damage", melee = true },
     ["Heroic Strike"] = { kind = "damage", melee = true },

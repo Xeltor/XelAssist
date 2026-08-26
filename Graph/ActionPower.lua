@@ -186,7 +186,7 @@ function P:Estimate(action, tooltip, state, targetGUID, comboAllOwners,
         if observationStatus == "known" then
             weapon = observed.dbcWeaponCaptured and observed.dbcWeapon or 0
         else
-            weapon = action.facts.melee
+            weapon = action.facts.melee and not action.facts.noWeaponDamageFallback
                 and XelAssist.Game.Capabilities:WeaponDamage() or 0
             if action.facts.ranged and tooltip.school == 0 then
                 weapon = XelAssist.Game.Capabilities:RangedDamage() or weapon

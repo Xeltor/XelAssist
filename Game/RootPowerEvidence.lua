@@ -81,7 +81,7 @@ function E:Capture(observed, action, facts, actionKey)
     end
     if facts.dbcAverage then
         local value = 0
-        if actionFacts.melee then
+        if actionFacts.melee and actionFacts.noWeaponDamageFallback ~= true then
             local record = weaponDamage(cache, "melee")
             value = record.ok and tonumber(record.value) or 0
         end

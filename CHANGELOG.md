@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.61
+
+- Replaced Shield Slam's localized-name fallback and invented `2.0` threat
+  multiplier with exact patch-5 rank identities, shield/rage/range/cooldown
+  legality and base physical damage.
+- Prevented Shield Slam's DBC direct packet from receiving generic main-hand
+  weapon damage. Private AP/block-value additions, hostile-dispel probability,
+  Improved Shield Slam and Octo threat remain explicit uncredited gaps.
+
 ## 0.8.60
 
 - Made target-survival pressure follow exact installed periodic tick cadence.

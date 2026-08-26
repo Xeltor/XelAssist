@@ -102,7 +102,7 @@ never class rotations or ordered priority lists.
   Link and Fel Domination;
   Paladin Might, Wisdom, Righteousness, blessing threat, Righteous Fury and the
   fail-closed Lay on Hands boundary; and
-  Warrior stance, Battle Shout, Revenge, Heroic Strike, Thunder Clap,
+  Warrior stance, Battle Shout, Revenge, Heroic Strike, Shield Slam, Thunder Clap,
   Demoralizing Shout and Shield Wall evidence. Each file seals one installed
   mechanic without scoring or ordering its class.
   `Core/PlayerTauntGuard.lua` revalidates exact class taunt identity, current
