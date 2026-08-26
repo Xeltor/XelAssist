@@ -216,7 +216,7 @@ function C:Build(context)
         channelCommitment = (context.clipsChannel or context.preservesChannel)
             and context.state.channelCommitment or nil,
         channelOpportunityValue = context.channelOpportunityValue,
-        healthTransfer = context.healthTransfer,
+        healthTransfer = context.healthTransfer, shadowMend = context.shadowMend,
         healingTriage = context.healingTriage, dispelDecision = context.tooltip and context.tooltip.dispelDecision,
         recipientEffects = context.recipientEffects,
         areaRecipientGroups = context.areaRecipientGroups,

@@ -3,7 +3,8 @@ local class = "PRIEST"
 local rows = {
     [45554] = { school = 5, family = 6, flag = 268435456, mana = 270,
         range = 5, effect = { 10, 0, 0 }, target = { 21, 0, 0 },
-        points = { 758, 0, 0 }, sides = { 136, 0, 0 } },
+        points = { 758, 0, 0 }, sides = { 136, 0, 0 },
+        description = "Heals a friendly target, but damages you for 50% of the amount healed. This spell generates reduced threat." },
     [45555] = { school = 5, family = 6, flag = 8388608, mana = 80,
         range = 4, effect = { 2, 3, 0 }, target = { 6, 6, 0 },
         points = { 65, 0, 0 }, sides = { 20, 1, 0 } },
@@ -28,6 +29,7 @@ function GetSpellRecField(id, field, array)
     if field == "powerType" then return 0 end
     if field == "manaCost" then return row.mana end
     if field == "rangeIndex" then return row.range end
+    if field == "description" then return row.description end
     if array and field == "effect" then return row.effect end
     if array and field == "effectImplicitTargetA" then return row.target end
     if array and field == "effectBasePoints" then return row.points end
@@ -38,9 +40,10 @@ end
 dofile("Game/Player/PriestDivergentActions.lua")
 local P = XelAssist.Game.Player.PriestDivergentActions
 local facts, reason, handled = P:InferKnowledge(45554)
-assert(not facts and handled
-    and reason == "Shadow Mend self-damage transfer is unavailable",
-    "Shadow Mend must not fall through as a free ordinary heal")
+assert(facts and handled and not reason and facts.kind == "heal"
+    and facts.shadowMend and facts.shadowMendSelfDamageRatio == 0.5
+    and facts.threatProfileExact == false,
+    "Shadow Mend must expose its exact bounded health transfer")
 local shadow = P:Evidence(45554)
 assert(shadow and shadow.exact and shadow.kind == "shadowMend",
     "the exact Shadow Mend identity must remain inspectable")
@@ -77,8 +80,7 @@ rows[45554].target = { 21, 0, 0 }
 P:Invalidate()
 dofile("Game/ActionInference.lua")
 facts, reason, handled = XelAssist.Game.ActionInference:ClassKnowledge(45554)
-assert(not facts and handled
-    and reason == "Shadow Mend self-damage transfer is unavailable",
-    "root class inference must preserve the private-transfer boundary")
+assert(facts and handled and not reason and facts.shadowMend,
+    "root class inference must preserve exact Shadow Mend semantics")
 
-print("ok: Octo Priest private transfers are explicitly withheld")
+print("ok: exact Shadow Mend transfer and withheld Pain Spike")

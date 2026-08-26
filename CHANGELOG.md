@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.66
+
+- Admitted Octo Shadow Mend through its exact patch-5 identity and documented
+  50-percent caster-health consequence. The live maximum heal roll now guards
+  caster lethality through known incoming damage, while expected raw healing
+  provides a conservative graph health payment after ally or self healing.
+- Self-casts are valued by net healing, ally casts price the Priest's health
+  and aggro risk, and reduced healing threat remains conservatively
+  overestimated instead of inventing Octo's private multiplier. Pain Spike
+  remains withheld until its delayed hostile heal is observable.
+
 ## 0.8.65
 
 - Prevented Rend and other periodic actions from earning setup value when

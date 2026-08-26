@@ -31,6 +31,7 @@ local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
 local PriestPowerInfusion = XelAssist.Graph.PriestPowerInfusion
 local PriestFade = XelAssist.Graph.PriestFade
+local PriestShadowMend = XelAssist.Graph.PriestShadowMend
 local WarriorDemoralizingShout = XelAssist.Graph.WarriorDemoralizingShout
 local WarriorExecute = XelAssist.Graph.WarriorExecute
 local ShamanEarthShock = XelAssist.Graph.ShamanEarthShock
@@ -111,7 +112,6 @@ local function resolveTargetNeed(context)
         if IncomingScoring then IncomingScoring:AdjustTargetNeed(context) end
     end
 end
-
 local function estimateResistance(context)
     if not context.targetEffect then return end
     local action, state = context.effectAction, context.state
@@ -182,7 +182,6 @@ local function projectPeriodicDamage(context)
         end
     end
 end
-
 local function projectDamageAndResistance(context)
     if HunterAloneAgainstWorld then
         HunterAloneAgainstWorld:AdjustDamage(context)
@@ -190,7 +189,6 @@ local function projectDamageAndResistance(context)
     estimateResistance(context)
     projectPeriodicDamage(context)
 end
-
 local function projectAmbientTargetHealth(context)
     local state = context.state
     local ammunitionAction = ActionConsumption
@@ -214,7 +212,6 @@ local function projectAmbientTargetHealth(context)
         context.ambientDefeatsTarget = true
     end
 end
-
 local function scoreDamageAndHealing(context)
     local state, facts, kind = context.state, context.facts, context.kind
     local power, expected = context.power, context.expectedPower
@@ -316,7 +313,6 @@ local function scoreKindUtility(context)
         and WarriorDemoralizingShout:Score(context) then return end
     StateUtilityScoring:Score(context)
 end
-
 local function applyActionAdjustments(context)
     local state, facts, kind = context.state, context.facts, context.kind
     if context.resistance and context.targetEffect and not context.damageKind
@@ -353,7 +349,6 @@ local function applyActionAdjustments(context)
         XelAssist.Graph.PlayerEngagement:Score(context)
     end
 end
-
 function Scoring:Evaluate(action, state, descriptor)
     local context, blocker = legalityAndTiming(action, state, descriptor)
     if not context then return nil, blocker end
@@ -371,6 +366,10 @@ function Scoring:Evaluate(action, state, descriptor)
     end
     local targetState = context.state
     resolveTargetNeed(context)
+    if PriestShadowMend then
+        local prepared, reason = PriestShadowMend:Prepare(context)
+        if not prepared then return nil, reason end
+    end
     if HunterDistractingShot then
         local prepared, reason, handled = HunterDistractingShot:Prepare(context)
         if handled and not prepared then return nil, reason end
@@ -427,6 +426,7 @@ function Scoring:Evaluate(action, state, descriptor)
         return Candidate:Build(context)
     end
     scoreKindUtility(context)
+    if PriestShadowMend then PriestShadowMend:Score(context) end
     if HunterStingingNettle then HunterStingingNettle:Score(context) end
     if ShamanEarthShock then
         local scored, reason, handled = ShamanEarthShock:Score(context)

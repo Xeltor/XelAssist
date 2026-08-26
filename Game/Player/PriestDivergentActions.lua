@@ -27,6 +27,13 @@ local function scalar(id, field)
     return ok and number(value) or nil
 end
 
+local function textField(id, field)
+    if type(GetSpellRecField) ~= "function" then return nil end
+    local ok, value = pcall(GetSpellRecField, id, field)
+    if not ok or type(value) ~= "string" then return nil end
+    return string.lower(value)
+end
+
 local function triple(id, field)
     if type(GetSpellRecField) ~= "function" then return nil end
     local ok, values = pcall(GetSpellRecField, id, field, 1)
@@ -52,6 +59,7 @@ end
 
 local function shadowMend()
     local id = P.SHADOW_MEND
+    local description = textField(id, "description")
     return scalar(id, "school") == P.SHADOW_SCHOOL
         and scalar(id, "spellFamilyName") == P.PRIEST_FAMILY
         and scalar(id, "spellFamilyFlags") == P.SHADOW_MEND_FLAG
@@ -60,6 +68,10 @@ local function shadowMend()
         and equal(triple(id, "effect"), 10, 0, 0)
         and equal(triple(id, "effectImplicitTargetA"), 21, 0, 0)
         and equal(triple(id, "effectTriggerSpell"), 0, 0, 0)
+        and description
+        and string.find(description,
+            "damages you for 50%% of the amount healed") ~= nil
+        and string.find(description, "generates reduced threat") ~= nil
 end
 
 local function painSpike(id, rank)
@@ -80,7 +92,7 @@ local function profile(id)
     local found
     if id == P.SHADOW_MEND then
         found = { recognized = true, valid = shadowMend(), kind = "shadowMend",
-            reason = "Shadow Mend self-damage transfer is unavailable" }
+            reason = "Shadow Mend exact self-damage transfer" }
     elseif P.PAIN_SPIKE[id] then
         found = { recognized = true, valid = painSpike(id, P.PAIN_SPIKE[id]),
             kind = "painSpike",
@@ -103,6 +115,13 @@ function P:InferKnowledge(spellId)
     local found = profile(id)
     if not (found and found.valid) then
         return nil, "Octo Priest divergent action topology is incomplete", true
+    end
+    if found.kind == "shadowMend" then
+        return { inferred = true, kind = "heal", kindExact = true,
+            shadowMend = true, shadowMendSelfDamageRatio = 0.5,
+            healingThreatActor = "player", threatProfileExact = false,
+            submissionGuarded = true, requiresExactUsability = true,
+            source = found.source }, nil, true
     end
     return nil, found.reason, true
 end

@@ -5,6 +5,7 @@ local F = XelAssist.Graph.FriendlyActionEffects
 local State = XelAssist.Graph.State
 local HunterAspects = XelAssist.Graph.HunterAspects
 local ClassMechanics = XelAssist.Graph.ClassMechanics
+local PriestShadowMend = XelAssist.Graph.PriestShadowMend
 
 function F:Apply(out, candidate, context)
     if context.classMechanicHandled then return true, false end
@@ -55,5 +56,6 @@ function F:Apply(out, candidate, context)
             applicationProbability = 1,
         }
     end
+    if PriestShadowMend then PriestShadowMend:Apply(out, candidate) end
     return true, false
 end

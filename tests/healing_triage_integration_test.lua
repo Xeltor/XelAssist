@@ -74,6 +74,27 @@ assert(fallback and fallback.healingTriage == nil
     and fallback.reason ~= "prevents proven recipient death",
     "unproven triage must retain the generic healing edge without claiming a save")
 
+local mendState, mendKey = state()
+mendState.health, mendState.healthMax = 1000, 1000
+local mendPlayer = XelAssist.Graph.State:FriendlyByUnit(mendState, "player")
+mendPlayer.health, mendPlayer.healthMax = 1000, 1000
+local mend = Fixture.Action("Shadow Mend", 1, "heal", 300, 100,
+    { cast = 1.5, shadowMend = true,
+      shadowMendSelfDamageRatio = 0.5, threatProfileExact = false })
+mend.spellId = 45554
+mend.mock.low, mend.mock.high, mend.mock.gcd = 250, 350, 1.5
+local mendCandidate, mendBlocker = score(mendState, mend, mendKey)
+assert(mendCandidate and not mendBlocker and mendCandidate.shadowMend
+    and mendCandidate.shadowMend.expectedSelfDamage == 150
+    and mendCandidate.shadowMend.maximumSelfDamage == 175,
+    "production scoring must carry exact Shadow Mend health payment")
+local mendProjected = XelAssist.Graph.Transitions:Advance(
+    XelAssist.Graph.State:Copy(mendState), mendCandidate)
+assert(mendProjected.friendlies.byKey[mendKey].health == 400
+    and XelAssist.Graph.State:FriendlyByUnit(mendProjected, "player").health == 850
+    and mendProjected.health == 850,
+    "production transition must heal the ally and debit the Priest once")
+
 local replaced = XelAssist.Graph.State:Copy(graphState)
 local replacement = replaced.friendlies.byKey[allyKey]
 replacement.guid, replacement.health = "replacement-guid", 100
