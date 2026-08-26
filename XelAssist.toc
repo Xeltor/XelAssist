@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.46
+## Version: 0.8.47
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -57,6 +57,7 @@ Game\Player\MagePresenceOfMind.lua
 Game\Player\MageColdSnap.lua
 Game\Player\PriestShield.lua
 Game\Player\PriestShadowform.lua
+Game\Player\PriestImprovedShadowform.lua
 Game\Player\PriestInnerFocus.lua
 Game\Player\PriestPowerInfusion.lua
 Game\Player\PriestChastise.lua
@@ -64,6 +65,7 @@ Game\Player\PriestFade.lua
 Game\Player\DruidProwl.lua
 Game\Player\RogueFeint.lua
 Game\Player\RogueSurpriseAttack.lua
+Game\Player\RogueShiv.lua
 Game\Player\RogueSliceAndDice.lua
 Game\Player\RogueRuthlessness.lua
 Game\Player\RoguePreparation.lua
@@ -76,6 +78,7 @@ Game\Player\WarlockFelDomination.lua
 Game\Player\WarlockDarkPact.lua
 Game\Player\WarlockSoulFire.lua
 Game\Player\WarlockSoulLink.lua
+Game\Player\WarlockNightfall.lua
 Game\Player\WarriorBattleShoutRoot.lua
 Game\Player\WarriorBattleShout.lua
 Game\Player\WarriorChargeCombat.lua
@@ -155,6 +158,7 @@ Graph\State.lua
 Graph\WarlockDarkPact.lua
 Graph\WarlockSoulLink.lua
 Graph\WarlockFelDomination.lua
+Graph\WarlockNightfall.lua
 Graph\HunterMark.lua
 Graph\HunterHawk.lua
 Graph\HunterRangedPower.lua

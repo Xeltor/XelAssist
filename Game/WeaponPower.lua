@@ -52,6 +52,20 @@ local function ordinaryMelee()
     return nil, nil, "melee damage unavailable"
 end
 
+local function ordinaryOffhand()
+    local _, _, low, high, _, _, percent = call(UnitDamage, "player")
+    low, high, percent = tonumber(low), tonumber(high), tonumber(percent)
+    if low and high and high > 0 then
+        return (low + high) / 2, percent, "live UnitDamage off-hand"
+    end
+    low = tonumber(call(GetUnitField, "player", "minOffhandDamage"))
+    high = tonumber(call(GetUnitField, "player", "maxOffhandDamage"))
+    if low and high and high > 0 then
+        return (low + high) / 2, nil, "live off-hand damage fields"
+    end
+    return nil, nil, "off-hand damage unavailable"
+end
+
 local function ordinaryRanged()
     local _, low, high, _, _, percent = call(UnitRangedDamage, "player")
     low, high, percent = tonumber(low), tonumber(high), tonumber(percent)
@@ -136,8 +150,10 @@ end
 function W:Basis(action, tooltip)
     local facts = action and action.facts or {}
     local ranged = facts.ranged and tooltip and tooltip.school == 0 and true or false
+    local offhand = not ranged and facts.weaponHand == "off"
     local ordinary, percent, source
     if ranged then ordinary, percent, source = ordinaryRanged()
+    elseif offhand then ordinary, percent, source = ordinaryOffhand()
     else ordinary, percent, source = ordinaryMelee() end
     local evidence = { exact = ordinary ~= nil, normalized = false,
         source = source, damagePercent = percent }
@@ -148,7 +164,7 @@ function W:Basis(action, tooltip)
     if not (tooltip and tooltip.weaponNormalized) then return ordinary, evidence end
 
     evidence.normalized = true
-    local slot = ranged and RANGED_SLOT or MAIN_SLOT
+    local slot = ranged and RANGED_SLOT or offhand and 17 or MAIN_SLOT
     local itemId = equippedItemId(slot)
     local speed, speedSource = normalizedSpeed(ranged, itemId)
     local currentSpeed, currentSpeedExact = attackTime(ranged)

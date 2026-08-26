@@ -35,6 +35,12 @@ local function actionRecord(family, cost)
 end
 
 local records = {
+    [45541] = { spellFamilyName = 11, school = 0, attributes = 464,
+        attributesEx = 0, attributesEx2 = 0, attributesEx3 = 67108864,
+        attributesEx4 = 0, procFlags = 87380, procChance = 100,
+        procCharges = 0, durationIndex = 21,
+        effect = triple(6), effectApplyAuraName = triple(42),
+        effectImplicitTargetA = triple(1), effectTriggerSpell = triple(45542) },
     [45542] = auraRecord(-60, 2, 0, 1),
     [16246] = auraRecord(-100, 1, 100, 0),
     [49999] = auraRecord(-60, 2, 0, 1),
@@ -65,6 +71,7 @@ local function unsigned(value)
 end
 
 UnitClass = function() return "Localized", playerClass end
+IsPlayerSpell = function(id) return id == 45541 end
 UnitExists = function(unit)
     return unit == "player" and true or false,
         unit == "player" and playerGUID or nil
@@ -230,17 +237,17 @@ auras = { { spellId = 49999, isHelpful = true,
     applications = 2, duration = 15, expirationTime = 110 } }
 assert(not Runtime:Attach(state, "SHAMAN")
     and state.shamanClearcasting.reason
-        == "Shaman Clearcasting DBC topology is incomplete",
+        == "non-Octo Shaman Clearcasting topology is unsupported",
     "a recognized but drifted cost proc must not fall through")
 Runtime:Invalidate()
 auras = { { spellId = 49998, isHelpful = true,
     applications = 2, duration = 15, expirationTime = 110 } }
 assert(not Runtime:Attach(state, "SHAMAN")
     and state.shamanClearcasting.reason
-        == "Shaman Clearcasting DBC topology is incomplete",
+        == "non-Octo Shaman Clearcasting topology is unsupported",
     "a stackable lookalike must not be mistaken for remaining proc charges")
 
--- The installed one-charge, fully free variant is admitted by shape, not ID.
+-- A legacy one-charge lookalike must not replace Octo Elemental Focus.
 Runtime:Invalidate()
 procActive = false; auras = {}; state.shamanClearcasting = nil
 assert(Runtime:Attach(state, "SHAMAN"))
@@ -248,16 +255,45 @@ Runtime:CaptureFacts(bolt, plain, state)
 procActive = true; procModifiers[403], procCosts[403] = -110, 0
 auras = { { spellId = 16246, isHelpful = true,
     applications = 1, duration = 15, expirationTime = 111 } }
+assert(not Runtime:Attach(state, "SHAMAN")
+    and state.shamanClearcasting.reason
+        == "non-Octo Shaman Clearcasting topology is unsupported",
+    "legacy one-charge Clearcasting must fail closed on Octo")
+
+local learned = IsPlayerSpell
+IsPlayerSpell = function() return nil end
+assert(not Runtime:Attach(state, "SHAMAN")
+    and state.shamanClearcasting.reason == "Elemental Focus ownership unavailable",
+    "unknown passive ownership must fail closed")
+IsPlayerSpell = learned
+Runtime:Invalidate(); records[45541].effectTriggerSpell[1] = 45543
+assert(not Runtime:Attach(state, "SHAMAN")
+    and state.shamanClearcasting.reason
+        == "Elemental Focus trigger topology is incomplete",
+    "recognized passive trigger drift must fail closed")
+records[45541].effectTriggerSpell[1] = 45542; Runtime:Invalidate()
+
+procModifiers[403], procCosts[403] = -70, 12
+procActive = false; auras = {}
+assert(Runtime:Attach(state, "SHAMAN"))
+Runtime:CaptureFacts(bolt, plain, state)
+procActive = true
+auras = { { spellId = 45542, isHelpful = true,
+    applications = 2, duration = 15, expirationTime = 111 } }
 assert(Runtime:Attach(state, "SHAMAN")
-    and state.shamanClearcasting.profile.modifierAmount == -100)
-local freeFacts = Runtime:CaptureFacts(bolt, { cost = 0 }, state)
-prepared = Graph:PrepareLegal(bolt, state, freeFacts)
-assert(prepared and prepared.cost == 0
-    and prepared.shamanClearcastingConsumption,
-    "the alternate exact topology must use the engine's zero cost")
+    and state.shamanClearcasting.learned
+    and state.shamanClearcasting.triggerEligible
+    and state.shamanClearcasting.triggerSpellCritical
+    and state.shamanClearcasting.triggerMeleeCritical
+    and state.shamanClearcasting.triggerProjection == "observed-aura-only"
+    and state.shamanClearcasting.remainingCharges == 2,
+    "owned Octo proc must preserve both charges")
+local ownedFacts = Runtime:CaptureFacts(bolt, { cost = 12 }, state)
+prepared = Graph:PrepareLegal(bolt, state, ownedFacts)
 
 local saved = { GetSpellRecField, GetSpellModifiers, GetTime,
-    C_Spell.GetSpellPowerCost, C_UnitAuras.GetUnitAuras, UnitClass, UnitExists }
+    C_Spell.GetSpellPowerCost, C_UnitAuras.GetUnitAuras, UnitClass, UnitExists,
+    IsPlayerSpell }
 GetSpellRecField = function() error("DBC read during graph search") end
 GetSpellModifiers = function() error("modifier read during graph search") end
 GetTime = function() error("wall-clock read during graph search") end
@@ -265,15 +301,16 @@ C_Spell.GetSpellPowerCost = function() error("cost read during graph search") en
 C_UnitAuras.GetUnitAuras = function() error("aura read during graph search") end
 UnitClass = function() error("class read during graph search") end
 UnitExists = function() error("identity read during graph search") end
+IsPlayerSpell = function() error("ownership read during graph search") end
 local pureChild = { time = 0, playerGcdReadyAt = 0,
     actorReadyAt = { player = 0 } }
 assert(Graph:Copy(state, pureChild)
     and Graph:Consume(pureChild, { action = bolt, tooltip = prepared,
-        actionStart = 0, cost = 0 }),
+        actionStart = 0, cost = 12 }),
     "graph copy and consumption must use only sealed root evidence")
 GetSpellRecField, GetSpellModifiers, GetTime, C_Spell.GetSpellPowerCost,
-    C_UnitAuras.GetUnitAuras, UnitClass, UnitExists = saved[1], saved[2],
-    saved[3], saved[4], saved[5], saved[6], saved[7]
+    C_UnitAuras.GetUnitAuras, UnitClass, UnitExists, IsPlayerSpell = saved[1],
+    saved[2], saved[3], saved[4], saved[5], saved[6], saved[7], saved[8]
 
 local priorAuraCalls = auraCalls
 playerClass = "MAGE"

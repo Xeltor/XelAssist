@@ -10,6 +10,10 @@ function P:Blocker(action, state, tooltip)
         return type(facts.unmodeledUnsafe) == "string"
             and facts.unmodeledUnsafe or "unsafe consequence is not modeled"
     end
+    if facts.requiresExactTooltipCost
+        and not (tooltip and tooltip.tooltipCostExact == true) then
+        return "dynamic action cost unavailable"
+    end
     local forms = XelAssist.Graph.FormRequirements
     local formBlocker = forms and forms:Blocker(state, tooltip)
     if formBlocker then return formBlocker end

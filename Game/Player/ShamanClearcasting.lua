@@ -12,7 +12,8 @@ C.COST_MODIFIER = 14
 C.PROC_FLAGS = 87376
 C.MAX_AURAS = 48
 C.MAX_CACHE = 256
-
+C.PASSIVE_ID = 45541
+C.AURA_ID = 45542
 local PROFILES, PROFILE_COUNT = {}, 0
 local ACTIONS, ACTION_COUNT = {}, 0
 local BASELINES, ACTIVE_EPOCH = {}, nil
@@ -74,6 +75,31 @@ local function equal(values, first, second, third)
         and values[3] == third
 end
 
+local function passiveTopology()
+    local id = C.PASSIVE_ID
+    return scalar(id, "school") == 0 and scalar(id, "attributes") == 464
+        and scalar(id, "attributesEx") == 0 and scalar(id, "attributesEx2") == 0
+        and scalar(id, "attributesEx3") == 67108864
+        and scalar(id, "attributesEx4") == 0
+        and scalar(id, "procFlags") == 87380 and scalar(id, "procChance") == 100
+        and scalar(id, "procCharges") == 0 and scalar(id, "durationIndex") == 21
+        and scalar(id, "spellFamilyName") == C.SHAMAN_FAMILY
+        and equal(triple(id, "effect"), 6, 0, 0)
+        and equal(triple(id, "effectApplyAuraName"), 42, 0, 0)
+        and equal(triple(id, "effectImplicitTargetA"), 1, 0, 0)
+        and equal(triple(id, "effectTriggerSpell"), C.AURA_ID, 0, 0)
+end
+
+local function learnedPassive()
+    if type(IsPlayerSpell) ~= "function" then
+        return nil, "Elemental Focus ownership unavailable"
+    end
+    local ok, learned = pcall(IsPlayerSpell, C.PASSIVE_ID)
+    if not ok or type(learned) ~= "boolean" then
+        return nil, "Elemental Focus ownership unavailable"
+    end
+    return learned
+end
 local function classToken()
     if type(UnitClass) ~= "function" then return nil end
     local ok, _, token = pcall(UnitClass, "player")
@@ -115,6 +141,12 @@ local function classifyAura(spellId)
     if not recognized then
         cacheProfile(spellId, { valid = false, recognized = false })
         return nil, nil, false
+    end
+    if spellId ~= C.AURA_ID then
+        local out = { valid = false, exact = false, recognized = true,
+            reason = "non-Octo Shaman Clearcasting topology is unsupported" }
+        cacheProfile(spellId, out)
+        return nil, out.reason, true
     end
     local points = triple(spellId, "effectBasePoints", true)
     local dice = triple(spellId, "effectBaseDice")
@@ -330,6 +362,17 @@ function C:Observe(state)
         out.reason = "Shaman Clearcasting aura evidence unavailable"
         return out
     end
+    local learned, ownershipReason = learnedPassive()
+    if learned == nil then out.reason = ownershipReason; return out end
+    if learned and not passiveTopology() then
+        out.reason = "Elemental Focus trigger topology is incomplete"
+        return out
+    end
+    if not learned then
+        out.available, out.exact, out.active, out.guid = true, true, false, before
+        out.learned, out.triggerEligible = false, false
+        return out
+    end
     local ok, list = pcall(C_UnitAuras.GetUnitAuras, "player", "HELPFUL")
     local clockOK, now = pcall(GetTime)
     now = clockOK and finite(now) or nil
@@ -362,11 +405,18 @@ function C:Observe(state)
             end
         end
     end
-    if found then found.guid = before; return found end
+    if found then
+        found.guid, found.learned, found.triggerEligible = before, true, true
+        found.triggerSpellCritical, found.triggerMeleeCritical = true, true
+        found.triggerProjection = "observed-aura-only"
+        return found
+    end
     out.available, out.exact, out.active, out.guid = true, true, false, before
+    out.learned, out.triggerEligible = true, true
+    out.triggerSpellCritical, out.triggerMeleeCritical = true, true
+    out.triggerProjection = "observed-aura-only"
     return out
 end
-
 function C:Attach(state, knownClass)
     if type(state) ~= "table" then return false end
     state.shamanClearcasting = nil
@@ -376,7 +426,6 @@ function C:Attach(state, knownClass)
     if state.shamanClearcasting.active ~= true then ACTIVE_EPOCH = nil end
     return state.shamanClearcasting.exact == true
 end
-
 function C:CaptureFacts(action, facts, state)
     local evidence = state and state.shamanClearcasting
     local spellId = action and action.spellId
@@ -392,11 +441,9 @@ function C:CaptureFacts(action, facts, state)
     out.shamanClearcastingCost = activeContract(spellId, level, evidence)
     return out
 end
-
 function C:InvalidateCosts()
     BASELINES, ACTIVE_EPOCH = {}, nil
 end
-
 function C:Invalidate()
     PROFILES, PROFILE_COUNT, ACTIONS, ACTION_COUNT = {}, 0, {}, 0
     self:InvalidateCosts()

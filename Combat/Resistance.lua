@@ -1236,8 +1236,23 @@ local function componentConfidence(parts, unknown)
     return weakest
 end
 
-function R:Estimate(action, target, tooltip, state, componentCall)
+local function projectedActionFacts(action, tooltip, state)
     local facts = action and action.facts or {}
+    local marker = tooltip and tooltip.warlockNightfallGuaranteedHit
+    if type(marker) ~= "table" or marker.exact ~= true
+        or marker.auraSpellId ~= 17941 or not action
+        or marker.spellId ~= action.spellId
+        or facts.warlockNightfallConsumerExact ~= true
+        or not (state and state.warlockNightfall
+            and state.warlockNightfall.active == true) then return facts end
+    local out, key, value = {}, nil, nil
+    for key, value in pairs(facts) do out[key] = value end
+    out.alwaysHit = true
+    return out
+end
+
+function R:Estimate(action, target, tooltip, state, componentCall)
+    local facts = projectedActionFacts(action, tooltip, state)
     if not componentCall and type(facts.damageComponents) == "table" then
         local totalWeight, totalMultiplier, parts, i = 0, 0, {}, nil
         for i = 1, table.getn(facts.damageComponents) do

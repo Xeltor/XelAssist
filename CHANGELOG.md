@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.47
+
+- Added exact installed Nightfall ownership and observed Shadow Trance state.
+  Its next Shadow Bolt becomes instant and bypasses ordinary hit uncertainty
+  once per branch; proc generation and mechanic resistance remain conservative.
+- Replaced generic Shaman Clearcasting recognition with Octo's learned Elemental
+  Focus and exact two-charge aura. Engine-reported costs are sealed per action,
+  while unobserved critical-trigger timing is not fabricated.
+- Added active Improved Shadowform's exact Shadow-spell mana costs and retained
+  its in-casting regeneration as explicit unknown state until the rate and
+  server tick phase can be observed safely.
+- Added Shiv's exact off-hand packet, combo gain and equipment requirement. Its
+  dynamic Energy cost must come from the live tooltip and poison delivery earns
+  no speculative value without observable poison evidence.
+
 ## 0.8.46
 
 - Made normal-cast pushback extend the fallback cast deadline and consumed

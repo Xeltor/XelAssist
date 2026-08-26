@@ -34,6 +34,7 @@ local HunterDistractingShot = XelAssist.Game.Player.HunterDistractingShot
 local HunterRapidFire = XelAssist.Game.Player.HunterRapidFire
 local HunterStingingNettle = XelAssist.Game.Player.HunterStingingNettle
 local PriestShadowform = XelAssist.Game.Player.PriestShadowform
+local PriestImprovedShadowform = XelAssist.Game.Player.PriestImprovedShadowform
 local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
 local PriestPowerInfusionRuntime = XelAssist.Game.Player.PriestPowerInfusion
 local PriestPowerInfusion = XelAssist.Graph.PriestPowerInfusion
@@ -50,6 +51,7 @@ local WarlockFelDominationRuntime =
     XelAssist.Game.Player.WarlockFelDomination
 local WarlockDarkPactRuntime = XelAssist.Game.Player.WarlockDarkPact
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
+local WarlockNightfallRuntime = XelAssist.Game.Player.WarlockNightfall
 
 function E:CaptureFacts(action, facts, state)
     local out = facts
@@ -115,6 +117,9 @@ function E:CaptureFacts(action, facts, state)
     if WarlockDarkPactRuntime then
         out = WarlockDarkPactRuntime:CaptureFacts(action, out)
     end
+    if WarlockNightfallRuntime then
+        out = WarlockNightfallRuntime:CaptureFacts(action, out)
+    end
     if HunterMark then out = HunterMark:CaptureFacts(action, out) end
     if HunterHawk then out = HunterHawk:CaptureFacts(action, out) end
     if HunterDistractingShot then
@@ -128,6 +133,9 @@ function E:CaptureFacts(action, facts, state)
     end
     if PriestShadowform then
         out = PriestShadowform:CaptureFacts(action, out)
+    end
+    if PriestImprovedShadowform then
+        out = PriestImprovedShadowform:CaptureFacts(action, out, state)
     end
     if PriestInnerFocusRuntime then
         out = PriestInnerFocusRuntime:CaptureFacts(action, out, state)

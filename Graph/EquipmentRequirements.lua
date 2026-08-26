@@ -38,6 +38,13 @@ function E:Blocker(state, tooltip)
     if not requiredClass or requiredClass < 0 then return nil end
     local inventory = state and state.inventory
     if type(inventory) ~= "table" then return "equipment state unavailable" end
+    if tooltip.requiresOffhandWeapon == true then
+        local result = matches(inventory.offHand, requiredClass,
+            tooltip.equippedItemSubClassMask,
+            tooltip.equippedItemInventoryTypeMask)
+        if result == nil then return "off-hand classification unavailable" end
+        return result and nil or "required off-hand weapon missing or broken"
+    end
     local unknown, index = false, nil
     for index = 1, table.getn(SLOTS) do
         local result = matches(inventory[SLOTS[index]], requiredClass,

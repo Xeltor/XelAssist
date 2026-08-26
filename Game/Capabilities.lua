@@ -4,6 +4,7 @@ local DruidForms = XelAssist.Game.Player and XelAssist.Game.Player.DruidFormStat
 local WarriorRage = XelAssist.Game.Player and XelAssist.Game.Player.WarriorRage
 local WarriorChargeCombat = XelAssist.Game.Player
     and XelAssist.Game.Player.WarriorChargeCombat
+local RogueShiv = XelAssist.Game.Player and XelAssist.Game.Player.RogueShiv
 local ActionInference = XelAssist.Game.ActionInference
 local function captureWarriorFacts(action, facts)
     if WarriorChargeCombat then
@@ -400,6 +401,10 @@ local function numberFrom(text, pattern)
     local _, _, value = string.find(text, pattern)
     return value and tonumber(value) or nil
 end
+local function applyTooltipCost(facts, text)
+    local cost = numberFrom(text, "^(%d+) %a+$")
+    if cost then facts.cost, facts.tooltipCostExact = cost, true end
+end
 
 local function penetrationResult(spell, armor, known, reason)
     return { spell = spell or 0, armor = armor or 0, known = known and true or false,
@@ -614,8 +619,7 @@ function C:Facts(action)
         local rt = right and right:GetText()
         local text = (lt or "") .. " " .. (rt or "")
         description = description .. " " .. string.lower(string.gsub(text, ",", ""))
-        local tooltipCost = numberFrom(lt, "^(%d+) %a+$")
-        if tooltipCost then out.cost = tooltipCost end
+        applyTooltipCost(out, lt)
         if string.find(text, "Instant") then out.cast = 0 end
         if not out.cast then out.cast = numberFrom(text, "(%d+%.?%d*) sec cast") end
         if not out.cooldown then out.cooldown = numberFrom(text, "(%d+%.?%d*) sec cooldown") end
@@ -706,6 +710,7 @@ function C:Facts(action)
     if XelAssist.Game.SpellEffectPower then XelAssist.Game.SpellEffectPower:Apply(action, out, dbc, dbcArray) end
     if XelAssist.Game.HealthTransfer then XelAssist.Game.HealthTransfer:Apply(action, out, dbc, dbcArray) end
     XelAssist.Game.TargetModifierFacts:Apply(action, out)
+    if RogueShiv then out = RogueShiv:CaptureFacts(action, out) end
     out = captureWarriorFacts(action, out)
     XelAssist.Game.SpellFactCache:Store(factCache, cacheKey, out)
     return out

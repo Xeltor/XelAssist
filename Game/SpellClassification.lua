@@ -9,6 +9,13 @@ local function flagSet(value, flag)
         - math.floor(value / (flag * 2)) * 2 == 1
 end
 
+local function applyEquipmentFlags(out, dbc)
+    out.attributesEx2 = dbc("attributesEx2")
+    out.attributesEx3 = dbc("attributesEx3")
+    out.requiresOffhandWeapon = out.attributesEx3 ~= nil
+        and flagSet(out.attributesEx3, 16777216) or false
+end
+
 -- The installed DBC's start-recovery category is the authoritative shared-GCD
 -- lane. Missing records stay conservative; ambient and on-swing actions own
 -- independent client lanes even when their record has a recovery duration.
@@ -40,7 +47,7 @@ function S:Apply(action, out, dbc, dbcArray)
     out.requiresStealth = out.attributes ~= nil
         and flagSet(out.attributes, 131072) or false
     out.attributesEx = dbc("attributesEx")
-    out.attributesEx2 = dbc("attributesEx2")
+    applyEquipmentFlags(out, dbc)
     out.comboSpendAll = out.attributesEx ~= nil
         and (flagSet(out.attributesEx, 1048576)
             or flagSet(out.attributesEx, 4194304)) or false

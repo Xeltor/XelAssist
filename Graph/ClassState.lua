@@ -28,6 +28,7 @@ local HunterHawk = XelAssist.Graph.HunterHawk
 local HunterRapidFireRuntime = XelAssist.Game.Player.HunterRapidFire
 local HunterRapidFire = XelAssist.Graph.HunterRapidFire
 local PriestShadowform = XelAssist.Graph.PriestShadowform
+local PriestImprovedShadowform = XelAssist.Game.Player.PriestImprovedShadowform
 local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
 local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
 local PriestFade = XelAssist.Graph.PriestFade
@@ -39,6 +40,8 @@ local WarlockFelDominationRuntime =
 local WarlockFelDomination = XelAssist.Graph.WarlockFelDomination
 local WarlockSoulLinkRuntime = XelAssist.Game.Player.WarlockSoulLink
 local WarlockSoulLink = XelAssist.Graph.WarlockSoulLink
+local WarlockNightfallRuntime = XelAssist.Game.Player.WarlockNightfall
+local WarlockNightfall = XelAssist.Graph.WarlockNightfall
 
 local function classToken()
     if type(UnitClass) ~= "function" then return nil end
@@ -100,6 +103,9 @@ function S:Attach(state)
     elseif token == "PRIEST" then
         local attached = PriestShadowform
             and PriestShadowform:Attach(state, token) or false
+        if PriestImprovedShadowform then
+            attached = PriestImprovedShadowform:Attach(state) or attached
+        end
         if PriestInnerFocusRuntime then
             attached = PriestInnerFocusRuntime:Attach(state, token) or attached
         end
@@ -134,6 +140,10 @@ function S:Attach(state)
         if WarlockFelDominationRuntime and WarlockFelDomination then
             attached = WarlockFelDominationRuntime:Attach(state, token)
                 or attached
+        end
+        if WarlockNightfallRuntime and WarlockNightfall then
+            attached = WarlockNightfall:Attach(state,
+                WarlockNightfallRuntime:Snapshot(token)) or attached
         end
         return attached
     elseif token == "WARRIOR" then
@@ -178,12 +188,16 @@ function S:Copy(source, target)
     if RogueRuthlessness then RogueRuthlessness:Copy(source, target) end
     if RoguePreparation then RoguePreparation:Copy(source, target) end
     if PriestShadowform then PriestShadowform:Copy(source, target) end
+    if PriestImprovedShadowform then
+        PriestImprovedShadowform:Copy(source, target)
+    end
     if PriestInnerFocus then PriestInnerFocus:Copy(source, target) end
     if PriestFade then PriestFade:Copy(source, target) end
     if Windfury then Windfury:Copy(source, target) end
     if WarriorBattleShout then WarriorBattleShout:Copy(source, target) end
     if WarriorShieldWall then WarriorShieldWall:Copy(source, target) end
     if WarlockFelDomination then WarlockFelDomination:Copy(source, target) end
+    if WarlockNightfall then WarlockNightfall:Copy(source, target) end
     if source.warlockSoulLink then
         target.warlockSoulLink = copy(source.warlockSoulLink, 4)
     end
@@ -205,6 +219,7 @@ function S:Copy(source, target)
         or source.rogueRuthlessness ~= nil
         or source.roguePreparationReset ~= nil
         or source.playerShadowformProfileExact == true
+        or source.priestImprovedShadowform ~= nil
         or source.priestInnerFocus ~= nil
         or source.priestFade ~= nil
         or source.shamanWindfuryTotem ~= nil
@@ -212,4 +227,5 @@ function S:Copy(source, target)
         or source.warriorBattleShout ~= nil
         or source.warriorShieldWall ~= nil
         or source.warlockFelDomination ~= nil
+        or source.warlockNightfall ~= nil
 end

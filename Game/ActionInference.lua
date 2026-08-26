@@ -4,7 +4,7 @@
 XelAssist.Game.ActionInference = {}
 local I = XelAssist.Game.ActionInference
 local ROGUE_INFERENCE = { "RogueSliceAndDice", "RoguePreparation",
-    "RogueFeint", "RogueSurpriseAttack" }
+    "RogueFeint", "RogueSurpriseAttack", "RogueShiv" }
 
 local function infer(module, spellId)
     if not (module and type(module.InferKnowledge) == "function") then
@@ -41,7 +41,7 @@ function I:ClassKnowledge(spellId)
     facts, reason, handled = infer(player.DruidFrenziedRegeneration, spellId)
     if handled then return facts, reason, true end
     local index
-    for index = 1, 4 do
+    for index = 1, 5 do
         facts, reason, handled = infer(player[ROGUE_INFERENCE[index]], spellId)
         if handled then return facts, reason, true end
     end
@@ -150,6 +150,9 @@ function I:InvalidateClass()
     if player.MageColdSnap then player.MageColdSnap:Invalidate() end
     if player.PriestShield then player.PriestShield:Invalidate() end
     if player.PriestShadowform then player.PriestShadowform:Invalidate() end
+    if player.PriestImprovedShadowform then
+        player.PriestImprovedShadowform:Invalidate()
+    end
     if player.PriestInnerFocus then player.PriestInnerFocus:Invalidate() end
     if player.PriestPowerInfusion then
         player.PriestPowerInfusion:Invalidate()
@@ -172,6 +175,7 @@ function I:InvalidateClass()
     if player.RogueSurpriseAttack then
         player.RogueSurpriseAttack:Invalidate()
     end
+    if player.RogueShiv then player.RogueShiv:Invalidate() end
     if player.HunterMark then player.HunterMark:Invalidate() end
     if player.HunterHawk then player.HunterHawk:Invalidate() end
     if player.HunterDistractingShot then
