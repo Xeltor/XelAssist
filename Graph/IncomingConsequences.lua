@@ -5,6 +5,8 @@ local I = XelAssist.Graph.IncomingConsequences
 local State = XelAssist.Graph.State
 local IncomingAbsorbs = XelAssist.Graph.IncomingAbsorbs
 local PriestShadowform = XelAssist.Graph.PriestShadowform
+local WarriorStances = XelAssist.Graph.WarriorStances
+local WarriorShieldWall = XelAssist.Graph.WarriorShieldWall
 local WarlockSoulLink = XelAssist.Graph.WarlockSoulLink
 
 local function friendlyByGuid(state, guid)
@@ -151,11 +153,26 @@ function I:Preview(state, cast)
     end
     local probability = castProbability(cast)
     local rawAmount = math.max(0, tonumber(facts.amount) or 0)
-    if facts.kind == "damage" and PriestShadowform then
-        local adjusted, adjustmentReason, handled = PriestShadowform:AdjustIncoming(
-            state, recipient, rawAmount, facts.school)
-        if handled and adjusted == nil then return nil, adjustmentReason end
-        if handled then rawAmount = adjusted end
+    if facts.kind == "damage" then
+        local adjusted, adjustmentReason, handled
+        if WarriorStances then
+            adjusted, adjustmentReason, handled = WarriorStances:AdjustIncoming(
+                state, recipient, rawAmount)
+            if handled and adjusted == nil then return nil, adjustmentReason end
+            if handled then rawAmount = adjusted end
+        end
+        if PriestShadowform then
+            adjusted, adjustmentReason, handled = PriestShadowform:AdjustIncoming(
+                state, recipient, rawAmount, facts.school)
+            if handled and adjusted == nil then return nil, adjustmentReason end
+            if handled then rawAmount = adjusted end
+        end
+        if WarriorShieldWall then
+            adjusted, adjustmentReason, handled = WarriorShieldWall:AdjustIncoming(
+                state, recipient, rawAmount, facts.school)
+            if handled and adjusted == nil then return nil, adjustmentReason end
+            if handled then rawAmount = adjusted end
+        end
     end
     return { facts = facts, recipient = recipient, guid = guid,
         amount = rawAmount * probability, rawAmount = rawAmount,

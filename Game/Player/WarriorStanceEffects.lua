@@ -324,6 +324,41 @@ function W:Project(state, formID)
     return true
 end
 
+-- Search-pure incoming-damage contract. Threat talent uncertainty does not
+-- erase the independently exact damage-taken aura, but a stale or missing
+-- projected form must never silently become neutral mitigation.
+function W:IncomingMultiplier(state)
+    local snapshot = state and state.warriorStanceEffects
+    local form = state and state.playerForm
+    local formID = form and form.available == true
+        and integer(form.formID, 0, 32) or nil
+    if not (snapshot and snapshot.kind == "warriorStanceEffects"
+        and snapshot.available == true and type(snapshot.byForm) == "table"
+        and formID ~= nil) then
+        return nil, "exact Warrior stance damage-taken evidence unavailable"
+    end
+    if formID == 0 then
+        if state.warriorStanceProfile ~= nil
+            or state.playerStanceDamageTakenMultiplier ~= nil then
+            return nil, "neutral Warrior stance retains a stale mitigation profile"
+        end
+        return 1, nil
+    end
+    local profile = self:StanceProfile(snapshot, formID)
+    local projected = state.warriorStanceProfile
+    local multiplier = profile and profile.damageTakenMultiplier
+    if not (profile and profile.exact == true and projected
+        and projected.exact == true and projected.formID == formID
+        and projected.passiveSpellId == profile.passiveSpellId
+        and projected.damageTakenMultiplier == multiplier
+        and state.playerStanceDamageTakenMultiplier == multiplier
+        and type(multiplier) == "number" and multiplier >= 0
+        and multiplier <= 2) then
+        return nil, "exact Warrior stance damage-taken projection unavailable"
+    end
+    return multiplier, nil
+end
+
 function W:Attach(state)
     if type(state) ~= "table" then return false end
     local snapshot = self:Snapshot()

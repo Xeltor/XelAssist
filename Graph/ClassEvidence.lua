@@ -33,6 +33,7 @@ local WarriorBattleShout = XelAssist.Game.Player.WarriorBattleShout
 local WarriorThunderClap = XelAssist.Game.Player.WarriorThunderClap
 local WarriorDemoralizingShout =
     XelAssist.Game.Player.WarriorDemoralizingShout
+local WarriorShieldWall = XelAssist.Game.Player.WarriorShieldWall
 local WarriorThreatPackets = XelAssist.Graph.WarriorThreatPackets
 local WarlockDarkPactRuntime = XelAssist.Game.Player.WarlockDarkPact
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
@@ -74,6 +75,9 @@ function E:CaptureFacts(action, facts, state)
     end
     if WarriorDemoralizingShout then
         out = WarriorDemoralizingShout:CaptureFacts(action, out)
+    end
+    if WarriorShieldWall then
+        out = WarriorShieldWall:CaptureFacts(action, out)
     end
     if WarlockDarkPactRuntime then
         out = WarlockDarkPactRuntime:CaptureFacts(action, out)

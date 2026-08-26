@@ -328,3 +328,27 @@ function W:Apply(state, candidate)
     if effects then effects:Project(state, transition.targetForm) end
     return true
 end
+
+-- Applies only the stance-owned portion of incoming player damage. Shield
+-- Wall and absorbs compose later in IncomingConsequences exactly once.
+function W:AdjustIncoming(state, recipient, amount)
+    amount = tonumber(amount)
+    if amount == nil or amount ~= amount or amount < 0
+        or amount > 1000000000 or amount == math.huge then
+        return nil, "incoming damage amount unavailable", true
+    end
+    if not (recipient and recipient.kind == "player") then
+        return amount, nil, false
+    end
+    local warriorState = state and (state.classMechanicClass == "WARRIOR"
+        or state.warriorStanceEffects ~= nil)
+    if not warriorState then return amount, nil, false end
+    local effects = XelAssist.Game.Player
+        and XelAssist.Game.Player.WarriorStanceEffects
+    if not (effects and type(effects.IncomingMultiplier) == "function") then
+        return nil, "Warrior stance mitigation graph unavailable", true
+    end
+    local multiplier, reason = effects:IncomingMultiplier(state)
+    if multiplier == nil then return nil, reason, true end
+    return amount * multiplier, nil, true
+end

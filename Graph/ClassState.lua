@@ -28,6 +28,7 @@ local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
 local PriestFade = XelAssist.Graph.PriestFade
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
+local WarriorShieldWall = XelAssist.Graph.WarriorShieldWall
 local WarlockSoulLinkRuntime = XelAssist.Game.Player.WarlockSoulLink
 local WarlockSoulLink = XelAssist.Graph.WarlockSoulLink
 
@@ -114,8 +115,13 @@ function S:Attach(state)
         and WarlockSoulLink then
         return WarlockSoulLink:Attach(
             state, WarlockSoulLinkRuntime:Snapshot(token))
-    elseif token == "WARRIOR" and WarriorBattleShout then
-        return WarriorBattleShout:Attach(state)
+    elseif token == "WARRIOR" then
+        local attached = WarriorBattleShout
+            and WarriorBattleShout:Attach(state) or false
+        if WarriorShieldWall then
+            attached = WarriorShieldWall:Attach(state, token) or attached
+        end
+        return attached
     end
     return false
 end
@@ -150,6 +156,7 @@ function S:Copy(source, target)
     if PriestFade then PriestFade:Copy(source, target) end
     if Windfury then Windfury:Copy(source, target) end
     if WarriorBattleShout then WarriorBattleShout:Copy(source, target) end
+    if WarriorShieldWall then WarriorShieldWall:Copy(source, target) end
     if source.warlockSoulLink then
         target.warlockSoulLink = copy(source.warlockSoulLink, 4)
     end
@@ -173,4 +180,5 @@ function S:Copy(source, target)
         or source.shamanWindfuryTotem ~= nil
         or source.warlockSoulLink ~= nil
         or source.warriorBattleShout ~= nil
+        or source.warriorShieldWall ~= nil
 end

@@ -21,6 +21,7 @@ local MageColdSnap = XelAssist.Graph.MageColdSnap
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local ManaSpring = XelAssist.Graph.ShamanManaSpring
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
+local WarriorShieldWall = XelAssist.Graph.WarriorShieldWall
 local Evidence = XelAssist.Graph.ClassEvidence
 local ClassState = XelAssist.Graph.ClassState
 
@@ -55,6 +56,12 @@ end
 local function warriorClaimed(facts)
     return facts.warriorBattleShout == true
         or facts.requiresExactBattleShoutDownstream == true
+end
+
+local function warriorShieldWallClaimed(facts)
+    return facts.warriorShieldWall == true
+        or facts.requiresExactWarriorShieldWall == true
+        or facts.warriorShieldWallTransition ~= nil
 end
 
 local function hunterHawkClaimed(facts)
@@ -205,6 +212,12 @@ function M:Prepare(action, state, descriptor, tooltip)
         end
         return PriestPowerInfusion:Prepare(
             action, state, descriptor, facts)
+    elseif warriorShieldWallClaimed(facts)
+        or warriorShieldWallClaimed(actionFacts) then
+        if not WarriorShieldWall then
+            return nil, "Warrior Shield Wall graph unavailable", true
+        end
+        return WarriorShieldWall:Prepare(action, state, descriptor, facts)
     elseif warriorClaimed(facts) or warriorClaimed(actionFacts) then
         if not WarriorBattleShout then
             return nil, "Warrior Battle Shout graph unavailable", true
@@ -329,6 +342,9 @@ function M:Score(context, projection)
         local scored, reason = WarriorBattleShout:Score(context, projection)
         if scored or reason then return scored, reason end
     end
+    if WarriorShieldWall and projection.warriorShieldWallTransition then
+        return WarriorShieldWall:Score(context, projection)
+    end
     return false, "exact class mechanic consequence scoring unavailable"
 end
 
@@ -370,6 +386,9 @@ function M:Apply(state, candidate)
     elseif projection.classMechanic == "warriorBattleShout"
         and WarriorBattleShout then
         return WarriorBattleShout:Apply(state, candidate)
+    elseif projection.classMechanic == "warriorShieldWall"
+        and WarriorShieldWall then
+        return WarriorShieldWall:Apply(state, candidate)
     elseif projection.mageColdSnapTransition and MageColdSnap then
         return MageColdSnap:Apply(state, candidate)
     elseif projection.magePresenceOfMindTransition
@@ -394,5 +413,6 @@ function M:Advance(state, elapsed)
     if PaladinMight then PaladinMight:Advance(state, elapsed) end
     if PaladinWisdom then PaladinWisdom:Advance(state, elapsed) end
     if PriestFade then PriestFade:Advance(state, elapsed) end
+    if WarriorShieldWall then WarriorShieldWall:Advance(state, elapsed) end
     return expired
 end

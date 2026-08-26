@@ -67,6 +67,7 @@ Game\Player\WarriorRevengeThreat.lua
 Game\Player\WarriorHeroicStrikeThreat.lua
 Game\Player\WarriorThunderClap.lua
 Game\Player\WarriorDemoralizingShout.lua
+Game\Player\WarriorShieldWall.lua
 Game\ActionInference.lua
 Game\Player\WarriorRage.lua
 Game\CrowdControl.lua
@@ -173,6 +174,7 @@ Graph\RogueRuthlessness.lua
 Graph\PlayerThreat.lua
 Graph\HunterDistractingShot.lua
 Graph\WarriorBattleShout.lua
+Graph\WarriorShieldWall.lua
 Graph\ClassEvidence.lua
 Graph\ClassState.lua
 Graph\ClassMechanics.lua
