@@ -2,11 +2,12 @@ XelAssist = { Graph = {} }
 dofile("Graph/PeriodicScoring.lua")
 local P = XelAssist.Graph.PeriodicScoring
 
-local function score(expected, cost, factor, health)
+local function score(expected, cost, factor, health, expectedTicks)
     local context = { expectedPower = expected, cost = cost, downtime = 1.5,
         state = { targetHealthExact = true, targetHealth = health,
             role = "damage" },
-        survival = { decisionFactor = factor } }
+        survival = { decisionFactor = factor,
+            expectedPeriodicTicks = expectedTicks } }
     P:Score(context, health)
     return context
 end
@@ -22,5 +23,14 @@ assert(partial.value > 0 and partial.value < full.value,
     "periodic value must scale with causal delivered damage")
 assert(full.value > 0 and full.reason == "adds efficient lasting damage",
     "a fully consumable periodic effect must retain throughput and resource value")
+
+local noUsefulTick = score(1, 10, 0.08, 8, 0.24)
+assert(noUsefulTick.value < 0
+    and noUsefulTick.reason == "target may die before the first useful tick",
+    "a fractional chance of one late tick must not justify paying for a DoT")
+
+local usefulTick = score(4, 10, 0.4, 30, 1.2)
+assert(usefulTick.value > 0,
+    "one causally expected tick must remain eligible for graph comparison")
 
 print("ok: periodic scoring requires a causally deliverable tick")

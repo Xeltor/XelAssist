@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.65
+
+- Prevented Rend and other periodic actions from earning setup value when
+  target-survival evidence predicts fewer than one causally deliverable tick.
+  This fixes the observed level-4 Rend cast at 8/95 target health without
+  introducing a Warrior-specific rotation rule.
+- Added expected periodic-tick counts to the bounded decision log so future
+  short-fight tuning can distinguish a real late tick from fractional value.
+
 ## 0.8.64
 
 - Added a character-specific Evocation learner. One complete, uninterrupted,

@@ -46,8 +46,8 @@ local function tickFraction(startAt, duration, interval, lower, upper)
         ticks = ticks + 1
         at = at + interval
     end
-    if ticks <= 0 then return 0, 0 end
-    return math.max(0, math.min(1, expected / ticks)), ticks
+    if ticks <= 0 then return 0, 0, 0 end
+    return math.max(0, math.min(1, expected / ticks)), ticks, expected
 end
 
 local function evidence(context)
@@ -108,7 +108,8 @@ function S:Adjust(context)
     local impactAt = stateTime + impactDelay
     local before = math.max(0, tonumber(context.expectedPower) or 0)
     local directFactor = aliveAt(impactAt, lower, upper)
-    local periodicFactor, duration = nil, nil
+    local periodicFactor, periodicTicks, expectedPeriodicTicks, duration =
+        nil, nil, nil, nil
     local utilityFactor, expectedUtilitySeconds, utilityPaybackSeconds
     if context.kind == "debuff" then
         utilityFactor, expectedUtilitySeconds, utilityPaybackSeconds, duration =
@@ -118,7 +119,7 @@ function S:Adjust(context)
             or tonumber(context.tooltip.duration) or 12)
         local interval = tonumber(context.effectTooltip.periodicInterval)
             or tonumber(context.tooltip.periodicInterval)
-        periodicFactor = tickFraction(
+        periodicFactor, periodicTicks, expectedPeriodicTicks = tickFraction(
             impactAt, duration, interval, lower, upper)
         if periodicFactor == nil then
             periodicFactor = windowFraction(impactAt, duration, lower, upper)
@@ -153,6 +154,8 @@ function S:Adjust(context)
         periodicInterval = context.kind == "dot"
             and (tonumber(context.effectTooltip.periodicInterval)
                 or tonumber(context.tooltip.periodicInterval)) or nil,
+        periodicTicks = periodicTicks,
+        expectedPeriodicTicks = expectedPeriodicTicks,
         tickDiscrete = context.kind == "dot"
             and (tonumber(context.effectTooltip.periodicInterval)
                 or tonumber(context.tooltip.periodicInterval)) ~= nil or nil }

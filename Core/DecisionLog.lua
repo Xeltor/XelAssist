@@ -74,7 +74,9 @@ function L:Record(plan, mode)
         survivalObservedFor = plan.survival and plan.survival.observedFor,
         survivalConfidence = plan.survival and plan.survival.confidence,
         survivalReason = plan.survival and plan.survival.reason,
-        survivalDecisionFactor = plan.survival and plan.survival.decisionFactor })
+        survivalDecisionFactor = plan.survival and plan.survival.decisionFactor,
+        survivalExpectedPeriodicTicks = plan.survival
+            and plan.survival.expectedPeriodicTicks })
     while table.getn(XelAssistLog) > 200 do table.remove(XelAssistLog, 1) end
     recordSession(plan)
 end
@@ -159,10 +161,13 @@ local function survivalDetail(row)
         return " · survival gap [" .. tostring(row.survivalReason) .. "]"
     end
     if not row.survivalTimeToDie then return "" end
-    return string.format(" · survival %.1fs @ %.0f/s [%s, %d%% output]",
+    local ticks = row.survivalExpectedPeriodicTicks
+        and string.format(", %.1f ticks", row.survivalExpectedPeriodicTicks)
+        or ""
+    return string.format(" · survival %.1fs @ %.0f/s [%s, %d%% output%s]",
         row.survivalTimeToDie, row.survivalIncomingDps or 0,
         tostring(row.survivalConfidence or "partial data"),
-        math.floor((row.survivalDecisionFactor or 1) * 100 + 0.5))
+        math.floor((row.survivalDecisionFactor or 1) * 100 + 0.5), ticks)
 end
 
 local function graphDetail(row)

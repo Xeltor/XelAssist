@@ -16,6 +16,13 @@ function P:Score(context, targetHealth)
     local progressFactor = context.survival
         and tonumber(context.survival.decisionFactor) or 1
     progressFactor = math.max(0, math.min(1, progressFactor)) * fraction
+    local expectedTicks = context.survival
+        and tonumber(context.survival.expectedPeriodicTicks)
+    if expected > 0 and expectedTicks and expectedTicks < 1 then
+        context.value = -math.max(1, tonumber(context.cost) or 0)
+        context.reason = "target may die before the first useful tick"
+        return
+    end
     context.value = 250 * progressFactor
         + effective * 4 / math.max(1, context.downtime)
         + effective / math.max(1, context.cost) * 45
