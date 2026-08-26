@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.84
+
+- Prevented periodic-only actions such as Rend from spending resources when
+  observed target survival cannot deliver even half of the effect. The live
+  level-4 case at 30/204 health now preserves rage instead of recommending one
+  tick plus only a fractional chance of another, while targets likely to live
+  for two or more ticks remain eligible.
+
 ## 0.8.83
 
 - Added exact installed Druid Thorns rank ownership and the patch-5 Improved

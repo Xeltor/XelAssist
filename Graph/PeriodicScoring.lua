@@ -45,6 +45,20 @@ function P:Score(context, targetHealth)
         tonumber(context.dotPeriodicExpectedPower) or expected)
     local completion = rawPeriodic > 0
         and math.min(1, expectedPeriodic / rawPeriodic) or 0
+    -- A periodic-only action which cannot deliver even half of its installed-
+    -- client damage has not paid back the resource and action opportunity used
+    -- to apply it.  In particular, a fractional chance of the second Rend tick
+    -- must not turn an otherwise idle auto-attack window into a late refresh.
+    -- Keep mixed direct/periodic spells eligible: their immediate component has
+    -- a separate causal payoff even when the trailing aura is short-lived.
+    if rawDirect <= 0.0001 and rawPeriodic > 0
+        and completion < 0.5 then
+        context.periodicUndeliveredPower = undelivered
+        context.periodicOverlapPower = 0
+        context.value = -math.max(1, tonumber(context.cost) or 0)
+        context.reason = "target may die before the effect pays back"
+        return
+    end
     -- Periodic damage overlaps later player actions; the shallow graph cannot
     -- wait through every tick before comparing that saved action runway.  Pay
     -- only for damage forecast to land, scaled again by effect completion, so

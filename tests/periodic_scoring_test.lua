@@ -36,12 +36,23 @@ assert(usefulTick.value > 0,
 
 local lateRend = score(5, 10, 1 / 3, 30, 1, 15)
 assert(lateRend.value < 0 and lateRend.periodicUndeliveredPower == 10
-    and math.abs(lateRend.periodicOverlapPower - 25 / 3) < 0.0001
+    and lateRend.periodicOverlapPower == 0
     and lateRend.reason == "target may die before the effect pays back",
     "one late Rend tick must not inherit value from ten undeliverable damage")
 
 local twoTickRend = score(10, 10, 2 / 3, 75, 2, 15)
 assert(twoTickRend.value > lateRend.value and twoTickRend.value < full.value,
     "Rend value must rise monotonically with causally deliverable ticks")
+
+local fractionalSecondRend = score(7.29, 10, 0.486, 30, 1.458, 15)
+assert(fractionalSecondRend.value == -10
+    and fractionalSecondRend.periodicOverlapPower == 0
+    and fractionalSecondRend.reason
+        == "target may die before the effect pays back",
+    "one Rend tick plus only a chance of another must preserve rage")
+
+local probableTwoTickRend = score(11.05, 10, 0.737, 73, 2.211, 15)
+assert(probableTwoTickRend.value > 0,
+    "a target likely to receive two Rend ticks must remain graph-eligible")
 
 print("ok: periodic scoring values delivered ticks and charges unavailable damage")
