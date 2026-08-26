@@ -64,13 +64,13 @@ close(periodicRecord.threat.playerDelta, 8,
 
 dofile("Graph/ThreatScoring.lua")
 local ThreatScoring = XelAssist.Graph.ThreatScoring
-local function score(profile, tank)
+local function score(profile, tank, actionFacts)
     local state = { tank = tank, playerThreat = profile, groupSize = 1,
         pet = false, hasAggro = false, targetPlayerThreatDeltaExact = true,
         resourceMax = 100, actors = {} }
     local context = { state = state,
         action = { name = "Test strike", actor = "player" },
-        facts = { kind = "damage" }, kind = "damage",
+        facts = actionFacts or { kind = "damage" }, kind = "damage",
         power = 100, expectedPower = 100, effectivePower = 100,
         fullEffectivePower = 100, cost = 0, value = 0,
         effectDelivery = 1, estimated = false }
@@ -94,5 +94,33 @@ local boundedRisk = score(boundedDefensive, false)
 close(boundedRisk.threat, 156, "conservative bounded threat risk")
 assert(boundedRisk.estimated and boundedRisk.playerThreatExact == false,
     "bounded non-tank score must retain uncertainty")
+
+local uncertainAction = score(exactDefensive, false, {
+    kind = "damage", threat = 1.4, threatProfileExact = false,
+    runtimeUnverified = true })
+close(uncertainAction.threat, 218.4,
+    "runtime-unverified action threat estimate")
+assert(uncertainAction.estimated
+    and uncertainAction.playerThreatExact == false,
+    "an inexact action multiplier must taint otherwise exact stance threat")
+
+XelAssist.Graph.State = {
+    ActiveHostile = function(_, state) return state.activeTarget end,
+}
+dofile("Graph/PrimaryThreatEffects.lua")
+local transitionState = { tank = false, playerThreat = exactDefensive,
+    activeTarget = { guid = "enemy", threat = { playerDeltaExact = true } } }
+local transitioned = XelAssist.Graph.PrimaryThreatEffects:Apply(
+    transitionState,
+    { targetRelation = "hostile", targetGUID = "enemy", threat = 140,
+        playerThreatExact = false, effectDelivery = 1 },
+    { facts = { kind = "damage", threat = 1.4,
+            threatProfileExact = false },
+        action = { actor = "player" }, appliedHostileDamage = 100,
+        threatSchool = 3 })
+assert(transitioned
+    and transitionState.activeTarget.threat.playerDelta == 218.4
+    and transitionState.activeTarget.threat.playerDeltaExact == false,
+    "applied action threat uncertainty became exact")
 
 print("ok: conservative player threat scaling and attribution")

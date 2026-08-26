@@ -537,9 +537,12 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   producer continuously publishes fresh complete plans; each physical press
   consumes at most one publication and never starts graph work itself.
 - Combo gain and spend transitions retain probabilistic landed/missed outcomes.
-  Learned target survival can value short-lived-target finisher timing only
-  while a fresh exact-health trend exists; it remains bounded evidence rather
-  than a full encounter forecast.
+  When one target-owned point count, an external-energize-excluded energy clock,
+  direct finisher curve, legal builder and fresh exact target-survival interval
+  are all available, Rogue search compares the repeatable damage/energy/time
+  cycles before beam pruning. Lethal or imminently expiring points remain
+  spendable. Ambiguous branches retain the generic marginal fallback; this is
+  bounded evidence rather than a full encounter forecast.
 - Combo-scaled duration endpoints for Slice and Dice, Rupture, Expose Armor,
   and similar finishers are decoded when the matching ClassicAPI bridge is
   available and remain conservative otherwise. Duration-aware periodic and
@@ -547,6 +550,29 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   every non-direct finisher remain a model gap. Stock `GetComboPoints()` still
   proves only the selected target, so exact off-target ownership also requires
   the ClassicAPI bridge.
+- Cooldown-reset actions are neutral strategic setups. Preparation and Cold
+  Snap enumerate the sealed root catalogue once, clear only exact branch-local
+  action clocks selected by their server predicates, and close their lanes only
+  when a spell actually made ready becomes the downstream consumer.
+- Periodic self-conversion actions may own their exact kind score. Frenzied
+  Regeneration values only its guaranteed first tick inside the player cycle;
+  its later rage spending, healing, form interaction and bounded healing threat
+  advance through the same branch-local timeline as other combat events.
+- Paladin Judgement remains lifecycle-only unless the active seal proves an
+  exact result. Seal of Righteousness retains its full family flag, selects the
+  installed rank-linked hidden Holy hit, enters ordinary delivery/resistance
+  scoring, and consumes the branch-local seal only when that result applies.
+- Rapid Fire is a neutral Hunter setup edge. It preserves already-running
+  main-hand, off-hand and ranged phases, then changes only the reset interval
+  after each later round. Its exact low-word family mask also changes Aimed
+  Shot's later cast time; unresolved high-word consumers remain excluded.
+- Earth Shock replaces generic tooltip power with a sealed rank, level,
+  modifier and Nature-power mean before binary resistance projection. The same
+  delivered branch owns its current-cast interruption and target-local
+  two-second school lock, so damage and interrupt cannot roll independently.
+  The current build-5875 server profile contributes an exact two-times
+  damage-threat multiplier while remaining visibly runtime-unverified until
+  Octo accepts it; unobservable target mechanic immunity remains a named gap.
 - Hostile discovery is not a nameplate scan or a complete encounter roster. It
   sees only the selected, mouseover, pet-target, and group-target unit tokens,
   deduplicates them by exact GUID, and caps the planning collection at five.

@@ -88,6 +88,9 @@ local facts, reason, handled = Runtime:InferKnowledge(8046)
 check(handled and facts and facts.shamanEarthShock, reason)
 check(facts.kind == "damage" and facts.interrupt and facts.binary,
     "Earth Shock inference lost binary damage/interrupt identity")
+check(facts.threat == 2 and facts.threatProfileExact == true
+    and facts.runtimeUnverified == true,
+    "Earth Shock must retain its exact build-5875 two-times threat")
 local unrelated, _, unrelatedHandled = Runtime:InferKnowledge(8043)
 check(unrelated == nil and unrelatedHandled == false,
     "trainer learn wrapper must not be claimed")
@@ -127,6 +130,11 @@ action.facts = Runtime:CaptureFacts(action, facts,
 local power = Runtime:Evidence(action)
 check(power and power.complete, "root power profile missing")
 close(power.rawNoncriticalMean, 241.74, "exact server modifier order")
+local sealedCoefficient = action.facts.shamanEarthShockEvidence.coefficient
+action.facts.shamanEarthShockEvidence.coefficient = 0.5
+check(Runtime:Evidence(action) == nil,
+    "mutated sealed coefficient must fail closed")
+action.facts.shamanEarthShockEvidence.coefficient = sealedCoefficient
 local auraAPI = C_UnitAuras.GetUnitAuras
 C_UnitAuras.GetUnitAuras = function()
     return { { spellId = 777 } }
@@ -158,6 +166,12 @@ local forgedCast = Runtime:CaptureCast({ casterGuid = "enemy",
 forgedCast.shamanEarthShockInterrupt.interruptible = true
 check(Runtime:CastEvidence(forgedCast) == nil,
     "forged interrupt predicate must fail closed")
+local opaqueGUID = {}
+local opaqueCast = Runtime:CaptureCast({ casterGuid = opaqueGUID,
+    spellId = 90000, channel = false, generation = 11, remaining = 1.2,
+    hostileKey = opaqueGUID })
+check(opaqueCast.casterGuid == opaqueGUID and opaqueCast.hostileKey == opaqueGUID,
+    "opaque hostile identity must survive root evidence copying")
 
 local saved = { GetSpellRecField, GetSpellModifiers, GetSpellPower,
     GetSpellDuration, C_UnitAuras.GetUnitAuras, UnitLevel, UnitClass }
@@ -227,6 +241,11 @@ for _, value in pairs(hostile.shamanEarthShockSchoolLockouts or {}) do
 end
 check(lock and lock.school == 2 and lock.remaining == 2,
     "interrupted school lockout missing")
+local otherHostile = { key = "other", guid = "other", relation = "hostile" }
+state.hostiles.byKey.other = otherHostile
+table.insert(state.hostiles.order, "other")
+check(otherHostile.shamanEarthShockSchoolLockouts == nil,
+    "school lockout leaked onto a different hostile")
 close(lock.applicationProbability, 0.8,
     "damage and interrupt must share one delivery probability")
 Graph:Advance(state, 0.5)
@@ -234,6 +253,8 @@ close(lock.remaining, 1.5, "school lockout did not age")
 Graph:Advance(state, 1.6)
 check(next(hostile.shamanEarthShockSchoolLockouts) == nil,
     "expired school lockout retained")
+check(otherHostile.shamanEarthShockSchoolLockouts == nil,
+    "lockout expiry mutated a different hostile")
 
 state.hostileCasts.byCaster.enemy = blockedCast
 local noInterrupt = { action = action, state = state, descriptor = descriptor,
@@ -271,6 +292,23 @@ check(late.shamanEarthShockTransition.castResolvesFirst,
     "absolute graph time was not converted to delay")
 check(Graph:Score(late) and late.value == 10,
     "late damage action received interrupt proxy value")
+
+local opaqueHostile = { key = opaqueGUID, guid = opaqueGUID,
+    relation = "hostile" }
+local opaqueState = { time = 5, targetGUID = opaqueGUID,
+    hostiles = { order = { opaqueGUID },
+        byKey = { [opaqueGUID] = opaqueHostile } },
+    hostileCasts = { order = { opaqueGUID },
+        byCaster = { [opaqueGUID] = opaqueCast } } }
+local opaqueContext = { action = action, state = opaqueState,
+    descriptor = { key = opaqueGUID, guid = opaqueGUID,
+        relation = "hostile", record = opaqueHostile },
+    tooltip = { cast = 0 }, actionStart = 5, cast = 0, value = 0,
+    effectDelivery = 1 }
+check(Graph:Prepare(opaqueContext),
+    "opaque hostile identity did not prepare")
+check(Graph:Transition(opaqueContext).targetGUID == opaqueGUID,
+    "opaque hostile identity was cloned inside graph evidence")
 
 GetSpellRecField, GetSpellModifiers, GetSpellPower, GetSpellDuration,
     C_UnitAuras.GetUnitAuras, UnitLevel, UnitClass = saved[1], saved[2],

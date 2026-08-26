@@ -1,10 +1,14 @@
-# XelAssist 0.8.35
+# XelAssist 0.8.36
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
 graph. Curated semantics cover known Octowow abilities, while conservative live
 tooltip inference admits unambiguous unknown combat spells. It does not contain
-a class rotation or an ordered cast list.
+a class rotation or an ordered cast list. The evidence and consequence coverage
+for every class is tracked in `docs/class-mechanics.md`; withheld entries are
+deliberate graph boundaries, not hidden priorities or assumed rotations.
+The pass/fail release contract for a playable all-class 1.0 lives in
+`docs/playable-1.0.md`.
 
 Aegis_SBR and other installed addons are read-only research references, not
 runtime dependencies. XelAssist capability-checks the required SuperWoW,

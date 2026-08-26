@@ -15,6 +15,8 @@ E.BONUS_COEFFICIENT_MOD = 24
 E.NORMAL_INTERRUPT_FLAG = 2
 E.CHANNEL_INTERRUPT_FLAG = 4
 E.MAX_CAST_CACHE = 256
+E.THREAT_MULTIPLIER = 2
+E.SERVER_PROFILE = "VMaNGOS build-5875 spell_threat db-e5f3fd0"
 
 E.RANKS = {
     [8042] = { maxLevel = 9, baseLevel = 4, spellLevel = 4,
@@ -184,7 +186,11 @@ local function profile(spellId)
     cached.spellId, cached.valid, cached.exact = spellId, valid, valid
     cached.recognized, cached.school = true, E.NATURE_SCHOOL
     cached.interruptDuration = E.INTERRUPT_DURATION
-    cached.source = "installed build-5875 Earth Shock DBC and VMaNGOS effect"
+    cached.threatMultiplier = E.THREAT_MULTIPLIER
+    cached.serverBuildMin, cached.serverBuildMax = 0, 5875
+    cached.serverProfileExact, cached.runtimeVerified = true, false
+    cached.source = "installed build-5875 Earth Shock DBC and VMaNGOS effect; "
+        .. E.SERVER_PROFILE
     if not valid then cached.reason = "Earth Shock DBC topology is incomplete" end
     PROFILES[spellId] = copy(cached)
     return valid and copy(cached) or nil, cached.reason, true
@@ -311,6 +317,15 @@ local function sealed(subject)
     end
     if not (facts and facts.shamanEarthShock == true and rank
         and found.valid == true and found.exact == true and found.complete == true
+        and found.recognized == true and found.maxLevel == rank.maxLevel
+        and found.baseLevel == rank.baseLevel
+        and found.spellLevel == rank.spellLevel and found.mana == rank.mana
+        and found.points == rank.points and found.sides == rank.sides
+        and near(found.perLevel, rank.perLevel)
+        and near(found.coefficient, rank.coefficient)
+        and found.threatMultiplier == E.THREAT_MULTIPLIER
+        and found.serverBuildMin == 0 and found.serverBuildMax == 5875
+        and found.serverProfileExact == true and found.runtimeVerified == false
         and found.school == E.NATURE_SCHOOL
         and found.interruptDuration == E.INTERRUPT_DURATION
         and found.interruptDurationMs == E.INTERRUPT_DURATION * 1000
@@ -340,6 +355,8 @@ function E:InferKnowledge(spellId)
     if not found then return nil, reason, recognized end
     return { inferred = true, kind = "damage", kindExact = true,
         ranged = true, hostile = true, interrupt = true, binary = true,
+        threat = found.threatMultiplier, threatProfileExact = true,
+        runtimeUnverified = true,
         school = self.NATURE_SCHOOL, shamanEarthShock = true,
         requiresExactShamanEarthShock = true,
         source = found.source }, nil, true

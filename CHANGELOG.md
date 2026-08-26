@@ -1,5 +1,86 @@
 # Changelog
 
+## 0.8.36
+
+- Expanded every class through consequence-owned graph mechanics rather than
+  priority lists. Root capture seals mutable DBC, aura, resource, cooldown,
+  recipient and threat evidence once; branch-local class state is copied by a
+  dedicated coordinator and incomplete mechanics continue to fail closed.
+- Added measured Rogue combo investment. Direct finishers are compared against
+  mechanically discovered builders using exact target-owned points, landed and
+  missed attempts, damage curves, energy cost/time and fresh target survival.
+  Exact lethal, imminent point loss and genuinely efficient low-point spending
+  remain available; ambiguous evidence retains the generic marginal fallback.
+- Added exact Mage Clearcasting, Presence of Mind and Cold Snap consequences.
+  Cold Snap has zero standalone utility and opens a bounded setup lane only for
+  Frost actions whose action-specific cooldown was actually delayed and reset;
+  it never clears the GCD/category clocks or gains value from already-ready
+  spells. Evocation remains withheld because its server mana phase is dynamic.
+- Added exact Druid Cat/Bear threat composition and one-charge Omen/Clearcasting
+  costs across mana, rage and energy; exact Hunter Hawk ranged power and
+  selected-target Distracting Shot threat; and exact Shaman Clearcasting plus
+  solo fresh-placement Mana Spring amount, cadence, expiry and stationary range.
+- Added exact Hunter Rapid Fire reset consequences. Activating it preserves the
+  current main-hand, off-hand and ranged phases, then shortens only later reset
+  intervals; the exact low-word family mask also shortens Aimed Shot casts.
+  Steady Shot's unresolved high-word mask and live server profile remain
+  explicit, and Rapid Fire has no standalone priority value.
+- Added all seven installed Earth Shock ranks as one binary Nature-damage and
+  interrupt edge. Root capture seals level scaling, spell power, modifiers,
+  hostile cast interruptibility and exact rank coefficients; one delivered roll
+  owns both damage and the two-second target-local school lock. The current
+  build-5875 server profile supplies an exact two-times damage-threat multiplier;
+  live Octo acceptance and target interrupt immunity remain explicit gaps.
+- Added exact Priest Inner Focus and Power Infusion consumer-dependent setup;
+  Fade's level-scaled current-reference and expiry lifecycle; Paladin Righteous
+  Fury, root-relative Blessing of Might and self Blessing of Wisdom periodic
+  mana reachability; and branch-local state for every modeled aura, charge,
+  proc and setup lane. Fade's server bridge remains visibly runtime-unverified.
+- Added exact Seal of Righteousness Judgement consequences for every installed
+  rank. Full family flags retain both words, the active seal selects its linked
+  hidden Holy result, and ordinary delivery, resistance, target health, threat,
+  cost and seal-consumption logic compose without a Paladin priority rule.
+- Added Rogue Slice and Dice swing haste and Ruthlessness post-finisher point
+  branches, including target ownership and delivery uncertainty. These mechanics
+  alter later consequences without hardcoding combo thresholds or an opener.
+- Added exact Rogue Preparation reset topology. It receives no standalone
+  utility and retains one bounded setup lane only while a root-catalogued Rogue
+  spell with positive recovery was delayed and becomes usable after the reset.
+  Unowned category clocks remain conservative rather than being cleared.
+- Added Druid Frenzied Regeneration as a fresh ten-tick branch-local timeline.
+  It spends up to ten displayed rage per second, heals by exact rank, accounts
+  for effective-heal threat and never applies a fake up-front heal. Unknown live
+  tick phase, healing modifiers, destination Bear rage and server attestation
+  remain explicit blockers or uncertainty.
+- Added Warlock Dark Pact as an exact pet-mana transfer that must fund a later
+  player spend, plus Soul Link's outgoing reduction and post-absorb demon split.
+  Pet identity, health and delivery remain explicit causal inputs.
+- Added one-charge Warlock Fel Domination as a bounded summon setup. Exact DBC
+  masks, Master Summoner composition, expiry, successful consumption, cast time
+  and mana deltas are projected without granting the setup standalone value.
+- Added Warrior Battle Shout melee attack-power propagation, exact Revenge and
+  Heroic Strike compound threat, max-four Thunder Clap damage/threat, and
+  Demoralizing Shout's recipient-local flat threat/aura lifecycle. Unproven
+  server identity stays visibly estimated; slows and attack-power mitigation
+  receive no proxy value without hostile swing evidence.
+- Replaced grouped Battle Shout's hard hold with a conservative recipient
+  bound. The player always receives the exact attack-power consequence; frozen
+  party/raid subgroup counts cap possible players and pets, while distance,
+  pet presence and hostile-reference threat fanout remain explicitly inexact.
+- Added exact Shield Wall damage-taken composition after Defensive Stance. Its
+  temporary all-school multiplier changes frozen incoming consequences once,
+  while unavailable live server attestation remains visibly estimated.
+- Extracted identity-only class action dispatch from the shared coordinator.
+  Multiple exact mechanics claiming one action now fail closed instead of
+  depending on handler order, keeping class leaves independently reviewable.
+- Preserved the sliced continuous-search contract and deterministic packaging.
+  The production low-level Warrior, level-seven Warlock and rank-heavy Warlock
+  benchmarks remain bounded at roughly 3.23 ms per active test slice.
+- Defined the repository-owned playable 1.0 contract for every class, level
+  band and role. Automated coverage is evidence, not proof of live playability;
+  no class passes until deterministic gates and an authenticated in-game smoke
+  test both succeed.
+
 ## 0.8.35
 
 - Added exact target-local Hunter's Mark consequences for all four installed

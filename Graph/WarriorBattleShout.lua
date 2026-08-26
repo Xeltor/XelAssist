@@ -1,6 +1,6 @@
 -- Search-pure Battle Shout projection. The action earns no fixed buff utility;
--- descendants value only the main-hand damage added by its exact melee AP.
--- Server flat threat is retained as a bound, never guessed per hostile.
+-- descendants value only the main-hand damage added by its exact player AP.
+-- Unknown group/pet fanout and server flat threat remain explicit bounds.
 XelAssist.Graph.WarriorBattleShout = {}
 local B = XelAssist.Graph.WarriorBattleShout
 local PlayerThreat = XelAssist.Graph.PlayerThreat
@@ -126,6 +126,20 @@ local function targetExact(descriptor)
         and descriptor.relation ~= "hostile"
 end
 
+local function recipientBounds(observed)
+    if not observed then return nil, nil end
+    if observed.grouped ~= true then return 1, 1 end
+    local raid = finite(observed.raidMembers, 0, 40)
+    local party = finite(observed.partyMembers, 0, 4)
+    if not raid or not party or math.floor(raid) ~= raid
+        or math.floor(party) ~= party then return nil, nil end
+    -- Target mode 20 uses the caster's party/subgroup and includes each
+    -- member's pet. Exact distances and pet presence are not observable for
+    -- every member, so retain the guaranteed caster and a safe upper bound.
+    local players = raid > 0 and math.min(5, raid) or party + 1
+    return 1, math.max(1, math.min(10, players * 2))
+end
+
 function B:Prepare(action, state, descriptor, tooltip)
     local found, reason, handled = captured(action, tooltip)
     if not handled then return nil, nil, false end
@@ -142,7 +156,8 @@ function B:Prepare(action, state, descriptor, tooltip)
     local component
     component, reason = componentState(state)
     if not component then return nil, reason, true end
-    if observed.grouped then
+    local recipientMinimum, recipientMaximum = recipientBounds(observed)
+    if not recipientMinimum then
         return nil, "Battle Shout group fanout is unresolved", true
     end
     if component.baselineCorrectionExact ~= true then
@@ -162,6 +177,9 @@ function B:Prepare(action, state, descriptor, tooltip)
         spellId = found.spellId, attackPower = found.attackPower,
         duration = found.duration, cost = found.cost, powerType = found.powerType,
         flatThreat = found.flatThreat, flatThreatExact = true,
+        recipientMinimum = recipientMinimum,
+        recipientMaximum = recipientMaximum,
+        recipientFanoutExact = recipientMinimum == recipientMaximum,
         flatThreatModel = found.flatThreatModel, evidenceExact = true,
         source = found.source }, nil, true
 end
@@ -192,17 +210,21 @@ local function invalidateThreat(state, component, projection)
         component.flatThreatApplicationExact = true
         return
     end
-    local maximum, multiplierExact, multiplier = projection.flatThreat, false, 1
+    local recipients = finite(projection.recipientMaximum, 1, 10) or 1
+    local maximum, multiplierExact, multiplier =
+        projection.flatThreat * recipients, false, 1
     if PlayerThreat and PlayerThreat.Scale then
         maximum, multiplierExact, multiplier = PlayerThreat:Scale(
-            state, "player", projection.flatThreat, 0)
+            state, "player", maximum, 0)
     end
     component.flatThreatMinimum = 0
     component.flatThreatMaximum = math.max(0, tonumber(maximum) or 0)
     component.flatThreatApplicationExact = false
     component.flatThreatMultiplierExact = multiplierExact
     component.flatThreatMultiplier = multiplier
-    component.flatThreatReason = "hostile-reference count is hidden"
+    component.flatThreatReason = projection.recipientFanoutExact
+        and "hostile-reference count is hidden"
+        or "group recipient and hostile-reference fanout are bounded"
     local hostiles, index, record = state.hostiles, nil, nil
     for index = 1, table.getn(hostiles and hostiles.order or {}) do
         record = hostiles.byKey and hostiles.byKey[hostiles.order[index]]
@@ -226,7 +248,9 @@ function B:Apply(state, candidate)
         candidate.tooltip)
     if not prepared or prepared.spellId ~= projection.spellId
         or prepared.attackPower ~= projection.attackPower
-        or prepared.duration ~= projection.duration then return false end
+        or prepared.duration ~= projection.duration
+        or prepared.recipientMinimum ~= projection.recipientMinimum
+        or prepared.recipientMaximum ~= projection.recipientMaximum then return false end
     local component = state.warriorBattleShout
     component.available, component.exact = true, true
     component.active, component.projected = true, true
@@ -238,6 +262,9 @@ function B:Apply(state, candidate)
     component.flatThreatEvidence = projection.flatThreat
     component.flatThreatEvidenceExact = projection.flatThreatExact
     component.flatThreatModel = projection.flatThreatModel
+    component.recipientMinimum = projection.recipientMinimum
+    component.recipientMaximum = projection.recipientMaximum
+    component.recipientFanoutExact = projection.recipientFanoutExact
     invalidateThreat(state, component, projection)
     return true
 end

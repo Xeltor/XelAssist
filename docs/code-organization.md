@@ -92,14 +92,17 @@ never class rotations or ordered priority lists.
   `EnergyEvents.lua` own live player-energy cadence learning, while
   `ManaEvidence.lua` and `ManaEvents.lua` separately learn attributed passive
   mana and exact post-spend recovery. `Resources.lua` owns shared conservative
-  projection arithmetic. Focused player-class evidence lives beside those
-  resources: `MageManaShield.lua`, `MageClearcasting.lua`, `PriestShield.lua`,
-  `DruidProwl.lua`, `DruidBearThreat.lua`, `PriestShadowform.lua`,
-  `RogueFeint.lua`, `RogueSliceAndDice.lua`, `HunterMark.lua`, `HunterHawk.lua`,
-  `ShamanWindfuryTotem.lua`, `WarlockDarkPact.lua`,
-  `WarriorStanceEffects.lua`, `WarriorBattleShout.lua`,
-  `PaladinBlessingThreat.lua`, and `PaladinRighteousFury.lua` each seal one
-  installed mechanic without scoring or ordering its class.
+  projection arithmetic. Focused `Game/Player` owners seal Mage Mana Shield,
+  Clearcasting, Presence of Mind and Cold Snap; Priest Shield, Shadowform,
+  Inner Focus, Power Infusion and Fade; Druid Prowl, Clearcasting, Frenzied
+  Regeneration and Cat/Bear threat; Rogue Feint, Slice and Dice, Ruthlessness
+  and Preparation; Hunter Mark, Hawk, Distracting Shot and Rapid Fire; Shaman
+  Windfury, Mana Spring, Clearcasting and Earth Shock; Warlock Dark Pact, Soul
+  Link and Fel Domination;
+  Paladin Might, Wisdom, Righteousness, blessing threat and Righteous Fury; and
+  Warrior stance, Battle Shout, Revenge, Heroic Strike, Thunder Clap,
+  Demoralizing Shout and Shield Wall evidence. Each file seals one installed
+  mechanic without scoring or ordering its class.
   `Game/SpatialEvidence.lua` owns immediate
   blocking and settled recovery for noisy live geometry edges.
 - `Combat` owns declarative player and companion spell meaning, stateless
@@ -147,20 +150,25 @@ never class rotations or ordered priority lists.
   `Graph/IncomingAbsorbs.lua`, `MageManaShieldScoring.lua`, and
   `FriendlyActionEffects.lua` keep shield ordering, school eligibility, and
   friendly projection outside the generic coordinators. `Graph/RogueFeint.lua`
-  owns selected-hostile threat reduction, while `PaladinBlessingThreat.lua`
-  composes a proven recipient-owned multiplier through `PlayerThreat.lua`.
-  `Graph/DruidBearThreat.lua` composes the exact active-form multiplier into
-  later player threat without valuing shapeshifting by itself.
-  `Graph/HunterMark.lua`, `HunterHawk.lua`, `PriestShadowform.lua`, and
-  `ShamanWindfuryTotem.lua` own target-local ranged power, root-relative self
-  ranged power, form-conditioned outgoing/incoming multipliers, and solo
-  main-hand proc consequences. `HunterRangedPower.lua` composes the two Hunter
-  AP domains for Auto Shot and ranged weapon formulas without choosing an
-  aspect. `MageClearcasting.lua` and `RogueSliceAndDice.lua` own branch-local
-  charge and attack-speed consequences. `PaladinRighteousFury.lua` and
-  `WarriorBattleShout.lua` expose only later school-threat and melee-AP effects.
-  `WarlockDarkPact.lua` transfers exact pet mana and retains a bounded neutral
-  investment lane until a later player-mana spend proves value.
+  owns selected-hostile threat reduction, while `RogueComboInvestment.lua`
+  compares only sealed combo, damage, energy, timing and target-survival
+  consequences before beam pruning. Paladin blessing/Righteous Fury and Druid
+  Cat/Bear owners compose exact active multipliers through player threat.
+  Paladin Righteousness selects the exact active-seal hidden Judgement result
+  while the shared Paladin lifecycle owns seal consumption. Hunter
+  Mark/Hawk/Distracting Shot/Rapid Fire, Priest Shadowform/Fade, Shaman
+  Windfury/Mana Spring/Earth Shock, Warrior Battle Shout/Revenge/Heroic
+  Strike/Thunder Clap/Demoralizing
+  Shout/Shield Wall, and Warlock Dark Pact/Soul Link/Fel Domination each own
+  target-local power, resource, damage or threat transitions. Mage
+  Clearcasting/Presence of Mind/Cold Snap, Priest Inner Focus/Power Infusion,
+  Druid Frenzied Regeneration, and Rogue Slice and Dice/Ruthlessness/Preparation
+  keep charge, setup, cooldown, temporary-threat, swing, healing and combo
+  consequences branch-local. None
+  chooses a class action order. `Graph/ClassActionMechanics.lua` performs
+  identity-only, ambiguity-rejecting dispatch for these independent leaves;
+  `ClassMechanics.lua` retains Paladin/Shaman lifecycle composition and shared
+  evidence/state coordination.
   `Graph/SurvivalPressure.lua` converts learned target pressure into bounded
   cast, channel, periodic, and hostile-setup payoff without defining class
   strategy. `Graph/PeriodicScoring.lua` owns periodic combat progress and

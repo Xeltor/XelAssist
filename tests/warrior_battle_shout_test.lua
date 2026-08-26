@@ -213,9 +213,22 @@ assert(integrated and integratedHandled and integratedReason == nil
 party = 1
 local grouped = state(true)
 party = 0
-assert(Graph:Blocker(action, grouped, descriptor, captured)
-        == "Battle Shout group fanout is unresolved",
-    "unfrozen party recipients must fail closed")
+local groupedProjection = assert(Graph:Prepare(
+    action, grouped, descriptor, captured))
+assert(groupedProjection.recipientMinimum == 1
+    and groupedProjection.recipientMaximum == 4
+    and not groupedProjection.recipientFanoutExact,
+    "grouped Battle Shout must retain guaranteed self and bounded pet fanout")
+local groupedCandidate = { action = action, tooltip = captured,
+    target = "player", targetRelation = "friendly",
+    classMechanicProjection = groupedProjection }
+assert(Graph:Apply(grouped, groupedCandidate)
+    and grouped.warriorBattleShout.attackPower == 19.5
+    and grouped.warriorBattleShout.recipientMinimum == 1
+    and grouped.warriorBattleShout.recipientMaximum == 4
+    and math.abs(grouped.warriorBattleShout.flatThreatMaximum - 5.2) < 0.00001
+    and grouped.warriorBattleShout.flatThreatApplicationExact == false,
+    "grouped Battle Shout must apply exact self AP without inventing fanout threat")
 auras = { { spellId = 9000, expirationTime = 130 } }
 local competing = state(true)
 auras = {}

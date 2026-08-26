@@ -34,6 +34,7 @@ local function damageThreat(out, candidate, context, actor)
     amount, stanceExact = PlayerThreat:Scale(
         out, actor, amount, context.threatSchool)
     return amount, stanceExact ~= false
+        and context.facts.threatProfileExact ~= false
         and (not handled or profileExact ~= false)
 end
 

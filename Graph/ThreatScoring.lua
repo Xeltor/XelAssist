@@ -79,6 +79,7 @@ local function scalePlayer(state, actor, context, threat, valueThreat)
     if WarriorThreat then
         exact = WarriorThreat:Exactness(context, exact)
     end
+    if context.facts.threatProfileExact == false then exact = false end
     return threat, valueThreat, exact, multiplier
 end
 
