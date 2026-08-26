@@ -7,8 +7,12 @@ local P = XelAssist.Graph.ActionContextPolicy
 function P:Blocker(action, state, tooltip)
     local facts, kind = action.facts, action.facts.kind
     if facts.unmodeledUnsafe then
-        return type(facts.unmodeledUnsafe) == "string"
-            and facts.unmodeledUnsafe or "unsafe consequence is not modeled"
+        local evocation = XelAssist.Graph.MageEvocation
+        if not (facts.mageEvocation == true and evocation
+            and evocation:CanUse(state, facts)) then
+            return type(facts.unmodeledUnsafe) == "string"
+                and facts.unmodeledUnsafe or "unsafe consequence is not modeled"
+        end
     end
     if facts.requiresExactTooltipCost
         and not (tooltip and tooltip.tooltipCostExact == true) then

@@ -343,6 +343,7 @@ subprocess.run(["lua", str(root / "tests/shaman_molten_blast_refresh_test.lua")]
 subprocess.run(["lua", str(root / "tests/class_mechanics_integration_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/mage_mana_shield_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/mage_evocation_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/mage_evocation_evidence_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/mage_arcane_power_guard_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/mage_mana_shield_scoring_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/mage_clearcasting_test.lua")], cwd=root, check=True)

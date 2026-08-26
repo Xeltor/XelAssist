@@ -102,8 +102,11 @@ request to add a class priority rule:
   ten-percent mana. Icicles can shatter into large self-damage, while
   Accelerated Arcana changes Arcane Missiles tick timing. These actions must
   fail closed until branch-local mana, terminal-health and effective-channel
-  timing consequences exist. Exact Evocation planning additionally requires
-  Spirit/MP5 regimes and the player-global mana-tick phase.
+  timing consequences exist. Evocation can now learn a bounded character-
+  specific mana envelope from one complete, uninterrupted, uncapped Octo
+  channel and use it for later decisions in the unchanged session regime.
+  Cold-start Evocation value before that observation remains a blocker because
+  Spirit/MP5 composition and the player-global mana phase are not exposed.
 - **Priest:** Shadow Mend's heal also damages the Priest, and Pain Spike heals
   its hostile target back after a delay; generic heal/direct-damage semantics
   are unsafe. Spirit Tap's current kill-or-Mind-Blast-critical predicate and

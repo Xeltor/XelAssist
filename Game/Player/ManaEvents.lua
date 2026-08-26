@@ -4,6 +4,7 @@
 XelAssist.Game.Player.ManaEvents = {}
 local E = XelAssist.Game.Player.ManaEvents
 local Evidence = XelAssist.Game.Player.ManaEvidence
+local Evocation = XelAssist.Game.Player.MageEvocationEvidence
 
 local MANA = 0
 local COST_FIELDS = { "manaCost", "manaCostPerlevel", "manaCostPercentage",
@@ -114,7 +115,19 @@ function E:ObservePower()
     self.lastGuid, self.lastMana, self.lastMaximum, self.lastPowerType =
         guid, mana, maximum, powerType
     Evidence:Observe(guid, mana, maximum, at, true, powerType)
+    if Evocation then Evocation:Observe(mana, maximum, at) end
     return true
+end
+
+function E:EvocationActive()
+    if type(GetUnitField) ~= "function" then return nil end
+    local ok, auras = pcall(GetUnitField, "player", "aura", 1)
+    if not ok or type(auras) ~= "table" then return nil end
+    local index
+    for index = 1, table.getn(auras) do
+        if tonumber(auras[index]) == 12051 then return true end
+    end
+    return false
 end
 
 function E:RouteSpendBoundary(eventName, spellId, casterGuid)
@@ -152,6 +165,8 @@ function E:OnEvent(eventName, a1, a2, a3, a4)
         if self.powerEventMode ~= "token" or a1 ~= "player" then return false end
         return self:ObservePower()
     elseif eventName == "SPELL_ENERGIZE_ON_SELF" then
+        if Evocation then Evocation:Contaminate(
+            "spell energize occurred during Evocation") end
         return Evidence:ObserveEnergize(a1, a4, clockNow())
     elseif eventName == "SPELL_START_SELF" or eventName == "SPELL_GO_SELF" then
         -- Nampower ABI: arg1=item ID, arg2=spell ID, arg3=caster GUID.
@@ -159,24 +174,34 @@ function E:OnEvent(eventName, a1, a2, a3, a4)
     elseif CLEAR_BOUNDARY[eventName]
         or eventName == "SPELL_CAST_RESULT_SELF" and tonumber(a1) == 0 then
         Evidence:ClearSpendBoundary()
+        if Evocation then Evocation:Contaminate(
+            "player cast interruption invalidated Evocation") end
         return true
     elseif eventName == "PLAYER_ENTERING_WORLD"
         or eventName == "PLAYER_LEAVING_WORLD" then
         Evidence:ResetSession()
+        if Evocation then Evocation:Invalidate("player world session changed") end
         self:ResetObservationDedupe()
         self:ClearSpellCostCache()
         return true
     elseif eventName == "UNIT_AURA" then
         if a1 ~= "player" and a1 ~= playerIdentity() then return false end
+        if Evocation then
+            local mana, maximum = playerPower()
+            Evocation:AuraChanged(self:EvocationActive(),
+                mana, maximum, clockNow())
+        end
         Evidence:ModifierChanged("player aura regime changed")
     elseif eventName == "UNIT_INVENTORY_CHANGED" then
         if a1 ~= "player" and a1 ~= playerIdentity() then return false end
         Evidence:ModifierChanged("player equipment changed")
+        if Evocation then Evocation:Invalidate("player equipment changed") end
     elseif eventName == "UNIT_MAXMANA" then
         if a1 ~= "player" and a1 ~= playerIdentity() then return false end
         Evidence:ModifierChanged("maximum mana changed")
     elseif INVALIDATIONS[eventName] then
         Evidence:ModifierChanged(INVALIDATIONS[eventName])
+        if Evocation then Evocation:Invalidate(INVALIDATIONS[eventName]) end
     else return false end
     self:ResetObservationDedupe()
     self:ClearSpellCostCache()

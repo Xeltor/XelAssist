@@ -14,12 +14,26 @@ local InnerFocus = XelAssist.Graph.PriestInnerFocus
 local PowerInfusion = XelAssist.Graph.PriestPowerInfusion
 local PresenceOfMind = XelAssist.Graph.MagePresenceOfMind
 local ColdSnap = XelAssist.Graph.MageColdSnap
+local MageEvocation = XelAssist.Graph.MageEvocation
 local FrenziedRegeneration = XelAssist.Graph.DruidFrenziedRegeneration
 local DruidBarkskin = XelAssist.Graph.DruidBarkskin
 local RoguePreparation = XelAssist.Graph.RoguePreparation
 local RogueBladeFlurry = XelAssist.Graph.RogueBladeFlurry
 
 local handlers = {
+    {
+        name = "Mage Evocation", module = MageEvocation,
+        claims = function(facts)
+            return facts.mageEvocation == true
+                or facts.mageEvocationTransition ~= nil
+        end,
+        matches = function(projection)
+            return projection.mageEvocationTransition ~= nil
+        end,
+        prepare = function(module, action, state, _, facts)
+            return module:Prepare(action, state, facts)
+        end,
+    },
     {
         name = "Druid Barkskin",
         module = DruidBarkskin,

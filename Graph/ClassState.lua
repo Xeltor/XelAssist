@@ -20,6 +20,8 @@ local MageClearcasting = XelAssist.Graph.MageClearcasting
 local MagePresenceOfMindRuntime = XelAssist.Game.Player.MagePresenceOfMind
 local MagePresenceOfMind = XelAssist.Graph.MagePresenceOfMind
 local MageColdSnap = XelAssist.Graph.MageColdSnap
+local MageEvocationRuntime = XelAssist.Game.Player.MageEvocationEvidence
+local MageEvocation = XelAssist.Graph.MageEvocation
 local MageProcWindowsRuntime = XelAssist.Game.Player.MageProcWindows
 local MageProcWindows = XelAssist.Graph.MageProcWindows
 local DruidClearcastingRuntime = XelAssist.Game.Player.DruidClearcasting
@@ -157,6 +159,10 @@ local function attachMage(state, token)
         attached = MageProcWindows:Attach(state,
             MageProcWindowsRuntime:Snapshot(token)) or attached
     end
+    if MageEvocationRuntime then
+        state.mageEvocationEvidence = MageEvocationRuntime:Snapshot()
+        attached = state.mageEvocationEvidence ~= nil or attached
+    end
     return attached
 end
 local function attachDruid(state, token)
@@ -281,6 +287,7 @@ function S:Copy(source, target)
     if MageClearcasting then MageClearcasting:Copy(source, target) end
     if MagePresenceOfMind then MagePresenceOfMind:Copy(source, target) end
     if MageColdSnap then MageColdSnap:Copy(source, target) end
+    if MageEvocation then MageEvocation:Copy(source, target) end
     if MageProcWindows then MageProcWindows:Copy(source, target) end
     copyDruid(source, target)
     if ShamanClearcasting then ShamanClearcasting:Copy(source, target) end

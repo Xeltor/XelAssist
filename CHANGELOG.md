@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.64
+
+- Added a character-specific Evocation learner. One complete, uninterrupted,
+  uncapped Octo channel seals the minimum delivered mana and slowest tick
+  cadence; later Evocations receive only the phase-independent lower bound.
+- Retire learned Evocation value on aura, equipment, talent, level, world,
+  energize, interruption or maximum-mana changes. Cold-start Evocation remains
+  safely withheld instead of importing an upstream Spirit/MP5 formula.
+
 ## 0.8.63
 
 - Added exact Octo patch-5 Hamstring rank identities. Its direct physical
