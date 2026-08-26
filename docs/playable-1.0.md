@@ -218,8 +218,7 @@ evidence-ranked queue includes:
 - Warrior Devastate's private supplemental threat, off-target and cold-start
   Shield Block value,
   Shield Mastery, Reprisal's private rage refund, weapon-dependent Master
-  Strike and hidden
-  cooldown/cost modifiers.
+  Strike and hidden cooldown modifiers.
 
 An exact observed-aura plus engine-effective cost/cast/cooldown/duration layer
 can own deterministic SpellMods across classes. Proc generation, refunds,

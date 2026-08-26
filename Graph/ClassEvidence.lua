@@ -59,6 +59,8 @@ local WarriorDemoralizingShout =
 local WarriorShieldWall = XelAssist.Game.Player.WarriorShieldWall
 local WarriorBerserkerRage = XelAssist.Game.Player.WarriorBerserkerRage
 local WarriorBerserkerRageGraph = XelAssist.Graph.WarriorBerserkerRage
+local WarriorCostPassives = XelAssist.Game.Player.WarriorCostPassives
+local WarriorCostPassivesGraph = XelAssist.Graph.WarriorCostPassives
 local WarriorThreatPackets = XelAssist.Graph.WarriorThreatPackets
 local WarlockFelDominationRuntime =
     XelAssist.Game.Player.WarlockFelDomination
@@ -112,6 +114,7 @@ captureModule(WarriorExecute)
 captureModule(WarriorDemoralizingShout)
 captureModule(WarriorShieldWall)
 captureModule(WarriorBerserkerRage)
+captureModule(WarriorCostPassives)
 captureModule(WarlockFelDominationRuntime)
 captureModule(WarlockDarkPactRuntime)
 captureModule(WarlockNightfallRuntime)
@@ -165,6 +168,11 @@ end
 
 function E:Blocker(action, state, descriptor, tooltip, actionStart)
     local blocker, handled
+    if WarriorCostPassivesGraph then
+        blocker, handled = WarriorCostPassivesGraph:Blocker(
+            action, state, descriptor, tooltip)
+        if handled then return blocker, true end
+    end
     if WarriorBerserkerRageGraph then
         blocker, handled = WarriorBerserkerRageGraph:Blocker(
             action, state, descriptor, tooltip)

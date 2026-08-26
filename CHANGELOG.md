@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.79
+
+- Added root-sealed engine-effective rage costs for Heroic Strike, Whirlwind,
+  Bloodthirst and Mortal Strike. Improved Heroic Strike, Improved Whirlwind and
+  the patch-5 Bloodthirst/Mortal Strike reduction now change graph affordability
+  and efficiency without a class rotation or static action ordering.
+- Required learned passive topology, the cost SpellMod and the engine's charged
+  value to agree; divergent or forged discounts fail closed.
+
 ## 0.8.78
 
 - Added exact patch-5 Improved Berserker Rage ownership and triggered-resource

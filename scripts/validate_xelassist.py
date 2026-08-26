@@ -309,6 +309,7 @@ subprocess.run(["lua", str(root / "tests/warrior_shield_wall_test.lua")], cwd=ro
 subprocess.run(["lua", str(root / "tests/warrior_shield_wall_integration_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/warrior_shield_block_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/warrior_berserker_rage_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/warrior_cost_passives_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/player_threat_graph_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/threat_drop_classification_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/hunter_feign_death_graph_test.lua")], cwd=root, check=True)
