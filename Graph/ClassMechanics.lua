@@ -6,6 +6,7 @@ local M = XelAssist.Graph.ClassMechanics
 local Paladin = XelAssist.Graph.PaladinAuraProjection
 local PaladinActions = XelAssist.Game.Player.PaladinActions
 local PaladinMight = XelAssist.Graph.PaladinMight
+local PaladinWisdom = XelAssist.Graph.PaladinWisdom
 local PaladinBlessingThreat = XelAssist.Graph.PaladinBlessingThreat
 local PaladinRighteousFury = XelAssist.Graph.PaladinRighteousFury
 local Totems = XelAssist.Game.Player.TotemState
@@ -14,6 +15,7 @@ local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local HunterHawk = XelAssist.Graph.HunterHawk
 local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
 local PriestPowerInfusion = XelAssist.Graph.PriestPowerInfusion
+local PriestFade = XelAssist.Graph.PriestFade
 local MagePresenceOfMind = XelAssist.Graph.MagePresenceOfMind
 local MageColdSnap = XelAssist.Graph.MageColdSnap
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
@@ -122,6 +124,15 @@ local function paladinProjection(action, state, descriptor, facts)
     if PaladinMight then
         local prepared
         prepared, reason, handled = PaladinMight:Prepare(
+            state, projection, facts)
+        if handled then
+            if not prepared then return nil, reason, true end
+            projection = prepared
+        end
+    end
+    if PaladinWisdom then
+        local prepared
+        prepared, reason, handled = PaladinWisdom:Prepare(
             state, projection, facts)
         if handled then
             if not prepared then return nil, reason, true end
@@ -288,6 +299,10 @@ function M:Score(context, projection)
     if PaladinMight and projection.paladinMightTransition then
         return PaladinMight:Score(context, projection)
     end
+    if PaladinWisdom and projection.paladinWisdomTransition then
+        local scored, reason = PaladinWisdom:Score(context, projection)
+        if scored or reason then return scored, reason end
+    end
     if PaladinBlessingThreat then
         local scored, reason = PaladinBlessingThreat:Score(context, projection)
         if scored or reason then return scored, reason end
@@ -336,6 +351,10 @@ function M:Apply(state, candidate)
             if not (PaladinMight
                 and PaladinMight:Apply(state, projection)) then return false end
         end
+        if projection.paladinWisdomTransition then
+            if not (PaladinWisdom
+                and PaladinWisdom:Apply(state, projection)) then return false end
+        end
         return true
     elseif projection.classMechanic == "shaman" and Totems then
         if not Totems:Apply(state, projection) then return false end
@@ -373,5 +392,7 @@ function M:Advance(state, elapsed)
     if RogueSlice then RogueSlice:Advance(state, elapsed) end
     if WarriorBattleShout then WarriorBattleShout:Advance(state, elapsed) end
     if PaladinMight then PaladinMight:Advance(state, elapsed) end
+    if PaladinWisdom then PaladinWisdom:Advance(state, elapsed) end
+    if PriestFade then PriestFade:Advance(state, elapsed) end
     return expired
 end

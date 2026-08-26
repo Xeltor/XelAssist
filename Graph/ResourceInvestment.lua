@@ -102,6 +102,8 @@ function R:PotentialConsumer(path, action, sealedFacts)
     if key == nil and manaSpring then
         key = manaSpring:ConsumerKey(sealedFacts)
     end
+    local wisdom = XelAssist.Graph.PaladinWisdom
+    if key == nil and wisdom then key = wisdom:ConsumerKey(sealedFacts) end
     local coldSnap = XelAssist.Graph.MageColdSnap
     if key == nil and coldSnap
         and coldSnap:PotentialConsumer(path, action, sealedFacts) then

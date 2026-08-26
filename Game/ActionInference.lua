@@ -28,6 +28,8 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PriestPowerInfusion, spellId)
     if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.PriestFade, spellId)
+    if handled then return facts, reason, true end
     facts, reason, handled = infer(player.DruidProwl, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.RogueSliceAndDice, spellId)
@@ -56,6 +58,9 @@ function I:ClassKnowledge(spellId)
     if handled then
         if facts and player.PaladinMight then
             facts = player.PaladinMight:Promote(spellId, facts)
+        end
+        if facts and player.PaladinWisdom then
+            facts = player.PaladinWisdom:Promote(spellId, facts)
         end
         if facts and player.PaladinBlessingThreat then
             facts = player.PaladinBlessingThreat:Promote(spellId, facts)
@@ -116,6 +121,7 @@ function I:InvalidateClass()
     if player.PriestPowerInfusion then
         player.PriestPowerInfusion:Invalidate()
     end
+    if player.PriestFade then player.PriestFade:Invalidate() end
     if player.DruidProwl then player.DruidProwl:Invalidate() end
     if player.DruidClearcasting then player.DruidClearcasting:Invalidate() end
     if player.DruidBearThreat then player.DruidBearThreat:Invalidate() end
@@ -147,6 +153,7 @@ function I:InvalidateClass()
     if player.WarlockSoulLink then player.WarlockSoulLink:Invalidate() end
     if player.PaladinActions then player.PaladinActions:Invalidate() end
     if player.PaladinMight then player.PaladinMight:Invalidate() end
+    if player.PaladinWisdom then player.PaladinWisdom:Invalidate() end
     if player.PaladinBlessingThreat then
         player.PaladinBlessingThreat:Invalidate()
     end

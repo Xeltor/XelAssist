@@ -35,6 +35,7 @@ Game\Player\DruidCatThreat.lua
 Game\Player\PaladinAuraState.lua
 Game\Player\PaladinActions.lua
 Game\Player\PaladinMight.lua
+Game\Player\PaladinWisdom.lua
 Game\Player\PaladinBlessingThreat.lua
 Game\Player\PaladinRighteousFury.lua
 Game\Player\TotemState.lua
@@ -50,6 +51,7 @@ Game\Player\PriestShield.lua
 Game\Player\PriestShadowform.lua
 Game\Player\PriestInnerFocus.lua
 Game\Player\PriestPowerInfusion.lua
+Game\Player\PriestFade.lua
 Game\Player\DruidProwl.lua
 Game\Player\RogueFeint.lua
 Game\Player\RogueSliceAndDice.lua
@@ -137,6 +139,7 @@ Graph\HunterRangedPower.lua
 Graph\PriestShadowform.lua
 Graph\PriestInnerFocus.lua
 Graph\PriestPowerInfusion.lua
+Graph\PriestFade.lua
 Graph\MagePresenceOfMind.lua
 Graph\MageColdSnap.lua
 Graph\WarriorRage.lua
@@ -156,6 +159,7 @@ Graph\DruidForms.lua
 Graph\DruidClearcasting.lua
 Graph\WarriorStances.lua
 Graph\PaladinAuraProjection.lua
+Graph\PaladinWisdom.lua
 Graph\PaladinMight.lua
 Graph\PaladinRighteousFury.lua
 Graph\PaladinBlessingThreat.lua

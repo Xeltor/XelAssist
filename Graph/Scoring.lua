@@ -32,6 +32,7 @@ local StateUtilityScoring = XelAssist.Graph.StateUtilityScoring
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
 local PriestPowerInfusion = XelAssist.Graph.PriestPowerInfusion
+local PriestFade = XelAssist.Graph.PriestFade
 local WarriorDemoralizingShout = XelAssist.Graph.WarriorDemoralizingShout
 local function legalityAndTiming(action, state, descriptor)
     local allowed, blocker, tooltip, target, actionStart, resolved, targetState =
@@ -296,6 +297,7 @@ local function scoreKindUtility(context)
     if RogueFeint and RogueFeint:Score(context) then return end
     if HunterMark and HunterMark:Score(context) then return end
     if PriestShadowform and PriestShadowform:Score(context) then return end
+    if PriestFade and PriestFade:Score(context) then return end
     if ThreatDrop and ThreatDrop:Score(context) then return end
     if scoreDamageAndHealing(context) then return end
     if ActorScoring:Score(context) then return end

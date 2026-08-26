@@ -4,6 +4,7 @@ XelAssist.Graph.ClassState = {}
 local S = XelAssist.Graph.ClassState
 local Paladin = XelAssist.Graph.PaladinAuraProjection
 local PaladinMight = XelAssist.Graph.PaladinMight
+local PaladinWisdom = XelAssist.Graph.PaladinWisdom
 local PaladinBlessingThreat = XelAssist.Graph.PaladinBlessingThreat
 local PaladinRighteousFury = XelAssist.Graph.PaladinRighteousFury
 local Totems = XelAssist.Game.Player.TotemState
@@ -24,6 +25,7 @@ local HunterHawk = XelAssist.Graph.HunterHawk
 local PriestShadowform = XelAssist.Graph.PriestShadowform
 local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
 local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
+local PriestFade = XelAssist.Graph.PriestFade
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 local WarlockSoulLinkRuntime = XelAssist.Game.Player.WarlockSoulLink
@@ -61,9 +63,10 @@ function S:Attach(state)
     if token == "PALADIN" and Paladin then
         local attached = Paladin:Attach(state)
         local might = PaladinMight and PaladinMight:Attach(state) or false
+        local wisdom = PaladinWisdom and PaladinWisdom:Attach(state) or false
         if PaladinBlessingThreat then PaladinBlessingThreat:Attach(state) end
         if PaladinRighteousFury then PaladinRighteousFury:Attach(state) end
-        return attached or might
+        return attached or might or wisdom
     elseif token == "SHAMAN" then
         local attached = false
         if Totems then
@@ -124,6 +127,9 @@ function S:Copy(source, target)
     if source.paladinMight and PaladinMight then
         PaladinMight:Copy(source, target)
     end
+    if source.paladinWisdom and PaladinWisdom then
+        PaladinWisdom:Copy(source, target)
+    end
     if source.paladinBlessingThreat and PaladinBlessingThreat then
         PaladinBlessingThreat:Copy(source, target)
     end
@@ -141,6 +147,7 @@ function S:Copy(source, target)
     if RogueRuthlessness then RogueRuthlessness:Copy(source, target) end
     if PriestShadowform then PriestShadowform:Copy(source, target) end
     if PriestInnerFocus then PriestInnerFocus:Copy(source, target) end
+    if PriestFade then PriestFade:Copy(source, target) end
     if Windfury then Windfury:Copy(source, target) end
     if WarriorBattleShout then WarriorBattleShout:Copy(source, target) end
     if source.warlockSoulLink then
@@ -148,6 +155,7 @@ function S:Copy(source, target)
     end
     return source.paladinAuraState ~= nil
         or source.paladinMight ~= nil
+        or source.paladinWisdom ~= nil
         or source.paladinBlessingThreat ~= nil or source.totems ~= nil
         or source.paladinRighteousFury ~= nil
         or source.hunterMarkRoot ~= nil or source.hunterHawk ~= nil
@@ -161,6 +169,7 @@ function S:Copy(source, target)
         or source.rogueRuthlessness ~= nil
         or source.playerShadowformProfileExact == true
         or source.priestInnerFocus ~= nil
+        or source.priestFade ~= nil
         or source.shamanWindfuryTotem ~= nil
         or source.warlockSoulLink ~= nil
         or source.warriorBattleShout ~= nil

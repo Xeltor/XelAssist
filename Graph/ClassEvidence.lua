@@ -5,6 +5,7 @@ XelAssist.Graph.ClassEvidence = {}
 local E = XelAssist.Graph.ClassEvidence
 local PaladinRighteousFury = XelAssist.Game.Player.PaladinRighteousFury
 local PaladinMight = XelAssist.Game.Player.PaladinMight
+local PaladinWisdom = XelAssist.Game.Player.PaladinWisdom
 local MageShield = XelAssist.Game.Player.MageManaShield
 local MageClearcasting = XelAssist.Game.Player.MageClearcasting
 local MagePresenceOfMind = XelAssist.Game.Player.MagePresenceOfMind
@@ -26,6 +27,8 @@ local PriestShadowform = XelAssist.Game.Player.PriestShadowform
 local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
 local PriestPowerInfusionRuntime = XelAssist.Game.Player.PriestPowerInfusion
 local PriestPowerInfusion = XelAssist.Graph.PriestPowerInfusion
+local PriestFadeRuntime = XelAssist.Game.Player.PriestFade
+local PriestFade = XelAssist.Graph.PriestFade
 local WarriorBattleShout = XelAssist.Game.Player.WarriorBattleShout
 local WarriorThunderClap = XelAssist.Game.Player.WarriorThunderClap
 local WarriorDemoralizingShout =
@@ -40,6 +43,7 @@ function E:CaptureFacts(action, facts, state)
         out = PaladinRighteousFury:CaptureFacts(action, out)
     end
     if PaladinMight then out = PaladinMight:CaptureFacts(action, out) end
+    if PaladinWisdom then out = PaladinWisdom:CaptureFacts(action, out) end
     if MageShield then out = MageShield:CaptureFacts(action, out) end
     if MageClearcasting then
         out = MageClearcasting:CaptureFacts(action, out, state)
@@ -88,6 +92,7 @@ function E:CaptureFacts(action, facts, state)
     if PriestPowerInfusionRuntime then
         out = PriestPowerInfusionRuntime:CaptureFacts(action, out)
     end
+    if PriestFadeRuntime then out = PriestFadeRuntime:CaptureFacts(action, out) end
     return out
 end
 
@@ -124,6 +129,10 @@ function E:Blocker(action, state, descriptor, tooltip, actionStart)
     end
     if PriestShield then
         blocker, handled = PriestShield:Blocker(action, state, descriptor)
+        if handled then return blocker, true end
+    end
+    if PriestFade then
+        blocker, handled = PriestFade:Blocker(action, state, descriptor, tooltip)
         if handled then return blocker, true end
     end
     if RogueFeintGraph then

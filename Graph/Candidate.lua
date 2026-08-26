@@ -44,6 +44,11 @@ local function consumerKey(context)
         value = manaSpring:ConsumerKey(context.tooltip)
             or manaSpring:ConsumerKey(context.facts)
     end
+    local wisdom = XelAssist.Graph.PaladinWisdom
+    if value == nil and wisdom then
+        value = wisdom:ConsumerKey(context.tooltip)
+            or wisdom:ConsumerKey(context.facts)
+    end
     local coldSnap = XelAssist.Graph.MageColdSnap
     if value == nil and coldSnap then
         value = coldSnap:ConsumerKey(
@@ -65,6 +70,8 @@ local function strategicSetup(tooltip)
         and XelAssist.Graph.PriestPowerInfusion:StrategicSetup(tooltip)
     local manaSpring = XelAssist.Graph.ShamanManaSpring
         and XelAssist.Graph.ShamanManaSpring:StrategicSetup(tooltip)
+    local wisdom = XelAssist.Graph.PaladinWisdom
+        and XelAssist.Graph.PaladinWisdom:StrategicSetup(tooltip)
     local coldSnap = XelAssist.Graph.MageColdSnap
         and XelAssist.Graph.MageColdSnap:StrategicSetup(tooltip)
     local warrior = tooltip and tooltip.warriorStanceTransition
@@ -75,12 +82,13 @@ local function strategicSetup(tooltip)
         if value then selected, count = value, count + 1 end
     end
     include(innerFocus); include(presence); include(powerInfusion)
-    include(manaSpring); include(coldSnap)
+    include(manaSpring); include(wisdom); include(coldSnap)
     include(warrior)
     include(druid); include(priest)
     if count ~= 1 then return nil end
     if selected == innerFocus or selected == presence
         or selected == powerInfusion or selected == manaSpring
+        or selected == wisdom
         or selected == coldSnap then return selected end
     local transition, prefix = warrior or druid or priest,
         warrior and "warriorStance" or druid and "druidForm"

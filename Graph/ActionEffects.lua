@@ -23,6 +23,7 @@ local MagePresenceOfMind = XelAssist.Graph.MagePresenceOfMind
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
 local RogueRuthlessness = XelAssist.Graph.RogueRuthlessness
 local WarriorDemoralizingShout = XelAssist.Graph.WarriorDemoralizingShout
+local PriestFade = XelAssist.Graph.PriestFade
 local ThreatDrop, ClassMechanics = XelAssist.Graph.ThreatDrop, XelAssist.Graph.ClassMechanics
 local FriendlyActionEffects = XelAssist.Graph.FriendlyActionEffects
 function A:Context(source, candidate)
@@ -182,6 +183,9 @@ local function applyDamageOrSupport(out, source, candidate, context,
         if XelAssist.Graph.RogueFeint
             and XelAssist.Graph.RogueFeint:Apply(out, candidate) then
             return true
+        end
+        if PriestFade and PriestFade:Is(context.action, candidate.tooltip) then
+            return PriestFade:Apply(out, candidate)
         end
         return ThreatDrop and ThreatDrop:Apply(out, candidate) or false
     elseif facts.healthFundedChannel and HealthTransfer

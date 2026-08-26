@@ -369,7 +369,8 @@ function T:Advance(out, elapsed)
         record = hostiles.byKey and hostiles.byKey[hostiles.order[i]]
         local threat = threatOf(record)
         local offset = threat and threat.playerThreatOffset
-        if offset and offset.model == self.TEMPORARY_FLAT then
+        if offset and offset.model == self.TEMPORARY_FLAT
+            and offset.priestFade ~= true then
             offset.remaining = math.max(0,
                 (tonumber(offset.remaining) or 0) - elapsed)
             if offset.remaining <= 0 then threat.playerThreatOffset = nil end

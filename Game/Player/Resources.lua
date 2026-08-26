@@ -119,6 +119,11 @@ function R:ResourceAt(state, at)
     if warrior and warrior:Active(state) then
         return warrior:ResourceAt(state, at)
     end
+    local wisdom = XelAssist.Graph and XelAssist.Graph.PaladinWisdom
+    if wisdom then
+        local value, handled = wisdom:ResourceAt(state, at)
+        if handled then return value end
+    end
     local out = probe(state, at)
     return out.resource and out.resource - out.playerResourceReserved or nil
 end
@@ -127,6 +132,11 @@ function R:Earliest(state, cost, readyAt)
     local warrior = XelAssist.Game.Player.WarriorRage
     if warrior and warrior:Active(state) then
         return warrior:Earliest(state, cost, readyAt)
+    end
+    local wisdom = XelAssist.Graph and XelAssist.Graph.PaladinWisdom
+    if wisdom then
+        local value, handled = wisdom:Earliest(state, cost, readyAt)
+        if handled then return value end
     end
     cost, readyAt = math.max(0, tonumber(cost) or 0),
         math.max(tonumber(state.time) or 0, tonumber(readyAt) or 0)
