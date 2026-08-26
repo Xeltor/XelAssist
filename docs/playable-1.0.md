@@ -62,11 +62,15 @@ Every band exercises out-of-combat setup, engage, sustained combat, target death
 and recovery. Tank and healer classes also require role scenarios; pet classes
 require summon/absence, command, resource, threat and recovery scenarios.
 
-The current deterministic matrix contains unordered low-level tranches for all
-nine classes and partial mid-level tranches covering setup, engagement,
-starvation/recovery, disruption, death and post-combat recovery. The hybrid
-mid-level tranche does not yet prove form, Seal/Judgement or full totem role
-state machines, so no class row is promoted solely by these tests.
+The current deterministic matrix contains unordered low-level and partial
+mid-level and level-60 tranches for all nine classes, covering setup,
+engagement, starvation/recovery, disruption, death and post-combat recovery.
+The level-60 tranche additionally exercises rank-heavy catalogues and partial
+role, equipment, resistance, interrupt and pet participation. Exact focused
+proofs cover Mana Spring expiry, Seal replacement and Judgement consumption,
+and Druid hidden-mana form transitions. Full tank, healer, pet and specialized
+class-state obligations remain open, so no class row is promoted solely by
+these tests.
 
 ## Class playability contracts
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.55
+
+- Added permutation-stable, rank-heavy level-60 scenario tranches for all nine
+  classes. They cover setup, engagement, starvation/recovery, disruption,
+  death and post-combat recovery without encoding rotations.
+- Added partial level-60 role evidence for healing, tank pressure, interrupts,
+  resistance, movement, equipment and pet participation, while retaining
+  explicit fail-closed gaps where target threat or pet scheduling is unknown.
+- Added exact scenario proofs for Mana Spring Totem expiry, Seal replacement
+  and Judgement consumption, and Druid hidden-mana form transitions. These are
+  partial release evidence and do not promote any class to proven status.
+
 ## 0.8.54
 
 - Added unordered mid-level scenario tranches for all nine classes across
