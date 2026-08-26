@@ -7,6 +7,7 @@ local HunterRangedPower = XelAssist.Graph.HunterRangedPower
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 local PaladinMight = XelAssist.Graph.PaladinMight
 local WarlockSoulLink = XelAssist.Graph.WarlockSoulLink
+local WarriorReprisal = XelAssist.Graph.WarriorReprisal
 
 local function comboPower(action, tooltip, state, targetGUID, comboAllOwners)
     if not (action.facts.combo or tooltip.comboSpendAll) then return 0 end
@@ -130,6 +131,39 @@ local function addSpellBonus(action, tooltip, observed, status, base)
     return base + bonus * coefficient, true
 end
 
+local function applyClassDamage(action, tooltip, state, base, evidence)
+    if WarriorReprisal then
+        local adjusted, applied = WarriorReprisal:AdjustPower(
+            action, tooltip, base)
+        base = adjusted
+        if applied then
+            evidence = evidence or {}
+            evidence.warriorReprisal = true
+        end
+    end
+    local damage = action.facts.kind == "damage"
+        or action.facts.kind == "dot" or action.facts.kind == "builder"
+    local effectActor = action.facts.damageActor
+        or action.facts.effectActor or action.actor
+    if damage and effectActor == "pet" and XelAssist.Game.Pets
+        and XelAssist.Game.Pets.Effects then
+        base = base * XelAssist.Game.Pets.Effects:DamageMultiplier(
+            state.actors and state.actors.pet)
+    end
+    if damage and state.classMechanicClass == "WARLOCK"
+        and WarlockSoulLink then
+        local adjusted, known, _, reason = WarlockSoulLink:AdjustOutgoing(
+            state, effectActor or "player", base)
+        if adjusted ~= nil then base = adjusted end
+        if known == false then
+            evidence = evidence or {}
+            evidence.soulLinkGap = reason or "Soul Link evidence unavailable"
+            return base, evidence, true
+        end
+    end
+    return base, evidence, false
+end
+
 function P:Estimate(action, tooltip, state, targetGUID, comboAllOwners,
     effectTargetGUID)
     local observed, observationStatus = observedPower(action, state)
@@ -208,25 +242,9 @@ function P:Estimate(action, tooltip, state, targetGUID, comboAllOwners,
     base, bonusEstimated = addSpellBonus(
         action, tooltip, observed, observationStatus, base)
     if bonusEstimated then estimated = true end
-    local damage = action.facts.kind == "damage"
-        or action.facts.kind == "dot" or action.facts.kind == "builder"
-    local effectActor = action.facts.damageActor
-        or action.facts.effectActor or action.actor
-    if damage and effectActor == "pet" and XelAssist.Game.Pets
-        and XelAssist.Game.Pets.Effects then
-        base = base * XelAssist.Game.Pets.Effects:DamageMultiplier(
-            state.actors and state.actors.pet)
-    end
-    if damage and state.classMechanicClass == "WARLOCK"
-        and WarlockSoulLink then
-        local adjusted, known, _, reason = WarlockSoulLink:AdjustOutgoing(
-            state, effectActor or "player", base)
-        if adjusted ~= nil then base = adjusted end
-        if known == false then
-            estimated = true
-            evidence = evidence or {}
-            evidence.soulLinkGap = reason or "Soul Link evidence unavailable"
-        end
-    end
+    local classEstimated
+    base, evidence, classEstimated = applyClassDamage(
+        action, tooltip, state, base, evidence)
+    if classEstimated then estimated = true end
     return base, estimated, evidence
 end

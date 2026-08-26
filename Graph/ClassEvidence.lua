@@ -52,6 +52,7 @@ local WarriorBattleShout = XelAssist.Game.Player.WarriorBattleShout
 local WarriorThunderClap = XelAssist.Game.Player.WarriorThunderClap
 local WarriorOverpoweringRage =
     XelAssist.Game.Player.WarriorOverpoweringRage
+local WarriorReprisal = XelAssist.Game.Player.WarriorReprisal
 local WarriorExecute = XelAssist.Game.Player.WarriorExecute
 local WarriorDemoralizingShout =
     XelAssist.Game.Player.WarriorDemoralizingShout
@@ -106,6 +107,7 @@ captureModule(RoguePreparation)
 captureModule(WarriorBattleShout)
 captureModule(WarriorThunderClap)
 captureModule(WarriorOverpoweringRage)
+captureModule(WarriorReprisal)
 captureModule(WarriorExecute)
 captureModule(WarriorDemoralizingShout)
 captureModule(WarriorShieldWall)

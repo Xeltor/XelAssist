@@ -299,6 +299,7 @@ subprocess.run(["lua", str(root / "tests/warrior_execute_test.lua")], cwd=root, 
 subprocess.run(["lua", str(root / "tests/warrior_thunder_clap_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/warrior_overpower_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/warrior_overpowering_rage_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/warrior_reprisal_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/warrior_shield_bash_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/warrior_shield_slam_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/warrior_control_test.lua")], cwd=root, check=True)

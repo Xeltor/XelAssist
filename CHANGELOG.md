@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.77
+
+- Added exact learned Reprisal rank ownership and engine-effective Revenge
+  damage modifiers. Rank one now contributes its proven twenty-five-percent
+  damage increase and rank two its proven fifty-percent increase.
+- Kept Reprisal's fifty/one-hundred-percent rage-refund chance explicit but
+  uncredited because patch-5 does not expose the private successful-Revenge
+  refund trigger as a safe branch-local resource event.
+
 ## 0.8.76
 
 - Added exact Octo Overpowering Rage ownership and trigger topology. A learned
