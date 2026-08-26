@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.40
+
+- Captured ClassicAPI's server-derived local-player school interrupt mask and
+  duration as root graph evidence. Matching player spells are now illegal until
+  exact expiry while other schools remain usable; malformed active evidence
+  fails closed instead of guessing the interrupted school or lockout length.
+
 ## 0.8.39
 
 - Kept zero-output movement and Shoot setup edges out of published plans until

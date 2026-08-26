@@ -54,7 +54,6 @@ end
 function S:HostileContext(state, key)
     return XelAssist.Graph.HostileState:Context(state, key)
 end
-
 function S:SelectedHostileContext(state)
     return XelAssist.Graph.HostileState:SelectedContext(state)
 end
@@ -241,6 +240,7 @@ local function newState(mode, context)
         comboTargetGUID = context.comboObservation.ownerGUID,
         hitBonuses = context.hitBonuses, weaponSkills = context.weaponSkills,
         hostileSwings = context.hostileSwings,
+        playerSchoolLockouts = XelAssist.Game.Player and XelAssist.Game.Player.SchoolLockouts and XelAssist.Game.Player.SchoolLockouts:Snapshot() or nil,
         moving = context.moving,
         pet = actors.pet ~= nil, petLifecycle = actors.petLifecycle,
         actors = actors, inventory = context.inventory,

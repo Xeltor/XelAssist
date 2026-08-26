@@ -48,6 +48,8 @@ local eventDomains = {
     AURA_CAST_ON_SELF = "aura",
     AURA_CAST_ON_OTHER = "aura",
     DEBUFF_ADDED_OTHER = "aura",
+    LOSS_OF_CONTROL_ADDED = "readiness",
+    LOSS_OF_CONTROL_UPDATE = "readiness",
     UNIT_CASTEVENT = "cast",
 }
 
@@ -82,6 +84,10 @@ function E:Register(frame)
     local index
     for index = 1, table.getn(registered) do
         frame:RegisterEvent(registered[index])
+    end
+    if C_LossOfControl then
+        pcall(frame.RegisterEvent, frame, "LOSS_OF_CONTROL_ADDED")
+        pcall(frame.RegisterEvent, frame, "LOSS_OF_CONTROL_UPDATE")
     end
     return true
 end

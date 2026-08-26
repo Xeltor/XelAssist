@@ -346,6 +346,7 @@ subprocess.run(["lua", str(root / "tests/player_energy_resources_test.lua")], cw
 subprocess.run(["lua", str(root / "tests/player_mana_evidence_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/player_mana_events_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/player_mana_resources_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/player_school_lockout_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/player_attack_rounds_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/player_offhand_attack_rounds_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/player_swing_graph_test.lua")], cwd=root, check=True)

@@ -122,6 +122,13 @@ end
 
 function A:Readiness(action, state, tooltip, actionStart)
     local facts, actor = action.facts, action.actor or "player"
+    local lockouts = XelAssist.Game.Player
+        and XelAssist.Game.Player.SchoolLockouts
+    if lockouts then
+        local blocker, handled = lockouts:Blocker(
+            state, action, tooltip, actionStart)
+        if handled and blocker then return blocker end
+    end
     local reactive = XelAssist.Graph.ReactiveState
     if reactive then
         local blocker, handled = reactive:Evaluate(action, state, actionStart)
