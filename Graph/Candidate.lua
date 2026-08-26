@@ -207,7 +207,7 @@ function C:Build(context)
         dotRawDirectPower = context.dotRawDirectPower,
         dotRawPeriodicPower = context.dotRawPeriodicPower,
         dotPeriodicExpectedPower = context.dotPeriodicExpectedPower, periodicRefresh = context.periodicRefresh,
-        wait = context.wait, occupancy = context.occupancy,
+        wait = context.wait, occupancy = context.occupancy, pushbackProjection = context.pushbackProjection,
         gcd = context.gcd, normalGcd = context.normalGcd,
         actionStart = context.actionStart,
         clipsChannel = XelAssist.Graph.ChannelCommitment

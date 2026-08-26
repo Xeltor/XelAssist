@@ -131,6 +131,15 @@ local function average(values)
     return total / table.getn(values)
 end
 
+local function damagingFraction(values)
+    if table.getn(values) == 0 then return nil end
+    local damaging, i = 0, nil
+    for i = 1, table.getn(values) do
+        if values[i] > 0 then damaging = damaging + 1 end
+    end
+    return damaging / table.getn(values)
+end
+
 function H:Observe(attackerGuid, victimGuid, totalDamage, hitInfo,
     victimState, subDamageCount, blockedAmount, totalAbsorb, totalResist, at)
     local victimUnit = friendlyUnit(victimGuid)
@@ -194,6 +203,9 @@ end
 
 function H:Snapshot(hostiles, friendlies, actors, at)
     local out, i = { lanes = {}, capped = false }, nil
+    out.playerPushback = XelAssist.Game.Player
+        and XelAssist.Game.Player.PushbackEvidence
+        and XelAssist.Game.Player.PushbackEvidence:Snapshot() or nil
     at = tonumber(at)
     if not at then return out end
     for i = 1, table.getn(self.lanes) do
@@ -212,6 +224,7 @@ function H:Snapshot(hostiles, friendlies, actors, at)
                 victimKind = victimKind, hand = lane.hand,
                 interval = interval, nextSwingIn = due - at,
                 expectedDamage = damage, generation = lane.generation,
+                damageProbability = damagingFraction(lane.damages),
                 mitigationRegime = regime,
                 phaseKnown = true, magnitudeEstimated = true,
                 source = "observed hostile post-mitigation white rounds" })

@@ -8,11 +8,10 @@ local HostileEffects, PlayerSwings = XelAssist.Graph.HostileEffects, XelAssist.G
 local PlayerSwingScoring = XelAssist.Graph.PlayerSwingScoring
 local Triggered = XelAssist.Combat.TriggeredActions
 local ComboScoring = XelAssist.Graph.ComboScoring
-local Admission = XelAssist.Graph.ActionAdmission
-local SurvivalPressure = XelAssist.Graph.SurvivalPressure
-local IncomingScoring = XelAssist.Graph.IncomingScoring
-local PeriodicScoring = XelAssist.Graph.PeriodicScoring
-local PeriodicRefresh = XelAssist.Graph.PeriodicRefresh
+local Admission, SurvivalPressure = XelAssist.Graph.ActionAdmission,
+    XelAssist.Graph.SurvivalPressure
+local IncomingScoring, PeriodicScoring = XelAssist.Graph.IncomingScoring, XelAssist.Graph.PeriodicScoring
+local PeriodicRefresh, PushbackProjection = XelAssist.Graph.PeriodicRefresh, XelAssist.Graph.PushbackProjection
 local Candidate = XelAssist.Graph.Candidate
 local ActionConsumption = XelAssist.Graph.ActionConsumption
 local ThreatDrop = XelAssist.Graph.ThreatDrop
@@ -182,6 +181,7 @@ local function projectPeriodicDamage(context)
     end
 end
 local function projectDamageAndResistance(context)
+    if PushbackProjection then PushbackProjection:Adjust(context) end
     if HunterAloneAgainstWorld then
         HunterAloneAgainstWorld:AdjustDamage(context)
     end

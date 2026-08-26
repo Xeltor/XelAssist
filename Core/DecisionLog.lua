@@ -82,7 +82,13 @@ function L:Record(plan, mode)
         periodicRefreshDisplacedPower = plan.periodicRefresh
             and plan.periodicRefresh.displacedPower,
         periodicRefreshMarginalPower = plan.periodicRefresh
-            and plan.periodicRefresh.marginalPeriodicPower })
+            and plan.periodicRefresh.marginalPeriodicPower,
+        pushbackExtension = plan.pushbackProjection
+            and plan.pushbackProjection.extension,
+        pushbackEvents = plan.pushbackProjection
+            and plan.pushbackProjection.events,
+        pushbackSamples = plan.pushbackProjection
+            and plan.pushbackProjection.samples })
     while table.getn(XelAssistLog) > 200 do table.remove(XelAssistLog, 1) end
     recordSession(plan)
 end

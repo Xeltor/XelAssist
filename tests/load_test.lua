@@ -401,7 +401,7 @@ assert(XelAssistCharDB.schema == 5
     and XelAssistCharDB.toggles.engagedTargets == false,
     "saved-variable schema did not migrate with safe hostile-target defaults")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.68" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.69" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.class == "MAGE" and runtime.level == 12
     and runtime.role == "auto" and runtime.session.decisions == 0,
     "runtime smoke identity and session evidence missing")
@@ -1301,6 +1301,12 @@ assert(math.abs(XelAssistTestUndelayedApplication.untilAt
     and math.abs(XelAssistTestUndelayedApplication.delaySeconds - 2.157) < 0.001
     and math.abs(XelAssist.playerCastUntil - mockTime - 5.657) < 0.001,
     "exact self pushback must extend active cast timing and its application guard")
+XelAssistTestPushback = XelAssist.Game.Player.PushbackEvidence:Snapshot()
+assert(XelAssistTestPushback and XelAssistTestPushback.samples == 4
+    and math.abs(XelAssistTestPushback.meanDelay - 0.53925) < 0.00001
+    and XelAssistTestPushback.minimumDelay == 0.4
+    and XelAssistTestPushback.maximumDelay == 0.658,
+    "accepted normal-cast delays must teach the bounded graph timing envelope")
 mockTime = XelAssistTestUndelayedDeadline + 0.25
 assert(XelAssist:IsAuraPending("Immolate"),
     "a pushed-back cast must not outlive its application reservation")

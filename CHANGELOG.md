@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.69
+
+- Learned exact normal-cast pushback increments from Octo's
+  `SPELL_DELAYED_SELF` stream in an eight-sample character/session envelope.
+  Talent, spell, equipment, level, form and world changes retire the profile.
+- Added observed damaging-hit probability to mitigation-bound hostile white
+  rounds. Phase-known rounds which can land during a normal player cast now
+  extend its expected cast, occupancy and impact timing; an extension may
+  causally admit a later swing. Channels, pet casts and exact Barkskin immunity
+  remain separate.
+- Added automatic diagnostics and decision-log evidence plus production
+  scenarios for Druid, Hunter, Mage, Paladin, Priest, Shaman and Warlock cast
+  timing. No cold-start Vanilla formula is invented before Octo evidence exists.
+
 ## 0.8.68
 
 - Periodic refreshes now value only their marginal future ticks. An owned DoT's

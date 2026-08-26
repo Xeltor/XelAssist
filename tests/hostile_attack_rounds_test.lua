@@ -49,7 +49,8 @@ assert(table.getn(snapshot.lanes) == 1
     and snapshot.lanes[1].attackerGuid == hostileGuid
     and snapshot.lanes[1].victimGuid == playerGuid
     and math.abs(snapshot.lanes[1].interval - 2.05) < 0.001
-    and snapshot.lanes[1].expectedDamage == 10,
+    and snapshot.lanes[1].expectedDamage == 10
+    and snapshot.lanes[1].damageProbability == 0.75,
     "three clean intervals must expose one opaque, estimated post-mitigation lane")
 
 armor.player = 120

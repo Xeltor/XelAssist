@@ -271,6 +271,9 @@ never class rotations or ordered priority lists.
   reservations, keeping same-spell attempt generations isolated.
   `Core/CastEventRouter.lua` normalizes Nampower and SuperWoW cast lifecycles
   before routing them to the hostile ledger or existing owned actor lanes.
+  `Game/Player/PushbackEvidence.lua` owns the bounded character/session delay
+  envelope; `Graph/PushbackProjection.lua` combines it only with phase-known
+  damaging hostile rounds and exact immunity state.
   `Core/AuraApplicationReservations.lua` owns exact landing, visibility-gap,
   aura-cap uncertainty, and cast-pushback extensions after the base reservation
   module establishes identity and lifecycle records.

@@ -88,6 +88,8 @@ function D:Audit(owner)
         and player.ManaEvidence:Status(GetTime and GetTime() or nil) or nil
     runtime.mageEvocation = player.MageEvocationEvidence
         and player.MageEvocationEvidence:Status() or nil
+    runtime.playerPushback = player.PushbackEvidence
+        and player.PushbackEvidence:Status() or nil
     local rounds = XelAssist.Game.AttackRounds
     runtime.companionSwings = rounds and rounds:Status() or nil
     local playerRounds = XelAssist.Game.Player

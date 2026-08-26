@@ -127,6 +127,7 @@ dofile("Graph/CrowdControlTimeline.lua")
 dofile("Graph/Timeline.lua")
 dofile("Graph/ActionPower.lua")
 dofile("Graph/SurvivalPressure.lua")
+dofile("Graph/PushbackProjection.lua")
 dofile("Graph/PeriodicScoring.lua")
 dofile("Graph/Candidate.lua")
 dofile("Graph/StateUtilityScoring.lua")
@@ -420,6 +421,19 @@ local afterWoven = XelAssist.Graph.Transitions:Advance(afterNormal, woven)
 assert(math.abs(afterWoven.time - 0.1) < 0.0001
     and math.abs(afterWoven.playerGcdReadyAt - 1.5) < 0.0001,
     "an independent action must not consume or reset the shared GCD")
+
+currentState = state("smart")
+currentState.inCombat = true
+currentState.hostileSwings = { playerPushback = { available = true,
+    meanDelay = 0.5, maximumDelay = 0.75, samples = 4 }, lanes = {
+    { phaseKnown = true, victimKind = "player", interval = 2,
+        nextSwingIn = 1, expectedDamage = 10, damageProbability = 0.5 },
+} }
+local pushedCast = scored(action(
+    "Pushback Cast", 1, "damage", 100, 20, { cast = 2.5 }), currentState)
+assert(pushedCast.cast == 2.75 and pushedCast.downtime == 2.75
+    and pushedCast.pushbackProjection.events == 1,
+    "production scoring must carry observed hostile pushback into cast timing")
 end
 
 do

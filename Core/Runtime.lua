@@ -160,6 +160,9 @@ local function resetRuntimeTrackers(reason)
     if XelAssist.Game.HostileAttackRounds then
         XelAssist.Game.HostileAttackRounds:Reset(reason)
     end
+    if XelAssist.Game.Player.PushbackEvidence then
+        XelAssist.Game.Player.PushbackEvidence:Invalidate(reason)
+    end
 end
 local function observeHostileRound()
     if event == "AUTO_ATTACK_OTHER" and XelAssist.Game.HostileAttackRounds then
@@ -183,6 +186,10 @@ ev:RegisterEvent("PLAYER_LOGIN")
 ev:RegisterEvent("PLAYER_ENTERING_WORLD")
 ev:RegisterEvent("SPELLS_CHANGED")
 ev:RegisterEvent("CHARACTER_POINTS_CHANGED")
+ev:RegisterEvent("PLAYER_LEVEL_UP")
+ev:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
+ev:RegisterEvent("UPDATE_SHAPESHIFT_FORMS")
+ev:RegisterEvent("UNIT_AURA")
 ev:RegisterEvent("PET_BAR_UPDATE")
 ev:RegisterEvent("PET_UI_UPDATE")
 ev:RegisterEvent("UNIT_PET")
@@ -222,7 +229,8 @@ ev:RegisterEvent("DEBUFF_ADDED_OTHER")
 if CombatRevisionEvents then CombatRevisionEvents:Register(ev) end
 local function updatePlayerCastTiming(kind, first, second, third)
     local runtime = XA.Game.Player.ChannelRuntime
-    if kind == "SPELL_DELAYED_SELF" then runtime:Delay(first, second)
+    if kind == "SPELL_DELAYED_SELF" then
+        XA.Game.Player.PushbackEvidence:ObserveDelay(runtime, first, second)
     elseif kind == "SPELL_CHANNEL_START" then
         runtime:Start(first, second, third, true)
     elseif kind == "SPELL_CHANNEL_UPDATE" then
@@ -261,6 +269,7 @@ ev:SetScript("OnEvent", function()
         end
     end
     resetHostileMitigationEvidence(event, arg1)
+    XA.Game.Player.PushbackEvidence:RegimeEvent(event, arg1)
     if event == "CHAT_MSG_SPELL_SELF_DAMAGE" and XelAssist.Combat.Observations then
         local outcome, outcomeTarget, outcomeSpell = XelAssist.Combat.Observations:CombatMessage(arg1)
         if outcome == "retry" or outcome == "immune" then
