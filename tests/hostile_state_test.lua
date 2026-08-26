@@ -576,6 +576,7 @@ XelAssist.Graph.ActionAdmission = {
 }
 dofile("Game/Range.lua")
 dofile("Graph/SpatialRequirements.lua")
+dofile("Graph/ActionContextPolicy.lua")
 dofile("Graph/Targets.lua")
 local spatialAction = { name = "Backstab", actor = "player", executor = "spell",
     rank = 1, facts = { kind = "damage", behind = true },

@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.8.34
+
+- Added name-independent Druid form discovery from installed-client semantics,
+  exact active/hidden mana-rage-energy snapshots, hidden-mana shapeshift
+  payment, conservative unknown destination power, and a live race-checked
+  cancel-to-caster executor. This is safe form mechanics, not yet a complete
+  projected Cat/Bear combat strategy.
+- Added preparatory exact player-aura replacement evidence for Hunter aspects,
+  while failing their recommendations closed until each downstream combat
+  effect is represented causally. Every modeled special ranged shot now
+  consumes the same ammunition stock as Auto Shot; an earlier ambient launch
+  can exhaust the final round before a casted shot, preventing phantom damage,
+  resource payment, and recommendations.
+- Added root-only player reactive-state evidence with an exact live-usability
+  fallback for installed records that omit their aura-state requirement. Proc
+  state is consumed branch-locally and never projected through an unknown wait.
+- Added causal Warlock leech-channel ticks: delivered damage, capped paired
+  healing, resistance, target identity, channel clipping, and scaled threat now
+  resolve once at each exact remaining tick rather than at continuation choice.
+- Added a bounded, identity-safe dispel evidence adapter as preparatory frozen
+  capture infrastructure. It can infer dispel mechanics without localized
+  names, but is deliberately not advertised as a usable recommendation path
+  until RootObservation and scoring consume its frozen recipient decisions.
+- Extracted action-context policy and capability-cache invalidation from shared
+  modules, kept every normal runtime Lua file within the review ceiling, and
+  retained the production search depth and approximately 3.23 ms maximum test
+  slice.
+
 ## 0.8.31
 
 - Added player Taunt as an exact root-only threat-rescue edge, distinct from

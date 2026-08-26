@@ -267,11 +267,13 @@ local function captureSetup(observed)
     observed.phase = "action"
 end
 local function captureFacts(action)
-    local actors = XelAssist.Game.Actors
-    if not (actors and actors.Facts) then return nil, false end
-    local ok, facts = pcall(actors.Facts, actors, action)
-    if not ok or type(facts) ~= "table" then return nil, false end
-    return copy(facts, 9), true
+    local forms, actors, facts, known = XelAssist.Graph.DruidForms, XelAssist.Game.Actors, nil, nil
+    if forms then facts, known = forms:CaptureFacts(action, actors)
+    elseif actors and actors.Facts then
+        known, facts = pcall(actors.Facts, actors, action)
+        known = known and type(facts) == "table"
+    end
+    return facts and copy(facts, 9) or nil, known
 end
 local function captureAction(observed, source)
     local action = copyAction(source)

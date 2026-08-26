@@ -65,7 +65,8 @@ function A:Start(action, state, tooltip)
     end
     local playerResources = XelAssist.Game.Player
         and XelAssist.Game.Player.Resources
-    if actor == "player" and playerResources then
+    if actor == "player" and playerResources
+        and not tooltip.druidFormTransition then
         local available = (tonumber(state.resource) or 0)
             - (tonumber(state.playerResourceReserved) or 0)
         if (state.time or 0) <= 0
@@ -107,8 +108,15 @@ end
 
 function A:Readiness(action, state, tooltip, actionStart)
     local facts, actor = action.facts, action.actor or "player"
+    local reactive = XelAssist.Graph.ReactiveState
+    if reactive then
+        local blocker, handled = reactive:Evaluate(action, state, actionStart)
+        if handled and blocker then return blocker end
+    end
     local resource = state.resource
-    if action.actor == "pet" and state.actors and state.actors.pet then
+    if tooltip.druidFormTransition then
+        resource = tooltip.cost
+    elseif action.actor == "pet" and state.actors and state.actors.pet then
         resource = state.actors.pet.resource
     elseif action.actor ~= "pet" and resource ~= nil then
         local playerResources = XelAssist.Game.Player

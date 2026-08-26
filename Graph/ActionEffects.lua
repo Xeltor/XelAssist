@@ -14,6 +14,8 @@ local HealthTransfer = XelAssist.Graph.HealthTransfer
 local WandCommitment = XelAssist.Graph.WandCommitment
 local PlayerTaunt = XelAssist.Graph.PlayerTaunt
 local StackedModifiers = XelAssist.Graph.StackedModifiers
+local HunterAspects = XelAssist.Graph.HunterAspects
+local DruidForms = XelAssist.Graph.DruidForms
 
 function A:Context(source, candidate)
     local action, facts = candidate.action, candidate.action.facts
@@ -31,7 +33,9 @@ function A:Context(source, candidate)
             or targetFacts.targetDamageTaken)
     local duration = tonumber(candidate.tooltip.duration)
     local remaining = duration and math.max(0, duration - elapsed) or nil
-    local applicationState = (hasModifier or facts.exclusiveFamily)
+    local hostileExclusiveFamily = candidate.targetRelation == "hostile"
+        and facts.exclusiveFamily or nil
+    local applicationState = (hasModifier or hostileExclusiveFamily)
         and Effects:StateAtImpact(source, offset) or nil
     local context = { action = action, facts = facts,
         targetFacts = targetFacts,
@@ -39,13 +43,14 @@ function A:Context(source, candidate)
         applicationElapsed = elapsed,
         applicationOffset = offset,
         hasTargetModifier = hasModifier,
+        hostileExclusiveFamily = hostileExclusiveFamily,
         targetModifierDuration = duration,
         targetModifierRemaining = remaining,
         targetGUID = candidate.targetGUID,
         applicationState = applicationState,
     }
     function context:ChangesHostileTarget()
-        return self.hasTargetModifier or self.facts.exclusiveFamily
+        return self.hasTargetModifier or self.hostileExclusiveFamily
     end
     function context:ModifierPrior(elapsedAfterApplication)
         if not self.applicationState then return nil, nil end
@@ -62,8 +67,10 @@ function A:Context(source, candidate)
             and priorRemaining - elapsedAfterApplication or nil
     end
     function context:ProjectCurrentApplication(state, elapsedAfterApplication)
-        Effects:ApplyExclusiveFamily(state, self.action,
-            self.projectedDelivery)
+        if self.hostileExclusiveFamily then
+            Effects:ApplyExclusiveFamily(state, self.action,
+                self.projectedDelivery)
+        end
         if self.hasTargetModifier and self.targetModifierDuration
             and self.targetModifierDuration > elapsedAfterApplication then
             local prior, fallback = self:ModifierPrior(elapsedAfterApplication)
@@ -95,7 +102,7 @@ function A:Consume(out, candidate, context)
 end
 
 local function applyModifierProjection(out, source, context)
-    if context.facts.exclusiveFamily then
+    if context.hostileExclusiveFamily then
         Effects:ApplyExclusiveFamily(out, context.action,
             context.projectedDelivery)
     end
@@ -111,6 +118,8 @@ end
 local function applyFriendlyTarget(out, candidate, context)
     if candidate.targetRelation == "hostile" then return nil end
     local target = State:FriendlyByKey(out, candidate.targetKey)
+    if target and HunterAspects
+        and HunterAspects:Apply(target, candidate, context) then return true end
     local kind = context.facts.kind
     if not (target and (kind == "heal" or kind == "hot"
         or kind == "absorb" or kind == "buff")) then return nil end
@@ -379,6 +388,7 @@ local function syncFriendlyCompatibility(state)
     end
 end
 function A:Apply(out, source, candidate, context)
+    if DruidForms then DruidForms:Apply(out, candidate, context) end
     applyModifierProjection(out, source, context)
     Readiness:Apply(out, candidate, context)
     local dotDirect, dotPeriodic, dotDuration, dotElapsed =

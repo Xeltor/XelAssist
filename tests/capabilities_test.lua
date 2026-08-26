@@ -204,6 +204,7 @@ dofile("Game/SpellEffectPower.lua")
 dofile("Game/SpellFactCache.lua")
 dofile("Game/Range.lua")
 dofile("Game/ResourceCost.lua")
+dofile("Game/CapabilityInvalidation.lua")
 dofile("Game/Capabilities.lua")
 dofile("Graph/ActionPower.lua")
 

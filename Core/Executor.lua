@@ -89,7 +89,6 @@ function XA:Fallback(reason)
         XelAssist.UI.HUD:RequestRefresh(true)
     end
 end
-
 function XA:ExecutePetPlan(plan, selected)
     local action, facts = plan.action, plan.action.facts
     local actorRef, reason = petRefForPlan(plan)
@@ -144,6 +143,7 @@ local function dispatchPlayer(action, plan, castName, friendly, selfQueue, captu
         if not (attack and attack.Start) then return false, "player Attack state unavailable" end
         local started, startReason = attack:Start(guid)
         if not started then return false, startReason end
+    elseif action.facts.druidFormCancel then return XelAssist.Graph.DruidForms:DispatchCancel(plan)
     elseif action.facts.wandRepeat then
         return WandExecution:Dispatch(castName, guid)
     elseif action.facts.autoRepeat then CastSpellByName(castName)

@@ -62,6 +62,16 @@ transitions, `Graph/ComboScoring.lua` owns marginal finisher efficiency, and
 `Graph/Engine.lua` is the bounded-search facade.
 Architecture tests prevent the old monolith or a dependency cycle from returning.
 
+`Game/Player/DruidFormState.lua` owns exact local form and explicit power-slot
+evidence; `Graph/DruidForms.lua` alone projects hidden-mana payments and form
+changes. `Game/Player/ReactiveEvidence.lua` decodes exact player aura-state
+bits, while `Graph/ReactiveState.lua` enforces their root-only lifetime and
+branch-local consumption. `Graph/HunterAspects.lua` owns exact player-aura
+aspect replacement and a fail-closed gate until downstream effects exist.
+`Graph/LeechChannel.lua`
+owns delivered hostile-damage/player-healing tick pairs. None of these modules
+contains a class action order.
+
 ## Evidence order
 
 1. Live authoritative verdicts: known spellbook slot, `IsSpellUsable`, cooldown,

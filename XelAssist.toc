@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.33
+## Version: 0.8.34
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -25,12 +25,15 @@ Game\ResourceCost.lua
 Game\ResourceExchange.lua
 Game\HealthTransfer.lua
 Game\Geometry.lua
+Game\Player\DruidFormState.lua
+Game\CapabilityInvalidation.lua
 Game\Capabilities.lua
 Game\WeaponPower.lua
 Game\SpatialEvidence.lua
 Game\PlayerAttack.lua
 Game\Player\Engagement.lua
 Game\Player\Threat.lua
+Game\Player\ReactiveEvidence.lua
 Game\Player\ChannelRuntime.lua
 Game\Player\EnergyEvidence.lua
 Game\Player\EnergyEvents.lua
@@ -77,7 +80,11 @@ Game\SoulShards.lua
 # Graph pipeline
 Graph\HostileState.lua
 Graph\State.lua
+Graph\DispelDecision.lua
+Graph\HunterAspects.lua
+Graph\DruidForms.lua
 Graph\PlayerThreat.lua
+Graph\ReactiveState.lua
 Graph\HostileCastState.lua
 Graph\IncomingConsequences.lua
 Graph\HostileCastEvents.lua
@@ -94,12 +101,14 @@ Graph\CompanionEventThreat.lua
 Graph\CooldownLedger.lua
 Graph\ActionAdmission.lua
 Graph\StealthSetup.lua
+Graph\LeechChannel.lua
 Graph\ChannelCommitment.lua
 Graph\MovementSetup.lua
 Graph\Charge.lua
 Graph\PlayerTaunt.lua
 Graph\SpatialEffects.lua
 Graph\SpatialRequirements.lua
+Graph\ActionContextPolicy.lua
 Graph\Targets.lua
 Graph\StackedModifiers.lua
 Graph\Effects.lua

@@ -38,8 +38,8 @@ function R:Apply(out, candidate, context)
         projectAction(out, action,
             applicationAt + candidate.tooltip.cooldown)
     end
-    if facts.reactive then
-        projectAction(out, action, applicationAt + 60)
+    if facts.reactive and XelAssist.Graph.ReactiveState then
+        XelAssist.Graph.ReactiveState:Consume(out, action)
     end
     if facts.nextInstant then out.instantNext = true
     elseif facts.kind ~= "modifier" and out.instantNext then

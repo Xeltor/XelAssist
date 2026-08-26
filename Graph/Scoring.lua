@@ -18,6 +18,7 @@ local SurvivalPressure = XelAssist.Graph.SurvivalPressure
 local IncomingScoring = XelAssist.Graph.IncomingScoring
 local PeriodicScoring = XelAssist.Graph.PeriodicScoring
 local Candidate = XelAssist.Graph.Candidate
+local ActionConsumption = XelAssist.Graph.ActionConsumption
 local function legalityAndTiming(action, state, descriptor)
     local allowed, blocker, tooltip, target, actionStart, resolved, targetState =
         Targets:Legal(action, state, descriptor)
@@ -168,7 +169,10 @@ end
 
 local function projectAmbientTargetHealth(context)
     local state = context.state
-    if not (Timeline and state.targetHealthExact) then return end
+    local ammunitionAction = ActionConsumption
+        and ActionConsumption:SpendsAmmunition(context.action)
+    if not Timeline or not state.targetHealthExact
+        and not ammunitionAction then return end
     local descriptor = context.descriptor or {}
     if descriptor.relation ~= "hostile" then return end
     context.targetRelation = descriptor.relation
@@ -179,6 +183,8 @@ local function projectAmbientTargetHealth(context)
     context.targetHealthAtImpact = probe.targetHealth
     context.autoShotLaunchesBeforeImpact = probe.autoLaunches
     context.autoShotImpactsBeforeImpact = probe.autoImpacts
+    context.ammunitionAtApplication = probe.ammunition
+    context.ammunitionAtApplicationKnown = probe.ammunitionKnown
     if context.descriptor and context.descriptor.relation == "hostile"
         and probe.damageEvents > 0 and probe.defeated then
         context.ambientDefeatsTarget = true
@@ -365,6 +371,10 @@ function Scoring:Evaluate(action, state, descriptor)
     projectDamageAndResistance(context)
     PlayerSwingScoring:Project(context)
     projectAmbientTargetHealth(context)
+    if context.ammunitionAtApplicationKnown
+        and (tonumber(context.ammunitionAtApplication) or 0) <= 0 then
+        return nil, "ammunition before application"
+    end
     if SurvivalPressure then SurvivalPressure:Adjust(context) end
     if action.facts.execute and targetState.targetMax > 0
         and (context.targetHealthAtImpact or targetState.targetHealth) * 100

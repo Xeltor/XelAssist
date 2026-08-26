@@ -5,6 +5,7 @@ XelAssist.Graph.ChannelCommitment = {}
 local C = XelAssist.Graph.ChannelCommitment
 local HealthTransfer = XelAssist.Graph.HealthTransfer
 local SpellTiming = XelAssist.Game.SpellTiming
+local LeechChannel = XelAssist.Graph.LeechChannel
 
 local EXACT_CADENCE_SOURCE = "client DBC effectAmplitude"
 local MAX_CHANNEL_TICKS = 40
@@ -213,6 +214,8 @@ function C:Prepare(state, actions)
     local healthTransferPlan = healthTransferData and HealthTransfer
         and HealthTransfer:ContinuationPlan(
             state, healthTransferData, remaining, total) or nil
+    local leechEvidence = LeechChannel and LeechChannel:Evidence(
+        state, match, tooltip, cadence, targetMatches) or nil
     local value = continuationValue(
         state, kind, power, remaining, known, friendlyMissing)
     if healthTransferData then
@@ -234,6 +237,7 @@ function C:Prepare(state, actions)
         cadence = cadence,
         value = value, healthTransferData = healthTransferData,
         healthTransferPlan = healthTransferPlan,
+        leechEvidence = leechEvidence,
     }
 end
 
@@ -270,14 +274,18 @@ function C:CurrentValue(state)
     if not timing then return current > 0 and 500 or 0 end
     local power = math.max(0, tonumber(cadence.tickPower) or 0)
         * timing.remainingTicks
+    local leech = LeechChannel and LeechChannel:Plan(
+        state, commitment, timing) or nil
+    if leech then power = leech.damage end
     local friendly = commitment.friendlyKey
         and XelAssist.Graph.State:FriendlyByKey(
             state, commitment.friendlyKey) or nil
     local missing = friendly and math.max(0,
         (tonumber(friendly.healthMax) or 0)
             - (tonumber(friendly.health) or 0)) or nil
-    return continuationValue(state, commitment.kind, power,
+    local value = continuationValue(state, commitment.kind, power,
         current, true, missing)
+    return leech and LeechChannel:Value(leech, current, value) or value
 end
 
 function C:Adjust(context)
@@ -310,12 +318,16 @@ function C:Candidate(state)
     local timing = cadence and remainingCadence(cadence, current) or nil
     local projectedPower = timing and math.max(0,
         tonumber(cadence.tickPower) or 0) * timing.remainingTicks or 0
+    local leech = LeechChannel and LeechChannel:Plan(
+        state, commitment, timing) or nil
+    if leech then projectedPower = leech.damage end
     local action = {}
     local key, value
     for key, value in pairs(ACTION) do action[key] = value end
     action.name = "Continue " .. tostring(commitment.name)
     local friendly = commitment.friendlyUnit ~= nil
-    local planned = transferPlan and transferPlan.plannedDuration or current
+    local planned = transferPlan and transferPlan.plannedDuration
+        or leech and math.max(0.05, leech.duration) or current
     return { action = action, value = transferPlan
             and math.max(1, HealthTransfer:Value(state, transferPlan))
             or state.channelCommitmentClaimed
@@ -342,15 +354,18 @@ function C:Candidate(state)
         power = transferPlan and transferPlan.rawHealing
             or projectedPower,
         rawPower = transferPlan and transferPlan.rawHealing
+            or leech and leech.rawDamage
             or projectedPower,
         effectivePower = transferPlan and transferPlan.effectiveHealing
+            or leech and leech.effectiveDamage
             or commitment.targetMatches and state.targetHealthExact
                 and math.min(projectedPower,
                     math.max(0, tonumber(state.targetHealth) or 0))
-            or projectedPower, effectDelivery = 1,
+            or projectedPower, effectDelivery = leech
+                and leech.applicationDelivery or 1,
         estimated = commitment.estimated, channelCommitment = commitment,
         channelCadence = timing,
-        healthTransfer = transferPlan }
+        healthTransfer = transferPlan, leechChannel = leech }
 end
 
 local function clearChannel(out)
@@ -373,6 +388,7 @@ function C:Apply(out, candidate)
             end
             return true
         end
+        if candidate.leechChannel and LeechChannel then return true end
         local commitment = candidate.channelCommitment or {}
         if commitment.targetMatches and (commitment.kind == "damage"
             or commitment.kind == "builder" or commitment.kind == "dot")

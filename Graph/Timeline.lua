@@ -279,6 +279,11 @@ local function applyPassive(out, source, candidate, context, entry)
     return beforeAuras
 end
 
+local function applicationAmmunition(state, candidate)
+    local consumption = XelAssist.Graph and XelAssist.Graph.ActionConsumption
+    if not (consumption and consumption.ApplicationAmmunition) then return nil, false end
+    return consumption:ApplicationAmmunition(state, candidate and candidate.action)
+end
 -- Read-only scoring probe. It stops at the chosen-action event, including
 -- same-offset events only when their priority causally precedes the action.
 function L:BeforeAction(source, candidate)
@@ -328,11 +333,13 @@ function L:BeforeAction(source, candidate)
             end
         end
     end
+    local ammunition, ammunitionKnown = applicationAmmunition(out, candidate)
     return { targetHealth = out.targetHealth,
         defeated = hostileDefeated(out, candidate),
         damageEvents = damageEvents,
         autoLaunches = out.autoShot and out.autoShot.launches or 0,
-        autoImpacts = out.autoShot and out.autoShot.impacts or 0 }
+        autoImpacts = out.autoShot and out.autoShot.impacts or 0,
+        ammunition = ammunition, ammunitionKnown = ammunitionKnown }
 end
 
 -- Scoring keeps intrinsic action value separate from the causal window that
@@ -347,12 +354,14 @@ function L:BeforeScoredAction(source, candidate)
         return hit
     end
     local result
-    if source.targetHealthExact and probe.targetRelation == "hostile"
+    if probe.targetRelation == "hostile"
         and AmbientTargetHealth
         and not AmbientTargetHealth:CanChange(source) then
+        local ammunition, ammunitionKnown = applicationAmmunition(source, probe)
         result = { targetHealth = source.targetHealth,
             defeated = hostileDefeated(source, probe), damageEvents = 0,
-            autoLaunches = 0, autoImpacts = 0 }
+            autoLaunches = 0, autoImpacts = 0, ammunition = ammunition,
+            ammunitionKnown = ammunitionKnown }
     else result = self:BeforeAction(source, probe) end
     if slot then
         cache.misses = cache.misses + 1

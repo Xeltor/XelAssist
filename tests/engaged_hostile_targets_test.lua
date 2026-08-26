@@ -159,6 +159,7 @@ XelAssist.Graph.ActionAdmission = {
 }
 XelAssist.Graph.SpatialRequirements = { Blocker = function() return nil end }
 XelAssist.Graph.ResourceExchange = { Blocker = function() return nil end }
+dofile("Graph/ActionContextPolicy.lua")
 dofile("Graph/Targets.lua")
 
 targets = XelAssist.Graph.Targets:Targets(dot, state)

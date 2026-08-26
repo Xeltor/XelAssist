@@ -319,7 +319,6 @@ local function commitCooldown(out, pending, entry)
     local cooldown = tonumber(tooltip.cooldown)
     if cooldown and cooldown > 0 then project(at + cooldown) end
     local facts = action.facts or {}
-    if facts.reactive then project(at + 60) end
     local group = facts.cooldownGroup or tooltip.cooldownGroup
     local category = tonumber(tooltip.categoryCooldown)
     if group and category and category > 0 then

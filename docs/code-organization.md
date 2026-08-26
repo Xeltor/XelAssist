@@ -65,8 +65,9 @@ never class rotations or ordered priority lists.
   metadata only to explicit mechanics decoders. `Game/SpellSemantics.lua`
   owns cached raw DBC evidence, mutation-isolated per-effect mechanic atoms,
   contextual recipient resolution, and bounded immediate-trigger traversal.
-  It has no production consumer in 0.8.28; validation preserves that isolation
-  until a compact projection is benchmarked. The session-only
+  Only explicitly audited consumers are permitted: Druid form discovery and
+  the bounded pre-search dispel-capture adapter. Static validation rejects any
+  other recommendation caller. The session-only
   `Game/Pets/EffectRuntime.lua` ledger correlates confirmed casts, observable
   pet auras, and exact melee outcomes so fresh snapshots retain pet effects
   without writing opaque identities or inferred state to saved variables.

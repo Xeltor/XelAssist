@@ -27,6 +27,8 @@ function C:Build(context)
         threat = context.threat, estimated = context.estimated,
         playerThreatExact = context.playerThreatExact,
         playerThreatMultiplier = context.playerThreatMultiplier,
+        druidFormTransition = context.tooltip
+            and context.tooltip.druidFormTransition,
         tooltip = context.tooltip, power = context.expectedPower,
         powerEvidence = context.powerEvidence,
         survival = context.survival,

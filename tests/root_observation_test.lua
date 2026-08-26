@@ -104,6 +104,7 @@ XelAssist.Graph.ResourceExchange = { Blocker = function() return nil end }
 
 dofile("Graph/ActionAdmission.lua")
 dofile("Graph/SpatialRequirements.lua")
+dofile("Graph/ActionContextPolicy.lua")
 dofile("Graph/Targets.lua")
 dofile("Graph/ActionPower.lua")
 dofile("Graph/RootObservation.lua")

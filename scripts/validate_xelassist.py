@@ -167,9 +167,11 @@ for path in production_lua_files(root):
     if "%" in code: raise SystemExit(f"{path.relative_to(root)}: Lua 5.1 modulo operator is not valid in Lua 5.0")
     if "#" in code: raise SystemExit(f"{path.relative_to(root)}: Lua 5.1 length operator is not valid in Lua 5.0")
     relative = path.relative_to(root).as_posix()
-    if relative != "Game/SpellSemantics.lua" and "SpellSemantics" in code:
+    semantic_consumers = {"Game/SpellSemantics.lua",
+        "Game/Player/DruidFormState.lua", "Graph/DispelDecision.lua"}
+    if relative not in semantic_consumers and "SpellSemantics" in code:
         raise SystemExit(
-            f"{relative}: recommendation-neutral SpellSemantics has a production caller")
+            f"{relative}: unaudited recommendation caller for SpellSemantics")
     lines = len(text.splitlines())
     ceiling = legacy_line_ceilings.get(relative, 450)
     if lines > ceiling:
@@ -184,12 +186,14 @@ subprocess.run(["lua", str(root / "tests/search_preparation_test.lua")], cwd=roo
 subprocess.run(["lua", str(root / "tests/publication_guard_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/spell_topology_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/spell_semantics_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/dispel_decision_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/geometry_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/capabilities_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/resource_exchange_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/health_transfer_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/health_transfer_graph_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/mage_channel_tick_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/warlock_leech_channel_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/resource_investment_graph_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/warlock_resource_semantics_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/soul_shard_reserve_test.lua")], cwd=root, check=True)
@@ -206,6 +210,10 @@ subprocess.run(["lua", str(root / "tests/hunter_pet_actions_test.lua")], cwd=roo
 subprocess.run(["lua", str(root / "tests/pet_command_state_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/hunter_pet_resources_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/hunter_combat_semantics_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/hunter_ammunition_knowledge_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/hunter_ammunition_graph_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/hunter_aspect_knowledge_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/hunter_aspect_graph_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/attack_rounds_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/player_attack_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/player_engagement_test.lua")], cwd=root, check=True)
@@ -214,6 +222,12 @@ subprocess.run(["lua", str(root / "tests/warrior_taunt_test.lua")], cwd=root, ch
 subprocess.run(["lua", str(root / "tests/warrior_sunder_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/warrior_player_threat_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/player_threat_graph_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/druid_form_state_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/druid_form_graph_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/druid_form_reachability_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/player_reactive_evidence_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/reactive_state_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/reactive_graph_integration_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/warrior_tank_guard_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/dispatch_readiness_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/combo_classification_test.lua")], cwd=root, check=True)

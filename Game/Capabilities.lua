@@ -1,5 +1,6 @@
 XelAssist.Game.Capabilities = {}
 local C = XelAssist.Game.Capabilities
+local DruidForms = XelAssist.Game.Player and XelAssist.Game.Player.DruidFormState
 local TIP_NAME = "XelAssistScanTip"
 local scanTip
 local function tooltipText(slot, bookType)
@@ -23,7 +24,8 @@ function C:InferKnowledge(slot, bookType, spellId)
         local ok, passive = pcall(IsPassiveSpell, slot, bookType or BOOKTYPE_SPELL)
         if ok and (passive == true or passive == 1) then return nil end
     end
-    local dbcInferred = XelAssist.Game.HealthTransfer
+    local dbcInferred = DruidForms and DruidForms:InferKnowledge(spellId)
+    dbcInferred = dbcInferred or XelAssist.Game.HealthTransfer
         and XelAssist.Game.HealthTransfer:InferDBC(spellId)
         or XelAssist.Game.ResourceExchange and XelAssist.Game.ResourceExchange:InferDBC(spellId)
     if dbcInferred then return dbcInferred end
@@ -90,19 +92,14 @@ function C:BuildSpellIndex()
         end
         i = i + 1
     end
+    if DruidForms then DruidForms:AddSyntheticActions(actions) end
     self.spellSlots = slots
     self.spellRanks = ranks
     self.actions = actions
 end
 
 function C:Invalidate()
-    self.spellSlots = nil
-    self.spellRanks = nil
-    self.actions = nil
-    self.costs = nil
-    self.tooltipFacts = nil
-    self.talentPoints = nil
-    self:InvalidateEquipment()
+    XelAssist.Game.CapabilityInvalidation:All(self)
 end
 
 function C:InvalidateEquipment()
@@ -891,6 +888,8 @@ end
 -- Nampower exposes proc/stance usability separately from cooldown and cost.
 -- Only an explicit unusable result blocks; missing API/data remains unknown.
 function C:Usable(action)
+    if DruidForms and action and action.facts and action.facts.druidFormCancel then
+        return DruidForms:CancelUsable() end
     if not IsSpellUsable then return nil end
     local ok, usable, outOfResource = pcall(IsSpellUsable, self:CastName(action))
     if not ok then return nil end

@@ -1,4 +1,4 @@
-# XelAssist 0.8.33
+# XelAssist 0.8.34
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -65,13 +65,38 @@ successful nonlethal payment, prices overhealing and incoming damage, and can
 be continued or deliberately clipped by the same weighted channel graph used
 by other classes. Unproven server-side talent modifiers remain unknown.
 
-The installed-client semantic foundation now decodes multi-effect mechanics
-for every class as separate damage, healing, resource, dispel, threat, summon,
+The installed-client semantic foundation decodes multi-effect mechanics for
+every class as separate damage, healing, resource, dispel, threat, summon,
 aura, form, and triggered-child atoms. It also describes all 64 local implicit
-target codes without collapsing target A and B. This layer is deliberately
-recommendation-neutral in 0.8.28: no action discovery or graph consumer calls
-it yet, and validation rejects accidental production callers until a compact
-consumer can be benchmarked without reducing search depth.
+target codes without collapsing target A and B. Druid form discovery is its
+first audited recommendation consumer. A bounded dispel-capture adapter is also
+available for the future frozen-observation path, but is not yet wired into
+recommendation scoring or execution. Validation rejects every unaudited caller.
+
+Druid form actions are discovered from exact installed-client shapeshift atoms,
+not localized names. When ClassicAPI exposes the active form, explicit power
+slots, effective spell cost, and cancellation endpoint, Cat/Bear hidden mana is
+paid causally and a stale cancellation is rejected at dispatch. Destination
+rage or energy remains unknown until the client observes the completed shift,
+so this release does not pretend to plan a full future form-only sequence.
+
+Hunter special ranged attacks now share one causal ammunition ledger with Auto
+Shot. An ambient launch that spends the last round blocks a later casted shot
+before it can gain value or spend mana. The graph can track exact Hunter-aspect
+replacement on the player, but deliberately suppresses aspect recommendations
+until their actual ranged power, avoidance, movement, resistance, melee power,
+or mana effects are represented downstream; it does not substitute proxy scores.
+
+Player reactive actions use the exact Nampower aura-state bit required by the
+installed spell record. For client records that omit that requirement, an
+explicit positive root `IsSpellUsable` result may admit only the immediate edge.
+Neither source is projected through a wait, and choosing the action consumes the
+window in that graph branch without inventing a cooldown.
+
+Active leech channels now deliver damage, healing, and scaled player threat at
+their exact remaining tick boundaries. Resistance, lethal target-health caps,
+movement/action clipping, and target identity changes are resolved before any
+paired healing is granted.
 
 Warrior melee now has a causal, non-executable continuation edge. Once an exact
 main-hand phase has been observed, the graph can wait through ordinary attacks,

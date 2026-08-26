@@ -3,6 +3,7 @@ local T = XelAssist.Graph.Targets
 local S = XelAssist.Graph.State
 local Selection = XelAssist.Graph.TargetSelection
 local Admission = XelAssist.Graph.ActionAdmission
+local ContextPolicy = XelAssist.Graph.ActionContextPolicy
 local APPLICATION_BLOCK_THRESHOLD = 0.75
 function T:VariableFriendlyAction(action) return Selection:VariableFriendlyAction(action) end
 function T:Targets(action, state) return Selection:Targets(action, state) end
@@ -202,7 +203,7 @@ local function policyBlocker(action, state, tooltip, descriptor, config)
         elseif count <= 0 then return "missing " .. facts.reagentName end
     end
     if facts.resourceType == "mana" and state.resourceType ~= nil
-        and state.resourceType ~= 0 then
+        and state.resourceType ~= 0 and not tooltip.druidFormTransition then
         return "resource type"
     end
     if facts.combo or tooltip and tooltip.comboSpendAll then
@@ -278,31 +279,12 @@ local function usabilityBlocker(action, state, descriptor, target, tooltip)
     local petBlocker = XelAssist.Game.Pets and XelAssist.Game.Pets.Actions
         and XelAssist.Game.Pets.Actions:UsabilityBlocker(action, usable, usableReason)
     if petBlocker then return petBlocker end
-    if facts.reactive and usable ~= true then return "proc unknown" end
+    if facts.reactive and action.actor == "pet" and usable ~= true then return "proc unknown" end
     if usable == false and descriptor.relation == "hostile" then
         return usableReason or "state"
     end
     if descriptor.relation == "hostile" and not state.hostile then return "target" end
     if kind == "dispel" and not target then return "nothing to dispel" end
-    return nil
-end
-local function contextBlocker(action, state)
-    local facts, kind = action.facts, action.facts.kind
-    if facts.autoRepeat and state.playerCasting
-        and not state.playerChanneling then return "casting" end
-    if facts.wandRepeat and state.moving then return "moving" end
-    if facts.outOfCombat and state.inCombat then return "combat state" end
-    if facts.combatOnly and not state.inCombat then return "combat state" end
-    if facts.stealthPreparation and state.playerStealthKnown == true
-        and state.playerStealthed == true then return "already stealthed" end
-    if facts.stealthPreparation and XelAssist.Graph.StealthSetup then
-        local blocker = XelAssist.Graph.StealthSetup:Blocker(state)
-        if blocker then return blocker end
-    end
-    if kind == "summon" and not facts.petLifecycle then
-        if state.pet then return "companion already active" end
-        if state.inCombat then return "unsafe summon" end
-    end
     return nil
 end
 local function effectBlocker(owner, action, state, descriptor, target,
@@ -381,7 +363,8 @@ local function effectBlocker(owner, action, state, descriptor, target,
         end
     end
     local friendlySupport = descriptor.relation ~= "hostile"
-        and (kind == "heal" or kind == "hot" or kind == "absorb" or kind == "buff")
+        and (kind == "heal" or kind == "hot"
+            or kind == "absorb" or kind == "buff")
     local area = facts.aoe or tooltip and tooltip.topology
         and tooltip.topology.area
     if area and not friendlySupport and state.mode ~= "aoe"
@@ -403,27 +386,32 @@ function T:Legal(action, state, descriptor)
         if targeted then state = targeted end
     end
     if not self:Relevant(action, state, descriptor) then return false, "intent" end
-    local tooltip, factsStatus
+    local tooltip, factsStatus, blocker
     if XelAssist.Graph.RootObservation then tooltip, factsStatus =
         XelAssist.Graph.RootObservation:Facts(state, action) end
     if factsStatus == "absent" or not XelAssist.Graph.RootObservation then
         tooltip = XelAssist.Game.Actors:Facts(action)
     elseif factsStatus ~= "known" then return false,
         "action evidence unknown" end
+    local forms = XelAssist.Graph.DruidForms
+    if forms then tooltip, blocker = forms:PrepareLegal(action, state, tooltip) end
+    if blocker then return false, blocker end
     local config, configStatus = configFor(state)
-    if configStatus ~= "known" then return false, "config evidence unknown" end
+    if configStatus ~= "known" then return false,
+        "config evidence unknown" end
     if (state.time or 0) > 0 then
         local projected, key, value = {}, nil, nil
         for key, value in pairs(descriptor) do projected[key] = value end
         projected.projectionOpen, descriptor = true, projected
     end
-    local blocker = policyBlocker(action, state, tooltip, descriptor, config)
+    blocker = policyBlocker(action, state, tooltip, descriptor, config)
     if blocker then return false, blocker end
     local target = descriptor.unit
     blocker = targetBlocker(action, state, descriptor, target)
     if blocker then return false, blocker end blocker = usabilityBlocker(
         action, state, descriptor, target, tooltip)
-    if blocker then return false, blocker end blocker = contextBlocker(action, state)
+    if blocker then return false, blocker end blocker =
+        ContextPolicy:Blocker(action, state)
     if blocker then return false, blocker end
     blocker = XelAssist.Graph.Charge
         and XelAssist.Graph.Charge:Blocker(action, state, descriptor)

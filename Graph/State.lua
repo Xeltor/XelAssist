@@ -8,23 +8,19 @@ function S:FriendlyByKey(state, key)
         or not state.friendlies.byKey then return nil end
     return state.friendlies.byKey[key]
 end
-
 function S:FriendlyByUnit(state, unit)
     if not state or not state.friendlies or not state.friendlies.byUnit then return nil end
     return self:FriendlyByKey(state, state.friendlies.byUnit[unit])
 end
-
 function S:PrimaryFriendly(state)
     local friendlies = state and state.friendlies
     local key = friendlies and (friendlies.primaryKey
         or friendlies.order and friendlies.order[1]) or nil
     return self:FriendlyByKey(state, key)
 end
-
 function S:HostileByKey(state, key)
     return XelAssist.Graph.HostileState:ByKey(state, key)
 end
-
 function S:HostileByUnit(state, unit)
     return XelAssist.Graph.HostileState:ByUnit(state, unit)
 end
@@ -309,10 +305,12 @@ local function attachPlayerResource(state, actors)
         resources:Attach(state, clock)
     end
 end
-
 function S:Snapshot(mode)
     local context = snapshotContext()
     local state = newState(mode, context)
+    if XelAssist.Graph.DruidForms then XelAssist.Graph.DruidForms:Attach(state) end
+    local reactive = XelAssist.Game.Player and XelAssist.Game.Player.ReactiveEvidence
+    if reactive then state.playerReactive = reactive:Snapshot() end
     local threat = XelAssist.Game.Player and XelAssist.Game.Player.Threat
     if threat then state.playerThreat = threat:Snapshot() end
     if XelAssist.Graph.ComboState then
@@ -439,6 +437,8 @@ function S:Copy(state)
         out.playerResourceClock = copyNested(
             state.playerResourceClock, 2, seen, nil, atomic)
     end
+    if state.druidFormState then out.druidFormState = copyNested(
+        state.druidFormState, 4, seen, nil, atomic) end
     if state.hostileCasts and XelAssist.Graph.HostileCastState then out.hostileCasts =
         XelAssist.Graph.HostileCastState:Copy(state.hostileCasts, out) end
     if out.hostiles then

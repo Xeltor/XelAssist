@@ -8,6 +8,7 @@ local Effects = XelAssist.Graph.Effects
 local Companion = XelAssist.Graph.CompanionEvents
 local PlayerSwings = XelAssist.Graph.PlayerSwings
 local EventAuras = XelAssist.Graph.EventAuras
+local LeechChannel = XelAssist.Graph.LeechChannel
 local MAX_HOSTILES = 5
 
 local function hostilesOf(state)
@@ -348,11 +349,13 @@ function O:Events(out, source, candidate, context)
     local events = Companion and Companion:Events(out, candidate) or {}
     local playerEvents = PlayerSwings and PlayerSwings:Events(out, candidate) or {}
     local periodic = periodicEvents(out, source, candidate, context)
+    local leech = LeechChannel and LeechChannel:Events(out, candidate) or {}
     local i
     for i = 1, table.getn(playerEvents) do
         table.insert(events, playerEvents[i])
     end
     for i = 1, table.getn(periodic) do table.insert(events, periodic[i]) end
+    for i = 1, table.getn(leech) do table.insert(events, leech[i]) end
     return events
 end
 
@@ -402,6 +405,9 @@ function O:ApplyEvent(out, source, candidate, context, entry)
     elseif entry.kind == "periodicTick"
         or entry.kind == "periodicSegment" then
         applyPeriodic(out, source, candidate, context, entry)
+    elseif entry.kind == "leechChannelTick"
+        or entry.kind == "leechChannelFinish" then
+        if LeechChannel then LeechChannel:ApplyEvent(out, candidate, entry) end
     end
 end
 
