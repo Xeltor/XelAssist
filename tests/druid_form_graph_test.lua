@@ -23,6 +23,16 @@ C_Spell = { GetSpellPowerCost = function(spellId)
 end }
 
 XelAssist = { Game = { Player = {}, SpellSemantics = {} }, Graph = {} }
+local boundInCombat
+XelAssist.Graph.DruidShiftResources = {
+    Attach = function() return false end,
+    Bind = function(_, _, transition, inCombat)
+        boundInCombat = inCombat
+        return transition, false
+    end,
+    Apply = function() return false end,
+    ResourceFloor = function() return nil, false end,
+}
 function XelAssist.Game.SpellSemantics:Resolve(spellId)
     if spellId == 5487 then return { complete = true, admissible = true,
         atoms = { { kind = "shapeshift", form = 5 } } } end
@@ -34,7 +44,7 @@ dofile("Graph/DruidForms.lua")
 local Forms = XelAssist.Game.Player.DruidFormState
 local Druid = XelAssist.Graph.DruidForms
 
-local state = { role = "auto", tank = false, resource = 42,
+local state = { role = "auto", tank = false, inCombat = true, resource = 42,
     resourceMax = 100, resourceType = 3, playerResourceExact = true,
     playerResourceClock = { resourceType = 3, verified = true },
     actors = { player = { resource = 42, resourceMax = 100,
@@ -57,8 +67,8 @@ local prepared, reason, handled = Druid:Prepare(bear, state, captured)
 assert(handled and prepared and reason == nil and prepared.cost == 40
     and prepared.powerType == 0
     and prepared.druidFormTransition.targetPrimary == 1
-    and costCalls == 1,
-    "sealed graph preparation must use captured hidden-mana evidence only")
+    and costCalls == 1 and boundInCombat == true,
+    "sealed graph preparation must bind combat-stable shift evidence")
 
 local candidate = { action = bear, cost = prepared.cost,
     tooltip = prepared,

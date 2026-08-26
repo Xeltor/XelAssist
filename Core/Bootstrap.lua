@@ -4,7 +4,7 @@ XelAssist = XelAssist or {}
 -- Lua 5.0 hosts do not consistently expose this later-standard constant.
 -- Production modules use it only as a finite-value guard or sort sentinel.
 math.huge = math.huge or (1 / 0)
-XelAssist.version = "0.8.56"
+XelAssist.version = "0.8.57"
 XelAssist.mode = XelAssist.mode or "smart"
 XelAssist.Core = XelAssist.Core or {}
 XelAssist.Game = XelAssist.Game or {}

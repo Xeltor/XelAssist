@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.57
+
+- Protected Battle Shout as a graph-native zero-output setup until an exact
+  main-hand attack realizes its AP benefit, preventing beam pruning from
+  silently reducing low-level Warrior play to Attack and Heroic Strike.
+- Reduced each production search checkpoint from 1.75 to 1.50 ms after a live
+  Warrior session reached 3.292 ms. Aggregate work and chosen plans remain
+  unchanged; the work may span one additional frame.
+- Added rank-five Furor's exact in-combat 10-rage floor for Bear and Dire Bear
+  shifts while retaining explicit uncertainty outside combat where rage decay
+  can invalidate it.
+- Added exact guards for Octo's divergent Arcane Power and Blade Flurry so
+  their unsafe custom consequences cannot fall through to generic Vanilla
+  buff or area scoring.
+
 ## 0.8.56
 
 - Added exact patch-5 Berserker Rage ownership: its ten-second branch-local

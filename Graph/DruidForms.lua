@@ -100,7 +100,8 @@ function D:Prepare(action, state, tooltip)
     end
     if not projection then return nil, reason, true end
     if projection.kind == "shift" and ShiftResources then
-        local bound = ShiftResources:Bind(snapshot, projection)
+        local bound = ShiftResources:Bind(snapshot, projection,
+            state and state.inCombat == true)
         if type(bound) == "table" then projection = bound end
     end
     if FrenziedRegeneration then

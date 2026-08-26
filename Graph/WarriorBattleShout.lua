@@ -4,6 +4,7 @@
 XelAssist.Graph.WarriorBattleShout = {}
 local B = XelAssist.Graph.WarriorBattleShout
 local PlayerThreat = XelAssist.Graph.PlayerThreat
+B.CONSUMER_KEY = "warriorBattleShout:mainHand"
 
 local function finite(value, low, high)
     value = tonumber(value)
@@ -119,6 +120,36 @@ end
 function B:Is(action, tooltip)
     local _, _, handled = captured(action, tooltip)
     return handled == true
+end
+
+-- Battle Shout is a zero-immediate-output investment. Keep its branch only
+-- until an exact main-hand event realizes the projected AP delta; an open
+-- setup lane can never be published by ResourceInvestment.
+function B:StrategicSetup(subject)
+    local found = type(subject) == "table"
+        and (subject.warriorBattleShoutEvidence
+            or subject.facts and subject.facts.warriorBattleShoutEvidence)
+    if not (type(found) == "table" and found.valid == true
+        and found.exact == true and found.portfolio == "warriorBattleShout"
+        and finite(found.spellId, 1, 4294967295)) then return nil end
+    return { key = "warriorBattleShout:" .. tostring(found.spellId),
+        consumerKey = self.CONSUMER_KEY }
+end
+
+function B:ConsumerKey(subject)
+    local facts = type(subject) == "table" and (subject.facts or subject) or nil
+    if not facts then return nil end
+    local weapon = facts.warriorMainHandWeaponEvidence
+    if facts.playerAttackContinuation == true
+        or type(weapon) == "table" and weapon.valid == true
+            and weapon.exact == true and weapon.attackType == "main" then
+        return self.CONSUMER_KEY
+    end
+    return nil
+end
+
+function B:PotentialConsumer(facts)
+    return self:ConsumerKey(facts) == self.CONSUMER_KEY
 end
 
 local function targetExact(descriptor)

@@ -1,4 +1,4 @@
-# XelAssist 0.8.56
+# XelAssist 0.8.57
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -96,7 +96,9 @@ not localized names. When ClassicAPI exposes the active form, explicit power
 slots, effective spell cost, and cancellation endpoint, Cat/Bear hidden mana is
 paid causally and a stale cancellation is rejected at dispatch. Destination
 rage or energy remains unknown unless a narrower exact bound exists: rank-five
-Furor now proves Cat Form's 40-energy floor, while Bear rage remains unknown.
+Furor proves Cat Form's 40-energy floor and, while combat prevents ordinary
+rage decay, a Bear or Dire Bear Form 10-rage floor. Out-of-combat Bear rage
+remains unknown.
 Prowl is likewise discovered from exact installed facts. It is an indefinite
 Cat-form, out-of-combat stealth setup with its real rank movement penalty, and
 receives no standalone value: a retained future action must actually require or

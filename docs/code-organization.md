@@ -93,10 +93,11 @@ never class rotations or ordered priority lists.
   `ManaEvidence.lua` and `ManaEvents.lua` separately learn attributed passive
   mana and exact post-spend recovery. `Resources.lua` owns shared conservative
   projection arithmetic. Focused `Game/Player` owners seal Mage Mana Shield,
-  Clearcasting, Presence of Mind and Cold Snap; Priest Shield, Shadowform,
+  Clearcasting, Presence of Mind, Cold Snap and the fatal Arcane Power guard; Priest Shield, Shadowform,
   Inner Focus, Power Infusion and Fade; Druid Prowl, Clearcasting, Frenzied
-  Regeneration and Cat/Bear threat; Rogue Feint, Slice and Dice, Ruthlessness
-  and Preparation; Hunter Mark, Hawk, Distracting Shot and Rapid Fire; Shaman
+  Regeneration and Cat/Bear threat; Rogue Feint, Slice and Dice, Ruthlessness,
+  Preparation and the patch-5 Blade Flurry fail-closed recipient guard; Hunter
+  Mark, Hawk, Distracting Shot and Rapid Fire; Shaman
   Windfury, Mana Spring, Clearcasting and Earth Shock; Warlock Dark Pact, Soul
   Link and Fel Domination;
   Paladin Might, Wisdom, Righteousness, blessing threat and Righteous Fury; and

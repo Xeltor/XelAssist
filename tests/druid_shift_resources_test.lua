@@ -77,7 +77,9 @@ assert(evidence.available == true and evidence.exact == true
     and evidence.talentID == 286 and evidence.rank == 5
     and evidence.spellId == 17061 and evidence.chance == 100
     and evidence.guaranteed == true and evidence.catEnergy == 40
-    and evidence.energyTriggerSpellId == 17099,
+    and evidence.energyTriggerSpellId == 17099
+    and evidence.bearRage == 10
+    and evidence.rageTriggerSpellId == 17057,
     "rank-five installed evidence must seal guaranteed Furor payloads")
 
 local function snapshot(formID, rage, energy)
@@ -141,18 +143,39 @@ local bearState = snapshot(0, 25, 80)
 bearState.shiftResourceEvidence = evidence
 local bear, bearEnriched = Shift:Bind(bearState,
     { kind = "shift", sourceForm = 0, targetForm = 5,
-        targetPrimary = 1, destinationPowerKnown = false })
-assert(bearEnriched == false and bear.destinationPowerMinimum == nil
-    and bear.druidShiftResourceFloor == nil,
-    "Bear rage must remain unknown until graph timing models rage decay")
+        targetPrimary = 1, destinationPowerKnown = false }, true)
+assert(bearEnriched == true and bear.destinationPowerMinimum == 10
+    and bear.druidShiftResourceFloor.powerType == 1
+    and bear.druidShiftResourceFloor.combatStable == true
+    and bear.druidShiftResourceFloor.triggerSpellId == 17057,
+    "in-combat Bear transition must expose the exact ten-rage Furor floor")
+bearState.formID, bearState.primaryType = 5, 1
+local bearSlot = bearState.powers[1]
+bearSlot.priorObservedCurrent, bearSlot.priorObservedMaximum =
+    bearSlot.current, bearSlot.maximum
+bearSlot.current, bearSlot.maximum = nil, nil
+bearSlot.currentKnown, bearSlot.maximumKnown = false, false
+assert(Shift:Apply(bearState, bear) == true,
+    "sealed in-combat Bear rage floor must apply after the form edge")
+local bearFloor, bearKnown = Shift:ResourceFloor(bearState)
+assert(bearFloor == 10 and bearKnown == true,
+    "in-combat Bear Furor must expose spendable displayed rage")
+
+local idleBear = snapshot(0, 25, 80)
+idleBear.shiftResourceEvidence = evidence
+local idleTransition, idleEnriched = Shift:Bind(idleBear,
+    { kind = "shift", sourceForm = 0, targetForm = 5,
+        targetPrimary = 1, destinationPowerKnown = false }, false)
+assert(idleEnriched == false and idleTransition.destinationPowerMinimum == nil,
+    "out-of-combat Bear rage must remain unknown without decay timing")
 
 local capped = snapshot(0, 95, 0)
 capped.shiftResourceEvidence = evidence
 local cappedBear, cappedEnriched = Shift:Bind(capped,
     { kind = "shift", sourceForm = 0, targetForm = 8, targetPrimary = 1,
-        destinationPowerKnown = false })
-assert(cappedEnriched == false and cappedBear.destinationPowerMinimum == nil,
-    "Dire Bear rage must remain unknown until decay timing is exact")
+        destinationPowerKnown = false }, true)
+assert(cappedEnriched == true and cappedBear.destinationPowerMinimum == 10,
+    "in-combat Dire Bear must share the exact ten-rage Furor floor")
 
 local travel, travelEnriched = Shift:Bind(capped,
     { sourceForm = 0, targetForm = 3, targetPrimary = 0 })
@@ -203,8 +226,22 @@ records[17099].effectMiscValue[1] = 3
 
 records[17057].effectMiscValue[1] = 0
 Shift:Invalidate()
-assert(Shift:Snapshot().available == true,
-    "unrelated Bear payloads must not gate the Cat-only floor")
+local brokenBear = Shift:Snapshot()
+assert(brokenBear.available == true and brokenBear.catEnergy == 40
+    and brokenBear.bearRage == nil
+    and brokenBear.bearReason == "Furor Bear energize payload unavailable",
+    "a changed Bear payload must preserve Cat evidence and fail Bear closed")
+local brokenBearState = snapshot(0, 0, 0)
+brokenBearState.shiftResourceEvidence = brokenBear
+local blockedBear, blockedBearEnriched = Shift:Bind(brokenBearState,
+    { kind = "shift", sourceForm = 0, targetForm = 5,
+        targetPrimary = 1, destinationPowerKnown = false }, true)
+assert(blockedBearEnriched == false
+    and blockedBear.druidShiftResourceFloor == nil,
+    "invalid Bear payload must never create a rage floor")
+bearState.shiftResourceEvidence = brokenBear
+assert(Shift:Apply(bearState, bear) == false,
+    "a stale sealed Bear transition must reject changed root payload evidence")
 records[17057].effectMiscValue[1] = 1
 
 classToken = "PALADIN"

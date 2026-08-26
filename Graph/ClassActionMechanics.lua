@@ -16,8 +16,20 @@ local PresenceOfMind = XelAssist.Graph.MagePresenceOfMind
 local ColdSnap = XelAssist.Graph.MageColdSnap
 local FrenziedRegeneration = XelAssist.Graph.DruidFrenziedRegeneration
 local RoguePreparation = XelAssist.Graph.RoguePreparation
+local RogueBladeFlurry = XelAssist.Graph.RogueBladeFlurry
 
 local handlers = {
+    {
+        name = "Rogue Blade Flurry", module = RogueBladeFlurry,
+        claims = function(facts)
+            return facts.rogueBladeFlurry == true
+                or facts.requiresExactRogueBladeFlurry == true
+        end,
+        matches = function() return false end,
+        prepare = function(module, action, state, descriptor, facts)
+            return module:Prepare(action, state, descriptor, facts)
+        end,
+    },
     {
         name = "Druid Frenzied Regeneration",
         module = FrenziedRegeneration,

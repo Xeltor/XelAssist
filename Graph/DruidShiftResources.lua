@@ -2,10 +2,9 @@
 -- the installed Furor talent row and its energize payloads without using a
 -- localized name. Graph search consumes only the sealed scalar evidence.
 --
--- A floor is intentional: Cat Form resets energy before Furor, while other
--- equipment or server additions may grant more. Bear rage is excluded because
--- its decay phase is not modeled. The graph may spend Cat's proven floor but
--- must not call it the exact post-shift resource value.
+-- Floors are intentional: Cat Form resets energy before Furor, while other
+-- equipment or server additions may grant more. Bear rage is admitted only
+-- while combat makes the triggered payload stable against ordinary decay.
 XelAssist.Graph.DruidShiftResources = {}
 local D = XelAssist.Graph.DruidShiftResources
 
@@ -17,16 +16,22 @@ D.FUROR_TALENT_ID = 286
 D.FUROR_MAX_RANK = 5
 D.FUROR_ICON_ID = 238
 D.FUROR_RANK_FIVE_ID = 17061
+D.RAGE_TRIGGER_ID = 17057
 D.ENERGY_TRIGGER_ID = 17099
+D.RAGE = 1
 D.ENERGY = 3
+D.RAGE_DISPLAY_DIVISOR = 10
 D.CAT_FORM = 1
+D.BEAR_FORM = 5
+D.DIRE_BEAR_FORM = 8
 D.MAX_DBC_CACHE = 8
 
 local DBC_CACHE, DBC_CACHE_COUNT = {}, 0
+local HUGE = math.huge
 
 local function integer(value, low, high)
     if type(value) ~= "number" or value ~= value
-        or value == math.huge or value == -math.huge
+        or HUGE and (value == HUGE or value == -HUGE)
         or value < low or value > high or math.floor(value) ~= value then
         return nil
     end
@@ -35,7 +40,8 @@ end
 
 local function nonnegative(value)
     if type(value) ~= "number" or value ~= value
-        or value == math.huge or value < 0 then return nil end
+        or HUGE and (value == HUGE or value == -HUGE)
+        or value < 0 then return nil end
     return value
 end
 
@@ -192,6 +198,16 @@ function D:Snapshot()
     end
     out.catEnergy = 40
     out.energyTriggerSpellId = self.ENERGY_TRIGGER_ID
+    if not energizeTopology(self.RAGE_TRIGGER_ID,
+        self.RAGE, 100, true) then
+        out.bearReason = "Furor Bear energize payload unavailable"
+        return out
+    end
+    -- Spell effects store rage in the same raw tenths exposed by
+    -- UnitPower(..., RAGE, true). ClassicAPI's installed-client divisor is
+    -- therefore part of the evidence, not server arithmetic inferred here.
+    out.bearRage = 100 / self.RAGE_DISPLAY_DIVISOR
+    out.rageTriggerSpellId = self.RAGE_TRIGGER_ID
     return out
 end
 
@@ -215,12 +231,15 @@ end
 
 -- Returns a copied transition, whether an exact floor was attached, and an
 -- optional non-blocking reason. Missing Furor evidence never blocks shifting.
-function D:Bind(snapshot, transition)
+function D:Bind(snapshot, transition, inCombat)
     local out = shallow(transition)
     local target = integer(transition and transition.targetForm, 0, 32)
-    -- Bear rage cannot be a persistent graph floor until rage decay timing is
-    -- modeled. Cat energy is stable and therefore the only admissible floor.
-    local powerType = target == self.CAT_FORM and self.ENERGY or nil
+    -- Outside combat, Bear rage can decay before a consumer and remains
+    -- unknown. In combat the installed Furor payload is a stable floor.
+    local cat = target == self.CAT_FORM
+    local bear = (target == self.BEAR_FORM or target == self.DIRE_BEAR_FORM)
+        and inCombat == true
+    local powerType = cat and self.ENERGY or bear and self.RAGE or nil
     if not powerType then return out, false, nil end
     if not (snapshot and snapshot.available == true
         and transition.kind == "shift"
@@ -230,20 +249,24 @@ function D:Bind(snapshot, transition)
         return out, false, "Druid form transition evidence unavailable"
     end
     local evidence = snapshot and snapshot.shiftResourceEvidence
+    local payloadExact = cat and evidence
+        and evidence.catEnergy == 40
+        and evidence.energyTriggerSpellId == self.ENERGY_TRIGGER_ID
+        or bear and evidence and evidence.bearRage == 10
+            and evidence.rageTriggerSpellId == self.RAGE_TRIGGER_ID
     if not (evidence and evidence.available == true
         and evidence.exact == true and evidence.guaranteed == true
         and evidence.talentID == self.FUROR_TALENT_ID
         and evidence.rank == self.FUROR_MAX_RANK
         and evidence.spellId == self.FUROR_RANK_FIVE_ID
-        and evidence.chance == 100 and evidence.catEnergy == 40
-        and evidence.energyTriggerSpellId == self.ENERGY_TRIGGER_ID) then
+        and evidence.chance == 100 and payloadExact) then
         return out, false, "guaranteed Furor evidence unavailable"
     end
     local current, maximum = powerSlot(snapshot, powerType)
     if current == nil then
         return out, false, "destination power floor unavailable"
     end
-    local floor = evidence.catEnergy
+    local floor = cat and evidence.catEnergy or evidence.bearRage
     floor = nonnegative(floor)
     if not floor or floor > maximum then floor = maximum end
     out.druidShiftResourceFloor = { exact = true, lowerBound = true,
@@ -252,7 +275,9 @@ function D:Bind(snapshot, transition)
         sourceForm = transition.sourceForm, targetForm = target,
         powerType = powerType, observedSourcePower = current,
         observedMaximum = maximum, minimum = floor,
-        triggerSpellId = evidence.energyTriggerSpellId,
+        triggerSpellId = cat and evidence.energyTriggerSpellId
+            or evidence.rageTriggerSpellId,
+        combatStable = bear and true or nil,
         source = "guaranteed Furor plus observed destination capacity" }
     out.destinationPowerMinimum = floor
     out.destinationPowerMinimumKnown = true
@@ -266,12 +291,21 @@ function D:Apply(snapshot, transition)
     local sourcePower, observedMaximum = nonnegative(floor
         and floor.observedSourcePower),
         nonnegative(floor and floor.observedMaximum)
-    local expected = floor and floor.powerType == self.ENERGY
-        and math.min(observedMaximum or 0, 40) or nil
-    local trigger = self.ENERGY_TRIGGER_ID
+    local cat = floor and floor.powerType == self.ENERGY
+    local bear = floor and floor.powerType == self.RAGE
+        and floor.combatStable == true
+    local expected = cat and math.min(observedMaximum or 0, 40)
+        or bear and math.min(observedMaximum or 0, 10) or nil
+    local trigger = cat and self.ENERGY_TRIGGER_ID
+        or bear and self.RAGE_TRIGGER_ID or nil
     local evidence = snapshot and snapshot.shiftResourceEvidence
+    local payloadExact = cat and evidence
+        and evidence.catEnergy == 40
+        and evidence.energyTriggerSpellId == self.ENERGY_TRIGGER_ID
+        or bear and evidence and evidence.bearRage == 10
+            and evidence.rageTriggerSpellId == self.RAGE_TRIGGER_ID
     if not (floor and floor.exact == true and floor.lowerBound == true
-        and floor.powerType == self.ENERGY
+        and (cat or bear)
         and snapshot.formID == floor.targetForm
         and snapshot.primaryType == floor.powerType
         and transition.targetForm == floor.targetForm
@@ -287,12 +321,14 @@ function D:Apply(snapshot, transition)
         and evidence.exact == true and evidence.guaranteed == true
         and evidence.talentID == floor.talentID
         and evidence.rank == floor.talentRank
-        and evidence.spellId == floor.talentSpellId) then return false end
+        and evidence.spellId == floor.talentSpellId
+        and payloadExact) then return false end
     slot.minimumCurrent, slot.minimumCurrentKnown = floor.minimum, true
     slot.minimumCurrentSource = floor.source
     slot.minimumTransition = { sourceForm = floor.sourceForm,
         targetForm = floor.targetForm, powerType = floor.powerType,
-        talentSpellId = floor.talentSpellId, exact = true }
+        talentSpellId = floor.talentSpellId, exact = true,
+        combatStable = floor.combatStable }
     slot.currentKnown = false
     return true
 end
@@ -303,8 +339,11 @@ function D:ResourceFloor(snapshot)
     local minimum = nonnegative(slot and slot.minimumCurrent)
     local transition = slot and slot.minimumTransition
     if not (slot and slot.minimumCurrentKnown == true and minimum
-        and snapshot.primaryType == self.ENERGY
+        and (snapshot.primaryType == self.ENERGY
+            or snapshot.primaryType == self.RAGE)
         and transition and transition.exact == true
+        and (snapshot.primaryType ~= self.RAGE
+            or transition.combatStable == true)
         and transition.targetForm == snapshot.formID
         and transition.powerType == snapshot.primaryType
         and transition.talentSpellId == self.FUROR_RANK_FIVE_ID

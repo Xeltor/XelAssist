@@ -129,6 +129,10 @@ function R:PotentialConsumer(path, action, sealedFacts)
     if key == nil and rapidFire then
         key = rapidFire:ConsumerKey(sealedFacts)
     end
+    local battleShout = XelAssist.Graph.WarriorBattleShout
+    if key == nil and battleShout and battleShout.ConsumerKey then
+        key = battleShout:ConsumerKey(sealedFacts)
+    end
     if type(key) ~= "string" or key == ""
         or string.len(key) > 128 then key = nil end
     return dependencyMatches(path, key,

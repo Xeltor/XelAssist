@@ -294,6 +294,17 @@ assert(Graph:Score(context, projection) and context.value == 0
     and context.kind == "classMechanic"
     and context.reason == "enables exact main-hand attack-power damage",
     "Battle Shout must not receive fixed or typed utility")
+local setup = Graph:StrategicSetup(captured)
+assert(setup and setup.key == "warriorBattleShout:6673"
+    and setup.consumerKey == Graph.CONSUMER_KEY,
+    "Battle Shout must retain its zero-output branch to an exact AP payoff")
+assert(Graph:ConsumerKey({ playerAttackContinuation = true })
+        == Graph.CONSUMER_KEY
+    and Graph:PotentialConsumer({ warriorMainHandWeaponEvidence = {
+        valid = true, exact = true, attackType = "main" } }),
+    "exact main-hand events must close the Battle Shout setup lane")
+assert(Graph:ConsumerKey({ melee = true }) == nil,
+    "generic melee metadata must not manufacture a Battle Shout payoff")
 local candidate = { action = action, tooltip = captured, target = "player",
     targetRelation = "friendly", classMechanicProjection = projection }
 assert(Graph:Apply(clean, candidate), "the exact self projection must apply")

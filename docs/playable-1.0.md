@@ -150,8 +150,9 @@ request to add a class priority rule:
   profiles alone cannot yet prove tank playability.
 - **Rogue:** current combo, energy, target-survival, stealth/rear, Slice and
   Dice, Ruthlessness, Preparation and Feint coverage is sufficient for focused
-  scenario proof. Poison stocks and Blade Flurry remain optimization unless a
-  live smoke test proves they block ordinary leveling.
+  scenario proof. Poison stocks remain unresolved optimization. Octo's
+  permanent Blade Flurry tradeoff is now identified exactly and withheld
+  because its server-selected secondary recipient is not observable.
 
 The patch-5-wide divergence audit also promoted these unowned ordinary-loop
 mechanics into the tracked backlog: Druid Blood Frenzy and Ancient Brutality's

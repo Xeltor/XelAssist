@@ -4,7 +4,8 @@
 XelAssist.Game.ActionInference = {}
 local I = XelAssist.Game.ActionInference
 local ROGUE_INFERENCE = { "RogueSliceAndDice", "RoguePreparation",
-    "RogueFeint", "RogueSurpriseAttack", "RogueShiv", "RogueMarkForDeath" }
+    "RogueFeint", "RogueSurpriseAttack", "RogueShiv", "RogueMarkForDeath",
+    "RogueBladeFlurry" }
 local HUNTER_INFERENCE = { "HunterStings", "HunterFeignDeath", "HunterHawk", "HunterMark",
     "HunterDistractingShot", "HunterRapidFire", "HunterManaAspects" }
 local SHAMAN_INFERENCE = { "ShamanStormstrike", "ShamanDivergentActions", "ShamanChainHealTiming", "ShamanEarthShock",
@@ -18,6 +19,7 @@ local WARRIOR_INFERENCE = { "WarriorThunderClap", "WarriorOverpower",
     "WarriorRevengeThreat", "WarriorBattleShout", "WarriorShieldWall",
     "WarriorDevastate", "WarriorShieldBlock", "WarriorBerserkerRage" }
 local ROOT_INVALIDATION = { "MageFrostfire", "MageAcceleratedArcana",
+    "MageArcanePower",
     "ShamanChainHealTiming", "ShamanFlameShockTiming",
     "DruidAncientBrutality", "DruidBloodFrenzy",
     "PriestDivergentActions", "WarriorShieldBash", "HunterFeignDeath",
@@ -43,7 +45,9 @@ end
 
 function I:ClassKnowledge(spellId)
     local player = XelAssist.Game.Player or {}
-    local facts, reason, handled = infer(player.MageArcaneSurge, spellId)
+    local facts, reason, handled = infer(player.MageArcanePower, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.MageArcaneSurge, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.MageColdSnap, spellId)
     if handled then return facts, reason, true end
@@ -185,6 +189,7 @@ function I:InvalidateClass()
     end
     if player.RogueShiv then player.RogueShiv:Invalidate() end
     if player.RogueMarkForDeath then player.RogueMarkForDeath:Invalidate() end
+    if player.RogueBladeFlurry then player.RogueBladeFlurry:Invalidate() end
     if player.HunterMark then player.HunterMark:Invalidate() end
     if player.HunterHawk then player.HunterHawk:Invalidate() end
     if player.HunterDistractingShot then
