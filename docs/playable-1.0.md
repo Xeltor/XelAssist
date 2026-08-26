@@ -101,6 +101,9 @@ request to add a class priority rule:
   damage-threat profile, but live Octo acceptance and target mechanic-interrupt
   immunity remain blockers for claiming complete tank/interrupt behavior. Its
   damage, binary delivery, cast predicate and school-lock lifecycle are modeled.
+  Molten Blast now refreshes only the caster's existing Flame Shock and preserves
+  its tick phase. Earth/Water Shield charges and proc amounts are known, but the
+  live three-second proc phase is not observable and repeated procs remain withheld.
 - **Warrior:** low-level grouped play requires the character role to be set to
   Tank because Defensive Stance evidence does not exist yet; onboarding must
   make that explicit rather than inventing an automatic role. Mid/60 threat
@@ -117,9 +120,11 @@ request to add a class priority rule:
 - **Paladin and Druid tanks:** Consecration now has exact installed ground
   topology and conservatively credits one selected-hostile Holy pulse; later
   stationary-ground recipients and Octo's runtime pulse weighting remain
-  unknown instead of following the target. Bear Swipe/Maul/Savage Bite packets
-  still need exact evidence after the shared incoming-melee gate; existing
-  forms, resources and threat profiles alone cannot prove tank playability.
+  unknown instead of following the target. Bear Swipe/Maul/Savage Bite rank and
+  packet identities are installed-data exact, including Maul's on-next-swing
+  behavior; action-specific threat bonuses remain withheld because only the
+  global Bear threat multiplier is proven. Existing forms, resources and threat
+  profiles alone cannot yet prove tank playability.
 - **Rogue:** current combo, energy, target-survival, stealth/rear, Slice and
   Dice, Ruthlessness, Preparation and Feint coverage is sufficient for focused
   scenario proof. Poison stocks and Blade Flurry remain optimization unless a

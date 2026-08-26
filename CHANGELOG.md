@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.45
+
+- Re-audited the installed Bear attack families and removed unsupported typed
+  threat multipliers from Swipe, Maul and Savage Bite. Maul retains its exact
+  on-next-swing behavior and all three continue through the proven global Bear
+  threat multiplier without inventing private server arithmetic.
+- Recognized Evocation and its installed custom talent dependencies by numeric
+  topology. The graph now fails the action closed instead of fabricating mana
+  while Spirit/MP5 amount, global mana-tick phase, Accelerated Arcana timing,
+  Evocation Mastery stacks and Nether Overcharge completion remain unresolved.
+- Added all installed Molten Blast ranks and their ClassicAPI-backed owned Flame
+  Shock refresh. A landed blast resets remaining duration without restarting
+  the periodic tick phase; partial delivery and another Shaman's aura do not
+  promise a refresh.
+- Extended the frame-budget benchmark with rank-heavy Druid, Mage and Shaman
+  catalogues so broader class data cannot quietly regress the 3.23 ms ceiling.
+
 ## 0.8.44
 
 - Added exact patch-5 Soul Fire rank and reagent topology so mana and one Soul

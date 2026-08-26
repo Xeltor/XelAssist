@@ -269,6 +269,37 @@ local function rankHeavyWarlock()
     return source, actions
 end
 
+local function rankHeavyCaster(spellName, school)
+    local source = Fixture.State("smart")
+    source.inCombat = true
+    source.resource, source.resourceMax = 4200, 4200
+    source.actors.player.resource, source.actors.player.resourceMax = 4200, 4200
+    source.targetHealth, source.targetMax = 12000, 12000
+    source.targetDistance, source.distance = 24, 24
+    source.targetDistanceKind, source.distanceKind = "hitbox", "hitbox"
+    source.targetAuras = {}
+    source.pet, source.actors.pet = false, nil
+    local actions, rank = {}, nil
+    for rank = 1, 48 do
+        table.insert(actions, Fixture.Action(spellName, rank, "damage",
+            80 + rank * 4, 20 + rank, { cast = 2.5,
+                testSchool = school, ranged = true }))
+    end
+    return source, actions
+end
+
+local function rankHeavyDruid()
+    return rankHeavyCaster("Wrath", 3)
+end
+
+local function rankHeavyMage()
+    return rankHeavyCaster("Frostbolt", 4)
+end
+
+local function rankHeavyShaman()
+    return rankHeavyCaster("Lightning Bolt", 3)
+end
+
 local function levelFourWarrior()
     local source = Fixture.State("smart")
     source.inCombat = false
@@ -311,6 +342,12 @@ local cases = {
         Build = levelSevenWarlock, expected = "Corruption" },
     { name = "rank-heavy Warlock", depth = 3,
         Build = rankHeavyWarlock, expected = "Corruption" },
+    { name = "rank-heavy Druid caster", depth = 3,
+        Build = rankHeavyDruid, expected = "Wrath" },
+    { name = "rank-heavy Mage caster", depth = 3,
+        Build = rankHeavyMage, expected = "Frostbolt" },
+    { name = "rank-heavy Shaman caster", depth = 3,
+        Build = rankHeavyShaman, expected = "Lightning Bolt" },
 }
 
 local index

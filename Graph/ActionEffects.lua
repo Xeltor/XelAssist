@@ -1,5 +1,4 @@
--- Candidate-local state changes. Timing that occurs during the action lives in
--- OngoingEffects; this module consumes resources and applies the chosen action.
+-- Candidate-local changes; OngoingEffects owns timing during the action.
 XelAssist.Graph.ActionEffects = {}
 local A = XelAssist.Graph.ActionEffects
 local State = XelAssist.Graph.State
@@ -423,6 +422,7 @@ function A:Apply(out, source, candidate, context)
     if HostileEffects and HostileEffects.ApplyPrimaryThreat then
         HostileEffects:ApplyPrimaryThreat(out, candidate, context)
     end
+    if XelAssist.Graph.ShamanFlameShockRefresh then XelAssist.Graph.ShamanFlameShockRefresh:Apply(out, candidate) end
     applyCombatState(out, candidate, context)
     if XelAssist.Graph.SoulShardReserve then
         XelAssist.Graph.SoulShardReserve:Apply(out, candidate)

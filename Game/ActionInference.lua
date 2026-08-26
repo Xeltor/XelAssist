@@ -20,6 +20,8 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.MageManaShield, spellId)
     if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.MageEvocation, spellId)
+    if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PriestShield, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PriestShadowform, spellId)
@@ -52,6 +54,8 @@ function I:ClassKnowledge(spellId)
     facts, reason, handled = infer(player.HunterRapidFire, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.ShamanEarthShock, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.ShamanMoltenBlast, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.ShamanLightningStrike, spellId)
     if handled then return facts, reason, true end
@@ -136,6 +140,7 @@ end
 function I:InvalidateClass()
     local player = XelAssist.Game.Player or {}
     if player.MageManaShield then player.MageManaShield:Invalidate() end
+    if player.MageEvocation then player.MageEvocation:Invalidate() end
     if player.MageClearcasting then player.MageClearcasting:Invalidate() end
     if player.MagePresenceOfMind then
         player.MagePresenceOfMind:Invalidate()
@@ -211,6 +216,7 @@ function I:InvalidateClass()
     if player.ShamanManaSpring then player.ShamanManaSpring:Invalidate() end
     if player.ShamanClearcasting then player.ShamanClearcasting:Invalidate() end
     if player.ShamanEarthShock then player.ShamanEarthShock:Invalidate() end
+    if player.ShamanMoltenBlast then player.ShamanMoltenBlast:Invalidate() end
     if player.ShamanLightningStrike then
         player.ShamanLightningStrike:Invalidate()
     end
