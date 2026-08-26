@@ -87,6 +87,31 @@ dofile("Graph/ResourceInvestment.lua")
 local Branches, Investment = XelAssist.Graph.SearchBranches,
     XelAssist.Graph.ResourceInvestment
 
+local movement = built({ name = "Move into range", rank = 0,
+    actor = "player", facts = { kind = "movement", movementSetup = true } },
+    {}, 0, { targetGUID = "enemy" })
+movement.targetGUID = "enemy"
+local afterMovement = Investment:Advance({ state = { resource = 100 } },
+    movement, {})
+local movedAttack = built({ name = "Frostbolt", rank = 1,
+    actor = "player", facts = { kind = "damage" } }, {}, 100,
+    { targetGUID = "enemy" })
+movedAttack.targetGUID, movedAttack.spatialConditionalOnly = "enemy", true
+local completedMovement = Investment:Advance(afterMovement, movedAttack, {})
+assert(Investment:Expandable(movement, { state = {} })
+    and afterMovement.movementSetupOpen == true
+    and not Investment:Eligible(afterMovement)
+    and completedMovement.movementSetupOpen == nil
+    and Investment:Eligible(completedMovement),
+    "movement must remain unpublished until a worthwhile target-matched action consumes it")
+local wrongTarget = built({ name = "Frostbolt", rank = 1,
+    actor = "player", facts = { kind = "damage" } }, {}, 100,
+    { targetGUID = "other" })
+wrongTarget.targetGUID, wrongTarget.spatialConditionalOnly = "other", true
+assert(not Investment:Eligible(Investment:Advance(
+        afterMovement, wrongTarget, {})),
+    "movement must not be justified by a different target's future action")
+
 local druidCancel = built({ name = "Cancel Form", rank = 1,
     actor = "player", facts = { kind = "buff" } }, {}, 0,
     { druidFormTransition = { kind = "cancel", sourceForm = 1,

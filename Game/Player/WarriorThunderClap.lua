@@ -42,6 +42,14 @@ local function copy(source)
     return out
 end
 
+local function duration(spellId, base)
+    if type(GetSpellDuration) ~= "function" then return nil end
+    local ok, milliseconds = pcall(GetSpellDuration, spellId,
+        base and true or nil)
+    milliseconds = ok and finite(milliseconds, 1, 3600000) or nil
+    return milliseconds and milliseconds / 1000 or nil
+end
+
 local function classToken()
     if type(UnitClass) ~= "function" then return nil end
     local ok, _, token = pcall(UnitClass, "player")
@@ -254,6 +262,20 @@ function T:CaptureFacts(action, facts)
     out.warriorThunderClap = true
     out.warriorThunderClapEvidence = copy(found)
     out.topology = damageTopology(found)
+    local baseDuration, actualDuration = duration(found.spellId, true),
+        duration(found.spellId, false)
+    if baseDuration == 10 and actualDuration and actualDuration > 0 then
+        out.warriorThunderClapSlowEvidence = {
+            exact = true, spellId = found.spellId,
+            aura = found.meleeHasteAura,
+            attackTimeIncreasePercent = found.attackTimeIncreasePercent,
+            intervalMultiplier = 1
+                + found.attackTimeIncreasePercent / 100,
+            baseDuration = baseDuration, duration = actualDuration,
+            phaseAdjustment = "future-reset-only",
+            source = "installed SpellDuration plus VMaNGOS "
+                .. "HandleModMeleeSpeedPct/ApplyAttackTimePercentMod" }
+    end
     return out
 end
 
@@ -265,6 +287,20 @@ end
 function T:CapturedEvidence(action, snapshot)
     local found = captured(action, snapshot)
     return found and copy(found) or nil
+end
+
+
+function T:SlowEvidence(action, snapshot)
+    local found = captured(action, snapshot)
+    local slow = type(snapshot) == "table"
+        and snapshot.warriorThunderClapSlowEvidence or nil
+    if not (found and type(slow) == "table" and slow.exact == true
+        and slow.spellId == found.spellId and slow.aura == found.meleeHasteAura
+        and slow.attackTimeIncreasePercent == found.attackTimeIncreasePercent
+        and slow.intervalMultiplier == 1.1 and slow.baseDuration == 10
+        and finite(slow.duration, 0.001, 3600)
+        and slow.phaseAdjustment == "future-reset-only") then return nil end
+    return copy(slow)
 end
 
 function T:Invalidate()

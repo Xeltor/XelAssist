@@ -10,6 +10,10 @@ local function facts(candidate)
     return candidate and candidate.action and candidate.action.facts or {}
 end
 
+local function isMovement(candidate)
+    return facts(candidate).movementSetup == true
+end
+
 local function formID(value)
     if type(value) ~= "number" or value < 0 or value > 32
         or math.floor(value) ~= value then return nil end
@@ -51,6 +55,9 @@ function R:Expandable(candidate, prior)
     if candidate and candidate.strategicSetup == true then
         return self:IsStrategic(candidate)
             and not (prior and prior.strategicSetupOpen == true)
+    end
+    if isMovement(candidate) then
+        return not (prior and prior.movementSetupOpen == true)
     end
     if (tonumber(candidate and candidate.value) or 0) > 0
         or self:Is(candidate) then return true end
@@ -161,6 +168,31 @@ function R:Advance(prior, candidate, out)
     end
     out.resourceInvestmentOpen = open and true or nil
     out.resourceWithoutInvestment = open and without or nil
+    local movementOpen = prior.movementSetupOpen == true
+    local movementTarget = movementOpen and prior.movementSetupTargetGUID or nil
+    if isMovement(candidate) then
+        movementOpen = true
+        movementTarget = candidate.targetGUID
+    elseif movementOpen and (tonumber(candidate and candidate.value) or 0) > 0
+        and candidate.spatialConditionalOnly == true
+        and movementTarget ~= nil and candidate.targetGUID == movementTarget then
+        movementOpen, movementTarget = false, nil
+    end
+    out.movementSetupOpen = movementOpen and true or nil
+    out.movementSetupTargetGUID = movementTarget
+    -- Shoot is a zero-output client toggle whose first useful result is the
+    -- later WandCommitment impact. Keep that causal setup lane searchable,
+    -- but never publish it unless a resolved continuation closes the lane.
+    -- Any intervening player action clips the projected repeat and therefore
+    -- strands (rather than falsely completing) the investment.
+    local candidateFacts = facts(candidate)
+    local wandOpen = prior.wandSetupOpen == true
+    if candidateFacts.wandRepeat == true then
+        wandOpen = true
+    elseif wandOpen and candidateFacts.wandContinuation == true then
+        wandOpen = false
+    end
+    out.wandSetupOpen = wandOpen and true or nil
     local setupKey = prior.strategicSetupOpen == true and prior.strategicSetupKey
         or nil
     local setupSource = setupKey and prior.strategicSetupSourceForm or nil
@@ -185,6 +217,8 @@ end
 function R:Eligible(path)
     return path and path.resourceInvestmentOpen ~= true
         and path.strategicSetupOpen ~= true
+        and path.movementSetupOpen ~= true
+        and path.wandSetupOpen ~= true
 end
 
 function R:Collect(frontier, terminal)
@@ -237,7 +271,7 @@ end
 
 function R:Retain(paths, width, before)
     table.sort(paths, before)
-    local ordinary, setups, investment, i = {}, {}, nil, nil
+    local ordinary, setups, investment, wand, i = {}, {}, nil, nil, nil
     for i = 1, table.getn(paths) do
         local path, key = paths[i], paths[i].strategicSetupKey
         if path.strategicSetupOpen == true and type(key) == "string"
@@ -250,6 +284,7 @@ function R:Retain(paths, width, before)
             if not investment and path.resourceInvestmentOpen then
                 investment = path
             end
+            if not wand and path.wandSetupOpen then wand = path end
         end
     end
     width = math.max(0, math.floor(tonumber(width) or 0))
@@ -266,6 +301,17 @@ function R:Retain(paths, width, before)
     if investment then
         if not contains(ordinary, investment) and ordinaryWidth > 0 then
             ordinary[table.getn(ordinary)] = investment
+        end
+    end
+    if wand and not contains(ordinary, wand) and ordinaryWidth > 0 then
+        local replace = table.getn(ordinary)
+        if investment and ordinary[replace] == investment then
+            replace = replace - 1
+        end
+        if replace > 0 then
+            ordinary[replace] = wand
+        elseif not investment then
+            ordinary[table.getn(ordinary)] = wand
         end
     end
     while table.getn(paths) > 0 do table.remove(paths) end

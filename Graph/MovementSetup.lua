@@ -14,7 +14,10 @@ function M:Candidate(state, blockers)
     if not state or state.hostile ~= true or state.targetGUID == nil
         or state.movementSetupTargetGUID == state.targetGUID
         or (range or 0) <= 0 then return nil end
-    return { action = ACTION, value = 1,
+    -- Movement has no combat value by itself. Search may retain this setup edge,
+    -- but it becomes publishable only after a worthwhile target-matched action
+    -- consumes it (ResourceInvestment owns that dependent-lane contract).
+    return { action = ACTION, value = 0,
         reason = "closes distance for the next action",
         target = "target", targetKey = state.targetGUID,
         targetGUID = state.targetGUID, targetRelation = "hostile",

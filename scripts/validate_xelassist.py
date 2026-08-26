@@ -224,6 +224,8 @@ subprocess.run(["lua", str(root / "tests/health_transfer_graph_test.lua")], cwd=
 subprocess.run(["lua", str(root / "tests/mage_channel_tick_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/warlock_leech_channel_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/resource_investment_graph_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/mana_opportunity_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/wand_setup_investment_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/warlock_resource_semantics_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/warlock_dark_pact_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/warlock_soul_link_test.lua")], cwd=root, check=True)

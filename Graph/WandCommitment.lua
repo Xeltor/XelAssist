@@ -46,6 +46,7 @@ end
 function W:Prepare(state, actions)
     local wand = state and state.wand
     if not wand then return end
+    state.manaOpportunityWandAvailable = nil
     local i, action
     for i = 1, table.getn(actions or {}) do
         if actions[i].facts and actions[i].facts.wandRepeat then
@@ -56,6 +57,9 @@ function W:Prepare(state, actions)
     if action then
         wand.action = action
         wand.tooltip = actionFacts(state, action)
+        state.manaOpportunityWandAvailable = wand.activeKnown == true
+            and (tonumber(wand.damage) or 0) > 0
+            and (tonumber(wand.speed) or 0) > 0 and true or nil
     end
 end
 

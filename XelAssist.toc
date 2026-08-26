@@ -250,6 +250,7 @@ Graph\EventAuras.lua
 Graph\ReadinessEffects.lua
 Graph\PlayerEngagement.lua
 Graph\ActorScoring.lua
+Graph\ManaOpportunity.lua
 Graph\ThreatScoring.lua
 Graph\PlayerSwings.lua
 Graph\PlayerOffhandSwings.lua

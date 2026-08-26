@@ -5,6 +5,7 @@ XelAssist.Graph.ThreatScoring = {}
 local T = XelAssist.Graph.ThreatScoring
 local PlayerThreat = XelAssist.Graph.PlayerThreat
 local WarriorThreat = XelAssist.Graph.WarriorThreatPackets
+local ManaOpportunity = XelAssist.Graph.ManaOpportunity
 
 local function playerThreatRisk(state)
     return state.hasAggro or state.targetPlayerThreatDeltaExact == false
@@ -18,7 +19,23 @@ end
 
 local function priceResource(context, maximum, effective)
     if context.cost <= 0 or maximum <= 0 then return end
-    context.value = context.value - context.cost / maximum * 240
+    local fraction, basis, scarce = context.cost / maximum, maximum, false
+    if ManaOpportunity then
+        fraction, basis, scarce = ManaOpportunity:CostFraction(
+            context.state, context.cost, maximum)
+    end
+    context.value = context.value - fraction * 240
+    if scarce then
+        -- Direct actions carry a 250-point baseline before resource pricing.
+        -- Price only the additional scarcity above the ordinary maximum-pool
+        -- fraction so a full mana bar is unchanged, while spending the last
+        -- exact cast can lose to a proven zero-mana wand continuation.
+        local ordinary = context.cost / maximum
+        context.value = context.value
+            - math.max(0, fraction - ordinary) * 280
+    end
+    context.resourceOpportunityBasis = basis
+    context.manaScarcityPriced = scarce and true or nil
     local kind = context.facts.kind
     if not context.state.tank
         and (kind == "damage" or kind == "builder") then

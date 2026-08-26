@@ -76,6 +76,13 @@ local function evaluate(state, cost, power, depth)
     return XelAssist.Graph:Evaluate("smart", true, 100)
 end
 
+local function evaluateMageWand(state, cost, power)
+    Fixture:Use(state, { shoot(), bolt(cost, power) })
+    XelAssistCharDB.graphDepth, XelAssistCharDB.role = 2, "damage"
+    XelAssistCharDB.petThreat = "auto"
+    return XelAssist.Graph:Evaluate("smart", true, 100)
+end
+
 local function levelSevenWarlock(hasAggro)
     local state = source(163, false)
     state.healthMax = 163
@@ -126,6 +133,21 @@ XelAssistCharDB.graphDepth, XelAssistCharDB.role = 4, "damage"
 plan, reason = XelAssist.Graph:Evaluate("smart", true, 100)
 assert(not plan and reason == "No worthwhile action",
     "a health conversion without a later resource spender must never be published")
+
+local fullManaWand = source()
+fullManaWand.resource = fullManaWand.resourceMax
+plan, reason = evaluateMageWand(fullManaWand, 25, 50)
+assert(plan and plan.action.name == "Shadow Bolt", tostring(reason)
+        .. ": full mana must retain the faster spell when its opportunity cost is low")
+local lowManaWand = source()
+lowManaWand.resource = 25
+plan, reason = evaluateMageWand(lowManaWand, 25, 50)
+assert(plan and plan.action.name == "Shoot" and plan.path[2]
+    and plan.path[2].action.name == "Continue Shoot", tostring(reason)
+        .. ": got " .. tostring(plan and plan.action and plan.action.name)
+        .. " -> " .. tostring(plan and plan.path[2]
+            and plan.path[2].action and plan.path[2].action.name)
+        .. ": scarce mana must preserve Shoot until its first real wand impact")
 
 plan = evaluate(source(55, true), 25, 12, 4)
 assert(plan and plan.action.name == "Continue Shoot",

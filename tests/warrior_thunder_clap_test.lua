@@ -65,6 +65,10 @@ function GetSpellRecField(spellId, field, array)
     end
     return value
 end
+function GetSpellDuration(spellId)
+    assert(rows[spellId], "duration requested for an unknown Thunder Clap")
+    return 10000
+end
 
 dofile("Game/Player/WarriorThunderClap.lua")
 local Runtime = XelAssist.Game.Player.WarriorThunderClap
@@ -92,7 +96,8 @@ for index = 1, table.getn(ids) do
         and facts.deliveryModel == "magic" and facts.school == 0
         and facts.runtimeUnverified,
         "inference must expose causal area damage and threat, not an order")
-    local action = { spellId = id, actor = "player", facts = facts }
+    local action = { name = "Thunder Clap", spellId = id,
+        actor = "player", facts = facts }
     local snapshot = Runtime:CaptureFacts(action, {
         kind = facts.kind, aoe = facts.aoe, threat = facts.threat,
         warriorThunderClap = true,
@@ -111,6 +116,12 @@ for index = 1, table.getn(ids) do
         and topology.effects[1].radius == 8
         and topology.effects[1].maxTargets == 4,
         "root capture must retain dynamic cost/power and seal direct topology")
+    local slow = Runtime:SlowEvidence(action, snapshot)
+    assert(slow and slow.duration == 10 and slow.baseDuration == 10
+        and slow.attackTimeIncreasePercent == 10
+        and slow.intervalMultiplier == 1.1
+        and slow.phaseAdjustment == "future-reset-only",
+        "root capture must seal the installed duration and server phase rule")
 end
 
 local unknown, unknownReason, unknownHandled = Runtime:Classify(99999)
@@ -123,6 +134,7 @@ local Graph = XelAssist.Graph.WarriorThunderClap
 local action, snapshot = actions[6343], snapshots[6343]
 local savedDBC = GetSpellRecField
 GetSpellRecField = function() error("DBC read during graph search") end
+GetSpellDuration = function() error("duration read during graph search") end
 
 local blocker, handled = Graph:Blocker(
     action, {}, { relation = "hostile" }, snapshot)
@@ -151,6 +163,73 @@ assert(appliedHandled and not appliedReason and applied == 50 and not exact,
     "transition must multiply already delivered damage exactly once")
 assert(Graph:Exactness(context, true) == false,
     "unverified Octowow runtime profile must remain explicitly inexact")
+
+local enemyA, enemyB, playerGuid = {}, {}, {}
+local transition = { time = 2, hostiles = { order = { enemyA, enemyB },
+    byKey = {
+        [enemyA] = { guid = enemyA, health = 100, healthExact = true,
+            harmfulAuras = { available = true, byName = {} } },
+        [enemyB] = { guid = enemyB, health = 100, healthExact = true,
+            harmfulAuras = { available = true, byName = {} } },
+    } } }
+local slowCandidate = { action = action, tooltip = snapshot,
+    areaDirectResolved = true, recipientEffects = {
+        order = { enemyA, enemyB }, byKey = {
+            [enemyA] = { guid = enemyA, delivery = 1 },
+            [enemyB] = { guid = enemyB, delivery = 0.5 },
+        } } }
+assert(Graph:ApplySlow(transition, slowCandidate)
+    and transition.lastWarriorThunderClapSlowRecipients == 1
+    and transition.hostiles.byKey[enemyA].meleeAttackTimeEffects
+        .thunderClap.expiresAt == 12
+    and transition.hostiles.byKey[enemyB].meleeAttackTimeUnknown
+    and transition.incomingProjectionPartial,
+    "only a guaranteed, aura-observable recipient may receive the exact slow")
+
+XelAssist.Graph.IncomingConsequences = {}
+dofile("Graph/HostileSwings.lua")
+local lane = { attackerGuid = enemyA, attackerKey = enemyA,
+    victimGuid = playerGuid, hand = "main", interval = 2,
+    nextSwingIn = 0.5, expectedDamage = 10, generation = 1 }
+transition.hostileSwings = { lanes = { lane } }
+local slowedEvents = XelAssist.Graph.HostileSwings:Events(
+    transition, { downtime = 5 })
+assert(table.getn(slowedEvents) == 3
+    and math.abs(slowedEvents[1].offset - 0.5) < 0.0001
+    and math.abs(slowedEvents[2].offset - 2.7) < 0.0001
+    and math.abs(slowedEvents[3].offset - 4.9) < 0.0001,
+    "Thunder Clap must leave the current timer unchanged and slow later resets")
+transition.time = 6
+assert(Graph:ApplySlow(transition, slowCandidate)
+    and transition.hostiles.byKey[enemyA].meleeAttackTimeEffects
+        .thunderClap.observedMultiplier == 1
+    and transition.hostiles.byKey[enemyA].meleeAttackTimeEffects
+        .thunderClap.baseIntervals.main == 2,
+    "a projected refresh must extend the same slow without rebasing its cadence")
+
+local active = transition.hostiles.byKey[enemyA]
+active.meleeAttackTimeEffects = nil
+active.harmfulAuras.byName[action.name] = {
+    spellId = action.spellId, remaining = 5 }
+lane.interval, lane.nextSwingIn = 2.2, 0.5
+transition.time = 0
+transition.incomingProjectionPartial = nil
+slowCandidate.recipientEffects.order = { enemyA }
+slowCandidate.recipientEffects.byKey[enemyA].delivery = 1
+assert(Graph:ApplySlow(transition, slowCandidate)
+    and active.meleeAttackTimeEffects.thunderClap.observedMultiplier == 1.1,
+    "refreshing an observed Thunder Clap must not multiply its learned cadence twice")
+slowedEvents = XelAssist.Graph.HostileSwings:Events(
+    transition, { downtime = 3 })
+assert(table.getn(slowedEvents) == 2
+    and math.abs(slowedEvents[2].offset - 2.7) < 0.0001,
+    "an already slowed observed interval must remain 2.2 seconds after refresh")
+
+active.harmfulAuras = { available = false, byName = {} }
+active.meleeAttackTimeEffects = nil
+assert(not Graph:ApplySlow(transition, slowCandidate)
+    and active.meleeAttackTimeUnknown,
+    "missing root aura ownership must withhold cadence instead of double slowing")
 
 local resolution = { groups = { { effectIndex = 1,
     topology = { maxTargets = 4 }, byKey = { a = {}, b = {} } } },

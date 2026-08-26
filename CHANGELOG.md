@@ -2,6 +2,17 @@
 
 ## 0.8.39
 
+- Kept zero-output movement and Shoot setup edges out of published plans until
+  they reach a target-dependent attack or the first proven wand impact. This
+  prevents `Move into range` from blocking useful lookahead and keeps a wand
+  start alive through beam pruning without pretending the toggle dealt damage.
+- Added branch-local mana opportunity pricing when an exact usable wand is
+  available. Full mana retains ordinary spell valuation, while exhausting the
+  last cast now accounts for the proven zero-mana damage alternative and exact
+  regeneration lowers that opportunity cost again.
+- Projected Thunder Clap's exact max-four damage and threat plus its ten-second
+  attack-speed debuff into future hostile swing resets, without retroactively
+  stretching an already-running attack round or inventing uncertain delivery.
 - Projected delivered hostile damage now earns bounded incoming rage for an
   exact Warrior or Bear-form rage recipient. The graph uses the VMaNGOS
   `RewardRage` 2.5/conversion baseline, caps at live maximum rage, never rewards

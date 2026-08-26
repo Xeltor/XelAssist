@@ -10,6 +10,7 @@ local PlayerThreat = XelAssist.Graph.PlayerThreat
 local PrimaryThreat = XelAssist.Graph.PrimaryThreatEffects
 local WarriorThreat = XelAssist.Graph.WarriorThreatPackets
 local ShamanEarthShock = XelAssist.Graph.ShamanEarthShock
+local WarriorThunderClap = XelAssist.Graph.WarriorThunderClap
 
 local function activeTarget(state)
     if State.ActiveHostile then return State:ActiveHostile(state) end
@@ -331,6 +332,9 @@ function H:Apply(out, candidate)
                 if effect.collateral then record.projectedCollateralHit = true end
             end
         end
+    end
+    if WarriorThunderClap then
+        WarriorThunderClap:ApplySlow(out, candidate)
     end
     syncActive(out)
     return true
