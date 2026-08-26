@@ -214,14 +214,22 @@ function W:Score(context, projection)
     end
     local prevented, count, unresolved = preventedByKnownCasts(
         context.state, found, applicationOffset(context))
+    local white, whiteCount = 0, 0
+    local whiteModel = XelAssist.Graph.HostileWhiteMitigation
+    if whiteModel then white, whiteCount = whiteModel:Prevented(context.state,
+        "player", applicationOffset(context), found.duration,
+        found.damageTakenMultiplier) end
+    prevented, count = prevented + white, count + whiteCount
     context.power, context.expectedPower, context.effectivePower = 0, 0, 0
     context.value = prevented
     context.reason = count > 0 and "prevents exact incoming damage"
         or "no exact incoming damage inside Shield Wall"
     context.warriorShieldWallPreventedDamage = prevented
     context.warriorShieldWallIncomingCount = count
+    context.warriorShieldWallWhiteRounds = whiteCount
     context.warriorShieldWallUnresolvedIncoming = unresolved
     context.estimated = found.runtimeVerified ~= true or unresolved > 0
+        or whiteCount > 0
     return true
 end
 

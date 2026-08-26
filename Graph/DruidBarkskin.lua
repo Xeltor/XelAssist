@@ -162,10 +162,18 @@ function B:Score(context, projection)
     local application = (context.wait or 0) + (context.cast or 0)
     local prevented, count = preventedDamage(
         context.state, value, application)
+    local white, whiteCount = 0, 0
+    local whiteModel = XelAssist.Graph.HostileWhiteMitigation
+    if whiteModel then white, whiteCount = whiteModel:Prevented(context.state,
+        "player", application, value.duration,
+        value.physicalDamageMultiplier) end
+    prevented, count = prevented + white, count + whiteCount
     context.power, context.expectedPower, context.effectivePower = 0, 0, 0
     context.kind, context.value = "classMechanic", prevented
     context.reason = count > 0 and "prevents exact physical damage"
         or "no exact physical damage inside Barkskin"
+    context.druidBarkskinWhiteRounds = whiteCount
+    context.estimated = whiteCount > 0
     return true
 end
 

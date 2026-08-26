@@ -1,6 +1,11 @@
 XelAssist = { Game = {}, Combat = { Knowledge = {} }, Graph = {}, UI = {} }
 BOOKTYPE_SPELL = "spell"
 UIParent = {}
+GetNumSpellTabs = function() return 2 end
+GetSpellTabInfo = function(index)
+    if index == 1 then return "General", nil, 0, 0 end
+    return "Warlock", nil, 0, 1
+end
 
 local records = {
     [1454] = { spellFamilyName = 5, spellFamilyFlags = 262144,
@@ -42,6 +47,7 @@ dofile("Game/SpellEffectPower.lua")
 dofile("Game/SpellFactCache.lua")
 dofile("Game/ActionInference.lua")
 dofile("Game/CapabilityInvalidation.lua")
+dofile("Game/RacialActions.lua")
 dofile("Game/Capabilities.lua")
 
 local unsigned = XelAssist.Game.ResourceExchange:InferDBC(1454)

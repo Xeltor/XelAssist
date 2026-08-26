@@ -132,3 +132,36 @@ function M:Adjust(state, entry, amount)
     end
     return amount
 end
+
+-- Exact candidate value from already learned post-root packets. This does not
+-- mutate lane phase; the real timeline remains owned by HostileSwings.
+function M:Prevented(state, victimKind, application, duration, multiplier)
+    application, duration = tonumber(application), tonumber(duration)
+    multiplier = finite(multiplier)
+    local lanes = state and state.hostileSwings and state.hostileSwings.lanes
+    if not (type(lanes) == "table" and application and application >= 0
+        and duration and duration > 0 and multiplier and multiplier >= 0
+        and multiplier <= 1) then
+        return 0, 0
+    end
+    local expiration = application + duration
+    local total, rounds, index = 0, 0, nil
+    for index = 1, math.min(table.getn(lanes), 5) do
+        local lane = lanes[index]
+        local interval = lane and tonumber(lane.interval)
+        local at = lane and tonumber(lane.nextSwingIn)
+        local amount = lane and damage(lane.expectedDamage)
+        if lane and lane.victimKind == victimKind and interval and interval > 0
+            and at and at >= 0 and amount then
+            local guard = 0
+            while at <= application and guard < 64 do
+                at, guard = at + interval, guard + 1
+            end
+            while at < expiration and guard < 64 do
+                total = total + amount * (1 - multiplier)
+                rounds, at, guard = rounds + 1, at + interval, guard + 1
+            end
+        end
+    end
+    return total, rounds
+end

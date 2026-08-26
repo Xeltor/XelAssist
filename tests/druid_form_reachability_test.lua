@@ -26,6 +26,11 @@ GetTime = function() return 100 end
 GetSpellCooldown = function() return 0, 0 end
 IsPassiveSpell = function() return false end
 IsSpellUsable = function() return 1, 0 end
+GetNumSpellTabs = function() return 2 end
+GetSpellTabInfo = function(tab)
+    if tab == 1 then return "General", nil, 0, 0 end
+    return "Druid", nil, 0, 1
+end
 CreateFrame = function()
     error("semantic form discovery must not scrape a localized tooltip")
 end
@@ -56,6 +61,7 @@ dofile("Game/Player/DruidFormState.lua")
 dofile("Game/SpellClassification.lua")
 dofile("Game/ActionInference.lua")
 dofile("Game/CapabilityInvalidation.lua")
+dofile("Game/RacialActions.lua")
 dofile("Game/Capabilities.lua")
 
 local capabilities = XelAssist.Game.Capabilities

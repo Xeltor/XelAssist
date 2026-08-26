@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.88
+
+- Let Shield Wall and Barkskin earn defensive action value from the exact
+  phase-known hostile white rounds they prevent, without mutating the learned
+  root timeline or inventing unobserved melee pressure.
+- Enforced the documented racial deferral at spell discovery. Unknown General
+  tab actions can no longer fall through generic damage, healing, aura or
+  control inference; explicitly modeled shared actions and class-tab spells
+  remain available, while missing tab provenance fails closed.
+
 ## 0.8.87
 
 - Added an immutable root mitigation snapshot for observed hostile white

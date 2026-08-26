@@ -9,6 +9,7 @@ local WarriorShieldSlam = XelAssist.Game.Player
 local RogueShiv = XelAssist.Game.Player and XelAssist.Game.Player.RogueShiv
 local RogueMark = XelAssist.Game.Player and XelAssist.Game.Player.RogueMarkForDeath
 local ActionInference = XelAssist.Game.ActionInference
+local RacialActions = XelAssist.Game.RacialActions
 local function captureWarriorFacts(action, facts)
     if WarriorChargeCombat then
         facts = WarriorChargeCombat:CaptureFacts(action, facts)
@@ -109,7 +110,11 @@ function C:BuildSpellIndex()
             knowledge = persistent and persistent:Refine(spellId, knowledge) or knowledge
         end
         if not classHandled and not knowledge then
-            knowledge = self:InferKnowledge(i, BOOKTYPE_SPELL, spellId, true)
+            local infer = RacialActions and RacialActions:CanInfer(i)
+            if infer then
+                knowledge = self:InferKnowledge(
+                    i, BOOKTYPE_SPELL, spellId, true)
+            end
         end
         if knowledge then
             table.insert(actions, { name = name, rankText = rank or "", rank = value,

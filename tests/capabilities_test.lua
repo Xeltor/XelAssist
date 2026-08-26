@@ -242,6 +242,7 @@ dofile("Game/ResourceCost.lua")
 dofile("Game/CrowdControl.lua")
 dofile("Game/ActionInference.lua")
 dofile("Game/CapabilityInvalidation.lua")
+dofile("Game/RacialActions.lua")
 dofile("Game/Capabilities.lua")
 dofile("Graph/ActionPower.lua")
 

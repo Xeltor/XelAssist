@@ -36,7 +36,9 @@ release candidate. Until both exist, its 1.0 status is **not proven**.
   character-specific.
 - Racial-specific combat optimization is deferred for 1.0. Shared graph
   mechanics may represent independently proven ordinary effects, but an
-  unmodeled racial trigger or utility consequence receives no invented value.
+  unmodeled General-tab action receives no generic inferred consequence. Exact
+  spellbook-tab provenance enforces that boundary and missing provenance fails
+  closed without hiding explicitly modeled shared actions.
 - Lua 5.0 policy, module/function size ceilings, deterministic packaging, the
   complete automated suite, pushed Git state and exact two-root deployment all
   pass from the same commit.
@@ -100,7 +102,8 @@ request to add a class priority rule:
   Exact branch-versus-root multiplier deltas now cover Warrior stances and
   Shield Wall, Priest Shadowform, Druid Barkskin and companion defenses without
   applying a root-active effect twice. Absorbed packets retain cadence but do
-  not contaminate the learned post-absorb magnitude.
+  not contaminate the learned post-absorb magnitude. Shield Wall and Barkskin
+  score the phase-known white rounds their exact duration would prevent.
   Shield Block can now value only the selected non-rear attacker: stock block
   chance and phase-known rounds combine with the minimum same-regime observed
   block packet, while an exact one/two-charge probability distribution reduces

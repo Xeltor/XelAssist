@@ -1,4 +1,9 @@
 -- Patch-5 Barkskin must carry its mitigation and opportunity costs together.
+table.getn = table.getn or function(value)
+    local count = 0
+    while value and value[count + 1] ~= nil do count = count + 1 end
+    return count
+end
 XelAssist = { Game = { Player = {} }, Graph = {} }
 
 local rows = {
@@ -56,6 +61,7 @@ assert(Runtime:InferKnowledge(22839) == nil,
     "linked aura is not a cast action")
 
 dofile("Graph/DruidBarkskin.lua")
+dofile("Graph/HostileWhiteMitigation.lua")
 local Graph = XelAssist.Graph.DruidBarkskin
 local state = { time = 100, actors = {
     player = { guid = "player-guid" },
@@ -69,6 +75,13 @@ local context = { state = state, wait = 0, cast = 0 }
 assert(Graph:Score(context, projection) and context.value == 0
     and context.kind == "classMechanic",
     "no invented incoming damage may give flat defensive value")
+state.hostileSwings = { lanes = { { victimKind = "player",
+    expectedDamage = 20, interval = 2, nextSwingIn = 1 } } }
+context = { state = state, wait = 0, cast = 0 }
+assert(Graph:Score(context, projection)
+    and math.abs(context.value - 20) < 0.000001
+    and context.druidBarkskinWhiteRounds == 5 and context.estimated,
+    "Barkskin must earn only its exact phase-known white-round prevention")
 assert(Graph:Apply(state, { classMechanicProjection = projection }),
     "transition must activate")
 

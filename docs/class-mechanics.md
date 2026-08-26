@@ -54,8 +54,10 @@ Racial combat optimization is explicitly deferred for 1.0. A racial may use an
 ordinary direct damage, heal, resource, aura, cooldown, or control consequence
 only when the shared installed-client evidence proves it independently; no
 race-specific trigger, utility, recipient, or strategic bonus is inferred.
-Unknown racial consequences therefore remain neutral or withheld rather than
-becoming a hidden class priority.
+Unknown General-tab actions are therefore withheld from generic inference by
+exact spellbook provenance rather than becoming a hidden class priority. If tab
+provenance is unavailable, generic discovery fails closed while explicitly
+modeled shared actions remain eligible.
 
 This ledger describes mechanic ownership. It does not by itself prove that a
 class is playable. The separate `playable-1.0.md` contract requires level-band,

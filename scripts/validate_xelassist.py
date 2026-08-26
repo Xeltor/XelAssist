@@ -225,6 +225,7 @@ subprocess.run(["lua", str(root / "tests/dispel_decision_test.lua")], cwd=root, 
 subprocess.run(["lua", str(root / "tests/dispel_target_selection_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/geometry_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/capabilities_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/racial_deferral_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/target_modifier_facts_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/resource_exchange_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/health_transfer_test.lua")], cwd=root, check=True)

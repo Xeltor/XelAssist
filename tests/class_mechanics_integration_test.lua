@@ -60,6 +60,7 @@ dofile("Game/Player/TotemState.lua")
 dofile("Game/Player/ShamanActions.lua")
 dofile("Game/ActionInference.lua")
 dofile("Game/CapabilityInvalidation.lua")
+dofile("Game/RacialActions.lua")
 dofile("Game/Capabilities.lua")
 
 local paladinCatalogue = XelAssist.Game.Capabilities:Actions()

@@ -137,6 +137,7 @@ XelAssist.Graph.IncomingConsequences = {
 }
 
 dofile("Graph/WarriorShieldWall.lua")
+dofile("Graph/HostileWhiteMitigation.lua")
 local Graph = XelAssist.Graph.WarriorShieldWall
 
 local function root()
@@ -182,16 +183,19 @@ state.hostileCasts = { order = { "one", "late", "other", "unknown" },
         unknown = { remaining = 4, probability = 1,
             targetGuid = "player-guid" },
     } }
+state.hostileSwings = { lanes = { { victimKind = "player",
+    expectedDamage = 20, interval = 2, nextSwingIn = 1 } } }
 local score = { action = action, state = state, descriptor = descriptor,
     tooltip = prepared, wait = 0, cast = 0,
     power = 999, expectedPower = 999, effectivePower = 999,
     value = 999, estimated = false }
 assert(Graph:Score(score, prepared)
-    and score.warriorShieldWallPreventedDamage == 75
-    and score.warriorShieldWallIncomingCount == 1
+    and score.warriorShieldWallPreventedDamage == 165
+    and score.warriorShieldWallIncomingCount == 7
+    and score.warriorShieldWallWhiteRounds == 6
     and score.warriorShieldWallUnresolvedIncoming == 1
-    and score.value == 75 and score.power == 0 and score.estimated,
-    "only an exact in-window player impact may create defensive value")
+    and score.value == 165 and score.power == 0 and score.estimated,
+    "exact casts and phase-known white rounds must create defensive value")
 
 local quiet = root()
 assert(Graph:Attach(quiet, "WARRIOR"))
