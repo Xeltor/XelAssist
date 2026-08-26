@@ -212,7 +212,6 @@ local function snapshotContext()
         weaponSkills = weaponSkills, hostileSwings = hostileSwings,
     }
 end
-
 local function newState(mode, context)
     local actors, target = context.actors, context.target
     local state = {
@@ -316,9 +315,10 @@ function S:Snapshot(mode)
     attachPlayerResource(state, context.actors)
     if XelAssist.Graph.HostileCastState then XelAssist.Graph.HostileCastState:Attach(state, GetTime and GetTime() or 0) end
     if context.target.hostiles then self:SyncSelectedHostile(state) end
+    if XelAssist.Graph.HostileWhiteMitigation then
+        XelAssist.Graph.HostileWhiteMitigation:Attach(state) end
     if XelAssist.Graph.AutoShotUncertainty then
-        XelAssist.Graph.AutoShotUncertainty:Apply(state, context.autoShot)
-    end
+        XelAssist.Graph.AutoShotUncertainty:Apply(state, context.autoShot) end
     state.distance = state.hostile and state.targetDistance or context.healDistance
     state.distanceKind = state.hostile and state.targetDistanceKind
         or context.healDistanceKind

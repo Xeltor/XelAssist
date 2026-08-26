@@ -95,13 +95,17 @@ request to add a class priority rule:
 - **Shared incoming melee:** a bounded attacker/victim white-round ledger now
   projects observed post-mitigation health loss and baseline Warrior/Bear rage.
   Each lane is sealed to the victim's armor, defense, level and form regime and
-  is retired across equipment, form or player-aura changes; pet and ally lanes
+  is retired across equipment, form or player/pet-aura changes; pet and ally lanes
   remain independently bound to their own current mitigation state.
+  Exact branch-versus-root multiplier deltas now cover Warrior stances and
+  Shield Wall, Priest Shadowform, Druid Barkskin and companion defenses without
+  applying a root-active effect twice. Absorbed packets retain cadence but do
+  not contaminate the learned post-absorb magnitude.
   Shield Block can now value only the selected non-rear attacker: stock block
   chance and phase-known rounds combine with the minimum same-regime observed
   block packet, while an exact one/two-charge probability distribution reduces
   later projected damage and rage. Off-target facing, cold-start block magnitude,
-  other counterfactual armor/absorb value, attack-power and speed debuffs,
+  other counterfactual armor/flat-absorb value, attack-power and speed debuffs,
   avoidance-driven defensive pet autocasts and reactive windows remain global
   gates for tank and healer proof. Shell Shield is now the bounded exception:
   its exact pet-only mitigation composes with these rounds while its slowed

@@ -76,11 +76,10 @@ function S:Apply(state, entry)
     if not (entry and entry.kind == "hostileWhiteSwing" and Incoming
         and Incoming.ApplyResolvedDamage) then return false end
     local amount = entry.amount
+    local mitigation = XelAssist.Graph.HostileWhiteMitigation
+    if mitigation then amount = mitigation:Adjust(state, entry, amount) end
     local shieldBlock = XelAssist.Graph.WarriorShieldBlock
     if shieldBlock then amount = shieldBlock:AdjustProjectedSwing(
-        state, entry, amount) end
-    local companionDefensives = XelAssist.Graph.CompanionDefensives
-    if companionDefensives then amount = companionDefensives:AdjustIncoming(
         state, entry, amount) end
     local druidEnrage = XelAssist.Graph.DruidEnrage
     if druidEnrage then amount = druidEnrage:AdjustProjectedSwing(

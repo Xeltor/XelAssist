@@ -75,6 +75,17 @@ assert(table.getn(H:Snapshot(hostiles, nil, actors, 20.1).lanes) == 0,
 H:Reset("test")
 assert(table.getn(H.lanes) == 0, "world reset must retire every session lane")
 
+assert(H:Observe(hostileGuid, playerGuid, 8, 0, 0, 0, 0, 0, 0, 2))
+assert(H:Observe(hostileGuid, playerGuid, 100, 0, 0, 0, 0, 92, 0, 4))
+assert(H:Observe(hostileGuid, playerGuid, 8, 0, 0, 0, 0, 0, 0, 6))
+assert(H:Observe(hostileGuid, playerGuid, 8, 0, 0, 0, 0, 0, 0, 8))
+local absorbSafe = H:Snapshot(hostiles, nil, actors, 8.5)
+assert(table.getn(absorbSafe.lanes) == 1
+    and absorbSafe.lanes[1].expectedDamage == 8,
+    "a partially absorbed packet must preserve timing without corrupting "
+        .. "the post-absorb magnitude baseline")
+H:Reset("absorbed packet test")
+
 local tick
 for tick = 1, 4 do
     local at = tick * 2

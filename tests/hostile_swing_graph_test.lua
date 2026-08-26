@@ -9,15 +9,17 @@ UnitArmor = function() return 100, 100, 100, 0, 0 end
 UnitDefense = function() return 20, 0 end
 UnitLevel = function() return 10 end
 GetShapeshiftForm = function() return 0 end
-XelAssist = { Game = { Pets = {} }, Graph = { State = {} } }
+XelAssist = { Game = { Pets = {}, Player = {} }, Graph = { State = {} } }
 dofile("Game/Pets/DefensiveActions.lua")
 dofile("Game/Pets/Effects.lua")
 dofile("Graph/PlayerRage.lua")
 dofile("Graph/IncomingConsequences.lua")
 dofile("Graph/WarriorShieldBlock.lua")
 dofile("Graph/CompanionDefensives.lua")
+dofile("Graph/HostileWhiteMitigation.lua")
 dofile("Graph/HostileSwings.lua")
 local S = XelAssist.Graph.HostileSwings
+local M = XelAssist.Graph.HostileWhiteMitigation
 local root = { actors = { player = { guid = playerGuid, health = 100,
         healthMax = 100, healthExact = true } },
     resource = 0, resourceMax = 100, resourceType = 1,
@@ -32,7 +34,8 @@ assert(table.getn(events) == 3 and events[1].offset == 0.5
     "a verified hostile lane must emit bounded, pre-action incoming events")
 assert(math.abs(root.hostileSwings.lanes[1].nextSwingIn - 1.9) < 0.001,
     "the hostile phase must advance across the chosen action window")
-assert(S:Apply(root, events[1])
+local rootApplied = S:Apply(root, events[1])
+assert(rootApplied
     and root.actors.player.health == 85
     and root.actors.player.healthExact == false
     and root.incomingProjectionPartial
@@ -71,13 +74,75 @@ local petShielded = { actors = { pet = { guid = petGuid, health = 80,
     healthMax = 100, healthExact = true, combatEffects = {
         shellShield = { remaining = 12, incomingDamageMultiplier = 0.5,
             meleeAttackTimeMultiplier = 1.35 } } } } }
+petShielded.hostileSwings = {}
+M:Attach(petShielded)
 local petSwing = { kind = "hostileWhiteSwing", attackerGuid = hostileGuid,
     attackerKey = hostileGuid, victimGuid = petGuid, victimKind = "pet",
     amount = 20, generation = 1 }
 assert(S:Apply(petShielded, petSwing)
-    and petShielded.actors.pet.health == 70
-    and petShielded.lastHostileSwing.effective == 10,
-    "an active Shell Shield must halve only the companion's projected swing")
+    and petShielded.actors.pet.health == 60
+    and petShielded.lastHostileSwing.effective == 20,
+    "a root-active Shell Shield must not halve post-mitigation damage twice")
+
+local projectedPet = { actors = { pet = { guid = petGuid, health = 80,
+    healthMax = 100, healthExact = true, combatEffects = {} } },
+    hostileSwings = {} }
+M:Attach(projectedPet)
+projectedPet.actors.pet.combatEffects.shellShield = { remaining = 12,
+    incomingDamageMultiplier = 0.5, projected = true }
+assert(S:Apply(projectedPet, petSwing)
+    and projectedPet.actors.pet.health == 70
+    and projectedPet.lastHostileSwing.effective == 10,
+    "a branch-created Shell Shield must apply only its root-relative delta")
+
+XelAssist.Game.Player.WarriorStanceEffects = {
+    IncomingMultiplier = function(_, state) return state.testStanceMultiplier end }
+local warrior = { classMechanicClass = "WARRIOR", testStanceMultiplier = 1,
+    warriorShieldWall = { available = true, exact = true, active = false,
+        damageTakenMultiplier = 0.25 }, hostileSwings = {},
+    actors = { player = { guid = playerGuid, health = 100,
+        healthMax = 100, healthExact = true } }, resource = 0,
+    resourceMax = 100, resourceType = 1, playerResourceExact = true }
+M:Attach(warrior)
+warrior.warriorShieldWall.active = true
+assert(S:Apply(warrior, events[1]) and warrior.actors.player.health == 96.25,
+    "projected Shield Wall must reduce a post-root swing by its exact delta")
+
+local druid = { classMechanicClass = "DRUID",
+    playerForm = { available = true, formID = 0 }, hostileSwings = {},
+    druidBarkskin = { available = true, exact = true, active = true,
+        physicalDamageMultiplier = 0.8 }, actors = { player = {
+        guid = playerGuid, health = 100, healthMax = 100, healthExact = true } } }
+M:Attach(druid)
+druid.druidBarkskin.active = false
+assert(S:Apply(druid, events[1]) and druid.actors.player.health == 81.25,
+    "Barkskin expiry must restore only the root-relative hostile swing damage")
+
+local priest = { classMechanicClass = "PRIEST", hostileSwings = {},
+    playerShadowformProfileExact = true,
+    playerPhysicalDamageTakenMultiplier = 1,
+    actors = { player = { guid = playerGuid, health = 100,
+        healthMax = 100, healthExact = true } } }
+M:Attach(priest)
+priest.playerPhysicalDamageTakenMultiplier = 0.85
+assert(S:Apply(priest, events[1])
+    and math.abs(priest.actors.player.health - 87.25) < 0.000001,
+    "projected Shadowform must apply its exact physical mitigation delta")
+
+XelAssist.Graph.WarlockSoulLink = { Active = function(_, state)
+    if state.testSoulLink then
+        return true, true, nil, { splitFraction = 0.3 }
+    end
+    return false, true
+end }
+local warlock = { classMechanicClass = "WARLOCK", testSoulLink = true,
+    hostileSwings = {}, actors = { player = { guid = playerGuid, health = 100,
+        healthMax = 100, healthExact = true } } }
+M:Attach(warlock)
+warlock.testSoulLink = false
+assert(S:Apply(warlock, events[1])
+    and math.abs(warlock.actors.player.health - 78.571428571429) < 0.000001,
+    "a defeated linked demon must conservatively restore the unsplit packet")
 
 local manaUser = { actors = { player = { guid = playerGuid, health = 100,
         healthMax = 100, healthExact = true } }, resource = 0,

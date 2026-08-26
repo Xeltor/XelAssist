@@ -178,9 +178,10 @@ local function resetHostileMitigationEvidence(name, unit)
         or name == "PLAYER_LEVEL_UP"
         or name == "UPDATE_SHAPESHIFT_FORM"
         or name == "UPDATE_SHAPESHIFT_FORMS"
-        or name == "UNIT_AURA" and unit == "player" then
+        or name == "UNIT_AURA" and (unit == "player" or unit == "pet") then
         XelAssist.Game.HostileAttackRounds:Reset(
-            "player mitigation regime changed")
+            unit == "pet" and "pet mitigation regime changed"
+                or "player mitigation regime changed")
     end
 end
 local ev = CreateFrame("Frame")

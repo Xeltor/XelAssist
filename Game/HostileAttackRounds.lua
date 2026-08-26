@@ -180,7 +180,10 @@ function H:Observe(attackerGuid, victimGuid, totalDamage, hitInfo,
             lane.intervals, lane.damages, lane.eligibleHits = {}, {}, {}
         else boundedInsert(lane.intervals, interval, self.INTERVAL_SAMPLES) end
     end
-    boundedInsert(lane.damages, totalDamage, self.DAMAGE_SAMPLES)
+    local absorbed = tonumber(totalAbsorb) or 0
+    if absorbed <= 0 then
+        boundedInsert(lane.damages, totalDamage, self.DAMAGE_SAMPLES)
+    end
     boundedInsert(lane.eligibleHits,
         eligibleRetaliation(hitInfo, victimState), self.DAMAGE_SAMPLES)
     if tonumber(blockedAmount) and blockedAmount > 0 then
@@ -189,7 +192,7 @@ function H:Observe(attackerGuid, victimGuid, totalDamage, hitInfo,
     lane.lastAt, lane.lastDamage, lane.hitInfo = at, totalDamage, hitInfo
     lane.victimState = tonumber(victimState)
     lane.blocked, lane.absorbed, lane.resisted = tonumber(blockedAmount) or 0,
-        tonumber(totalAbsorb) or 0, tonumber(totalResist) or 0
+        absorbed, tonumber(totalResist) or 0
     lane.interval, lane.expectedDamage = stableInterval(lane.intervals),
         average(lane.damages)
     lane.victimUnit, lane.regime = victimUnit, regime

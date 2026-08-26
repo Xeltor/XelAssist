@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.87
+
+- Added an immutable root mitigation snapshot for observed hostile white
+  rounds. Projected Warrior stance/Shield Wall, Priest Shadowform, Druid
+  Barkskin and companion defensive changes now apply only their exact
+  branch-versus-root multiplier instead of treating a server-mitigated packet
+  as raw damage.
+- Prevented root-active Shell Shield from halving pet damage twice, while a
+  branch-created Shell Shield still reduces only its exact pet recipient.
+  Player and pet aura changes now retire stale learned mitigation regimes.
+- Excluded partially absorbed hits from learned white-hit magnitudes while
+  retaining their attack timing, so a temporary absorb cannot poison later
+  survival or rage projections.
+
 ## 0.8.86
 
 - Added installed Octo topology ownership for all ordinary Deadly, Instant,

@@ -123,6 +123,7 @@ function E:Apply(state, candidate, context)
                 crowdControlImmune = effect.crowdControlImmune and true or false,
                 sourceSpellId = effect.sourceSpellId or candidate.action.spellId,
                 runtimeUnverified = effect.runtimeUnverified and true or false,
+                projected = true,
             }
         end
         pet.damageMultiplier = self:DamageMultiplier(pet)

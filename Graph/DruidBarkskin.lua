@@ -54,6 +54,7 @@ function B:Attach(state, classToken)
         meleeAttackRateMultiplier = profile
             and profile.meleeAttackRateMultiplier,
         pushbackImmune = profile and profile.pushbackImmune,
+        projected = false,
         reason = root.reason,
     }
     return component(state) ~= nil
@@ -172,7 +173,7 @@ function B:Apply(state, candidate)
     local value = transition(candidate and candidate.classMechanicProjection)
     local current = component(state)
     if not (value and current and not current.active) then return false end
-    current.active, current.remaining = true, value.duration
+    current.active, current.remaining, current.projected = true, value.duration, true
     current.epoch = value.epoch
     return true
 end
@@ -184,6 +185,7 @@ function B:Advance(state, elapsed)
     current.remaining = math.max(0, current.remaining - elapsed)
     if current.remaining <= 0 then
         current.active, current.remaining, current.epoch = false, nil, nil
+        current.projected = true
     end
     return true
 end

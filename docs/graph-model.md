@@ -175,8 +175,11 @@ replay the special.
 
 Hostile white rounds are learned separately from attributed combat events. A
 stable target-owned cadence may schedule its observed post-mitigation expected
-damage into survival timing. This first conservative edge does not reverse that
-packet into speculative armor, block, absorb, or shield consequences.
+damage into survival timing. An immutable root defensive signature permits only
+exact multiplier deltas for projected Warrior stances and Shield Wall, Priest
+Shadowform, Druid Barkskin, and companion defenses. It never reverses the packet
+into speculative armor or flat absorbs, and root-active effects are not applied
+twice. Partially absorbed packets retain cadence but cannot train magnitude.
 When the exact recipient currently uses rage, delivered projected damage also
 earns the VMaNGOS `RewardRage` 2.5/conversion baseline. This resource edge is
 explicitly estimated because the server income-rate setting and Berserker Rage
