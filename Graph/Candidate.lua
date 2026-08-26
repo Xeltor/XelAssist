@@ -49,6 +49,11 @@ local function consumerKey(context)
         value = wisdom:ConsumerKey(context.tooltip)
             or wisdom:ConsumerKey(context.facts)
     end
+    local viper = XelAssist.Graph.HunterManaAspects
+    if value == nil and viper then
+        value = viper:ConsumerKey(context.tooltip)
+            or viper:ConsumerKey(context.facts)
+    end
     local coldSnap = XelAssist.Graph.MageColdSnap
     if value == nil and coldSnap then
         value = coldSnap:ConsumerKey(
@@ -97,6 +102,8 @@ local function strategicSetup(tooltip)
         and XelAssist.Graph.RoguePreparation:StrategicSetup(tooltip)
     local rapidFire = XelAssist.Graph.HunterRapidFire
         and XelAssist.Graph.HunterRapidFire:StrategicSetup(tooltip)
+    local viper = XelAssist.Graph.HunterManaAspects
+        and XelAssist.Graph.HunterManaAspects:StrategicSetup(tooltip)
     local warrior = tooltip and tooltip.warriorStanceTransition
     local druid = tooltip and tooltip.druidFormTransition
     local priest = tooltip and tooltip.priestShadowformTransition
@@ -106,7 +113,7 @@ local function strategicSetup(tooltip)
     end
     include(innerFocus); include(presence); include(powerInfusion)
     include(manaSpring); include(wisdom); include(coldSnap)
-    include(felDomination); include(preparation); include(rapidFire)
+    include(felDomination); include(preparation); include(rapidFire); include(viper)
     include(warrior)
     include(druid); include(priest)
     if count ~= 1 then return nil end
@@ -114,7 +121,7 @@ local function strategicSetup(tooltip)
         or selected == powerInfusion or selected == manaSpring
         or selected == wisdom or selected == coldSnap
         or selected == felDomination or selected == preparation
-        or selected == rapidFire then
+        or selected == rapidFire or selected == viper then
         return selected
     end
     local transition, prefix = warrior or druid or priest,

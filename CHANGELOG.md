@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.48
+
+- Added Aspect of the Viper as an exact five-second, five-percent maximum-mana
+  graph clock. Existing auras use a conservative one-period phase bound and a
+  fresh projected cast starts an exact phase; Aspect of the Snake remains
+  recognized but cannot fabricate its private attack-proc chance.
+- Added bounded Devastate weapon damage, exact selected-target Sunder-stack
+  damage and landed refresh. Octo's private supplemental threat arithmetic is
+  deliberately uncredited until authoritative runtime evidence exists.
+- Added observed Moonkin and Tree of Life identities, engine-effective mana
+  costs and DBC-mask legality without inventing tooltip-only spell families or
+  party aura effects.
+- Added observed-only Hot Streak and Flash Freeze proc-window ownership with
+  numeric aura topology and branch-local one-use consumption. Proc generation
+  is never predicted, and post-consumption timing waits for fresh root evidence.
+
 ## 0.8.47
 
 - Added exact installed Nightfall ownership and observed Shadow Trance state.

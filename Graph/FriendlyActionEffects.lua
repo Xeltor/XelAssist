@@ -19,7 +19,7 @@ function F:Apply(out, candidate, context)
         or targetExact ~= true or target.dead == true
         or target.projectedDefeated == true) then return nil, true end
     if target and HunterAspects
-        and HunterAspects:Apply(target, candidate, context) then return true, false end
+        and HunterAspects:Apply(target, candidate, context, out) then return true, false end
     local kind = context.facts.kind
     if not (target and (kind == "heal" or kind == "hot"
         or kind == "absorb" or kind == "buff")) then return nil, false end

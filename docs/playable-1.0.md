@@ -148,18 +148,19 @@ triggered children, proc auras, forms, pet modifiers, equipment masks and
 hidden SpellMods rather than relying on custom spell names. Its current
 evidence-ranked queue includes:
 
-- Druid Moonkin and full Tree of Life economics/restrictions, plus Feral
+- Druid remaining Moonkin/Tree party and tooltip-only consequences, plus Feral
   Adrenaline;
-- Hunter Viper/Snake mana aspects, Alone Against the World and Lock and Load;
-- Mage Hot Streak/Flash Freeze, Temporal Convergence and Resonance Cascade;
+- Hunter Snake proc generation, Alone Against the World and Lock and Load;
+- Mage Hot Streak/Flash Freeze proc generation and post-proc baseline timing,
+  Temporal Convergence and Resonance Cascade;
 - Paladin Holy Shock modifier chains and Blessed Strikes;
 - Priest Resurgent Shield and Ascendance;
 - Rogue Mark for Death, Noxious Assault and observed Nightblade procs;
 - Shaman improved Chain Heal/Flame Shock, additional Elemental Focus triggers,
   Totemic Alignment and Calming Winds;
 - Warlock pet-cast modifiers, Mana Funnel and Shadow Strikes; and
-- Warrior Devastate, weapon-dependent Master Strike, Improved Shield Block and
-  hidden cooldown/cost modifiers.
+- Warrior Devastate's private supplemental threat, weapon-dependent Master
+  Strike, Improved Shield Block and hidden cooldown/cost modifiers.
 
 An exact observed-aura plus engine-effective cost/cast/cooldown/duration layer
 can own deterministic SpellMods across classes. Proc generation, refunds,

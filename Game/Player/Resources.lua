@@ -88,30 +88,41 @@ function R:Advance(state, elapsed)
     end
     elapsed = math.max(0, tonumber(elapsed) or 0)
     local clock, amount, interval, nextIn = self:ClockFor(state)
-    if elapsed <= 0 or not clock then return 0 end
-    if elapsed < nextIn then clock.nextIn = nextIn - elapsed; return 0 end
-    local afterFirst = elapsed - nextIn
-    local ticks = 1 + math.floor(afterFirst / interval)
-    local residual = afterFirst - (ticks - 1) * interval
-    clock.nextIn = interval - residual
     local prior = tonumber(state.resource) or 0
-    state.resource = math.min(tonumber(state.resourceMax) or prior,
-        prior + ticks * amount)
-    if state.resource >= (tonumber(state.resourceMax) or 0) then
-        clock.phaseKnown, clock.nextIn = false, nil
-        clock.phaseSource = "projected energy cap erased tick phase"
+    if elapsed > 0 and clock then
+        if elapsed < nextIn then clock.nextIn = nextIn - elapsed
+        else
+            local afterFirst = elapsed - nextIn
+            local ticks = 1 + math.floor(afterFirst / interval)
+            local residual = afterFirst - (ticks - 1) * interval
+            clock.nextIn = interval - residual
+            state.resource = math.min(tonumber(state.resourceMax) or prior,
+                prior + ticks * amount)
+            if state.resource >= (tonumber(state.resourceMax) or 0) then
+                clock.phaseKnown, clock.nextIn = false, nil
+                clock.phaseSource = "projected energy cap erased tick phase"
+            end
+        end
     end
-    return state.resource - prior
+    local viper = XelAssist.Graph and XelAssist.Graph.HunterManaAspects
+    if viper then viper:Advance(state, elapsed) end
+    return (tonumber(state.resource) or prior) - prior
+end
+
+function R:Probe(state, at)
+    local out = { resource = tonumber(state.resource),
+        resourceMax = tonumber(state.resourceMax), resourceType = state.resourceType,
+        playerResourceExact = state.playerResourceExact,
+        playerResourceReserved = tonumber(state.playerResourceReserved) or 0,
+        playerResourceClock = copy(state.playerResourceClock),
+        hunterManaAspect = copy(state.hunterManaAspect),
+        time = tonumber(state.time) or 0 }
+    self:Advance(out, math.max(0, (tonumber(at) or 0) - out.time))
+    return out
 end
 
 local function probe(state, at)
-    local out = { resource = tonumber(state.resource),
-        resourceMax = tonumber(state.resourceMax), resourceType = state.resourceType,
-        playerResourceReserved = tonumber(state.playerResourceReserved) or 0,
-        playerResourceClock = copy(state.playerResourceClock) }
-    R:Advance(out, math.max(0, (tonumber(at) or 0)
-        - (tonumber(state.time) or 0)))
-    return out
+    return R:Probe(state, at)
 end
 
 function R:ResourceAt(state, at)
@@ -132,6 +143,11 @@ function R:Earliest(state, cost, readyAt)
     local warrior = XelAssist.Game.Player.WarriorRage
     if warrior and warrior:Active(state) then
         return warrior:Earliest(state, cost, readyAt)
+    end
+    local viper = XelAssist.Graph and XelAssist.Graph.HunterManaAspects
+    if viper then
+        local value, handled = viper:Earliest(state, cost, readyAt)
+        if handled then return value end
     end
     local wisdom = XelAssist.Graph and XelAssist.Graph.PaladinWisdom
     if wisdom then

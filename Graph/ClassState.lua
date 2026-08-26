@@ -16,6 +16,8 @@ local MageClearcasting = XelAssist.Graph.MageClearcasting
 local MagePresenceOfMindRuntime = XelAssist.Game.Player.MagePresenceOfMind
 local MagePresenceOfMind = XelAssist.Graph.MagePresenceOfMind
 local MageColdSnap = XelAssist.Graph.MageColdSnap
+local MageProcWindowsRuntime = XelAssist.Game.Player.MageProcWindows
+local MageProcWindows = XelAssist.Graph.MageProcWindows
 local DruidClearcastingRuntime = XelAssist.Game.Player.DruidClearcasting
 local DruidClearcasting = XelAssist.Graph.DruidClearcasting
 local DruidFrenziedRegeneration =
@@ -27,6 +29,7 @@ local HunterMark = XelAssist.Graph.HunterMark
 local HunterHawk = XelAssist.Graph.HunterHawk
 local HunterRapidFireRuntime = XelAssist.Game.Player.HunterRapidFire
 local HunterRapidFire = XelAssist.Graph.HunterRapidFire
+local HunterManaAspects = XelAssist.Graph.HunterManaAspects
 local PriestShadowform = XelAssist.Graph.PriestShadowform
 local PriestImprovedShadowform = XelAssist.Game.Player.PriestImprovedShadowform
 local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
@@ -99,7 +102,8 @@ function S:Attach(state)
         local rapid = HunterRapidFireRuntime and HunterRapidFire
             and HunterRapidFire:Attach(
                 state, HunterRapidFireRuntime:Snapshot(token)) or false
-        return mark ~= nil or hawk or rapid
+        local mana = HunterManaAspects and HunterManaAspects:Attach(state) or false
+        return mark ~= nil or hawk or rapid or mana
     elseif token == "PRIEST" then
         local attached = PriestShadowform
             and PriestShadowform:Attach(state, token) or false
@@ -116,6 +120,10 @@ function S:Attach(state)
         if MagePresenceOfMindRuntime then
             attached = MagePresenceOfMindRuntime:Attach(state, token)
                 or attached
+        end
+        if MageProcWindowsRuntime and MageProcWindows then
+            attached = MageProcWindows:Attach(state,
+                MageProcWindowsRuntime:Snapshot(token)) or attached
         end
         return attached
     elseif token == "DRUID" then
@@ -175,9 +183,11 @@ function S:Copy(source, target)
     if source.hunterMarkRoot then target.hunterMarkRoot = source.hunterMarkRoot end
     if HunterHawk then HunterHawk:Copy(source, target) end
     if HunterRapidFire then HunterRapidFire:Copy(source, target) end
+    if HunterManaAspects then HunterManaAspects:Copy(source, target) end
     if MageClearcasting then MageClearcasting:Copy(source, target) end
     if MagePresenceOfMind then MagePresenceOfMind:Copy(source, target) end
     if MageColdSnap then MageColdSnap:Copy(source, target) end
+    if MageProcWindows then MageProcWindows:Copy(source, target) end
     if DruidClearcasting then DruidClearcasting:Copy(source, target) end
     if DruidFrenziedRegeneration then
         DruidFrenziedRegeneration:Copy(source, target)
@@ -208,9 +218,11 @@ function S:Copy(source, target)
         or source.paladinRighteousFury ~= nil
         or source.hunterMarkRoot ~= nil or source.hunterHawk ~= nil
         or source.hunterRapidFire ~= nil
+        or source.hunterManaAspect ~= nil
         or source.mageClearcasting ~= nil
         or source.magePresenceOfMind ~= nil
         or source.mageColdSnapReset ~= nil
+        or source.mageProcWindows ~= nil
         or source.druidClearcasting ~= nil
         or source.druidFrenziedRegeneration ~= nil
         or source.shamanClearcasting ~= nil

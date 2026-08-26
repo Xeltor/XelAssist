@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.47
+## Version: 0.8.48
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -33,6 +33,7 @@ Game\Player\DruidClearcasting.lua
 Game\Player\DruidFrenziedRegeneration.lua
 Game\Player\DruidBearThreat.lua
 Game\Player\DruidCatThreat.lua
+Game\Player\DruidCasterForms.lua
 Game\Player\PaladinAuraState.lua
 Game\Player\PaladinActions.lua
 Game\Player\PaladinRighteousness.lua
@@ -55,6 +56,7 @@ Game\Player\MageEvocation.lua
 Game\Player\MageClearcasting.lua
 Game\Player\MagePresenceOfMind.lua
 Game\Player\MageColdSnap.lua
+Game\Player\MageProcWindows.lua
 Game\Player\PriestShield.lua
 Game\Player\PriestShadowform.lua
 Game\Player\PriestImprovedShadowform.lua
@@ -74,6 +76,7 @@ Game\Player\HunterHawk.lua
 Game\Player\HunterDistractingShot.lua
 Game\Player\HunterRapidFire.lua
 Game\Player\HunterStingingNettle.lua
+Game\Player\HunterManaAspects.lua
 Game\Player\WarlockFelDomination.lua
 Game\Player\WarlockDarkPact.lua
 Game\Player\WarlockSoulFire.lua
@@ -89,6 +92,7 @@ Game\Player\WarriorThunderClap.lua
 Game\Player\WarriorOverpower.lua
 Game\Player\WarriorDemoralizingShout.lua
 Game\Player\WarriorShieldWall.lua
+Game\Player\WarriorDevastate.lua
 Game\ActionInference.lua
 Game\Player\WarriorRage.lua
 Game\CrowdControl.lua
@@ -170,6 +174,7 @@ Graph\PriestPowerInfusion.lua
 Graph\PriestFade.lua
 Graph\MagePresenceOfMind.lua
 Graph\MageColdSnap.lua
+Graph\MageProcWindows.lua
 Graph\RoguePreparation.lua
 Graph\WarriorRage.lua
 Graph\WarriorRevengeThreat.lua
@@ -177,11 +182,13 @@ Graph\WarriorHeroicStrikeThreat.lua
 Graph\WarriorExecute.lua
 Graph\WarriorThunderClap.lua
 Graph\WarriorDemoralizingShout.lua
+Graph\WarriorDevastate.lua
 Graph\WarriorThreatPackets.lua
 Graph\CasterPersistentDamage.lua
 Graph\CrowdControl.lua
 Graph\DispelDecision.lua
 Graph\HunterAspects.lua
+Graph\HunterManaAspects.lua
 Graph\DruidShiftResources.lua
 Graph\DruidBearThreat.lua
 Graph\DruidCatThreat.lua

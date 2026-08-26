@@ -5,6 +5,12 @@ XelAssist.Game.ActionInference = {}
 local I = XelAssist.Game.ActionInference
 local ROGUE_INFERENCE = { "RogueSliceAndDice", "RoguePreparation",
     "RogueFeint", "RogueSurpriseAttack", "RogueShiv" }
+local HUNTER_INFERENCE = { "HunterHawk", "HunterMark",
+    "HunterDistractingShot", "HunterRapidFire", "HunterManaAspects" }
+local WARRIOR_INFERENCE = { "WarriorThunderClap", "WarriorOverpower",
+    "WarriorDemoralizingShout", "WarriorHeroicStrikeThreat", "WarriorExecute",
+    "WarriorRevengeThreat", "WarriorBattleShout", "WarriorShieldWall",
+    "WarriorDevastate" }
 
 local function infer(module, spellId)
     if not (module and type(module.InferKnowledge) == "function") then
@@ -12,6 +18,15 @@ local function infer(module, spellId)
     end
     local facts, reason, handled = module:InferKnowledge(spellId)
     return facts, reason, handled == true
+end
+local function inferPortfolio(player, names, spellId)
+    local facts, reason, handled, index = nil, nil, nil, 1
+    while names[index] do
+        facts, reason, handled = infer(player[names[index]], spellId)
+        if handled then return facts, reason, true end
+        index = index + 1
+    end
+    return nil, nil, false
 end
 
 function I:ClassKnowledge(spellId)
@@ -40,18 +55,9 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.DruidFrenziedRegeneration, spellId)
     if handled then return facts, reason, true end
-    local index
-    for index = 1, 5 do
-        facts, reason, handled = infer(player[ROGUE_INFERENCE[index]], spellId)
-        if handled then return facts, reason, true end
-    end
-    facts, reason, handled = infer(player.HunterHawk, spellId)
+    facts, reason, handled = inferPortfolio(player, ROGUE_INFERENCE, spellId)
     if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.HunterMark, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.HunterDistractingShot, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.HunterRapidFire, spellId)
+    facts, reason, handled = inferPortfolio(player, HUNTER_INFERENCE, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.ShamanEarthShock, spellId)
     if handled then return facts, reason, true end
@@ -59,21 +65,7 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.ShamanLightningStrike, spellId)
     if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.WarriorThunderClap, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.WarriorOverpower, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.WarriorDemoralizingShout, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.WarriorHeroicStrikeThreat, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.WarriorExecute, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.WarriorRevengeThreat, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.WarriorBattleShout, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.WarriorShieldWall, spellId)
+    facts, reason, handled = inferPortfolio(player, WARRIOR_INFERENCE, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarlockFelDomination, spellId)
     if handled then return facts, reason, true end
@@ -144,9 +136,7 @@ function I:InvalidateClass()
     if player.MageManaShield then player.MageManaShield:Invalidate() end
     if player.MageEvocation then player.MageEvocation:Invalidate() end
     if player.MageClearcasting then player.MageClearcasting:Invalidate() end
-    if player.MagePresenceOfMind then
-        player.MagePresenceOfMind:Invalidate()
-    end
+    if player.MagePresenceOfMind then player.MagePresenceOfMind:Invalidate() end
     if player.MageColdSnap then player.MageColdSnap:Invalidate() end
     if player.PriestShield then player.PriestShield:Invalidate() end
     if player.PriestShadowform then player.PriestShadowform:Invalidate() end
@@ -166,6 +156,7 @@ function I:InvalidateClass()
     end
     if player.DruidBearThreat then player.DruidBearThreat:Invalidate() end
     if player.DruidCatThreat then player.DruidCatThreat:Invalidate() end
+    if player.DruidCasterForms then player.DruidCasterForms:Invalidate() end
     if player.RogueSliceAndDice then player.RogueSliceAndDice:Invalidate() end
     if player.RogueRuthlessness then
         player.RogueRuthlessness:Invalidate()
@@ -182,6 +173,7 @@ function I:InvalidateClass()
         player.HunterDistractingShot:Invalidate()
     end
     if player.HunterRapidFire then player.HunterRapidFire:Invalidate() end
+    if player.HunterManaAspects then player.HunterManaAspects:Invalidate() end
     if player.WarriorBattleShout then
         player.WarriorBattleShout:Invalidate()
     end
@@ -201,6 +193,7 @@ function I:InvalidateClass()
         player.WarriorDemoralizingShout:Invalidate()
     end
     if player.WarriorShieldWall then player.WarriorShieldWall:Invalidate() end
+    if player.WarriorDevastate then player.WarriorDevastate:Invalidate() end
     if player.WarlockFelDomination then
         player.WarlockFelDomination:Invalidate()
     end

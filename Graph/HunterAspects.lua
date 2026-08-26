@@ -71,7 +71,7 @@ function H:Blocker(action)
     end
 end
 
-function H:Apply(target, candidate, context)
+function H:Apply(target, candidate, context, state)
     local action = candidate and candidate.action
     if not self:Is(action) or not target or target.unit ~= "player"
         or candidate.targetRelation ~= "self" then return false end
@@ -95,5 +95,8 @@ function H:Apply(target, candidate, context)
     }
     target.hunterAspectName = action.name
     target.hunterAspectExact = true
+    if XelAssist.Graph.HunterManaAspects then
+        XelAssist.Graph.HunterManaAspects:Apply(state, action)
+    end
     return true
 end

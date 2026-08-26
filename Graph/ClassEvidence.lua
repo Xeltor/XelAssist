@@ -12,9 +12,11 @@ local MageShield = XelAssist.Game.Player.MageManaShield
 local MageClearcasting = XelAssist.Game.Player.MageClearcasting
 local MagePresenceOfMind = XelAssist.Game.Player.MagePresenceOfMind
 local MageColdSnap = XelAssist.Game.Player.MageColdSnap
+local MageProcWindowsRuntime = XelAssist.Game.Player.MageProcWindows
 local DruidClearcasting = XelAssist.Game.Player.DruidClearcasting
 local DruidFrenziedRegeneration =
     XelAssist.Game.Player.DruidFrenziedRegeneration
+local DruidCasterForms = XelAssist.Game.Player.DruidCasterForms
 local ShamanClearcasting = XelAssist.Game.Player.ShamanClearcasting
 local ShamanManaSpring = XelAssist.Game.Player.ShamanManaSpring
 local ShamanEarthShockRuntime = XelAssist.Game.Player.ShamanEarthShock
@@ -33,6 +35,7 @@ local HunterHawk = XelAssist.Game.Player.HunterHawk
 local HunterDistractingShot = XelAssist.Game.Player.HunterDistractingShot
 local HunterRapidFire = XelAssist.Game.Player.HunterRapidFire
 local HunterStingingNettle = XelAssist.Game.Player.HunterStingingNettle
+local HunterManaAspects = XelAssist.Game.Player.HunterManaAspects
 local PriestShadowform = XelAssist.Game.Player.PriestShadowform
 local PriestImprovedShadowform = XelAssist.Game.Player.PriestImprovedShadowform
 local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
@@ -74,12 +77,14 @@ function E:CaptureFacts(action, facts, state)
         out = MagePresenceOfMind:CaptureFacts(action, out, state)
     end
     if MageColdSnap then out = MageColdSnap:CaptureFacts(action, out) end
+    if MageProcWindowsRuntime then out = MageProcWindowsRuntime:CaptureFacts(action, out, state) end
     if DruidClearcasting then
         out = DruidClearcasting:CaptureFacts(action, out, state)
     end
     if DruidFrenziedRegeneration then
         out = DruidFrenziedRegeneration:CaptureFacts(action, out)
     end
+    if DruidCasterForms then out = DruidCasterForms:CaptureFacts(action, out, state) end
     if ShamanClearcasting then
         out = ShamanClearcasting:CaptureFacts(action, out, state)
     end
@@ -131,6 +136,7 @@ function E:CaptureFacts(action, facts, state)
     if HunterStingingNettle then
         out = HunterStingingNettle:CaptureFacts(action, out)
     end
+    if HunterManaAspects then out = HunterManaAspects:CaptureFacts(action, out) end
     if PriestShadowform then
         out = PriestShadowform:CaptureFacts(action, out)
     end
@@ -174,6 +180,10 @@ end
 
 function E:Blocker(action, state, descriptor, tooltip, actionStart)
     local blocker, handled
+    if DruidCasterForms then
+        blocker, handled = DruidCasterForms:FormBlocker(action, state)
+        if handled then return blocker, true end
+    end
     if PaladinConsecration then
         blocker, handled = PaladinConsecration:Blocker(
             action, state, descriptor, tooltip)

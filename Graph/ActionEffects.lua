@@ -25,6 +25,8 @@ local RogueRuthlessness = XelAssist.Graph.RogueRuthlessness
 local WarriorDemoralizingShout = XelAssist.Graph.WarriorDemoralizingShout
 local PriestFade = XelAssist.Graph.PriestFade
 local HunterStingingNettle = XelAssist.Graph.HunterStingingNettle
+local MageProcWindows = XelAssist.Graph.MageProcWindows
+local WarriorDevastate = XelAssist.Graph.WarriorDevastate
 local ThreatDrop, ClassMechanics = XelAssist.Graph.ThreatDrop, XelAssist.Graph.ClassMechanics
 local FriendlyActionEffects = XelAssist.Graph.FriendlyActionEffects
 function A:Context(source, candidate)
@@ -373,16 +375,13 @@ local function syncFriendlyCompatibility(state)
     end
 end
 function A:Apply(out, source, candidate, context)
-    if WarlockFelDomination then
-        WarlockFelDomination:Consume(out, candidate)
-    end
+    if WarlockFelDomination then WarlockFelDomination:Consume(out, candidate) end
     if DruidClearcasting then DruidClearcasting:Consume(out, candidate) end
     if MageClearcasting then MageClearcasting:Consume(out, candidate) end
     if ShamanClearcasting then ShamanClearcasting:Consume(out, candidate) end
     if PriestInnerFocus then PriestInnerFocus:Consume(out, candidate) end
-    if MagePresenceOfMind then
-        MagePresenceOfMind:Consume(out, candidate)
-    end
+    if MagePresenceOfMind then MagePresenceOfMind:Consume(out, candidate) end
+    if MageProcWindows then MageProcWindows:Consume(out, candidate) end
     if candidate.classMechanicProjection then
         context.classMechanicHandled = true
         context.classMechanicApplied = ClassMechanics and ClassMechanics:Apply(out, candidate) or false
@@ -437,6 +436,7 @@ function A:Apply(out, source, candidate, context)
     if WarriorDemoralizingShout then
         WarriorDemoralizingShout:Apply(out, candidate)
     end
+    if WarriorDevastate then WarriorDevastate:Apply(out, candidate) end
     if XelAssist.Graph.CrowdControl then XelAssist.Graph.CrowdControl:Apply(out, candidate, context) end
     if XelAssist.Graph.ShamanWindfuryTotem then
         XelAssist.Graph.ShamanWindfuryTotem:AfterCandidate(out, candidate)

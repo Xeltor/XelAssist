@@ -16,6 +16,23 @@ local function configFor(state)
 local function frozenAura(action, state, descriptor)
     return TargetAuras:Frozen(action, state, descriptor)
 end
+local function divergentTooltip(action, state, descriptor, tooltip)
+    local blocker
+    local mage = XelAssist.Graph.MageProcWindows
+    if mage then tooltip, blocker = mage:PrepareLegal(action, state, tooltip) end
+    if blocker then return nil, blocker end
+    local nightfall = XelAssist.Graph.WarlockNightfall
+    if nightfall then
+        tooltip, blocker = nightfall:PrepareLegal(action, state, tooltip)
+    end
+    if blocker then return nil, blocker end
+    local devastate = XelAssist.Graph.WarriorDevastate
+    if devastate then
+        tooltip, blocker = devastate:PrepareLegal(
+            action, state, descriptor, tooltip)
+    end
+    return tooltip, blocker
+end
 function T:AuraActive(action, state, descriptor)
     return TargetAuras:Active(action, state, descriptor)
 end
@@ -376,10 +393,7 @@ function T:Legal(action, state, descriptor)
             action, state, tooltip)
     end
     if blocker then return false, blocker end
-    if XelAssist.Graph.WarlockNightfall then
-        tooltip, blocker = XelAssist.Graph.WarlockNightfall:PrepareLegal(
-            action, state, tooltip)
-    end
+    tooltip, blocker = divergentTooltip(action, state, descriptor, tooltip)
     if blocker then return false, blocker end
     blocker = XelAssist.Graph.ClassMechanics
         and XelAssist.Graph.ClassMechanics:Blocker(
