@@ -12,8 +12,24 @@ local InnerFocus = XelAssist.Graph.PriestInnerFocus
 local PowerInfusion = XelAssist.Graph.PriestPowerInfusion
 local PresenceOfMind = XelAssist.Graph.MagePresenceOfMind
 local ColdSnap = XelAssist.Graph.MageColdSnap
+local FrenziedRegeneration = XelAssist.Graph.DruidFrenziedRegeneration
 
 local handlers = {
+    {
+        name = "Druid Frenzied Regeneration",
+        module = FrenziedRegeneration,
+        claims = function(facts)
+            return facts.druidFrenziedRegeneration == true
+                or facts.requiresExactDruidFrenziedRegeneration == true
+                or facts.druidFrenziedRegenerationTransition ~= nil
+        end,
+        matches = function(projection)
+            return projection.druidFrenziedRegenerationTransition ~= nil
+        end,
+        prepare = function(module, action, state, descriptor, facts)
+            return module:Prepare(action, state, descriptor, facts)
+        end,
+    },
     {
         name = "Warlock Fel Domination", module = FelDomination,
         claims = function(facts)
@@ -177,9 +193,17 @@ function A:Apply(state, candidate)
 end
 
 function A:Advance(state, elapsed)
+    if FrenziedRegeneration then
+        FrenziedRegeneration:Advance(state, elapsed)
+    end
     if BattleShout then BattleShout:Advance(state, elapsed) end
     if ShieldWall then ShieldWall:Advance(state, elapsed) end
     if FelDomination then FelDomination:Advance(state, elapsed) end
+end
+
+function A:RootBlocker(state)
+    if not FrenziedRegeneration then return nil, false end
+    return FrenziedRegeneration:RootBlocker(state)
 end
 
 function A:EvidenceBlocker(action, state, descriptor, tooltip)

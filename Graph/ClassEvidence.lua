@@ -11,6 +11,8 @@ local MageClearcasting = XelAssist.Game.Player.MageClearcasting
 local MagePresenceOfMind = XelAssist.Game.Player.MagePresenceOfMind
 local MageColdSnap = XelAssist.Game.Player.MageColdSnap
 local DruidClearcasting = XelAssist.Game.Player.DruidClearcasting
+local DruidFrenziedRegeneration =
+    XelAssist.Game.Player.DruidFrenziedRegeneration
 local ShamanClearcasting = XelAssist.Game.Player.ShamanClearcasting
 local ShamanManaSpring = XelAssist.Game.Player.ShamanManaSpring
 local PriestShield = XelAssist.Game.Player.PriestShield
@@ -57,6 +59,9 @@ function E:CaptureFacts(action, facts, state)
     if MageColdSnap then out = MageColdSnap:CaptureFacts(action, out) end
     if DruidClearcasting then
         out = DruidClearcasting:CaptureFacts(action, out, state)
+    end
+    if DruidFrenziedRegeneration then
+        out = DruidFrenziedRegeneration:CaptureFacts(action, out)
     end
     if ShamanClearcasting then
         out = ShamanClearcasting:CaptureFacts(action, out, state)

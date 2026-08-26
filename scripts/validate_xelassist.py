@@ -315,6 +315,7 @@ subprocess.run(["lua", str(root / "tests/druid_clearcasting_test.lua")], cwd=roo
 subprocess.run(["lua", str(root / "tests/druid_bear_threat_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/druid_cat_threat_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/druid_prowl_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/druid_frenzied_regeneration_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/strategic_setup_search_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/player_reactive_evidence_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/reactive_state_test.lua")], cwd=root, check=True)

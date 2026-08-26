@@ -291,6 +291,10 @@ local function scoreDamageAndHealing(context)
 end
 
 local function scoreKindUtility(context)
+    -- A mechanic may explicitly own its immediate kind consequence. Generic
+    -- heal/damage/buff fallbacks must not replace a score that already proved
+    -- its exact magnitude and timing.
+    if context.classMechanicOwnsKindScore == true then return end
     if XelAssist.Graph.Charge and XelAssist.Graph.Charge:Score(context) then return end
     if XelAssist.Graph.PlayerTaunt and XelAssist.Graph.PlayerTaunt:Score(context) then return end
     if XelAssist.Graph.WarriorStances and XelAssist.Graph.WarriorStances:Score(context) then return end

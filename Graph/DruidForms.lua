@@ -7,6 +7,7 @@ local Forms = XelAssist.Game.Player.DruidFormState
 local ShiftResources = XelAssist.Graph.DruidShiftResources
 local BearThreat = XelAssist.Graph.DruidBearThreat
 local CatThreat = XelAssist.Graph.DruidCatThreat
+local FrenziedRegeneration = XelAssist.Graph.DruidFrenziedRegeneration
 
 local function shallow(source)
     local out, key, value = {}, nil, nil
@@ -102,6 +103,11 @@ function D:Prepare(action, state, tooltip)
         local bound = ShiftResources:Bind(snapshot, projection)
         if type(bound) == "table" then projection = bound end
     end
+    if FrenziedRegeneration then
+        local blocker, claimed = FrenziedRegeneration:FormBlocker(
+            state, projection)
+        if claimed and blocker then return nil, blocker, true end
+    end
     local prepared = shallow(tooltip)
     prepared.cost = projection.cost.cost
     prepared.powerType = Forms.MANA
@@ -145,6 +151,9 @@ function D:Apply(state, candidate, context)
     local synced = self:Sync(state)
     if synced and BearThreat then BearThreat:AfterForm(state) end
     if synced and CatThreat then CatThreat:AfterForm(state) end
+    if synced and FrenziedRegeneration then
+        FrenziedRegeneration:AfterForm(state, projection)
+    end
     return synced
 end
 

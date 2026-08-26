@@ -32,6 +32,9 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.DruidProwl, spellId)
     if handled then return facts, reason, true end
+    facts, reason, handled = infer(
+        player.DruidFrenziedRegeneration, spellId)
+    if handled then return facts, reason, true end
     facts, reason, handled = infer(player.RogueSliceAndDice, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.RogueFeint, spellId)
@@ -128,6 +131,9 @@ function I:InvalidateClass()
     if player.PriestFade then player.PriestFade:Invalidate() end
     if player.DruidProwl then player.DruidProwl:Invalidate() end
     if player.DruidClearcasting then player.DruidClearcasting:Invalidate() end
+    if player.DruidFrenziedRegeneration then
+        player.DruidFrenziedRegeneration:Invalidate()
+    end
     if player.DruidBearThreat then player.DruidBearThreat:Invalidate() end
     if player.DruidCatThreat then player.DruidCatThreat:Invalidate() end
     if player.RogueSliceAndDice then player.RogueSliceAndDice:Invalidate() end

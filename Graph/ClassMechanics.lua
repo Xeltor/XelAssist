@@ -142,6 +142,8 @@ function M:Prepare(action, state, descriptor, tooltip)
     local actionFacts = action and action.facts or {}
     local facts = tooltip or actionFacts
     if ActionMechanics then
+        local blocker, handled = ActionMechanics:RootBlocker(state)
+        if handled and blocker then return nil, blocker, true end
         local projection, reason, handled = ActionMechanics:Prepare(
             action, state, descriptor, facts)
         if handled then return projection, reason, true end

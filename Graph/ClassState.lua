@@ -18,6 +18,8 @@ local MagePresenceOfMind = XelAssist.Graph.MagePresenceOfMind
 local MageColdSnap = XelAssist.Graph.MageColdSnap
 local DruidClearcastingRuntime = XelAssist.Game.Player.DruidClearcasting
 local DruidClearcasting = XelAssist.Graph.DruidClearcasting
+local DruidFrenziedRegeneration =
+    XelAssist.Graph.DruidFrenziedRegeneration
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local RogueRuthlessness = XelAssist.Graph.RogueRuthlessness
 local HunterMark = XelAssist.Graph.HunterMark
@@ -105,8 +107,13 @@ function S:Attach(state)
         end
         return attached
     elseif token == "DRUID" then
-        return DruidClearcastingRuntime
+        local attached = DruidClearcastingRuntime
             and DruidClearcastingRuntime:Attach(state, token) or false
+        if DruidFrenziedRegeneration then
+            attached = DruidFrenziedRegeneration:Attach(state, token)
+                or attached
+        end
+        return attached
     elseif token == "ROGUE" then
         local attached = RogueSlice and RogueSlice:Attach(state) ~= nil
             or false
@@ -155,6 +162,9 @@ function S:Copy(source, target)
     if MagePresenceOfMind then MagePresenceOfMind:Copy(source, target) end
     if MageColdSnap then MageColdSnap:Copy(source, target) end
     if DruidClearcasting then DruidClearcasting:Copy(source, target) end
+    if DruidFrenziedRegeneration then
+        DruidFrenziedRegeneration:Copy(source, target)
+    end
     if ShamanClearcasting then ShamanClearcasting:Copy(source, target) end
     if ShamanManaSpring then ShamanManaSpring:Copy(source, target) end
     if RogueSlice then RogueSlice:Copy(source, target) end
@@ -179,6 +189,7 @@ function S:Copy(source, target)
         or source.magePresenceOfMind ~= nil
         or source.mageColdSnapReset ~= nil
         or source.druidClearcasting ~= nil
+        or source.druidFrenziedRegeneration ~= nil
         or source.shamanClearcasting ~= nil
         or source.shamanManaSpring ~= nil
         or source.rogueSliceAndDice ~= nil
