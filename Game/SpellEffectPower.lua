@@ -6,6 +6,7 @@ local P = XelAssist.Game.SpellEffectPower
 
 local DIRECT_DAMAGE = 2
 local APPLY_AURA = 6
+local PERSISTENT_AREA_AURA = 27
 local PERIODIC_DAMAGE = { [3] = true, [53] = true }
 
 -- Only grammar that explicitly states one total over a duration may outrank
@@ -98,7 +99,7 @@ function P:Apply(action, out, dbc, dbcArray)
         if effect == DIRECT_DAMAGE then
             if magnitude == nil then return end
             direct = direct + magnitude
-        elseif effect == APPLY_AURA
+        elseif (effect == APPLY_AURA or effect == PERSISTENT_AREA_AURA)
             and PERIODIC_DAMAGE[tonumber(arrays.auras[index])] then
             periodicSeen = true
             local ticks = exactTicks(out.duration, arrays.amplitudes[index])

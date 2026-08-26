@@ -4,6 +4,7 @@ XelAssist.Game.SpellTiming = {}
 local T = XelAssist.Game.SpellTiming
 
 local APPLY_AURA = 6
+local PERSISTENT_AREA_AURA = 27
 local PERIODIC_DAMAGE = 3
 local MAX_EXACT_TICKS = 80
 
@@ -38,7 +39,8 @@ function T:DamageInterval(action)
     local interval, i
     for i = 1, math.max(table.getn(effects), table.getn(auras)) do
         local amplitude = tonumber(amplitudes[i])
-        if effects[i] == APPLY_AURA and auras[i] == PERIODIC_DAMAGE
+        if (effects[i] == APPLY_AURA or effects[i] == PERSISTENT_AREA_AURA)
+            and auras[i] == PERIODIC_DAMAGE
             and amplitude and amplitude > 0 then
             local seconds = amplitude / 1000
             if interval and math.abs(interval - seconds) > 0.0001 then

@@ -26,6 +26,7 @@ local PersistentDamage = XelAssist.Graph.CasterPersistentDamage
 local ClassMechanics = XelAssist.Graph.ClassMechanics
 local HunterMark = XelAssist.Graph.HunterMark
 local HunterDistractingShot = XelAssist.Graph.HunterDistractingShot
+local HunterStingingNettle = XelAssist.Graph.HunterStingingNettle
 local PriestShadowform = XelAssist.Graph.PriestShadowform
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local StateUtilityScoring = XelAssist.Graph.StateUtilityScoring
@@ -36,6 +37,8 @@ local PriestFade = XelAssist.Graph.PriestFade
 local WarriorDemoralizingShout = XelAssist.Graph.WarriorDemoralizingShout
 local WarriorExecute = XelAssist.Graph.WarriorExecute
 local ShamanEarthShock = XelAssist.Graph.ShamanEarthShock
+local PaladinConsecration = XelAssist.Game.Player
+    and XelAssist.Game.Player.PaladinConsecration
 local function legalityAndTiming(action, state, descriptor)
     local allowed, blocker, tooltip, target, actionStart, resolved, targetState =
         Targets:Legal(action, state, descriptor)
@@ -395,6 +398,11 @@ function Scoring:Evaluate(action, state, descriptor)
         if prepared == nil then return nil, reason end
     end
     projectDamageAndResistance(context)
+    if PaladinConsecration then PaladinConsecration:Prepare(context) end
+    if HunterStingingNettle then
+        local _, reason, handled = HunterStingingNettle:Prepare(context)
+        if handled and reason then return nil, reason end
+    end
     if Windfury then Windfury:Adjust(context) end
     PlayerSwingScoring:Project(context)
     projectAmbientTargetHealth(context)
@@ -415,6 +423,7 @@ function Scoring:Evaluate(action, state, descriptor)
         return Candidate:Build(context)
     end
     scoreKindUtility(context)
+    if HunterStingingNettle then HunterStingingNettle:Score(context) end
     if ShamanEarthShock then
         local scored, reason, handled = ShamanEarthShock:Score(context)
         if handled and not scored then return nil, reason end

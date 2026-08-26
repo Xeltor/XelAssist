@@ -113,15 +113,20 @@ local function addSpellBonus(action, tooltip, observed, status, base)
         and (observed.bonusCaptured and observed.bonusDamage or 0)
         or XelAssist.Game.Capabilities:BonusDamage(tooltip.school)
     if bonus <= 0 then return base, false end
-    local coefficient
-    if kind == "dot" then
+    local coefficient = tonumber(action.facts.spellBonusCoefficient)
+    if coefficient and (coefficient <= 0 or coefficient > 10) then
+        coefficient = nil
+    end
+    if not coefficient and kind == "dot" then
         coefficient = math.min(1, (tooltip.duration or 15) / 15)
-    else
+    elseif not coefficient then
         coefficient = math.min(1, math.max(1.5, tooltip.cast or 0) / 3.5)
     end
     local area = action.facts.aoe or tooltip.topology
         and tooltip.topology.area
-    if area then coefficient = coefficient * 0.5 end
+    if area and not action.facts.spellBonusCoefficient then
+        coefficient = coefficient * 0.5
+    end
     return base + bonus * coefficient, true
 end
 

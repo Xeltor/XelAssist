@@ -34,6 +34,9 @@ release candidate. Until both exist, its 1.0 status is **not proven**.
 - Consumables remain disabled by default and character policy controls finite
   resource use. Presentation remains global while combat behavior is primarily
   character-specific.
+- Racial-specific combat optimization is deferred for 1.0. Shared graph
+  mechanics may represent independently proven ordinary effects, but an
+  unmodeled racial trigger or utility consequence receives no invented value.
 - Lua 5.0 policy, module/function size ceilings, deterministic packaging, the
   complete automated suite, pushed Git state and exact two-root deployment all
   pass from the same commit.
@@ -111,9 +114,11 @@ request to add a class priority rule:
   the player shield before removing the demon. Defensive autocasts remain
   effect-unknown until incoming melee exists. Manual Feed Pet is acceptable for
   1.0 if compatible-food automation remains explicitly unavailable.
-- **Paladin and Druid tanks:** Consecration needs periodic ground pulses and
-  Holy threat rather than generic immediate AoE. Bear Swipe/Maul/Savage Bite
-  packets need exact evidence after the shared incoming-melee gate; existing
+- **Paladin and Druid tanks:** Consecration now has exact installed ground
+  topology and conservatively credits one selected-hostile Holy pulse; later
+  stationary-ground recipients and Octo's runtime pulse weighting remain
+  unknown instead of following the target. Bear Swipe/Maul/Savage Bite packets
+  still need exact evidence after the shared incoming-melee gate; existing
   forms, resources and threat profiles alone cannot prove tank playability.
 - **Rogue:** current combo, energy, target-survival, stealth/rear, Slice and
   Dice, Ruthlessness, Preparation and Feint coverage is sufficient for focused

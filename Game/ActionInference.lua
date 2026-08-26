@@ -73,6 +73,8 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarlockDarkPact, spellId)
     if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.WarlockSoulFire, spellId)
+    if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PaladinHandOfReckoning, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PaladinActions, spellId)
@@ -185,6 +187,7 @@ function I:InvalidateClass()
         player.WarlockFelDomination:Invalidate()
     end
     if player.WarlockDarkPact then player.WarlockDarkPact:Invalidate() end
+    if player.WarlockSoulFire then player.WarlockSoulFire:Invalidate() end
     if player.WarlockSoulLink then player.WarlockSoulLink:Invalidate() end
     if player.PaladinActions then player.PaladinActions:Invalidate() end
     if player.PaladinHandOfReckoning then

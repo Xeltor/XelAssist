@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.44
+
+- Added exact patch-5 Soul Fire rank and reagent topology so mana and one Soul
+  Shard are priced and consumed atomically; changed reagent or damage evidence
+  now fails closed instead of becoming free generic damage.
+- Added target-owned Mongoose Bite Stinging Nettle consequences from installed
+  talent/rank data and the local ClassicAPI trigger contract. The shortened
+  Serpent Sting is hit-conditional, keeps a longer existing Sting, and never
+  leaks through the selected-target compatibility view.
+- Replaced Consecration's generic immediate-AoE and guessed threat profile with
+  its installed persistent-ground cadence and Holy damage. Only one nominal
+  pulse on the selected hostile is conservatively credited; later ground
+  recipients and Octo's runtime pulse weighting remain explicitly unverified.
+- Explicitly deferred racial-specific combat optimization for 1.0 while still
+  allowing independently proven ordinary shared consequences.
+
 ## 0.8.43
 
 - Added exact installed-Octo Hand of Reckoning support. Its zero-cost,

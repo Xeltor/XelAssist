@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.43
+## Version: 0.8.44
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -40,6 +40,7 @@ Game\Player\PaladinMight.lua
 Game\Player\PaladinWisdom.lua
 Game\Player\PaladinBlessingThreat.lua
 Game\Player\PaladinRighteousFury.lua
+Game\Player\PaladinConsecration.lua
 Game\Player\PaladinHandOfReckoning.lua
 Game\Player\TotemState.lua
 Game\Player\ShamanActions.lua
@@ -67,8 +68,10 @@ Game\Player\HunterMark.lua
 Game\Player\HunterHawk.lua
 Game\Player\HunterDistractingShot.lua
 Game\Player\HunterRapidFire.lua
+Game\Player\HunterStingingNettle.lua
 Game\Player\WarlockFelDomination.lua
 Game\Player\WarlockDarkPact.lua
+Game\Player\WarlockSoulFire.lua
 Game\Player\WarlockSoulLink.lua
 Game\Player\WarriorBattleShoutRoot.lua
 Game\Player\WarriorBattleShout.lua
@@ -151,6 +154,7 @@ Graph\HunterMark.lua
 Graph\HunterHawk.lua
 Graph\HunterRangedPower.lua
 Graph\HunterRapidFire.lua
+Graph\HunterStingingNettle.lua
 Graph\PriestShadowform.lua
 Graph\PriestInnerFocus.lua
 Graph\PriestPowerInfusion.lua

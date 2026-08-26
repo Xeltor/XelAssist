@@ -25,6 +25,7 @@ local WarlockFelDomination = XelAssist.Graph.WarlockFelDomination
 local RogueRuthlessness = XelAssist.Graph.RogueRuthlessness
 local WarriorDemoralizingShout = XelAssist.Graph.WarriorDemoralizingShout
 local PriestFade = XelAssist.Graph.PriestFade
+local HunterStingingNettle = XelAssist.Graph.HunterStingingNettle
 local ThreatDrop, ClassMechanics = XelAssist.Graph.ThreatDrop, XelAssist.Graph.ClassMechanics
 local FriendlyActionEffects = XelAssist.Graph.FriendlyActionEffects
 function A:Context(source, candidate)
@@ -294,6 +295,7 @@ local function applyAura(out, source, candidate, context,
     targetLocal, dotPeriodic, dotDuration, dotElapsed)
     if context.classMechanicHandled then return end
     local facts, action = context.facts, context.action
+    if facts.paladinConsecration then return end
     local threatActor = facts.damageActor or facts.effectActor
         or action.actor or "player"
     local periodicThreatMultiplier = facts.threat or 1
@@ -431,6 +433,7 @@ function A:Apply(out, source, candidate, context)
     end
     applyAura(out, source, candidate, context, targetLocal,
         dotPeriodic, dotDuration, dotElapsed)
+    if HunterStingingNettle then HunterStingingNettle:Apply(out, candidate) end
     if WarriorDemoralizingShout then
         WarriorDemoralizingShout:Apply(out, candidate)
     end

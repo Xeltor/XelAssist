@@ -4,6 +4,7 @@
 XelAssist.Graph.ClassEvidence = {}
 local E = XelAssist.Graph.ClassEvidence
 local PaladinRighteousFury = XelAssist.Game.Player.PaladinRighteousFury
+local PaladinConsecration = XelAssist.Game.Player.PaladinConsecration
 local PaladinRighteousness = XelAssist.Game.Player.PaladinRighteousness
 local PaladinMight = XelAssist.Game.Player.PaladinMight
 local PaladinWisdom = XelAssist.Game.Player.PaladinWisdom
@@ -31,6 +32,7 @@ local HunterMarkGraph = XelAssist.Graph.HunterMark
 local HunterHawk = XelAssist.Game.Player.HunterHawk
 local HunterDistractingShot = XelAssist.Game.Player.HunterDistractingShot
 local HunterRapidFire = XelAssist.Game.Player.HunterRapidFire
+local HunterStingingNettle = XelAssist.Game.Player.HunterStingingNettle
 local PriestShadowform = XelAssist.Game.Player.PriestShadowform
 local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
 local PriestPowerInfusionRuntime = XelAssist.Game.Player.PriestPowerInfusion
@@ -56,6 +58,9 @@ function E:CaptureFacts(action, facts, state)
     end
     if PaladinRighteousFury then
         out = PaladinRighteousFury:CaptureFacts(action, out)
+    end
+    if PaladinConsecration then
+        out = PaladinConsecration:CaptureFacts(action, out)
     end
     if PaladinMight then out = PaladinMight:CaptureFacts(action, out) end
     if PaladinWisdom then out = PaladinWisdom:CaptureFacts(action, out) end
@@ -118,6 +123,9 @@ function E:CaptureFacts(action, facts, state)
     if HunterRapidFire then
         out = HunterRapidFire:CaptureFacts(action, out, state)
     end
+    if HunterStingingNettle then
+        out = HunterStingingNettle:CaptureFacts(action, out)
+    end
     if PriestShadowform then
         out = PriestShadowform:CaptureFacts(action, out)
     end
@@ -158,6 +166,11 @@ end
 
 function E:Blocker(action, state, descriptor, tooltip, actionStart)
     local blocker, handled
+    if PaladinConsecration then
+        blocker, handled = PaladinConsecration:Blocker(
+            action, state, descriptor, tooltip)
+        if handled then return blocker, true end
+    end
     if MageShield then
         blocker, handled = MageShield:Blocker(action, state, tooltip)
         if handled then return blocker, true end
