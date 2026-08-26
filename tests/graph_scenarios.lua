@@ -795,7 +795,9 @@ scenarioActions = { action("Immolate", 1, "dot", 700, 100, { testDuration = 15 }
     action("Shadow Bolt", 1, "damage", 200, 100) }
 expect("owned dot not clipped", "Shadow Bolt")
 currentState.targetAuras.Immolate.remaining = 1
-expect("owned dot refresh window", "Immolate")
+expect("owned dot preserves final tick", "Shadow Bolt")
+currentState.targetAuras.Immolate.remaining = 0
+expect("expired dot becomes eligible", "Immolate")
 
 currentState = state("smart"); currentState.targetHealth = 100; currentState.targetMax = 100
 currentState.targetHealthExact = true; XelAssistCharDB.graphDepth = 2

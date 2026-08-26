@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.80
+
+- Prevent periodic damage such as Rend from using the generic early aura
+  refresh window. Vanilla reapplications now wait for expiry, preserving the
+  final tick and avoiding wasted rage on dying targets.
+
 ## 0.8.79
 
 - Added root-sealed engine-effective rage costs for Heroic Strike, Whirlwind,

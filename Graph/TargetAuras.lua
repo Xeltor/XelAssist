@@ -6,6 +6,15 @@ local State = XelAssist.Graph.State
 
 local APPLICATION_BLOCK_THRESHOLD = 0.75
 
+local function refreshWindow(action, aura)
+    -- Vanilla periodic damage has no rollover/pandemic window. Reapplying it
+    -- before expiry resets the tick clock and can erase the final tick, so an
+    -- observed or projected owned DoT remains active for its full lifetime.
+    -- Other aura kinds retain the generic bounded refresh window.
+    if action and action.facts and action.facts.kind == "dot" then return 0 end
+    return math.max(1.5, (tonumber(aura and aura.duration) or 0) * 0.2)
+end
+
 local function observed(state, action, descriptor)
     local root = XelAssist.Graph.RootObservation
     if not root then return nil, "absent" end
@@ -31,7 +40,7 @@ local function friendlyActive(action, state, descriptor)
     if aura then
         if type(aura) ~= "table" then return true end
         local probability = tonumber(aura.applicationProbability) or 1
-        local refresh = math.max(1.5, (tonumber(aura.duration) or 0) * 0.2)
+        local refresh = refreshWindow(action, aura)
         if probability >= APPLICATION_BLOCK_THRESHOLD
             and (aura.remaining == nil or aura.remaining > refresh) then
             return true
@@ -79,7 +88,7 @@ function A:Active(action, state, descriptor)
     if future then
         if type(future) ~= "table" then return true end
         local probability = tonumber(future.applicationProbability) or 1
-        local refresh = math.max(1.5, (future.duration or 0) * 0.2)
+        local refresh = refreshWindow(action, future)
         if probability >= APPLICATION_BLOCK_THRESHOLD
             and (future.remaining == nil or future.remaining > refresh) then
             return true
@@ -98,7 +107,7 @@ function A:Active(action, state, descriptor)
     if (tonumber(aura.applicationProbability) or 1)
         < APPLICATION_BLOCK_THRESHOLD then return false end
     if action.facts.kind == "dot" and aura.mine == false then return false end
-    local refresh = math.max(1.5, (aura.duration or 0) * 0.2)
+    local refresh = refreshWindow(action, aura)
     if aura.remaining ~= nil and aura.remaining <= refresh then return false end
     return true
 end
