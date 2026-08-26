@@ -176,7 +176,11 @@ replay the special.
 Hostile white rounds are learned separately from attributed combat events. A
 stable target-owned cadence may schedule its observed post-mitigation expected
 damage into survival timing. This first conservative edge does not reverse that
-packet into speculative armor, block, absorb, rage, or shield consequences.
+packet into speculative armor, block, absorb, or shield consequences.
+When the exact recipient currently uses rage, delivered projected damage also
+earns the VMaNGOS `RewardRage` 2.5/conversion baseline. This resource edge is
+explicitly estimated because the server income-rate setting and Berserker Rage
+modifier are not observable; non-rage recipients and absorbed damage earn none.
 
 The hostile root is a deterministic, GUID-deduplicated collection of at most
 five live identities exposed through `target`, `mouseover`, `pettarget`, and

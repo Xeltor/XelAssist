@@ -76,12 +76,11 @@ Current Octo `patch-5.mpq` is authoritative for custom class mechanics; older
 patch data can be materially stale. The following are release blockers, not a
 request to add a class priority rule:
 
-- **Shared incoming melee:** Nampower exposes hostile white-swing attacker,
-  victim, damage, block, absorb, resist and hit state, but the current runtime
-  discards non-player-owned rounds. A bounded attacker/victim swing ledger is a
-  global P0 gate: without it the graph cannot causally value Warrior Shield
-  Block, Thunder Clap/Demoralizing Shout mitigation, Paladin Holy Shield/Redoubt,
-  Druid tank mitigation, pet defensives or healer timing against melee damage.
+- **Shared incoming melee:** a bounded attacker/victim white-round ledger now
+  projects observed post-mitigation health loss and baseline Warrior/Bear rage.
+  Exact counterfactual block/armor/absorb value, attack-power and speed debuffs,
+  Shield Block facing/skill/value, defensive pet autocasts and avoidance-driven
+  reactive windows remain global gates for tank and healer proof.
 - **Mage:** custom Arcane Power changes cast speed, drains maximum mana every
   second, suppresses mana gain, cannot be cancelled and kills the caster below
   ten-percent mana. Icicles can shatter into large self-damage, while

@@ -8,6 +8,7 @@ local PriestShadowform = XelAssist.Graph.PriestShadowform
 local WarriorStances = XelAssist.Graph.WarriorStances
 local WarriorShieldWall = XelAssist.Graph.WarriorShieldWall
 local WarlockSoulLink = XelAssist.Graph.WarlockSoulLink
+local PlayerRage = XelAssist.Graph.PlayerRage
 
 local function friendlyByGuid(state, guid)
     local friendlies = state and state.friendlies
@@ -117,6 +118,15 @@ local function setHealth(state, recipient, health, exact)
     syncFriendlyCompatibility(state, recipient)
 end
 
+local function rewardIncomingRage(state, recipient, result)
+    if recipient.kind ~= "player" or not PlayerRage
+        or not PlayerRage.GainFromIncomingDamage then return 0 end
+    local gained = PlayerRage:GainFromIncomingDamage(
+        state, tonumber(result and result.effective) or 0)
+    if gained > 0 then result.rageGained = gained end
+    return gained
+end
+
 function I:ExpectedAmount(cast)
     local facts = cast and cast.consequence
     if not facts then return nil end
@@ -215,6 +225,7 @@ function I:Apply(state, cast)
         result.absorbed, result.effective = absorbed, health - after
         result.partial = partial or uncertain
         setHealth(state, preview.recipient, after, not result.partial)
+        rewardIncomingRage(state, preview.recipient, result)
         if result.partial then state.incomingProjectionPartial = true end
     elseif preview.facts.kind == "heal" then
         local after = math.min(preview.healthMax, health + amount)
@@ -242,6 +253,7 @@ function I:ApplyResolvedDamage(state, guid, amount, estimated, source)
         recipientGuid = guid, estimated = estimated and true or false,
         partial = estimated and true or not exact, source = source }
     setHealth(state, recipient, after, not result.partial)
+    rewardIncomingRage(state, recipient, result)
     if result.partial then state.incomingProjectionPartial = true end
     state.lastIncomingConsequence = result
     return result

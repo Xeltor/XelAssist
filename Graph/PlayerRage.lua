@@ -5,6 +5,7 @@ XelAssist.Graph.PlayerRage = {}
 local R = XelAssist.Graph.PlayerRage
 
 local RAGE = 1
+R.SERVER_PROFILE = "VMaNGOS e5f3fd0 RewardRage baseline"
 
 function R:Is(state)
     return tonumber(state and state.resourceType) == RAGE
@@ -25,16 +26,37 @@ function R:FromOutgoingDamage(state, damage)
     return math.floor(damage * 7.5 / self:Conversion(state.playerLevel))
 end
 
-function R:GainFromWhite(state, damage)
-    if not self:Is(state) or state.playerResourceExact == false then return 0 end
+function R:FromIncomingDamage(state, damage)
+    if not self:Is(state) then return 0 end
+    damage = math.max(0, tonumber(damage) or 0)
+    if damage <= 0 then return 0 end
+    -- VMaNGOS RewardRage uses the final delivered damage at 2.5/conversion.
+    -- The server's configurable income rate and Berserker Rage modifier are
+    -- not observable here, so this remains a conservative baseline estimate.
+    return math.floor(damage * 2.5 / self:Conversion(state.playerLevel))
+end
+
+local function gain(state, amount, source)
+    if state.playerResourceExact == false then return 0 end
     local current, maximum = tonumber(state.resource), tonumber(state.resourceMax)
-    if not current or not maximum then return 0 end
-    local amount = self:FromOutgoingDamage(state, damage)
-    if amount <= 0 then return 0 end
+    if not current or not maximum or amount <= 0 then return 0 end
     state.resource = math.min(maximum, current + amount)
     local gained = state.resource - current
     state.playerResourceProjected = true
     state.playerRageProjection = { estimated = true,
-        source = "projected ordinary weapon damage", gained = gained }
+        source = source .. "; " .. R.SERVER_PROFILE, gained = gained,
+        incomeRateKnown = false, berserkerRageMultiplierKnown = false }
     return gained
+end
+
+function R:GainFromWhite(state, damage)
+    if not self:Is(state) then return 0 end
+    local amount = self:FromOutgoingDamage(state, damage)
+    return gain(state, amount, "projected ordinary weapon damage")
+end
+
+function R:GainFromIncomingDamage(state, damage)
+    if not self:Is(state) then return 0 end
+    local amount = self:FromIncomingDamage(state, damage)
+    return gain(state, amount, "projected delivered incoming damage")
 end

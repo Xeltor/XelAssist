@@ -6,11 +6,14 @@ end
 
 local playerGuid, hostileGuid = {}, {}
 XelAssist = { Graph = { State = {} } }
+dofile("Graph/PlayerRage.lua")
 dofile("Graph/IncomingConsequences.lua")
 dofile("Graph/HostileSwings.lua")
 local S = XelAssist.Graph.HostileSwings
 local root = { actors = { player = { guid = playerGuid, health = 100,
         healthMax = 100, healthExact = true } },
+    resource = 0, resourceMax = 100, resourceType = 1,
+    playerLevel = 10, playerResourceExact = true,
     hostileSwings = { lanes = { { attackerGuid = hostileGuid,
         attackerKey = hostileGuid, victimGuid = playerGuid,
         victimKind = "player", interval = 2, nextSwingIn = 0.5,
@@ -25,10 +28,23 @@ assert(S:Apply(root, events[1])
     and root.actors.player.health == 85
     and root.actors.player.healthExact == false
     and root.incomingProjectionPartial
+    and root.resource == 1 and root.lastHostileSwing
+    and root.lastHostileSwing.effective == 15
+    and root.lastIncomingConsequence.rageGained == 1
     and root.lastHostileSwing.attackerGuid == hostileGuid,
     "one learned post-mitigation swing must reduce recipient health exactly once")
-assert(S:Apply(root, events[2]) and root.actors.player.health == 70,
+assert(S:Apply(root, events[2]) and root.actors.player.health == 70
+    and root.resource == 2,
     "successive projected rounds must each apply once")
+
+local manaUser = { actors = { player = { guid = playerGuid, health = 100,
+        healthMax = 100, healthExact = true } }, resource = 0,
+    resourceMax = 100, resourceType = 0, playerLevel = 10,
+    playerResourceExact = true }
+assert(XelAssist.Graph.IncomingConsequences:ApplyResolvedDamage(
+        manaUser, playerGuid, 30, true, "test")
+    and manaUser.resource == 0,
+    "incoming damage must never manufacture rage for a non-rage user")
 
 local capped = { actors = root.actors, hostileSwings = { lanes = { {
     attackerGuid = hostileGuid, attackerKey = hostileGuid,

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.39
+
+- Projected delivered hostile damage now earns bounded incoming rage for an
+  exact Warrior or Bear-form rage recipient. The graph uses the VMaNGOS
+  `RewardRage` 2.5/conversion baseline, caps at live maximum rage, never rewards
+  another recipient or absorbed/overkill damage, and labels the result estimated
+  because server income-rate and Berserker Rage modifiers are not observable.
+- Moved the resource owner ahead of incoming consequences in TOC order and
+  covered the live load path, repeated hostile rounds and non-rage recipients.
+
 ## 0.8.38
 
 - Reduced the production search slice to 1.75 ms and made the 3.23 ms playable
