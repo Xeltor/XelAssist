@@ -22,6 +22,7 @@ local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
 local MagePresenceOfMind = XelAssist.Graph.MagePresenceOfMind
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
 local RogueRuthlessness = XelAssist.Graph.RogueRuthlessness
+local WarriorDemoralizingShout = XelAssist.Graph.WarriorDemoralizingShout
 local ThreatDrop, ClassMechanics = XelAssist.Graph.ThreatDrop, XelAssist.Graph.ClassMechanics
 local FriendlyActionEffects = XelAssist.Graph.FriendlyActionEffects
 function A:Context(source, candidate)
@@ -422,6 +423,9 @@ function A:Apply(out, source, candidate, context)
     end
     applyAura(out, source, candidate, context, targetLocal,
         dotPeriodic, dotDuration, dotElapsed)
+    if WarriorDemoralizingShout then
+        WarriorDemoralizingShout:Apply(out, candidate)
+    end
     if XelAssist.Graph.CrowdControl then XelAssist.Graph.CrowdControl:Apply(out, candidate, context) end
     if XelAssist.Graph.ShamanWindfuryTotem then
         XelAssist.Graph.ShamanWindfuryTotem:AfterCandidate(out, candidate)

@@ -32,6 +32,7 @@ local StateUtilityScoring = XelAssist.Graph.StateUtilityScoring
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
 local PriestPowerInfusion = XelAssist.Graph.PriestPowerInfusion
+local WarriorDemoralizingShout = XelAssist.Graph.WarriorDemoralizingShout
 local function legalityAndTiming(action, state, descriptor)
     local allowed, blocker, tooltip, target, actionStart, resolved, targetState =
         Targets:Legal(action, state, descriptor)
@@ -300,6 +301,8 @@ local function scoreKindUtility(context)
     if ActorScoring:Score(context) then return end
     if RogueSlice and RogueSlice:Score(context) then return end
     if WarlockDarkPact and WarlockDarkPact:Score(context) then return end
+    if WarriorDemoralizingShout
+        and WarriorDemoralizingShout:Score(context) then return end
     StateUtilityScoring:Score(context)
 end
 
@@ -402,6 +405,9 @@ function Scoring:Evaluate(action, state, descriptor)
     ComboScoring:Apply(context)
     applyActionAdjustments(context)
     ThreatScoring:Apply(context)
+    if WarriorDemoralizingShout then
+        WarriorDemoralizingShout:Finalize(context)
+    end
     if XelAssist.Graph.ChannelCommitment then
         XelAssist.Graph.ChannelCommitment:Adjust(context)
     end

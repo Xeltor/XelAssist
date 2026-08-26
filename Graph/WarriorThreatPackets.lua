@@ -6,7 +6,8 @@ local W = XelAssist.Graph.WarriorThreatPackets
 local Revenge = XelAssist.Graph.WarriorRevengeThreat
 local Heroic = XelAssist.Graph.WarriorHeroicStrikeThreat
 local Thunder = XelAssist.Graph.WarriorThunderClap
-local PROFILES = { Revenge, Heroic, Thunder }
+local Demoralizing = XelAssist.Graph.WarriorDemoralizingShout
+local PROFILES = { Revenge, Heroic, Thunder, Demoralizing }
 
 function W:Blocker(action, state, descriptor, tooltip)
     local index

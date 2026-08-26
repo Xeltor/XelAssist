@@ -42,6 +42,8 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarriorThunderClap, spellId)
     if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.WarriorDemoralizingShout, spellId)
+    if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarriorHeroicStrikeThreat, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarriorRevengeThreat, spellId)
@@ -138,6 +140,9 @@ function I:InvalidateClass()
         player.WarriorHeroicStrikeThreat:Invalidate()
     end
     if player.WarriorThunderClap then player.WarriorThunderClap:Invalidate() end
+    if player.WarriorDemoralizingShout then
+        player.WarriorDemoralizingShout:Invalidate()
+    end
     if player.WarlockDarkPact then player.WarlockDarkPact:Invalidate() end
     if player.WarlockSoulLink then player.WarlockSoulLink:Invalidate() end
     if player.PaladinActions then player.PaladinActions:Invalidate() end
