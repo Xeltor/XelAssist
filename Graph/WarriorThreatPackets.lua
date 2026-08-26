@@ -5,15 +5,28 @@ XelAssist.Graph.WarriorThreatPackets = {}
 local W = XelAssist.Graph.WarriorThreatPackets
 local Revenge = XelAssist.Graph.WarriorRevengeThreat
 local Heroic = XelAssist.Graph.WarriorHeroicStrikeThreat
-local PROFILES = { Revenge, Heroic }
+local Thunder = XelAssist.Graph.WarriorThunderClap
+local PROFILES = { Revenge, Heroic, Thunder }
 
-function W:Blocker(action, state, descriptor)
+function W:Blocker(action, state, descriptor, tooltip)
     local index
     for index = 1, table.getn(PROFILES) do
         local profile = PROFILES[index]
         if profile then
             local reason, handled = profile:Blocker(
-                action, state, descriptor)
+                action, state, descriptor, tooltip)
+            if handled then return reason, true end
+        end
+    end
+    return nil, false
+end
+
+function W:AreaBlocker(context, resolution)
+    local index
+    for index = 1, table.getn(PROFILES) do
+        local profile = PROFILES[index]
+        if profile and profile.AreaBlocker then
+            local reason, handled = profile:AreaBlocker(context, resolution)
             if handled then return reason, true end
         end
     end

@@ -8,6 +8,7 @@ local Effects = XelAssist.Graph.Effects
 local Recipients = XelAssist.Graph.AreaRecipients
 local PlayerThreat = XelAssist.Graph.PlayerThreat
 local PrimaryThreat = XelAssist.Graph.PrimaryThreatEffects
+local WarriorThreat = XelAssist.Graph.WarriorThreatPackets
 
 local function activeTarget(state)
     if State.ActiveHostile then return State:ActiveHostile(state) end
@@ -234,6 +235,14 @@ function H:Score(context)
     for i = 1, table.getn(resolution.unknowns or {}) do
         appendUnique(context.areaUnknowns, unknownSet,
             resolution.unknowns[i])
+    end
+    if WarriorThreat then
+        local reason, handled = WarriorThreat:AreaBlocker(context, resolution)
+        if handled and reason then
+            appendUnique(context.areaUnknowns, unknownSet, reason)
+            withholdArea(context, reason)
+            return true
+        end
     end
     local group, unsupported = directArea(context, resolution)
     if not group then

@@ -26,6 +26,7 @@ local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
 local PriestPowerInfusionRuntime = XelAssist.Game.Player.PriestPowerInfusion
 local PriestPowerInfusion = XelAssist.Graph.PriestPowerInfusion
 local WarriorBattleShout = XelAssist.Game.Player.WarriorBattleShout
+local WarriorThunderClap = XelAssist.Game.Player.WarriorThunderClap
 local WarriorThreatPackets = XelAssist.Graph.WarriorThreatPackets
 local WarlockDarkPactRuntime = XelAssist.Game.Player.WarlockDarkPact
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
@@ -59,6 +60,9 @@ function E:CaptureFacts(action, facts, state)
     end
     if WarriorBattleShout then
         out = WarriorBattleShout:CaptureFacts(action, out)
+    end
+    if WarriorThunderClap then
+        out = WarriorThunderClap:CaptureFacts(action, out)
     end
     if WarlockDarkPactRuntime then
         out = WarlockDarkPactRuntime:CaptureFacts(action, out)
@@ -127,7 +131,7 @@ function E:Blocker(action, state, descriptor, tooltip, actionStart)
     end
     if WarriorThreatPackets then
         blocker, handled = WarriorThreatPackets:Blocker(
-            action, state, descriptor)
+            action, state, descriptor, tooltip)
         if handled then return blocker, true end
     end
     if WarlockDarkPact then

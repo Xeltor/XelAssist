@@ -62,6 +62,7 @@ Game\Player\WarriorBattleShoutRoot.lua
 Game\Player\WarriorBattleShout.lua
 Game\Player\WarriorRevengeThreat.lua
 Game\Player\WarriorHeroicStrikeThreat.lua
+Game\Player\WarriorThunderClap.lua
 Game\ActionInference.lua
 Game\Player\WarriorRage.lua
 Game\CrowdControl.lua
@@ -138,6 +139,7 @@ Graph\MagePresenceOfMind.lua
 Graph\WarriorRage.lua
 Graph\WarriorRevengeThreat.lua
 Graph\WarriorHeroicStrikeThreat.lua
+Graph\WarriorThunderClap.lua
 Graph\WarriorThreatPackets.lua
 Graph\CasterPersistentDamage.lua
 Graph\CrowdControl.lua
