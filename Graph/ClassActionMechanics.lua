@@ -17,6 +17,7 @@ local ColdSnap = XelAssist.Graph.MageColdSnap
 local MageEvocation = XelAssist.Graph.MageEvocation
 local FrenziedRegeneration = XelAssist.Graph.DruidFrenziedRegeneration
 local DruidEnrage = XelAssist.Graph.DruidEnrage
+local DruidBloodFrenzy = XelAssist.Graph.DruidBloodFrenzy
 local DruidBarkskin = XelAssist.Graph.DruidBarkskin
 local RoguePreparation = XelAssist.Graph.RoguePreparation
 local RogueBladeFlurry = XelAssist.Graph.RogueBladeFlurry
@@ -304,6 +305,7 @@ function A:Advance(state, elapsed)
         DruidBarkskin:Advance(state, elapsed)
     end
     if DruidEnrage then DruidEnrage:Advance(state, elapsed) end
+    if DruidBloodFrenzy then DruidBloodFrenzy:Advance(state, elapsed) end
     if BattleShout then BattleShout:Advance(state, elapsed) end
     if ShieldWall then ShieldWall:Advance(state, elapsed) end
     if ShieldBlock then ShieldBlock:Advance(state, elapsed) end

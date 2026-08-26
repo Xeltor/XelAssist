@@ -6,11 +6,12 @@ local Effects = XelAssist.Graph.Effects
 local Targets = XelAssist.Graph.CompanionTargets
 local PlayerRage = XelAssist.Graph.PlayerRage
 local PlayerThreat = XelAssist.Graph.PlayerThreat
-local Windfury = XelAssist.Graph.ShamanWindfuryTotem
-local RogueSlice = XelAssist.Graph.RogueSliceAndDice
-local DruidBarkskin = XelAssist.Graph.DruidBarkskin
-local HunterRapidFire = XelAssist.Graph.HunterRapidFire
-local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
+local Windfury, RogueSlice = XelAssist.Graph.ShamanWindfuryTotem,
+    XelAssist.Graph.RogueSliceAndDice
+local DruidBarkskin, DruidBloodFrenzy = XelAssist.Graph.DruidBarkskin,
+    XelAssist.Graph.DruidBloodFrenzy
+local HunterRapidFire, WarriorBattleShout = XelAssist.Graph.HunterRapidFire,
+    XelAssist.Graph.WarriorBattleShout
 local WarriorThreat = XelAssist.Graph.WarriorThreatPackets
 local PaladinMight = XelAssist.Graph.PaladinMight
 local SwingArea = XelAssist.Graph.PlayerSwingArea
@@ -38,19 +39,16 @@ local WHITE_ACTION = { name = "Attack", actor = "player", facts = {
     deliverySubtype = "melee", usesWeaponSkill = true,
 } }
 local WHITE_TOOLTIP = { school = 0 }
-
 local function onSwing(action, tooltip)
     local facts = action and action.facts or {}
     return facts.onNextSwing or facts.onSwing or tooltip
         and (tooltip.onNextSwing or tooltip.onSwing) and true or false
 end
-
 local function area(action, tooltip)
     local facts = action and action.facts or {}
     local topology = tooltip and tooltip.topology
     return facts.aoe or topology and topology.area and true or false
 end
-
 local function addUnknown(candidate, reason)
     candidate.playerSwingUnknowns = candidate.playerSwingUnknowns or {}
     local index
@@ -236,6 +234,8 @@ function S:Events(state, candidate)
                 state, "main", offset, interval)
             or RogueSlice and RogueSlice:IntervalAfter(
                 state, "main", offset, interval) or interval
+        reset = DruidBloodFrenzy and DruidBloodFrenzy:IntervalAfter(
+            state, "main", offset, reset) or reset
         reset = DruidBarkskin
             and DruidBarkskin:MeleeInterval(state, reset) or reset
         offset, count = afterCastLocks(state, candidate, offset + reset),

@@ -1,6 +1,6 @@
--- Exact installed Blood Frenzy evidence. This leaf seals only the immediate
--- Enrage rage packet; Tiger's Fury duration/haste and Enrage armor tradeoffs
--- remain separate consequences and must not be inferred from tooltip prose.
+-- Exact installed Blood Frenzy evidence. The talent's immediate Enrage rage
+-- packet and linked melee-haste aura are sealed separately; Tiger's Fury's
+-- duration extension remains outside this Enrage-specific leaf.
 XelAssist.Game.Player.DruidBloodFrenzy = {}
 local B = XelAssist.Game.Player.DruidBloodFrenzy
 
@@ -9,9 +9,11 @@ B.FERAL_TAB, B.TALENT_INDEX, B.TALENT_ID = 2, 12, 278
 B.ENRAGE_ID, B.BEAR_MASK = 5229, 144
 B.RANKS = {
     [1] = { talentSpellId = 45721, triggerSpellId = 17080,
-        hasteSpellId = 45729, bonusRage = 5 },
+        hasteSpellId = 45729, bonusRage = 5,
+        hastePercent = 10, hasteDuration = 9, hasteDurationIndex = 105 },
     [2] = { talentSpellId = 45722, triggerSpellId = 17081,
-        hasteSpellId = 45730, bonusRage = 10 },
+        hasteSpellId = 45730, bonusRage = 10,
+        hastePercent = 20, hasteDuration = 18, hasteDurationIndex = 85 },
 }
 local CACHE = {}
 
@@ -61,6 +63,12 @@ local function equal(values, a, b, c)
     return values and values[1] == a and values[2] == b
         and values[3] == c
 end
+local function duration(id)
+    if type(GetSpellDuration) ~= "function" then return nil end
+    local ok, value = pcall(GetSpellDuration, id, 1)
+    value = ok and integer(value, 0, 3600000) or nil
+    return value and value / 1000 or nil
+end
 
 local function talentTopology(rank)
     local spec, id = B.RANKS[rank], B.RANKS[rank].talentSpellId
@@ -96,6 +104,25 @@ local function triggerTopology(rank)
         and points and (points[1] + dice[1]) / 10 == spec.bonusRage
 end
 
+local function hasteTopology(rank)
+    local spec, id = B.RANKS[rank], B.RANKS[rank].hasteSpellId
+    local points, dice = triple(id, "effectBasePoints", true),
+        triple(id, "effectBaseDice")
+    return scalar(id, "attributes") == 0
+        and scalar(id, "procFlags") == 4
+        and scalar(id, "procChance") == 100
+        and scalar(id, "durationIndex") == spec.hasteDurationIndex
+        and duration(id) == spec.hasteDuration
+        and scalar(id, "rangeIndex") == 1
+        and equal(triple(id, "effect"), 6, 0, 0)
+        and equal(triple(id, "effectDieSides"), 1, 0, 0)
+        and equal(dice, 1, 0, 0)
+        and points and points[1] + dice[1] == spec.hastePercent
+        and equal(triple(id, "effectImplicitTargetA"), 1, 0, 0)
+        and equal(triple(id, "effectApplyAuraName"), 138, 0, 0)
+        and equal(triple(id, "effectTriggerSpell"), 0, 0, 0)
+end
+
 local function enrageTopology()
     local id = B.ENRAGE_ID
     local duration
@@ -125,17 +152,44 @@ local function profile(rank)
     end
     local spec = B.RANKS[rank]
     local valid = spec and talentTopology(rank)
-        and triggerTopology(rank) and enrageTopology()
+        and triggerTopology(rank) and hasteTopology(rank)
+        and enrageTopology()
     CACHE[rank] = valid and { available = true, valid = true, exact = true,
         rank = rank, talentID = B.TALENT_ID,
         talentSpellId = spec.talentSpellId,
         triggerSpellId = spec.triggerSpellId,
         hasteSpellId = spec.hasteSpellId, enrageSpellId = B.ENRAGE_ID,
         bonusRage = spec.bonusRage, powerType = B.RAGE,
+        hastePercent = spec.hastePercent,
+        hasteDuration = spec.hasteDuration,
         bearMask = B.BEAR_MASK,
         source = "installed Octo Talent.dbc and patch-5 Spell.dbc topology" }
         or { valid = false }
     return valid and copy(CACHE[rank]) or nil
+end
+
+local function activeHaste(spellId, maximum)
+    if type(GetPlayerBuff) ~= "function"
+        or type(GetPlayerBuffID) ~= "function"
+        or type(GetPlayerBuffTimeLeft) ~= "function" then return nil, false end
+    local index
+    for index = 0, 31 do
+        local ok, slot = pcall(GetPlayerBuff, index, "HELPFUL")
+        if not ok then return nil, false end
+        if slot and slot ~= -1 then
+            local idOK, id = pcall(GetPlayerBuffID, slot)
+            if not idOK then return nil, false end
+            if tonumber(id) == spellId then
+                local timeOK, remaining = pcall(GetPlayerBuffTimeLeft, slot)
+                remaining = timeOK and tonumber(remaining) or nil
+                if not remaining or remaining < 0 or remaining > maximum + 0.25 then
+                    return nil, false
+                end
+                return remaining, true
+            end
+        end
+    end
+    return nil, true
 end
 local function druid()
     if type(UnitClass) ~= "function" then return false end
@@ -192,6 +246,24 @@ function B:CaptureFacts(action, facts)
         out.requiresExactDruidBloodFrenzy = true
     end
     return out
+end
+
+function B:HasteSnapshot()
+    local found = self:Snapshot()
+    if not (found and found.available == true and found.exact == true) then
+        return { available = false, exact = false,
+            reason = found and found.reason or "Blood Frenzy unavailable" }
+    end
+    if found.rank == 0 then
+        return { available = true, exact = true, active = false, rank = 0 }
+    end
+    local remaining, observed = activeHaste(
+        found.hasteSpellId, found.hasteDuration)
+    if not observed then return { available = false, exact = false,
+        reason = "Blood Frenzy haste aura evidence unavailable" } end
+    return { available = true, exact = true, rank = found.rank,
+        active = remaining ~= nil and remaining > 0,
+        remaining = remaining, profile = found }
 end
 
 function B:Invalidate() CACHE = {} end

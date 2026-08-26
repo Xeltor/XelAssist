@@ -1,15 +1,29 @@
 # Changelog
 
+## 0.8.74
+
+- Corrected Enrage's installed evidence boundary: `-75` is a private dummy
+  magnitude, while patch-5 describes a twenty-seven-percent Bear and
+  sixteen-percent Dire Bear base-armor reduction. The graph keeps its safe
+  counterfactual upper bound without mislabeling the dummy as a literal
+  seventy-five-percent armor loss.
+- Completed Blood Frenzy's Enrage-side lifecycle. Rank one now contributes its
+  exact five immediate rage plus ten-percent melee haste for nine seconds;
+  rank two contributes ten rage plus twenty-percent haste for eighteen seconds.
+- Root-observed and projected Blood Frenzy haste now normalize verified main-
+  and off-hand clocks and accelerate only future swing resets. Expiry restores
+  the sealed base cadence without changing a swing already in progress.
+
 ## 0.8.73
 
 - Sealed installed Octo Enrage as an exact Bear/Dire Bear action with ten
   one-second two-rage ticks, a ten-second lifetime and a sixty-second cooldown.
   Its finite clock can now unlock later rage spenders without inventing an
   immediate resource packet.
-- Represented Enrage's installed seventy-five-percent armor loss instead of
-  treating generated rage as free. Learned player-bound hostile white rounds
-  receive a conservative four-times post-mitigation damage upper bound while
-  the aura is active, and the bound expires with the rage clock.
+- Represented Enrage's installed private armor-loss dummy instead of treating
+  generated rage as free. Learned player-bound hostile white rounds receive a
+  conservative four-times post-mitigation damage upper bound while the aura is
+  active, and the bound expires with the rage clock.
 - Added fail-closed topology drift, form legality, active-aura, resource-tick,
   incoming-exposure and lifecycle regression coverage.
 

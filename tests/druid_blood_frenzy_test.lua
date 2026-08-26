@@ -22,6 +22,12 @@ for rank, spec in pairs(specs) do
         effectBasePoints = t(spec.rage * 10 - 1),
         effectImplicitTargetA = t(1), effectMiscValue = t(1),
         effectTriggerSpell = t() }
+    rows[spec.haste] = { attributes = 0, procFlags = 4, procChance = 100,
+        durationIndex = rank == 1 and 105 or 85, rangeIndex = 1,
+        effect = t(6), effectDieSides = t(1), effectBaseDice = t(1),
+        effectBasePoints = t(rank == 1 and 9 or 19),
+        effectImplicitTargetA = t(1), effectApplyAuraName = t(138),
+        effectTriggerSpell = t() }
 end
 rows[5229] = { attributes = 262416, stances = 144,
     recoveryTime = 60000, durationIndex = 1, powerType = 1,
@@ -36,7 +42,13 @@ function GetSpellRecField(id, field, copied)
     if copied then return { value[1], value[2], value[3] } end
     return value
 end
-GetSpellDuration = function(id, base) assert(id == 5229 and base == 1); return 10000 end
+GetSpellDuration = function(id, base)
+    assert(base == 1)
+    if id == 5229 then return 10000 end
+    if id == 45729 then return 9000 end
+    if id == 45730 then return 18000 end
+    error("unexpected duration spell")
+end
 local class, learned = "DRUID", 2
 UnitClass = function() return "Druid", class end
 GetTalentIDByIndex = function(tab, index)
@@ -48,13 +60,17 @@ end
 GetTalentSpellID = function(tab, index, wanted)
     assert(tab == 2 and index == 12); return specs[wanted].talent
 end
+GetPlayerBuff = function() return -1 end
+GetPlayerBuffID = function() return nil end
+GetPlayerBuffTimeLeft = function() return nil end
 
 dofile("Game/Player/DruidBloodFrenzy.lua")
 local Runtime = XelAssist.Game.Player.DruidBloodFrenzy
 local found = Runtime:Snapshot()
 assert(found.available and found.exact and found.rank == 2
-    and found.bonusRage == 10 and found.triggerSpellId == 17081,
-    "rank two must seal the exact ten-rage packet")
+    and found.bonusRage == 10 and found.triggerSpellId == 17081
+    and found.hastePercent == 20 and found.hasteDuration == 18,
+    "rank two must seal exact rage and melee haste")
 local facts = Runtime:CaptureFacts({ spellId = 5229 }, { kind = "resource" })
 assert(facts.kind == "resource" and facts.druidBloodFrenzyEnrage
     and facts.druidBloodFrenzyEvidence.bonusRage == 10,
@@ -83,11 +99,26 @@ GetSpellRecField = function() error("DBC read during graph search") end
 local state = { resource = 35, resourceMax = 100, resourceType = 1,
     playerResourceExact = true,
     actors = { player = { resource = 35, resourceMax = 100 } },
-    druidFormState = { available = true, formID = 5 } }
+    druidFormState = { available = true, formID = 5 },
+    playerAttack = { attackRound = { speed = 2, interval = 2.05,
+        speedTrusted = true, verified = true, projectable = true,
+        targetGuid = "hostile" } } }
 local candidate = { action = { spellId = 5229, facts = facts }, tooltip = facts }
+assert(Graph:Attach(state, "DRUID")
+    and state.druidBloodFrenzy.active == false,
+    "inactive exact Blood Frenzy haste must attach")
 assert(Graph:ApplyImmediate(state, candidate) and state.resource == 45
-    and state.actors.player.resource == 45,
-    "admitted Enrage must receive the exact immediate bonus")
+    and state.actors.player.resource == 45
+    and state.druidBloodFrenzy.active
+    and state.druidBloodFrenzy.remaining == 18,
+    "admitted Enrage must receive exact rage and haste")
+assert(math.abs(Graph:IntervalAfter(state, "main", 1, 2.05)
+    - (2 / 1.2 + 0.05)) < 0.000001,
+    "fresh Blood Frenzy must accelerate later melee resets")
+Graph:Advance(state, 18)
+assert(not state.druidBloodFrenzy.active
+    and Graph:IntervalAfter(state, "main", 19, 2.05) == 2.05,
+    "Blood Frenzy haste must expire without changing the base reset")
 state.resource, state.actors.player.resource = 96, 96
 assert(Graph:ApplyImmediate(state, candidate) and state.resource == 100,
     "bonus rage must cap at observed capacity")
@@ -101,4 +132,4 @@ candidate.action.spellId = 5217
 state.playerResourceExact = true
 assert(not Graph:ApplyImmediate(state, candidate),
     "another action must not consume the packet")
-print("ok: Blood Frenzy seals exact supplemental Enrage rage")
+print("ok: Blood Frenzy seals exact Enrage rage and melee haste")

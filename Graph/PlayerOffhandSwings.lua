@@ -14,6 +14,7 @@ local READY_DELAY = 0.05
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local HunterRapidFire = XelAssist.Graph.HunterRapidFire
 local DruidBarkskin = XelAssist.Graph.DruidBarkskin
+local DruidBloodFrenzy = XelAssist.Graph.DruidBloodFrenzy
 
 local WHITE_ACTION = { name = "Attack", actor = "player", facts = {
     kind = "damage", school = 0, melee = true, whiteAttack = true,
@@ -119,6 +120,8 @@ function O:Events(state, candidate)
                 state, "off", offset, interval)
             or RogueSlice and RogueSlice:IntervalAfter(
                 state, "off", offset, interval) or interval
+        reset = DruidBloodFrenzy and DruidBloodFrenzy:IntervalAfter(
+            state, "off", offset, reset) or reset
         reset = DruidBarkskin
             and DruidBarkskin:MeleeInterval(state, reset) or reset
         offset = afterCastLocks(state, candidate, offset + reset)

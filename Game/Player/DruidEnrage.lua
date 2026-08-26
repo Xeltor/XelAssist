@@ -88,7 +88,9 @@ local function classify()
         exact = valid == true, spellId = E.SPELL_ID,
         duration = E.DURATION, interval = E.INTERVAL,
         ragePerTick = E.RAGE_PER_TICK, ticks = E.TICKS,
-        totalRage = E.TOTAL_RAGE, armorReductionPercent = 75,
+        totalRage = E.TOTAL_RAGE, armorDummyMagnitude = 75,
+        bearArmorDescriptionPercent = 27,
+        direBearArmorDescriptionPercent = 16,
         armorRetained = E.ARMOR_RETAINED, powerType = E.RAGE,
         cooldown = 60, gcd = 0,
         armorCounterfactualBound = 4,
@@ -120,7 +122,9 @@ function E:Evidence(subject)
         and found.spellId == self.SPELL_ID and found.duration == 10
         and found.interval == 1 and found.ragePerTick == 2
         and found.ticks == 10 and found.totalRage == 20
-        and found.armorReductionPercent == 75
+        and found.armorDummyMagnitude == 75
+        and found.bearArmorDescriptionPercent == 27
+        and found.direBearArmorDescriptionPercent == 16
         and found.armorRetained == 0.25
         and found.armorCounterfactualBound == 4
         and found.powerType == self.RAGE) then return nil end

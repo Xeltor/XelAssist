@@ -28,7 +28,9 @@ local Runtime = XelAssist.Game.Player.DruidEnrage
 local facts, reason, handled = Runtime:InferKnowledge(5229)
 assert(handled and not reason and facts.druidEnrage
     and facts.druidEnrageEvidence.totalRage == 20
-    and facts.druidEnrageEvidence.armorReductionPercent == 75,
+    and facts.druidEnrageEvidence.armorDummyMagnitude == 75
+    and facts.druidEnrageEvidence.bearArmorDescriptionPercent == 27
+    and facts.druidEnrageEvidence.direBearArmorDescriptionPercent == 16,
     "installed Enrage must seal both rage and armor consequences")
 local captured = Runtime:CaptureFacts({ facts = facts }, facts)
 assert(captured.resourcePeriodic == 20 and captured.resourceImmediate == 0

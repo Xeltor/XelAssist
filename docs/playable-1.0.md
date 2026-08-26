@@ -178,8 +178,8 @@ request to add a class priority rule:
   because its server-selected secondary recipient is not observable.
 
 The patch-5-wide divergence audit also promoted these unowned ordinary-loop
-mechanics into the tracked backlog: Druid Blood Frenzy and Ancient Brutality's
-Bear branch; Hunter Coordinated Assault; Spirit Armor's private shield-armor
+mechanics into the tracked backlog: Druid Ancient Brutality's Bear branch;
+Hunter Coordinated Assault; Spirit Armor's private shield-armor
 increase; and Warrior hidden
 haste, recipient, threat and cost passives. Frostfire resistance selection and
 Improved Chain Heal timing are now exact. Seal of
@@ -196,7 +196,8 @@ hidden SpellMods rather than relying on custom spell names. Its current
 evidence-ranked queue includes:
 
 - Druid remaining Moonkin/Tree party and tooltip-only consequences, Enrage's
-  baseline/armor lifecycle, Blood Frenzy haste, plus Feral Adrenaline;
+  private armor counterfactual, Blood Frenzy's Tiger's Fury branch, plus Feral
+  Adrenaline;
 - Hunter Snake/Swift Aspects proc generation, non-Serpent Sting consequences,
   traps and Lock and Load;
 - Mage Hot Streak/Flash Freeze proc generation and post-proc baseline timing,
