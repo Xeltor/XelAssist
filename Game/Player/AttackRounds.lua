@@ -51,21 +51,12 @@ end
 
 local function liveDamage()
     if type(UnitDamage) == "function" then
-        local ok, minimum, maximum, _, _, positive, negative, multiplier =
+        local ok, minimum, maximum =
             pcall(UnitDamage, "player")
         minimum, maximum = tonumber(minimum), tonumber(maximum)
         if ok and minimum and maximum and minimum >= 0 and maximum >= minimum then
-            positive, negative = tonumber(positive) or 0, tonumber(negative) or 0
-            multiplier = tonumber(multiplier)
-            if multiplier == nil then multiplier = 1 end
-            if multiplier >= 0 then
-                minimum = math.max(0,
-                    (minimum + positive + negative) * multiplier)
-                maximum = math.max(minimum,
-                    (maximum + positive + negative) * multiplier)
-                return minimum, maximum,
-                    "stock player damage with physical modifiers", true
-            end
+            return minimum, maximum,
+                "stock displayed player damage", true
         end
     end
     local minimum, maximum = safeField("minDamage"), safeField("maxDamage")
@@ -94,6 +85,27 @@ local function cleanInterval(interval, speed)
         return false
     end
     return math.abs(interval - speed) <= math.max(0.20, speed * 0.15)
+end
+
+local function clearRawCadence(record)
+    record.rawCleanIntervals, record.rawCadence = nil, nil
+end
+
+-- Raw fields require repeated delivery evidence. A bounded median admits a
+-- persistent effective cadence but rejects one delayed cross-hand collision.
+local function rememberRawInterval(record, interval)
+    local values = record.rawCleanIntervals or {}
+    table.insert(values, interval)
+    while table.getn(values) > RAW_SPEED_SAMPLES do table.remove(values, 1) end
+    record.rawCleanIntervals = values
+    if table.getn(values) < RAW_SPEED_SAMPLES then
+        record.rawCadence = nil
+        return
+    end
+    local ordered, index = {}, nil
+    for index = 1, table.getn(values) do ordered[index] = values[index] end
+    table.sort(ordered)
+    record.rawCadence = ordered[2]
 end
 
 local function usableAttemptId(value)
@@ -189,21 +201,25 @@ local function anchor(owner, attackerGuid, targetGuid, result, observedAt,
             speedSource, speedTrusted)
         owner.record = record
     elseif record.lastRoundAt then
+        if record.speedTrusted ~= speedTrusted then
+            record.samples = 0
+            clearRawCadence(record)
+        end
         local interval = observedAt - record.lastRoundAt
         record.observedInterval = interval
         if cleanInterval(interval, speed) then
             record.samples = (record.samples or 0) + 1
-            record.longestCleanInterval = math.max(
-                tonumber(record.longestCleanInterval) or 0, interval)
+            if not speedTrusted then rememberRawInterval(record, interval) end
         elseif not record.speedTrusted then
-            record.samples, record.longestCleanInterval = 0, nil
+            record.samples = 0
+            clearRawCadence(record)
         end
     end
 
     record.speed, record.speedSource, record.speedTrusted =
         speed, speedSource, speedTrusted
-    record.interval = math.max(speed,
-        tonumber(record.longestCleanInterval) or 0) + CONSERVATIVE_DELAY
+    local cadence = not speedTrusted and tonumber(record.rawCadence) or speed
+    record.interval = math.max(speed, cadence or speed) + CONSERVATIVE_DELAY
     record.lastRoundAt = observedAt
     record.lastOutcome = result and result.outcome or roundKind
     record.lastRoundKind = roundKind
@@ -211,7 +227,7 @@ local function anchor(owner, attackerGuid, targetGuid, result, observedAt,
     owner.roundGeneration = (tonumber(owner.roundGeneration) or 0) + 1
     record.generation = owner.roundGeneration
     record.phaseKnown, record.phaseExact = true, true
-    record.verified = speedTrusted or (record.samples or 0) >= RAW_SPEED_SAMPLES
+    record.verified = speedTrusted or record.rawCadence ~= nil
     owner.lastObservedAt, owner.lastResetReason = observedAt, nil
     return true
 end

@@ -21,13 +21,18 @@ dofile("Game/Range.lua")
 dofile("Game/ResourceCost.lua")
 dofile("Game/ResourceExchange.lua")
 dofile("Game/HealthTransfer.lua")
+dofile("Game/CrowdControl.lua")
+dofile("Game/Player/RogueFeint.lua")
+dofile("Game/ActionInference.lua")
 dofile("Game/CapabilityInvalidation.lua")
 dofile("Game/Capabilities.lua")
 dofile("Game/WeaponPower.lua")
 dofile("Game/PlayerAttack.lua")
 dofile("Game/Player/Engagement.lua")
+-- Class-neutral form IDs constrain sealed DBC stance masks at every depth.
+dofile("Game/Player/FormEvidence.lua")
 -- Live Warrior evidence is inert until State:Snapshot observes a player.
-dofile("Game/Player/Threat.lua")
+dofile("Game/Player/WarriorStanceEffects.lua")
 dofile("Game/Player/ReactiveEvidence.lua")
 dofile("Game/Player/Resources.lua")
 dofile("Game/Pets/Resources.lua")
@@ -39,13 +44,23 @@ dofile("Game/Friendlies.lua")
 dofile("Combat/TargetModifiers.lua")
 dofile("Graph/HostileState.lua")
 dofile("Graph/State.lua")
+dofile("Graph/CrowdControl.lua")
 dofile("Graph/HunterAspects.lua")
+dofile("Graph/FormRequirements.lua")
+dofile("Graph/EquipmentRequirements.lua")
+dofile("Graph/WarriorStances.lua")
 dofile("Graph/PlayerThreat.lua")
+dofile("Graph/ThreatDrop.lua")
+dofile("Graph/RogueFeint.lua")
+dofile("Graph/ClassMechanics.lua")
 dofile("Graph/ReactiveState.lua")
 dofile("Graph/HostileCastState.lua")
+dofile("Graph/IncomingAbsorbs.lua")
 dofile("Graph/IncomingConsequences.lua")
 dofile("Graph/HostileCastEvents.lua")
 dofile("Graph/IncomingScoring.lua")
+dofile("Graph/HealingTriage.lua")
+dofile("Graph/HealingTriageEvidence.lua")
 dofile("Graph/ResourceExchange.lua")
 dofile("Graph/HealthTransfer.lua")
 dofile("Graph/ComboState.lua")
@@ -58,6 +73,7 @@ dofile("Graph/CompanionEventThreat.lua")
 dofile("Graph/CooldownLedger.lua")
 dofile("Graph/ActionAdmission.lua")
 dofile("Graph/StealthSetup.lua")
+dofile("Graph/ChannelBreakpoint.lua")
 dofile("Graph/ChannelCommitment.lua")
 dofile("Graph/MovementSetup.lua")
 dofile("Graph/Charge.lua")
@@ -94,8 +110,11 @@ dofile("Graph/ComboScoring.lua")
 dofile("Graph/OngoingEffects.lua")
 dofile("Graph/ActionConsumption.lua")
 dofile("Graph/DotProjection.lua")
+dofile("Graph/FriendlyActionEffects.lua")
 dofile("Graph/ActionEffects.lua")
 dofile("Graph/AmbientTargetHealth.lua")
+dofile("Graph/TimelineProbe.lua")
+dofile("Graph/CrowdControlTimeline.lua")
 dofile("Graph/Timeline.lua")
 dofile("Graph/ActionPower.lua")
 dofile("Graph/SurvivalPressure.lua")
@@ -123,16 +142,23 @@ XelAssist.Combat.Observations = {
     Blocker = function() return nil end,
     ResistanceMultiplier = function(_, _, target, tooltip, s)
         if XelAssist.Graph.testDelivery then
-            return XelAssist.Graph.testDelivery, "shared delivery test"
+            return XelAssist.Graph.testDelivery, "shared delivery test",
+                { multiplier = XelAssist.Graph.testDelivery, landChance = 1,
+                    source = "shared delivery test", unknown = false }
         end
         local raw = target == "target" and s.targetResistances
             and tooltip.school and s.targetResistances[tooltip.school + 1]
         if raw and s.playerLevel then
             local ratio = math.min(1, raw / (math.max(20, s.playerLevel) * 5))
             local mitigation = 0.75 * ratio - (3 / 16) * math.max(0, ratio - 2 / 3)
-            return 1 - mitigation, "live resistance"
+            local multiplier = 1 - mitigation
+            return multiplier, "live resistance",
+                { multiplier = multiplier, landChance = 1,
+                    source = "live resistance", unknown = false }
         end
-        return 1
+        return 1, "scenario exact delivery",
+            { multiplier = 1, landChance = 1,
+                source = "scenario exact delivery", unknown = false }
     end
 }
 XelAssist.Combat.Resistance = nil
@@ -294,6 +320,11 @@ local function action(name, rank, kind, power, cost, extra)
             initiatesCombat = facts.testInitiatesCombat,
             requiresStealth = facts.testRequiresStealth,
             appliesStealth = facts.testAppliesStealth,
+            stances = facts.testStances,
+            stancesNot = facts.testStancesNot,
+            equippedItemClass = facts.testEquippedItemClass,
+            equippedItemSubClassMask = facts.testEquippedItemSubClassMask,
+            equippedItemInventoryTypeMask = facts.testEquippedItemInventoryTypeMask,
             topology = facts.testTopology } }
 end
 
@@ -401,6 +432,52 @@ do
             "Delayed Normal ", 1, true) == 1
         and math.abs(weavePlan.path[2].actionStart - 1.5) < 0.0001,
         "WIDTH pruning must retain an executable oGCD before delayed normal actions")
+end
+
+do
+    local priorRootObservation = XelAssist.Graph.RootObservation
+    dofile("Graph/RootObservation.lua")
+    XelAssist.Graph.RootObservation.Facts = function(_, _, value)
+        return value.mock, "known"
+    end
+    currentState = state("smart")
+    currentState.resourceType, currentState.resource = 1, 20
+    currentState.resourceMax, currentState.playerResourceExact = 100, true
+    currentState.actors.player.resourceType = 1
+    currentState.actors.player.resource = 20
+    currentState.actors.player.resourceMax = 100
+    currentState.actors.player.resourceExact = true
+    currentState.role, currentState.tank = "auto", false
+    currentState.playerForm = { available = true, formID = 17,
+        warriorRageRetention = { available = true, exact = true,
+            talentID = 57, rank = 3, retainedRageCap = 15 } }
+    currentState.playerThreat = { actor = "player", formID = 17,
+        exact = true, multiplier = 0.8 }
+    local defensive = action("Unlocalized Defensive Stance", 1, "form", 0, 0,
+        { self = true, warriorStance = true, resourceType = "rage", gcd = 0 })
+    defensive.actor, defensive.executor, defensive.spellId =
+        "player", "playerSpell", 71
+    defensive.mock.warriorStanceEvidence = { recognized = true, valid = true,
+        targetForm = 18, targetMask = 131072, cost = 0, powerType = 1 }
+    local gated = action("Defensive-only outcome", 1, "damage", 500, 0,
+        { testStances = 131072 })
+    scenarioActions, XelAssistCharDB.graphDepth = { defensive, gated }, 2
+    local stancePlan = expect("zero-value stance unlock is searchable",
+        "Unlocalized Defensive Stance")
+    assert(stancePlan.follow[1]
+        and stancePlan.follow[1].name == "Defensive-only outcome"
+        and stancePlan.path[1].value == 0,
+        "a neutral stance edge must survive only when a later outcome pays for it")
+    local projected = XelAssist.Graph.Transitions:Advance(
+        currentState, stancePlan.path[1])
+    assert(projected.playerForm.formID == 18 and projected.resource == 15
+        and projected.tank == true,
+        "the search-selected stance edge must project form, retention, and auto role")
+    scenarioActions = { defensive }
+    local useless = XelAssist.Graph:Evaluate("smart", true)
+    assert(useless == nil,
+        "a neutral stance with no valuable follow-up must not be published")
+    XelAssist.Graph.RootObservation = priorRootObservation
 end
 
 scenarioActions = {
@@ -1297,13 +1374,21 @@ do
         { ranged = true })
     scenarioActions, XelAssistCharDB.graphDepth = { activeChannel, weakNuke }, 1
     plan = expect("valuable channel beats routine clip", "Continue Mind Flay")
-    assert(plan.power == 400 and plan.action.executor == "instruction",
-        "continuation must price only the two remaining channel ticks")
+    assert(plan.power == 200 and plan.cast == 1
+        and plan.action.executor == "instruction",
+        "continuation must price only the next completed channel tick")
     local afterChannel = XelAssist.Graph.Transitions:Advance(
         currentState, plan.path[1])
-    assert(afterChannel.targetHealth == 600
-        and not afterChannel.playerCasting and not afterChannel.playerChanneling,
-        "finishing the channel must project its remaining target value and release the actor")
+    assert(afterChannel.targetHealth == 800 and afterChannel.playerChanneling
+        and afterChannel.castRemaining == 1,
+        "a non-final tick must retain the channel for another graph choice")
+    local finalTick = assert(XelAssist.Graph.ChannelCommitment:Candidate(
+        afterChannel))
+    local afterFinal = XelAssist.Graph.Transitions:Advance(
+        afterChannel, finalTick)
+    assert(afterFinal.targetHealth == 600 and not afterFinal.playerCasting
+        and not afterFinal.playerChanneling,
+        "the final tick must release the projected channel commitment")
 
     currentState.targetCasting, currentState.targetCastRemaining = true, 1
     local interrupt = action("Silence", 1, "interrupt", 0, 0,
@@ -1347,12 +1432,18 @@ do
     plan = expect("pet-heal channel commitment", "Continue Mend Pet")
     local recovered = XelAssist.Graph.Transitions:Advance(
         currentState, plan.path[1])
+    assert(recovered.actors.pet.health == 300 and recovered.playerChanneling
+        and XelAssist.Graph.State:FriendlyByUnit(recovered, "pet").health == 300,
+        "a pet-heal breakpoint must apply one tick to both health mirrors")
+    local finalMend = assert(XelAssist.Graph.ChannelCommitment:Candidate(
+        recovered))
+    recovered = XelAssist.Graph.Transitions:Advance(recovered, finalMend)
     assert(recovered.actors.pet.health == 500
         and XelAssist.Graph.State:FriendlyByUnit(recovered, "pet").health == 500
         and not recovered.actors.pet.recovering
         and not recovered.actors.pet.retreatFollowIssued
         and not recovered.actors.pet.retreatPassiveIssued,
-        "continuing Mend Pet must heal both canonical companion health mirrors")
+        "the final Mend Pet tick must finish companion recovery causally")
 end
 GetCastInfo = XelAssistTestPriorGetCastInfo
 XelAssistTestPriorGetCastInfo = nil

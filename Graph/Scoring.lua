@@ -19,6 +19,14 @@ local IncomingScoring = XelAssist.Graph.IncomingScoring
 local PeriodicScoring = XelAssist.Graph.PeriodicScoring
 local Candidate = XelAssist.Graph.Candidate
 local ActionConsumption = XelAssist.Graph.ActionConsumption
+local ThreatDrop = XelAssist.Graph.ThreatDrop
+local RogueFeint = XelAssist.Graph.RogueFeint
+local HealingTriageEvidence = XelAssist.Graph.HealingTriageEvidence
+local PersistentDamage = XelAssist.Graph.CasterPersistentDamage
+local ClassMechanics = XelAssist.Graph.ClassMechanics
+local HunterMark = XelAssist.Graph.HunterMark
+local PriestShadowform = XelAssist.Graph.PriestShadowform
+local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local function legalityAndTiming(action, state, descriptor)
     local allowed, blocker, tooltip, target, actionStart, resolved, targetState =
         Targets:Legal(action, state, descriptor)
@@ -38,7 +46,8 @@ local function legalityAndTiming(action, state, descriptor)
     local effectAction = Triggered and Triggered:ResultAction(action) or action
     local effectTooltip = Triggered and Triggered:EffectFacts(action, tooltip) or tooltip
     power, estimated, powerEvidence = XelAssist.Graph.ActionPower:Estimate(
-        effectAction, effectTooltip, state, comboTargetGUID, comboAllOwners)
+        effectAction, effectTooltip, state, comboTargetGUID, comboAllOwners,
+        descriptor and descriptor.guid)
     local comboAvailability = 1
     if facts.combo or tooltip.comboSpendAll then
         comboAvailability = XelAssist.Graph.ComboState
@@ -74,6 +83,7 @@ local function legalityAndTiming(action, state, descriptor)
         value = 0, reason = kind, damageKind = damageKind,
         targetEffect = damageKind or kind == "debuff"
             or kind == "crowdControl" or kind == "interrupt" or kind == "taunt"
+            or facts.targetLocalThreatDrop
             or kind == "petThreat" and not facts.petThreatDrop,
         effectDelivery = 1,
     }
@@ -125,6 +135,7 @@ local function estimateResistance(context)
     end
 end
 local function projectPeriodicDamage(context)
+    if PersistentDamage and PersistentDamage:Prepare(context) then return end
     local resistance = context.resistance
     if not (XelAssist.Combat.Resistance and resistance) then return end
     local action, state, tooltip = context.action, context.state, context.tooltip
@@ -195,6 +206,22 @@ local function scoreDamageAndHealing(context)
     local state, facts, kind = context.state, context.facts, context.kind
     local power, expected = context.power, context.expectedPower
     local targetHealth = context.targetHealthAtImpact or state.targetHealth
+    if kind == "heal" and HealingTriageEvidence then
+        local plan = HealingTriageEvidence:Score(context)
+        if plan then
+            context.healingTriage = plan
+            context.effectivePower = plan.effectiveHealing
+            context.value, context.reason = plan.value, plan.reason
+            if state.role == "healer" then
+                context.value = context.value * 1.25
+            elseif state.role == "damage" then
+                context.value = context.value * 0.85
+            end
+            return true
+        end
+    end
+    if PersistentDamage and PersistentDamage:Score(
+        context, targetHealth) then return true end
     if kind == "damage" or kind == "builder" then
         if HostileEffects and HostileEffects:Score(context) then return true end
         local effective = PlayerSwingScoring:Effective(
@@ -242,10 +269,13 @@ local function scoreDamageAndHealing(context)
         if state.role == "healer" then context.value = context.value * 1.25
         elseif state.role == "damage" then context.value = context.value * 0.85 end
     elseif kind == "absorb" then
+        local absorbPower = ClassMechanics
+            and ClassMechanics:AbsorbCapacity(context) or power
+        context.absorbEffectivePower = absorbPower
         if IncomingScoring then
             context.value, context.reason = IncomingScoring:AbsorbValue(context)
         else
-            context.value = power * 3 / math.max(0.5, context.downtime)
+            context.value = absorbPower * 3 / math.max(0.5, context.downtime)
             context.reason = "adds a protective buffer"
         end
     else return false end
@@ -258,10 +288,9 @@ local function scoreStateUtility(context)
         local hp = state.healthMax > 0 and state.health / state.healthMax or 1
         context.value = (1 - hp) * 1800 + (state.hasAggro and 500 or 0)
         context.reason = "reduces immediate danger"
-    elseif kind == "threatDrop" then
-        context.value = state.hasAggro and not state.tank and 4200 or -500
-        context.reason = "drops unwanted aggro"
     elseif kind == "resource" then
+        if XelAssist.Graph.WarriorRage
+            and XelAssist.Graph.WarriorRage:Score(context) then return end
         if XelAssist.Graph.ResourceExchange
             and XelAssist.Graph.ResourceExchange:Score(context) then return end
         local missing = math.max(0, state.resourceMax - state.resource)
@@ -314,6 +343,11 @@ end
 local function scoreKindUtility(context)
     if XelAssist.Graph.Charge and XelAssist.Graph.Charge:Score(context) then return end
     if XelAssist.Graph.PlayerTaunt and XelAssist.Graph.PlayerTaunt:Score(context) then return end
+    if XelAssist.Graph.WarriorStances and XelAssist.Graph.WarriorStances:Score(context) then return end
+    if RogueFeint and RogueFeint:Score(context) then return end
+    if HunterMark and HunterMark:Score(context) then return end
+    if PriestShadowform and PriestShadowform:Score(context) then return end
+    if ThreatDrop and ThreatDrop:Score(context) then return end
     if scoreDamageAndHealing(context) then return end
     if ActorScoring:Score(context) then return end
     scoreStateUtility(context)
@@ -321,7 +355,8 @@ end
 
 local function applyActionAdjustments(context)
     local state, facts, kind = context.state, context.facts, context.kind
-    if context.resistance and context.targetEffect and not context.damageKind then
+    if context.resistance and context.targetEffect and not context.damageKind
+        and not facts.targetLocalThreatDrop then
         context.value = context.value * context.effectDelivery
     end
     context.friendlySupport = context.descriptor
@@ -357,6 +392,17 @@ end
 function Scoring:Evaluate(action, state, descriptor)
     local context, blocker = legalityAndTiming(action, state, descriptor)
     if not context then return nil, blocker end
+    if ClassMechanics then
+        local projection, reason, handled = ClassMechanics:Prepare(
+            context.action, context.state, context.descriptor)
+        if handled then
+            if not projection then return nil, reason end
+            local scored
+            scored, reason = ClassMechanics:Score(context, projection)
+            if not scored then return nil, reason end
+            context.classMechanicProjection = projection
+        end
+    end
     local targetState = context.state
     resolveTargetNeed(context)
     if action.facts.healthFundedChannel then
@@ -368,14 +414,17 @@ function Scoring:Evaluate(action, state, descriptor)
             return nil, reason or "health transfer evidence unknown"
         end
     end
+    if PriestShadowform then PriestShadowform:AdjustDamage(context) end
     projectDamageAndResistance(context)
+    if Windfury then Windfury:Adjust(context) end
     PlayerSwingScoring:Project(context)
     projectAmbientTargetHealth(context)
     if context.ammunitionAtApplicationKnown
         and (tonumber(context.ammunitionAtApplication) or 0) <= 0 then
         return nil, "ammunition before application"
     end
-    if SurvivalPressure then SurvivalPressure:Adjust(context) end
+    if not (PersistentDamage and PersistentDamage:AdjustSurvival(context))
+        and SurvivalPressure then SurvivalPressure:Adjust(context) end
     if action.facts.execute and targetState.targetMax > 0
         and (context.targetHealthAtImpact or targetState.targetHealth) * 100
             / targetState.targetMax > action.facts.execute then

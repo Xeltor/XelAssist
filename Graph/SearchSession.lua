@@ -19,14 +19,12 @@ local function stringField(value)
     if type(value) == "string" then return value end
     return ""
 end
-
 local function candidatePriority(candidate)
     local delay = math.max(0, tonumber(candidate.wait) or 0)
         + math.max(0, tonumber(candidate.cast) or 0)
     return (tonumber(candidate.value) or 0)
         / (1 + delay / Policy.DISCOUNT_SECONDS)
 end
-
 local function candidateBefore(a, b)
     local aValue, bValue = candidatePriority(a), candidatePriority(b)
     if aValue ~= bValue then return aValue > bValue end
@@ -46,7 +44,6 @@ local function candidateBefore(a, b)
     if aTarget ~= bTarget then return aTarget < bTarget end
     return (a.graphOrder or 0) < (b.graphOrder or 0)
 end
-
 local function availableActions()
     local out, actions, i = {}, XelAssist.Game.Actors:Actions(), nil
     for i = 1, table.getn(actions) do table.insert(out, actions[i]) end
@@ -56,7 +53,6 @@ local function availableActions()
     end
     return out
 end
-
 local function retainCandidate(buckets, candidate, order)
     candidate.graphOrder = order
     local key = stringField(candidate.action.actor or "player") .. "\001"
@@ -79,7 +75,6 @@ local function flattenCandidates(buckets)
     table.sort(out, candidateBefore)
     return out
 end
-
 local function copySteps(steps, candidate)
     local out, i = {}, nil
     for i = 1, table.getn(steps) do out[i] = steps[i] end
@@ -124,7 +119,6 @@ local function inheritSpatial(candidate, path)
     end
     if path.spatialConditionalOnly then candidate.spatialConditionalOnly = true end
 end
-
 local function pathBefore(a, b)
     if a.total ~= b.total then return a.total > b.total end
     if a.conditionalTotal ~= b.conditionalTotal then
@@ -132,14 +126,16 @@ local function pathBefore(a, b)
     end
     return (a.graphOrder or 0) < (b.graphOrder or 0)
 end
-
 local function beginTop(session, path)
-    session.top = { state = path.state, buckets = {}, blockers = {},
+    local actions = path.strategicSetupOpen == true
+        and Investment:ConsumerActions(path, path.state, session.actions,
+            G.RootObservation) or session.actions
+    session.top = { state = path.state,
+        actions = actions, buckets = {}, blockers = {},
         order = 0, actionIndex = 1, targetIndex = 1, stage = "action" }
 end
-
 local function advanceTop(session)
-    local top, actions = session.top, session.actions
+    local top, actions = session.top, session.top.actions
     if top.stage == "action" then
         if top.actionIndex > table.getn(actions) then
             top.stage = "flatten"
@@ -195,7 +191,6 @@ local function advanceTop(session)
     end
     return top.stage == "done"
 end
-
 local function topFinished(session)
     local top, path = session.top, session.path
     session.candidates, session.blockers = top.candidates, top.blockers
@@ -205,8 +200,9 @@ local function topFinished(session)
     end
     if table.getn(session.candidates) == 0 then
         path.terminalBlockers = session.blockers
-        table.insert(session.terminal, path)
-    elseif Investment:Eligible(path) then
+    end
+    if Investment:Eligible(path) and not path.terminalRecorded then
+        path.terminalRecorded = true
         table.insert(session.terminal, path)
     end
     session.candidateIndex, session.phase = 1, "candidate"
@@ -216,7 +212,7 @@ local function advanceCandidate(session)
     local candidate = session.candidates[session.candidateIndex]
     if not candidate then session.phase = "path_finish"; return end
     session.candidateIndex = session.candidateIndex + 1
-    if not Investment:Expandable(candidate) then return end
+    if not Investment:Expandable(candidate, session.path) then return end
     local path = session.path
     inheritSpatial(candidate, path)
     session.pathOrder = session.pathOrder + 1
@@ -237,8 +233,12 @@ local function advanceCandidate(session)
             or path.movementSetupTargetGUID,
         graphOrder = session.pathOrder,
     }
-    table.insert(session.expanded,
-        Investment:Advance(path, candidate, nextPath))
+    nextPath = Investment:Advance(path, candidate, nextPath)
+    table.insert(session.expanded, nextPath)
+    if Investment:Eligible(nextPath) then
+        nextPath.terminalRecorded = true
+        table.insert(session.terminal, nextPath)
+    end
 end
 
 local function startBudget(session)
@@ -248,10 +248,9 @@ end
 
 local function initializeSearch(session)
     session.rootTime = tonumber(session.state.time) or 0
-    session.frontier = { { state = session.state, steps = {}, total = 0,
-        conditionalTotal = 0, graphOrder = 1 } }
-    session.terminal = { { state = session.state, steps = {}, total = 0,
-        conditionalTotal = 0, graphOrder = 0 } }
+    local root = { state = session.state, steps = {}, total = 0,
+        conditionalTotal = 0, graphOrder = 0, terminalRecorded = true }
+    session.frontier, session.terminal = { root }, { root }
     session.pathOrder, session.level = 1, 0
     session.phase = "level_start"
 end
@@ -322,6 +321,7 @@ local function advanceSearch(session)
     elseif session.phase == "path_finish" then
         if session.level > 1
             and session.pathIndex < table.getn(session.frontier)
+            and not session.frontier[session.pathIndex + 1].strategicSetupOpen
             and Policy:BudgetReached(session, session.counter) then
             session.counter.budgetLimited, session.interrupted = true, true
             session.phase = "level_finish"

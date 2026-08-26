@@ -44,6 +44,10 @@ assert(learned and learned.verified and learned.amount == 20
     and learned.observedInterval == 2 and learned.interval == 2.4
     and learned.phaseKnown and learned.nextIn == 2.4,
     "three exact uncapped ticks must establish a conservative energy envelope")
+local status = Evidence:Status(6)
+assert(status.verified and status.executable and status.amount == 20
+    and status.interval == 2.4 and status.energizeAttribution,
+    "diagnostics must expose the privacy-safe learned energy contract")
 
 local state = { time = 0, resource = 20, resourceMax = 100,
     resourceType = 3, playerResourceReserved = 0,

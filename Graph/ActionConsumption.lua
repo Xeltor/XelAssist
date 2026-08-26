@@ -6,7 +6,7 @@ local C = XelAssist.Graph.ActionConsumption
 local function spendPlayer(out, candidate)
     local resources = XelAssist.Game.Player
         and XelAssist.Game.Player.Resources
-    if resources then return resources:Spend(out, candidate.cost) end
+    if resources then return resources:Spend(out, candidate.cost, candidate) end
     local resource, cost = tonumber(out.resource),
         math.max(0, tonumber(candidate.cost) or 0)
     if not resource or resource < cost then return false end

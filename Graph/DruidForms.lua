@@ -4,6 +4,7 @@
 XelAssist.Graph.DruidForms = {}
 local D = XelAssist.Graph.DruidForms
 local Forms = XelAssist.Game.Player.DruidFormState
+local ShiftResources = XelAssist.Graph.DruidShiftResources
 
 local function shallow(source)
     local out, key, value = {}, nil, nil
@@ -34,11 +35,22 @@ function D:Sync(state)
     local exact = slot and slot.currentKnown == true
         and slot.maximumKnown == true
         and tonumber(slot.current) ~= nil and tonumber(slot.maximum) ~= nil
+    local minimum, minimumKnown
+    if not exact and ShiftResources then
+        minimum, minimumKnown = ShiftResources:ResourceFloor(snapshot)
+    end
     state.resourceType = snapshot.primaryType
-    state.resource = exact and slot.current or 0
-    state.resourceMax = exact and slot.maximum or 0
+    state.resource = exact and slot.current or minimumKnown and minimum or 0
+    state.resourceMax = exact and slot.maximum or minimumKnown
+        and (tonumber(slot.priorObservedMaximum) or minimum) or 0
     state.playerResourceExact = exact and true or false
+    state.playerResourceMinimumExact = not exact and minimumKnown and true or nil
     state.druidDestinationPowerUnknown = exact and nil or true
+    state.playerForm = state.playerForm or {}
+    state.playerForm.available, state.playerForm.formID = true,
+        snapshot.formID
+    state.playerForm.source = snapshot.projected
+        and "projected exact Druid form transition" or snapshot.source
     if not exact or snapshot.primaryType ~= Forms.ENERGY then
         state.playerResourceClock = nil
     end
@@ -48,6 +60,7 @@ function D:Sync(state)
         actor.resource = state.resource
         actor.resourceMax = state.resourceMax
         actor.resourceExact = state.playerResourceExact
+        actor.resourceMinimumExact = state.playerResourceMinimumExact
     end
     if state.role == "auto" then
         local form = Forms.FORMS[snapshot.formID]
@@ -61,6 +74,7 @@ function D:Attach(state)
     local snapshot = Forms:Snapshot()
     if not (snapshot and snapshot.available == true) then return false end
     state.druidFormState = snapshot
+    if ShiftResources then ShiftResources:Attach(state) end
     return self:Sync(state)
 end
 
@@ -79,6 +93,10 @@ function D:Prepare(action, state, tooltip)
         projection, reason = Forms:PrepareShift(action, snapshot, evidence)
     end
     if not projection then return nil, reason, true end
+    if projection.kind == "shift" and ShiftResources then
+        local bound = ShiftResources:Bind(snapshot, projection)
+        if type(bound) == "table" then projection = bound end
+    end
     local prepared = shallow(tooltip)
     prepared.cost = projection.cost.cost
     prepared.powerType = Forms.MANA
@@ -115,6 +133,9 @@ function D:Apply(state, candidate, context)
         and state and state.druidFormState
         and Forms:Apply(state.druidFormState, projection, true)) then
         return false
+    end
+    if ShiftResources then
+        ShiftResources:Apply(state.druidFormState, projection)
     end
     return self:Sync(state)
 end

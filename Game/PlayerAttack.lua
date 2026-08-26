@@ -60,6 +60,9 @@ function A:Snapshot()
     if XelAssist.Game.Player and XelAssist.Game.Player.AttackRounds then
         XelAssist.Game.Player.AttackRounds:Attach(snapshot)
     end
+    if XelAssist.Game.Player and XelAssist.Game.Player.OffhandAttackRounds then
+        XelAssist.Game.Player.OffhandAttackRounds:Attach(snapshot)
+    end
     return snapshot
 end
 
@@ -90,6 +93,12 @@ function A:Projected(targetGuid, source)
             targetGuid = targetGuid,
             reason = "Attack submitted; awaiting resolved player swing" }
     end
+    if XelAssist.Game.Player and XelAssist.Game.Player.OffhandAttackRounds then
+        snapshot.offhandAttackRound = { supported = true, hand = "off",
+            phaseKnown = false, verified = false, projectable = false,
+            targetGuid = targetGuid,
+            reason = "Attack submitted; awaiting resolved off-hand swing" }
+    end
     return snapshot
 end
 
@@ -101,7 +110,11 @@ function A:ProjectedStopped(targetGuid, source)
             source = "graph Attack stop" },
         attackRound = { supported = true, phaseKnown = false,
             verified = false, projectable = false, targetGuid = targetGuid,
-            reason = "Attack stopped; awaiting a new resolved player swing" } }
+            reason = "Attack stopped; awaiting a new resolved player swing" },
+        offhandAttackRound = { supported = true, hand = "off",
+            phaseKnown = false, verified = false, projectable = false,
+            targetGuid = targetGuid,
+            reason = "Attack stopped; awaiting a new resolved off-hand swing" } }
 end
 
 function A:Stopped()

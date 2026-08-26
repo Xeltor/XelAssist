@@ -7,12 +7,11 @@ XelAssist.Combat.Resistance = { schema = 4, maxProfiles = 256, identities = {},
     unitResistanceProven = false, nampowerResistanceProven = false }
 local R = XelAssist.Combat.Resistance
 local HitDelivery = XelAssist.Combat.HitDelivery
+local ResistanceMath = XelAssist.Combat.ResistanceMath
 local submissionLedger = XelAssist.Combat.ResistanceSubmissions:New(R)
 
 local SCHOOL_NAMES = { [0] = "Physical", [1] = "Holy", [2] = "Fire", [3] = "Nature",
     [4] = "Frost", [5] = "Shadow", [6] = "Arcane" }
-local PROFILE_PRIOR, LAND_PRIOR = 3, 4
-local PROFILE_HALF_LIFE = 30 * 24 * 60 * 60
 local BEAST_LORE_SPELL_ID = 1462
 local BINARY_AURAS = { [7] = true, [12] = true, [14] = true, [22] = true,
     [25] = true, [26] = true, [27] = true, [33] = true, [67] = true }
@@ -20,6 +19,41 @@ local PERIODIC_DAMAGE_AURAS = { [3] = true, [53] = true, [89] = true }
 
 local function now() return GetTime and GetTime() or 0 end
 local function epoch() return time and time() or now() end
+local function ageWeight(lastSeen, observedEpoch)
+    return ResistanceMath:AgeWeight(lastSeen,
+        observedEpoch ~= nil and observedEpoch or epoch())
+end
+local function expectedPartial(chance)
+    return ResistanceMath:ExpectedPartial(chance)
+end
+local function inverseExpectedPartial(resisted)
+    return ResistanceMath:InverseExpectedPartial(resisted)
+end
+local function innateResistancePoints(level, targetLevel)
+    return ResistanceMath:InnateResistancePoints(level, targetLevel)
+end
+local function projectedLearnedMitigation(multiplier, reduction, level,
+    periodic, school)
+    return ResistanceMath:ProjectedLearnedMitigation(
+        multiplier, reduction, level, periodic, school)
+end
+local function magicMultiplier(raw, level, penetration, targetLevel, school,
+    innate, periodic)
+    return ResistanceMath:MagicMultiplier(raw, level, penetration,
+        targetLevel, school, innate, periodic)
+end
+local function binaryResistance(raw, level, penetration)
+    return ResistanceMath:BinaryResistance(raw, level, penetration)
+end
+local function armorMultiplier(raw, level, penetration)
+    return ResistanceMath:ArmorMultiplier(raw, level, penetration)
+end
+local function learnedValues(record, observedEpoch)
+    return ResistanceMath:LearnedValues(record, observedEpoch)
+end
+local function learnedDelivery(record, prior, observedEpoch)
+    return ResistanceMath:LearnedDelivery(record, prior, observedEpoch)
+end
 local function clamp(value, low, high)
     value = tonumber(value) or low
     if value < low then return low end
@@ -110,8 +144,19 @@ function R:Identity(unit, encounter)
     local level = tonumber(record.level or (UnitLevel and UnitLevel(unit)))
     local isPlayer = record.isPlayer
     if isPlayer == nil and UnitIsPlayer then isPlayer = UnitIsPlayer(unit) and true or false end
+    local defenseBase, defenseModifier, defenseObserved
+    if isPlayer and UnitDefense then
+        local ok, base, modifier = pcall(UnitDefense, unit)
+        if ok and type(base) == "number" and base > 0 then
+            defenseBase, defenseModifier, defenseObserved = base,
+                tonumber(modifier) or 0, true
+        end
+    end
     local identity = { guid = guid, creatureId = creatureId, level = level,
-        instanceType = encounter and encounter.instanceType, isPlayer = isPlayer and true or false }
+        instanceType = encounter and encounter.instanceType,
+        isPlayer = isPlayer and true or false,
+        defenseBase = defenseBase, defenseModifier = defenseModifier,
+        defenseObserved = defenseObserved == true, frozen = true }
     if creatureId and not identity.isPlayer then
         identity.profileKey = "npc:" .. tostring(creatureId) .. ":l" .. tostring(level or 0)
             .. ":" .. tostring(identity.instanceType or "world")
@@ -216,7 +261,8 @@ function R:Snapshot(unit, encounter)
         profile.lastSeen = epoch()
     end
     return { identity = identity, live = live, liveDetails = details,
-        liveTrusted = trusted, liveSource = source, penetration = penetration }
+        liveTrusted = trusted, liveSource = source, penetration = penetration,
+        observedEpoch = epoch() }
 end
 
 function R:Profile(identity, create)
@@ -284,22 +330,31 @@ end
 function R:CasterContext(casterGuid, school, state, action, targetGuid)
     local actor = action and action.facts and action.facts.damageActor or action and action.actor
     if not actor and casterGuid then
-        if casterGuid == guidFor("pet") then actor = "pet"
-        elseif casterGuid == guidFor("player") then actor = "player" end
+        local petGuid = state and state.actors and state.actors.pet
+            and state.actors.pet.guid
+        local playerGuid = state and state.actors and state.actors.player
+            and state.actors.player.guid
+        if casterGuid == petGuid then actor = "pet"
+        elseif casterGuid == playerGuid then actor = "player"
+        elseif not state and casterGuid == guidFor("pet") then actor = "pet"
+        elseif not state and casterGuid == guidFor("player") then actor = "player" end
     end
     local owned = casterGuid and self.ownedCasters[casterGuid]
     if not actor and type(owned) == "table" then actor = owned.actor end
     actor = actor or "player"
     local level
     if actor == "pet" then
-        level = state and state.actors and state.actors.pet and state.actors.pet.level
-            or type(owned) == "table" and owned.level
-            or casterGuid == guidFor("pet") and UnitLevel and UnitLevel("pet")
-    else level = state and state.playerLevel or (UnitLevel and UnitLevel("player")) end
+        if state then level = state.actors and state.actors.pet
+            and state.actors.pet.level
+        else level = type(owned) == "table" and owned.level
+            or casterGuid == guidFor("pet") and UnitLevel and UnitLevel("pet") end
+    elseif state then level = state.playerLevel
+    else level = UnitLevel and UnitLevel("player") end
     local penetration, known = nil, false
     if actor == "player" then
         local values = state and state.targetResistance and state.targetResistance.penetration
-        if not values and XelAssist.Game.Capabilities and XelAssist.Game.Capabilities.Penetration then
+        if not state and not values and XelAssist.Game.Capabilities
+            and XelAssist.Game.Capabilities.Penetration then
             values = XelAssist.Game.Capabilities:Penetration()
         end
         if values then
@@ -317,7 +372,7 @@ function R:CasterContext(casterGuid, school, state, action, targetGuid)
         else behind = state.playerBehindTarget end
         if type(behind) == "boolean" then positionSource = "state UnitXP geometry" end
     end
-    if type(behind) ~= "boolean" and targetGuid
+    if not state and type(behind) ~= "boolean" and targetGuid
         and targetGuid == guidFor("target") and XelAssist.Game.Capabilities
         and XelAssist.Game.Capabilities.Geometry then
         local unit = actor == "pet" and "pet" or "player"
@@ -329,6 +384,8 @@ function R:CasterContext(casterGuid, school, state, action, targetGuid)
     end
     return { actor = actor, level = tonumber(level), penetration = tonumber(penetration),
         hitBonuses = hitBonuses,
+        weaponSkills = state and state.weaponSkills or nil,
+        frozenStateEvidence = state ~= nil,
         behindTarget = behind, positionKnown = type(behind) == "boolean",
         positionSource = positionSource or "position unavailable",
         penetrationKnown = known, key = actor .. ":l" .. tostring(level or 0)
@@ -338,7 +395,8 @@ end
 
 function R:PhaseContext(context, phase)
     return { actor = context.actor, level = context.level, penetration = context.penetration,
-        hitBonuses = context.hitBonuses,
+        hitBonuses = context.hitBonuses, weaponSkills = context.weaponSkills,
+        frozenStateEvidence = context.frozenStateEvidence,
         penetrationKnown = context.penetrationKnown, deliveryModel = context.deliveryModel,
         deliveryModelKnown = context.deliveryModelKnown,
         deliveryModelSource = context.deliveryModelSource,
@@ -469,7 +527,8 @@ function R:Submitted(action, targetGuid, tooltip, refresh)
                 and tonumber(tooltip.directDamage) > 0 or metadata.directDamage or false,
             duration = tonumber(tooltip and tooltip.duration),
             channel = action.facts and action.facts.channel and true or false,
-            periodic = action.facts and (action.facts.kind == "dot" or action.facts.channel)
+            periodic = action.facts and (action.facts.kind == "dot"
+                or action.facts.channel or action.facts.repeatablePersistentDamage)
                 and true or false })
     end
 end
@@ -800,13 +859,6 @@ function R:AutoAttack(attackerGuid, targetGuid, totalDamage, hitInfo, victimStat
         physicalContext = physical }
 end
 
-local expectedPartial, inverseExpectedPartial
-
-local function innateResistancePoints(level, targetLevel)
-    if type(level) ~= "number" or level <= 0 or type(targetLevel) ~= "number" then return 0 end
-    return truncate((8 * (targetLevel - level)) * level / 63)
-end
-
 function R:ObserveInferredRaw(profile, school, resistedFraction, context, targetLevel)
     if not profile or school < 1 or resistedFraction < 0 or resistedFraction > 0.75
         or not context or not context.level or context.level <= 0 then return end
@@ -1093,16 +1145,27 @@ function R:Miss(spellId, targetGuid, missInfo, casterGuid)
     return school
 end
 
-function R:School(action, tooltip)
+function R:School(action, tooltip, state)
     local facts = action and action.facts or {}
-    local metadata = action and action.spellId and self:SpellFacts(action.spellId) or {}
+    local metadata = action and action.resistanceMetadata
+        or action and action.spellId and self.spellMetadata[action.spellId]
+    if not metadata and not (state
+        or action and action.resistanceMetadataCaptured) then
+        metadata = action and action.spellId
+            and self:SpellFacts(action.spellId) or {}
+    end
+    metadata = metadata or {}
     local learned = action and action.spellId and self.spellSchools[action.spellId]
     if facts.mixedDamage and not facts.damageComponents then
         return nil, false, false, "mixed damage components unresolved"
     end
     local school
     if facts.dynamicSchool then
-        local context = self:DynamicContext(facts.dynamicSchool)
+        local context = action and action.resistanceDynamicContext
+        if not (state or action
+            and action.resistanceDynamicContextCaptured) then
+            context = self:DynamicContext(facts.dynamicSchool)
+        end
         local contextual = context and learned and learned.byContext and learned.byContext[context]
         school = contextual and contextual.lastSchool
     else
@@ -1117,158 +1180,6 @@ function R:School(action, tooltip)
             and "observed " .. tostring(facts.dynamicSchool) .. " school"
         or school ~= nil and "client spell school" or "damage school unknown"
     return school, ignoresArmor and true or false, ignoreResistances and true or false, source
-end
-
-local function ageWeight(lastSeen)
-    if not lastSeen then return 0 end
-    local age = math.max(0, epoch() - lastSeen)
-    return 0.5 ^ (age / PROFILE_HALF_LIFE)
-end
-
--- Expected damage removed by vMaNGOS's discrete 0/25/50/75% resistance
--- outcome table at each resistance-chance breakpoint. Its nominal 100%
--- bucket is capped to 75% for damage, matching the server implementation.
-local PARTIAL_TABLE = {
-    { 0.00, 0.0000 }, { 0.03, 0.0250 }, { 0.05, 0.0575 },
-    { 0.08, 0.0775 }, { 0.10, 0.1000 }, { 0.13, 0.1300 },
-    { 0.15, 0.1525 }, { 0.18, 0.1725 }, { 0.20, 0.2000 },
-    { 0.23, 0.2300 }, { 0.25, 0.2500 }, { 0.28, 0.2700 },
-    { 0.30, 0.2950 }, { 0.33, 0.3250 }, { 0.35, 0.3475 },
-    { 0.38, 0.3725 }, { 0.40, 0.3975 }, { 0.43, 0.4275 },
-    { 0.45, 0.4475 }, { 0.48, 0.4650 }, { 0.50, 0.4950 },
-    { 0.53, 0.5075 }, { 0.55, 0.5300 }, { 0.58, 0.5550 },
-    { 0.60, 0.5725 }, { 0.62, 0.5900 }, { 0.65, 0.6100 },
-    { 0.68, 0.6300 }, { 0.70, 0.6525 }, { 0.73, 0.6675 },
-    { 0.75, 0.6875 },
-}
-
-expectedPartial = function(chance)
-    chance = clamp(chance, 0, 0.75)
-    local i
-    for i = 2, table.getn(PARTIAL_TABLE) do
-        local high, low = PARTIAL_TABLE[i], PARTIAL_TABLE[i - 1]
-        if chance <= high[1] then
-            local span = high[1] - low[1]
-            local ratio = span > 0 and (chance - low[1]) / span or 0
-            return low[2] + (high[2] - low[2]) * ratio
-        end
-    end
-    return PARTIAL_TABLE[table.getn(PARTIAL_TABLE)][2]
-end
-
-inverseExpectedPartial = function(resisted)
-    resisted = tonumber(resisted)
-    if not resisted or resisted < 0 then return nil end
-    local maximum = PARTIAL_TABLE[table.getn(PARTIAL_TABLE)][2]
-    if resisted >= maximum then return 0.75 end
-    local i
-    for i = 2, table.getn(PARTIAL_TABLE) do
-        local high, low = PARTIAL_TABLE[i], PARTIAL_TABLE[i - 1]
-        if resisted <= high[2] then
-            local span = high[2] - low[2]
-            local ratio = span > 0 and (resisted - low[2]) / span or 0
-            return low[1] + (high[1] - low[1]) * ratio
-        end
-    end
-    return 0.75
-end
-
-local function projectedLearnedMitigation(multiplier, reduction, level, periodic, school)
-    multiplier, reduction, level = tonumber(multiplier), tonumber(reduction), tonumber(level)
-    if not multiplier or not reduction or reduction <= 0 or not level or level <= 0 then
-        return multiplier
-    end
-    if school == 0 then
-        if multiplier >= 1 then return multiplier end
-        local constant = 400 + 85 * level
-        local inferredArmor = constant * (1 / math.max(0.05, multiplier) - 1)
-        local projectedArmor = math.max(0, inferredArmor - reduction)
-        return constant / (constant + projectedArmor)
-    end
-    local delta = reduction * 0.15 / level
-    if periodic then delta = delta * 0.1 end
-    if multiplier < 1 then
-        local chance = inverseExpectedPartial(1 - multiplier)
-        if not chance then return multiplier end
-        return 1 - expectedPartial(math.max(0, chance - delta))
-    elseif multiplier > 1 then
-        local chance = inverseExpectedPartial(multiplier - 1)
-        if not chance then return multiplier end
-        return 1 + expectedPartial(math.min(0.75, chance + delta))
-    end
-    return multiplier
-end
-
--- vMaNGOS is used as a Vanilla prior, while live Turtle fields and outcomes
--- remain authoritative. Positive resistance becomes a 0..75% resistance
--- chance; the discrete partial-resist table bends above 50%. Classic periodic
--- damage scales that chance before the table lookup, not the final result.
--- Negative target resistance uses the effective caster's maximum skill and the
--- same table as vulnerability. Innate level-difference resistance applies to every magical
--- school in the Vanilla server prior, including otherwise-zero Holy.
-local function magicMultiplier(raw, level, penetration, targetLevel, school, innate, periodic)
-    if type(raw) ~= "number" or type(level) ~= "number" or level <= 0 then return nil end
-    local effective = raw - math.max(0, tonumber(penetration) or 0)
-    if raw >= 0 then effective = math.max(0, effective) end
-    -- Server vulnerability is resolved before innate higher-level resistance.
-    if effective < 0 then
-        -- vMaNGOS calls GetSkillMaxForLevel on the caster here. For an owned
-        -- player/pet action this is the effective attacker level, floored at
-        -- skill 100, not the victim's defensive level.
-        local vulnerabilityCap = math.max(20, level) * 5
-        local chance = clamp(-effective / vulnerabilityCap, 0, 0.75)
-        if periodic then chance = chance * 0.1 end
-        local vulnerability = expectedPartial(chance)
-        return 1 + vulnerability, effective, -vulnerability, -chance
-    end
-    local modeled = effective
-    if innate and type(targetLevel) == "number" then
-        modeled = modeled + innateResistancePoints(level, targetLevel)
-    end
-    local chance = clamp(modeled * 0.15 / level, 0, 0.75)
-    if periodic then chance = chance * 0.1 end
-    local resisted = expectedPartial(chance)
-    return 1 - resisted, effective, resisted, chance
-end
-
-local function binaryResistance(raw, level, penetration, targetLevel)
-    if type(raw) ~= "number" or type(level) ~= "number" or level <= 0 then return nil end
-    local effective = raw - math.max(0, tonumber(penetration) or 0)
-    if raw >= 0 then effective = math.max(0, effective) end
-    if effective < 0 then
-        local cap = math.max(20, level) * 5
-        local chance = -clamp(-effective / cap, 0, 0.75)
-        return chance, 1 + expectedPartial(-chance), effective
-    end
-    return clamp(effective * 0.15 / level, 0, 0.75), 1, effective
-end
-
-local function armorMultiplier(raw, level, penetration)
-    if type(raw) ~= "number" or type(level) ~= "number" or level <= 0 then return nil end
-    local effective = math.max(0, raw - math.max(0, tonumber(penetration) or 0))
-    local constant = 400 + 85 * level
-    local mitigated = math.min(0.75, effective / (effective + constant))
-    return 1 - mitigated, effective, mitigated
-end
-
-local function learnedValues(record)
-    if not record then return nil, nil, 0 end
-    local recency = ageWeight(record.lastSeen)
-    local samples = (record.samples or 0) * recency
-    local mitigation
-    if samples > 0 then
-        mitigation = ((record.delivered or 0) + PROFILE_PRIOR)
-            / ((record.samples or 0) + PROFILE_PRIOR)
-        mitigation = 1 - (1 - mitigation) * recency
-    end
-    local landSamples = (record.landSamples or 0) * recency
-    local landing
-    if landSamples > 0 then
-        landing = ((record.landHits or 0) + LAND_PRIOR)
-            / ((record.landSamples or 0) + LAND_PRIOR)
-        landing = 1 + (landing - 1) * recency
-    end
-    return mitigation, landing, math.max(samples, landSamples)
 end
 
 local function baseSpellHit(attackerLevel, targetLevel, targetIsPlayer)
@@ -1286,13 +1197,14 @@ end
 local function basePhysicalHit(attackerLevel, targetLevel, targetIsPlayer)
     return XelAssist.Combat.Delivery:BasePhysicalHit(attackerLevel, targetLevel, targetIsPlayer)
 end
-local function learnedDelivery(record, prior)
-    return XelAssist.Combat.Delivery:Learned(record, prior, ageWeight, LAND_PRIOR)
-end
-
 function R:EstimateComponent(action, target, tooltip, state, component)
     local componentAction = { name = action.name, rank = action.rank, actor = action.actor,
-        spellId = action.spellId, facts = { kind = action.facts.kind,
+        spellId = action.spellId,
+        resistanceMetadata = action.resistanceMetadata,
+        resistanceMetadataCaptured = action.resistanceMetadataCaptured,
+        resistanceDynamicContext = action.resistanceDynamicContext,
+        resistanceDynamicContextCaptured = action.resistanceDynamicContextCaptured,
+        facts = { kind = action.facts.kind,
             school = component.school, ignoresArmor = component.mitigation == "none"
                 and component.school == 0 or component.ignoresArmor,
             melee = action.facts.melee, ranged = action.facts.ranged,
@@ -1366,7 +1278,12 @@ function R:Estimate(action, target, tooltip, state, componentCall)
         and periodicDamage and periodicDamage > 0 then
         local function phaseAction(phase)
             local copy = { name = action.name, rank = action.rank, actor = action.actor,
-                spellId = action.spellId, facts = {} }
+                spellId = action.spellId,
+                resistanceMetadata = action.resistanceMetadata,
+                resistanceMetadataCaptured = action.resistanceMetadataCaptured,
+                resistanceDynamicContext = action.resistanceDynamicContext,
+                resistanceDynamicContextCaptured = action.resistanceDynamicContextCaptured,
+                facts = {} }
             local key, value
             for key, value in pairs(facts) do copy.facts[key] = value end
             copy.facts.resistancePhase = phase
@@ -1410,8 +1327,16 @@ function R:Estimate(action, target, tooltip, state, componentCall)
             directDamage = directDamage, periodicDamage = periodicDamage }
     end
 
-    local school, ignoresArmor, ignoreResistances, schoolSource = self:School(action, tooltip)
-    local metadata = action and action.spellId and self:SpellFacts(action.spellId) or {}
+    local school, ignoresArmor, ignoreResistances, schoolSource =
+        self:School(action, tooltip, state)
+    local metadata = action and action.resistanceMetadata
+        or action and action.spellId and self.spellMetadata[action.spellId]
+    if not metadata and not (state
+        or action and action.resistanceMetadataCaptured) then
+        metadata = action and action.spellId
+            and self:SpellFacts(action.spellId) or {}
+    end
+    metadata = metadata or {}
     local result = { school = school, schoolName = self:SchoolName(school), multiplier = 1,
         expectedMultiplier = 1, source = schoolSource or "unknown", confidence = "unknown",
         samples = 0, unknown = true, ignoresArmor = ignoresArmor,
@@ -1430,6 +1355,8 @@ function R:Estimate(action, target, tooltip, state, componentCall)
 
     local snapshot = state and state.targetResistance
     local live = snapshot and snapshot.live
+    local evidenceEpoch = state and (tonumber(state.resistanceEpoch)
+        or snapshot and tonumber(snapshot.observedEpoch) or 0) or nil
     if facts.resistancePhase then result.periodic = facts.resistancePhase == "periodic"
     else result.periodic = facts.kind == "dot" or facts.channel or metadata.periodic or false end
     result.binary = deliveryModel == "magic" and (facts.binary or metadata.binary) or false
@@ -1450,7 +1377,7 @@ function R:Estimate(action, target, tooltip, state, componentCall)
     local pen = context.penetrationKnown and (context.penetration or 0) or 0
     result.penetration, result.penetrationUnknown = pen, not context.penetrationKnown
     local raw, identity = live and tonumber(live[school]), snapshot and snapshot.identity
-    if not identity and not (state and state.targetContextKey ~= nil) then
+    if not identity and not state then
         local currentGuid = guidFor("target")
         identity = currentGuid and self.identities[currentGuid] or self:Identity("target")
     end
@@ -1458,13 +1385,15 @@ function R:Estimate(action, target, tooltip, state, componentCall)
     local profile = self:Profile(identity, false)
     local rawSource = live and (snapshot.liveSource or "live target resistance") or nil
     local cached = profile and profile.raw and profile.raw[school]
-    if raw == nil and cached and cached.kind == "base" and ageWeight(cached.lastSeen) > 0.05 then
+    if raw == nil and cached and cached.kind == "base"
+        and ageWeight(cached.lastSeen, evidenceEpoch) > 0.05 then
         raw, rawSource = tonumber(cached.value), "cached Turtle base resistance"
     end
     local rawKey = tostring(school) .. ":" .. tostring(context.key)
     local rawRecord = profile and profile.inferredRawContexts
         and profile.inferredRawContexts[rawKey]
-    local rawSamples = rawRecord and (rawRecord.samples or 0) * ageWeight(rawRecord.lastSeen) or 0
+    local rawSamples = rawRecord and (rawRecord.samples or 0)
+        * ageWeight(rawRecord.lastSeen, evidenceEpoch) or 0
     if raw == nil and rawRecord and rawSamples >= 8 and inverseExpectedPartial then
         local mean = (rawRecord.resistedTotal or 0) / math.max(0.001, rawRecord.samples)
         local chance = inverseExpectedPartial(mean)
@@ -1514,19 +1443,23 @@ function R:Estimate(action, target, tooltip, state, componentCall)
     local landKey = tostring(school) .. ":" .. tostring(landContext.key)
     local mitigationRecord = profile and profile.contexts and profile.contexts[mitigationKey]
     local landRecord = profile and profile.contexts and profile.contexts[landKey]
-    local learnedMitigation, ignoredLanding, mitigationSamples = learnedValues(mitigationRecord)
-    local ignoredMitigation, learnedResistanceLanding, landSamples = learnedValues(landRecord)
+    local learnedMitigation, ignoredLanding, mitigationSamples =
+        learnedValues(mitigationRecord, evidenceEpoch)
+    local ignoredMitigation, learnedResistanceLanding, landSamples =
+        learnedValues(landRecord, evidenceEpoch)
     local mitigationFromBaseline, landFromBaseline = false, false
     if mitigationContext.key ~= baselineMitigationContext.key and not learnedMitigation then
         local key = tostring(school) .. ":" .. tostring(baselineMitigationContext.key)
         local baseline = profile and profile.contexts and profile.contexts[key]
-        learnedMitigation, ignoredLanding, mitigationSamples = learnedValues(baseline)
+        learnedMitigation, ignoredLanding, mitigationSamples =
+            learnedValues(baseline, evidenceEpoch)
         mitigationFromBaseline = learnedMitigation ~= nil
     end
     if landContext.key ~= baselineLandContext.key and not learnedResistanceLanding then
         local key = tostring(school) .. ":" .. tostring(baselineLandContext.key)
         local baseline = profile and profile.contexts and profile.contexts[key]
-        ignoredMitigation, learnedResistanceLanding, landSamples = learnedValues(baseline)
+        ignoredMitigation, learnedResistanceLanding, landSamples =
+            learnedValues(baseline, evidenceEpoch)
         landFromBaseline = learnedResistanceLanding ~= nil
     end
     local spellContextKey = action and action.spellId and tostring(action.spellId)
@@ -1534,7 +1467,7 @@ function R:Estimate(action, target, tooltip, state, componentCall)
     local combinedRecord = spellContextKey and profile and profile.spells
         and profile.spells[spellContextKey]
     local ignoredCombinedMitigation, learnedCombined, combinedSamples =
-        learnedValues(combinedRecord)
+        learnedValues(combinedRecord, evidenceEpoch)
     local combinedFromBaseline = false
     if landContext.key ~= baselineLandContext.key and not learnedCombined and action
         and action.spellId then
@@ -1542,7 +1475,7 @@ function R:Estimate(action, target, tooltip, state, componentCall)
             .. ":" .. tostring(baselineLandContext.key)
         combinedRecord = profile and profile.spells and profile.spells[baselineKey]
         ignoredCombinedMitigation, learnedCombined, combinedSamples =
-            learnedValues(combinedRecord)
+            learnedValues(combinedRecord, evidenceEpoch)
         combinedFromBaseline = learnedCombined ~= nil
     end
     local currentDeliveryKey = deliveryKey(landContext)
@@ -1567,7 +1500,8 @@ function R:Estimate(action, target, tooltip, state, componentCall)
         priorHit = HitDelivery:MagicPrior(baseSpellHit(attackerLevel, targetLevel,
             identity and identity.isPlayer), context.hitBonuses)
     end
-    local learnedOrdinaryLanding, deliverySamples = learnedDelivery(deliveryRecord, priorHit)
+    local learnedOrdinaryLanding, deliverySamples = learnedDelivery(
+        deliveryRecord, priorHit, evidenceEpoch)
     local spellDeliveryKey = action and action.spellId
         and tostring(action.spellId) .. ":" .. currentDeliveryKey
     local spellDeliveryRecord = spellDeliveryKey and profile and profile.spellDeliveryContexts
@@ -1576,7 +1510,8 @@ function R:Estimate(action, target, tooltip, state, componentCall)
     -- and its spell-specific context.  They are alternate estimates, not two
     -- independent rolls; calculate both from the same prior and prefer the
     -- exact spell estimate when it exists.
-    local spellLanding, spellDeliverySamples = learnedDelivery(spellDeliveryRecord, priorHit)
+    local spellLanding, spellDeliverySamples = learnedDelivery(
+        spellDeliveryRecord, priorHit, evidenceEpoch)
     local ordinaryLanding = magicGuaranteedDelivery and 1
         or spellLanding or learnedOrdinaryLanding or priorHit
     deliverySamples = math.max(deliverySamples or 0, spellDeliverySamples or 0)

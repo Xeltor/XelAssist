@@ -6,7 +6,8 @@ local H = XelAssist.Combat.HitDelivery
 
 function H:Bonuses(state, actor)
     if actor ~= "player" then return nil end
-    return state and state.hitBonuses or XelAssist.Game.HitBonuses
+    if state ~= nil then return state.hitBonuses end
+    return XelAssist.Game.HitBonuses
         and XelAssist.Game.HitBonuses:Snapshot() or nil
 end
 

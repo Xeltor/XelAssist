@@ -48,7 +48,11 @@ while `Graph/ReadinessEffects.lua` owns chosen-action cooldown clocks.
 and conservatively owns the single live pending bit on Nampower 4.7.0.
 `Game/Player/EnergyEvidence.lua` learns a session-only exact player-energy
 cadence, `EnergyEvents.lua` owns its Nampower attribution/reset boundary, and
-`Resources.lua` performs conservative graph-clock arithmetic.
+`ManaEvidence.lua` and `ManaEvents.lua` learn a separate conservative player
+mana envelope while excluding attributed energizes and binding recovery to an
+observed spell payment boundary. `Resources.lua` performs shared conservative
+graph-clock arithmetic, while `Graph/PlayerResourceTimeline.lua` closes or
+rearms mana evidence at the chosen action's causal start/payment boundary.
 `Graph/PlayerSwings.lua` schedules the corresponding target-pinned ambient
 rounds and applies full replacement-hit consequences, while
 `Graph/PlayerSwingScoring.lua` values only the gain over the displaced white hit.
@@ -64,10 +68,25 @@ Architecture tests prevent the old monolith or a dependency cycle from returning
 
 `Game/Player/DruidFormState.lua` owns exact local form and explicit power-slot
 evidence; `Graph/DruidForms.lua` alone projects hidden-mana payments and form
-changes. `Game/Player/ReactiveEvidence.lua` decodes exact player aura-state
+changes, while `Game/Player/DruidProwl.lua` contributes only a target-pinned
+stealth setup contract. `Game/Player/WarriorStanceEffects.lua` seals stance and
+Defiance consequences; `Graph/WarriorStances.lua` replaces that profile after a
+neutral transition. `Game/Player/RogueFeint.lua` and `Graph/RogueFeint.lua`
+own exact selected-target threat reduction without broadening it into a global
+drop. `Game/Player/ReactiveEvidence.lua` decodes exact player aura-state
 bits, while `Graph/ReactiveState.lua` enforces their root-only lifetime and
 branch-local consumption. `Graph/HunterAspects.lua` owns exact player-aura
 aspect replacement and a fail-closed gate until downstream effects exist.
+`Game/Player/MageManaShield.lua`, `PriestShield.lua`, and their focused graph
+consumers own physical mana-backed capacity and recipient-local lockout.
+`HunterMark.lua` owns numeric target-local ranged attack power, while
+`Graph/HunterMark.lua` exposes value only through matching ranged-weapon and
+Auto Shot descendants. `PriestShadowform.lua` owns a neutral form transition
+whose later Shadow output and pre-absorb physical mitigation supply its value.
+The Shaman Windfury evidence/graph pair owns only the exact solo first-rank
+extra-main-hand consequence; unresolved group fanout never becomes utility.
+Paladin blessing threat is another downstream multiplier: lifecycle discovery
+does not choose it, and only later player-threat consequences create value.
 `Graph/LeechChannel.lua`
 owns delivered hostile-damage/player-healing tick pairs. None of these modules
 contains a class action order.
@@ -121,6 +140,12 @@ clocks are independent: a pet interrupt can remain immediately available while
 the player is casting. Applying a candidate advances the responsible actor's
 clock and updates that actor's resource, health, targets, auras, threat state,
 summon/sacrifice state, dispels, and known cooldowns before the next layer.
+Before search, a sliced root observation freezes action facts and mutable client
+evidence. Helpful and harmful auras are enumerated once per opaque recipient,
+while identical equipped-weapon bases and school bonus power are shared across
+ranks inside that observation. Unknown or incomplete enumeration stays unknown,
+and no cache crosses into a later evaluation. Sealing detaches the live action
+catalogue so graph methods cannot reread client APIs while exploring branches.
 Warlock Soul Shards are a bounded stock ledger: live count and a per-character
 reserve flow through descendants, eligible Drain Soul death windows add
 expected stock, and shard consumers pay marginal scarcity only below reserve.
@@ -330,7 +355,10 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   prior owner and count, a landed builder transfers ownership to its target,
   and a failed finisher retains that target's points. ClassicAPI duration
   endpoints interpolate combo-scaled auras against the conditional points
-  owned by the candidate target. This is mechanic data, not a Rogue action order.
+  owned by the candidate target. If a delivery record exists without a land
+  probability, later combo authority becomes unknown until the next live
+  snapshot instead of assuming success. This is mechanic data, not a Rogue
+  action order.
 - Armor or school resistance is applied to expected damage before it enters
   throughput, overkill, periodic-payback, future-health, leech, and threat math.
   This lets a smaller Shadow hit beat a larger Fire hit when target evidence
@@ -351,8 +379,11 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   delivery prior with the level-scaled Armor formula. Exact outcomes supersede
   those priors. Equipped spell/armor penetration is subtracted when a complete
   English equipment-tooltip scan is available.
-- Live tooltip reductions from Sunder Armor, Expose Armor, Faerie Fire, and
-  resistance curses become projected target-state deltas. Future beam nodes can
+- Exact installed-DBC reductions and supported live tooltip reductions from
+  Sunder Armor, Expose Armor, Faerie Fire, and resistance curses become
+  projected target-state deltas. Expose Armor's zero base plus exact per-combo
+  DBC magnitude is retained even when its table-shaped tooltip is not parseable.
+  Future beam nodes can
   therefore compare “debuff, then exploit the lower resistance” with immediate
   damage, including school-specific damage-taken bonuses, stack/combo scaling,
   and the observed or modeled probability that the debuff itself lands.
@@ -412,6 +443,14 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
 - Non-tanks receive a threat penalty in groups. When they already hold aggro the
   penalty steepens, allowing lower-rank/lower-threat actions or a threat drop to
   win from the same utility equation.
+- Threat reduction keeps its real recipient and topology. Feint lowers only the
+  selected hostile's projected player delta after weapon-skill delivery;
+  Paladin all-threat blessings multiply only their proven recipient's later
+  player-owned packets. Neither mechanism claims a victim switch or class-wide
+  action order.
+- Absorbs are valued against frozen incoming consequences they can actually
+  stop. Mana Shield excludes nonphysical schools and caps capacity by remaining
+  mana; Power Word: Shield carries Weakened Soul on the exact friendly branch.
 - Interrupts preempt throughput only during a detected cast. Cast-time actions
   are excluded while moving. ClassicAPI's geometric range verdict is preferred
   when available, with the legacy direct verdict as fallback. Command acceptance
@@ -441,6 +480,10 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
   Growl/Cower, focus attacks, movement, control, self-defense, and family actions
   are ID-first facts taken from the installed Octowow DBCs; only actions present
   in the live pet spellbook and executable pet bar become graph nodes.
+  Web and Charge preserve their exact root chains but do not suppress a cast;
+  Intimidation remains armed until a matching successful target-pinned melee
+  branch applies its stun. It receives control utility only when that frozen
+  swing arrives before a represented hostile consequence.
   Ordinary companion main-hand attacks are a separate actor clock: only an
   exact classified Nampower round anchors phase, and each future round stays
   pinned to that pet and hostile identity. It is independent of focus and the

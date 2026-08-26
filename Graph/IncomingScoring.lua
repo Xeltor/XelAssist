@@ -2,6 +2,7 @@
 -- separate from generic potency scoring so unsupported evidence has one gate.
 XelAssist.Graph.IncomingScoring = {}
 local I = XelAssist.Graph.IncomingScoring
+local MageManaShieldScoring = XelAssist.Graph.MageManaShieldScoring
 
 local function recipientGuid(context)
     local descriptor = context and context.descriptor
@@ -39,14 +40,36 @@ function I:AbsorbValue(context)
     local duration = tonumber(context.tooltip and context.tooltip.duration)
     if duration == nil then duration = 10 end
     duration = math.min(15, math.max(0, duration))
-    local amount = incoming(context, application + duration, application)
+    local evidence, blocker, handled
+    if MageManaShieldScoring then
+        evidence, blocker, handled = MageManaShieldScoring:Evidence(
+            context, application + duration, application)
+    end
+    if handled and not evidence then
+        context.incomingDuringAbsorbExact = false
+        context.estimated = true
+        return -100000, blocker or "absorb consequence evidence unavailable"
+    end
+    local amount = evidence and evidence.incoming
+        or incoming(context, application + duration, application)
     context.incomingDuringAbsorb = amount
+    local power = evidence and evidence.capacity
+        or tonumber(context.absorbEffectivePower) or context.power
+    if evidence then
+        context.incomingDuringAbsorbExact = evidence.incomingExact
+        context.mageManaShieldUnknownIncomingEvents =
+            evidence.unknownIncomingEvents
+        if not evidence.incomingExact then context.estimated = true end
+    end
     local heuristic = context.friendly
         and context.friendly.targetedByCurrentEnemy
         or context.target == "player" and context.state.hasAggro
-    local expected = amount > 0 or heuristic
-    local value = context.power * 3 / math.max(0.5, context.downtime)
-        + (expected and 900 or 0) + math.min(context.power, amount) * 5
+    if evidence and evidence.allowAggroHeuristic == false then
+        heuristic = false
+    end
+    local expected = power > 0 and (amount > 0 or heuristic)
+    local value = power * 3 / math.max(0.5, context.downtime)
+        + (expected and 900 or 0) + math.min(power, amount) * 5
     return value, expected and "absorbs expected incoming damage"
         or "adds a protective buffer"
 end

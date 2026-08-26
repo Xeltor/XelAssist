@@ -171,9 +171,9 @@ function D:BaseSpellHit(attackerLevel, targetLevel, targetIsPlayer)
     return clamp(percent / 100, 0.22, 0.99)
 end
 
-function D:Learned(record, prior, ageWeight, priorWeight)
+function D:Learned(record, prior, ageWeight, priorWeight, observedEpoch)
     if not record then return nil, 0 end
-    local recency = ageWeight(record.lastSeen)
+    local recency = ageWeight(record.lastSeen, observedEpoch)
     local samples = (record.samples or 0) * recency
     if samples <= 0 then return nil, 0 end
     local posterior = ((record.hits or 0) + priorWeight * prior)
@@ -191,7 +191,7 @@ local function compactContextToken(value)
     return tostring(hash)
 end
 
-local function targetDefense(identity, actor, attackerLevel)
+local function targetDefense(identity, actor, attackerLevel, frozen)
     local level = identity and tonumber(identity.level)
     if level == -1 and attackerLevel and attackerLevel > 0 then level = attackerLevel + 3 end
     if identity and identity.isPlayer then
@@ -200,8 +200,12 @@ local function targetDefense(identity, actor, attackerLevel)
         -- bonuses. A pet/non-player attacker instead checks the victim's
         -- current Defense. UnitDefense exposes the current base plus the same
         -- bonus term when the hostile unit API supplies a non-zero value.
-        local liveBase, liveModifier
-        if identity.guid == guidFor("target") and UnitDefense then
+        local liveBase = identity.defenseObserved
+            and tonumber(identity.defenseBase) or nil
+        local liveModifier = liveBase
+            and (tonumber(identity.defenseModifier) or 0) or nil
+        if not frozen and not liveBase
+            and identity.guid == guidFor("target") and UnitDefense then
             local ok, base, modifier = pcall(UnitDefense, "target")
             if ok and type(base) == "number" and base > 0 then
                 liveBase, liveModifier = base, tonumber(modifier) or 0
@@ -274,8 +278,14 @@ function D:PhysicalContext(action, metadata, context, identity)
     end
     local actor = context and context.actor or action and action.actor or "player"
     local level = context and tonumber(context.level)
-    local skills = actor == "player" and XelAssist.Game.Capabilities
-        and XelAssist.Game.Capabilities.WeaponSkills and XelAssist.Game.Capabilities:WeaponSkills() or nil
+    local skills = actor == "player" and context
+        and context.weaponSkills or nil
+    if actor == "player" and not skills
+        and not (context and context.frozenStateEvidence)
+        and XelAssist.Game.Capabilities
+        and XelAssist.Game.Capabilities.WeaponSkills then
+        skills = XelAssist.Game.Capabilities:WeaponSkills()
+    end
     local record, attackerSkill, skillKnown, skillSource, weaponToken
     if actor ~= "player" then
         attackerSkill, skillKnown = level and level > 0 and level * 5 or nil,
@@ -295,7 +305,8 @@ function D:PhysicalContext(action, metadata, context, identity)
     else
         skillKnown, skillSource = false, "spell weapon-skill mode unavailable"
     end
-    local defense, defenseKnown, defenseSource = targetDefense(identity, actor, level)
+    local defense, defenseKnown, defenseSource = targetDefense(identity, actor,
+        level, context and context.frozenStateEvidence)
     local dualRelevant = facts.whiteAttack == true and subtype ~= "ranged"
     local dualStateKnown = not dualRelevant
     if dualRelevant and type(skills) == "table" then

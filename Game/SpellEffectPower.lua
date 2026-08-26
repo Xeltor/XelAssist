@@ -132,4 +132,7 @@ function P:Apply(action, out, dbc, dbcArray)
         out.periodicDamage = periodic
         out.periodicDamageSource = out.dbcEffectSource
     end
+    local persistent = XelAssist.Game.Caster
+        and XelAssist.Game.Caster.PersistentDamage
+    if persistent then persistent:ApplyPower(action, out) end
 end

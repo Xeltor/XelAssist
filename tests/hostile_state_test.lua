@@ -435,6 +435,7 @@ dofile("Graph/ReadinessEffects.lua")
 dofile("Graph/ActionConsumption.lua")
 dofile("Graph/DotProjection.lua")
 dofile("Graph/ComboEffects.lua")
+dofile("Graph/FriendlyActionEffects.lua")
 dofile("Graph/ActionEffects.lua")
 
 local modifierName = "Shadow Vulnerability"

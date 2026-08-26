@@ -91,4 +91,17 @@ assert(C:Availability(selfState, "target-a") == 0
     and C:Availability(selfState, "target-b") == 0,
     "a landed self finisher must consume whichever hostile branch owns the points")
 
+local unknownState = { targetGUID = "target-a" }
+C:Attach(unknownState, 3, "target-a", { selectedExact = true,
+    globalExact = true, source = "test combo owner" })
+assert(C:Apply(unknownState, { targetGUID = "target-a",
+    tooltip = { comboGain = 1 }, resistance = { unknown = true } },
+    { kind = "builder" })
+    and unknownState.comboTransitionUnknown == true
+    and unknownState.comboTransitionUnknownReason
+        == "combo delivery probability unknown"
+    and C:Availability(unknownState, "target-a") == 0
+    and C:Expected(unknownState, "target-a") == 0,
+    "missing land probability must erase future combo authority, not assume a hit")
+
 print("ok: target-owned probabilistic combo and duration state")

@@ -14,9 +14,9 @@ local function close(actual, expected, message)
 end
 
 local exactDefensive = { actor = "player", playerOnly = true,
-    exact = true, multiplier = 1.495, minimum = 1.495, maximum = 1.495 }
+    exact = true, multiplier = 1.56, minimum = 1.56, maximum = 1.56 }
 local boundedDefensive = { actor = "player", playerOnly = true,
-    exact = false, minimum = 1.3, maximum = 1.495 }
+    exact = false, minimum = 1.3, maximum = 1.56 }
 
 local multiplier, exact = PlayerThreat:Resolve(
     { tank = true, playerThreat = boundedDefensive }, "player")
@@ -25,12 +25,12 @@ assert(exact == false,
     "bounded tank threat must remain explicitly inexact")
 multiplier, exact = PlayerThreat:Resolve(
     { tank = false, playerThreat = boundedDefensive }, "player")
-close(multiplier, 1.495, "non-tank upper bound")
+close(multiplier, 1.56, "non-tank upper bound")
 assert(exact == false,
     "bounded non-tank threat must remain explicitly inexact")
 multiplier, exact = PlayerThreat:Resolve(
     { tank = true, playerThreat = exactDefensive }, "player")
-close(multiplier, 1.495, "exact Defensive multiplier")
+close(multiplier, 1.56, "exact Defensive multiplier")
 assert(exact == true, "exact live evidence must remain exact")
 multiplier, exact = PlayerThreat:Resolve(
     { tank = true, playerThreat = boundedDefensive }, "pet")
@@ -79,8 +79,8 @@ local function score(profile, tank)
 end
 
 local defensiveScore = score(exactDefensive, true)
-close(defensiveScore.threat, 149.5, "exact scored Defensive threat")
-close(defensiveScore.playerThreatMultiplier, 1.495,
+close(defensiveScore.threat, 156, "exact scored Defensive threat")
+close(defensiveScore.playerThreatMultiplier, 1.56,
     "scored Defensive component")
 assert(defensiveScore.playerThreatExact == true
     and defensiveScore.reason == "builds threat",
@@ -91,7 +91,7 @@ close(boundedTank.threat, 130, "conservative bounded tank score")
 assert(boundedTank.estimated and boundedTank.playerThreatExact == false,
     "bounded tank score must retain uncertainty")
 local boundedRisk = score(boundedDefensive, false)
-close(boundedRisk.threat, 149.5, "conservative bounded threat risk")
+close(boundedRisk.threat, 156, "conservative bounded threat risk")
 assert(boundedRisk.estimated and boundedRisk.playerThreatExact == false,
     "bounded non-tank score must retain uncertainty")
 

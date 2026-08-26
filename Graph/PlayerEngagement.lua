@@ -20,7 +20,9 @@ end
 
 local function currentTarget(attack)
     return attack and (attack.targetGuid
-        or attack.attackRound and attack.attackRound.targetGuid) or nil
+        or attack.attackRound and attack.attackRound.targetGuid
+        or attack.offhandAttackRound
+            and attack.offhandAttackRound.targetGuid) or nil
 end
 
 function E:Apply(out, candidate)

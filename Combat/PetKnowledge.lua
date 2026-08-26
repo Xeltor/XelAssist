@@ -17,6 +17,13 @@ local PET_THREAT_BY_ID = {
     [14919] = 240, [14920] = 320, [14921] = 415,
     [1742] = -30, [1753] = -55, [1754] = -85, [1755] = -125,
     [1756] = -175, [16697] = -225,
+    -- Installed Octowow Spell.dbc opcode-63 base points (+1) for the
+    -- Voidwalker's flat-threat component. Torment is a hybrid with a separate
+    -- opcode-2 damage effect; Suffering's area damage remains a conservative
+    -- lower bound until every recipient can be proven.
+    [3716] = 45, [7809] = 75, [7810] = 125, [7811] = 215,
+    [11774] = 300, [11775] = 395,
+    [17735] = 150, [17750] = 300, [17751] = 450, [17752] = 600,
 }
 
 local function copy(source)
@@ -106,9 +113,13 @@ define("WARLOCK", "Firebolt", { kind = "damage", ranged = true },
 define("WARLOCK", "Lash of Pain", { kind = "damage", melee = true },
     { 7814, 7815, 7816, 11778, 11779, 11780 })
 define("WARLOCK", "Shadow Bite", { kind = "damage", melee = true })
-define("WARLOCK", "Torment", { kind = "taunt", melee = true, threat = 3 },
+define("WARLOCK", "Torment", { kind = "damage", melee = true,
+    petThreatGain = true, hybridPetThreat = true,
+    requiresExactPetThreat = true },
     { 3716, 7809, 7810, 7811, 11774, 11775 })
-define("WARLOCK", "Suffering", { kind = "taunt", aoe = true, threat = 3 },
+define("WARLOCK", "Suffering", { kind = "petThreat", aoe = true,
+    petThreatGain = true, petThreatLowerBound = true,
+    requiresExactPetThreat = true },
     { 17735, 17750, 17751, 17752 })
 define("WARLOCK", "Sacrifice", { kind = "absorb", petSacrifice = true },
     { 7812, 19438, 19440, 19441, 19442, 19443 })
@@ -158,6 +169,10 @@ function K:Facts(spellId, name, ownerClass)
     if not entry then return nil end
     local facts = copy(entry.facts)
     local threat = spellId and PET_THREAT_BY_ID[spellId]
+    if facts.requiresExactPetThreat
+        and (source ~= "octowow dbc id" or type(threat) ~= "number") then
+        return nil
+    end
     if threat and threat > 0 then facts.petThreatGain = threat
     elseif threat and threat < 0 then facts.petThreatDrop = math.abs(threat) end
     facts.petKnowledgeSource = source

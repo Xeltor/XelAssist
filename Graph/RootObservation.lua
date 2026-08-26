@@ -1,5 +1,4 @@
--- Sliced, evaluation-owned capture of mutable root evidence. Search readers
--- may use live APIs only when no observation contract is attached to state.
+-- Sliced, evaluation-owned capture of mutable root evidence.
 XelAssist.Graph.RootObservation = {}
 local R = XelAssist.Graph.RootObservation
 local function part(value)
@@ -202,13 +201,14 @@ local function captureUsability(observed, action)
     end
     local capabilities = XelAssist.Game.Capabilities
     if not (capabilities and capabilities.Usable) then return out end
-    local ok, usable, reason = pcall(
-        capabilities.Usable, capabilities, action)
+    local ok, usable, reason = pcall(capabilities.Usable, capabilities, action)
     out.known, out.usable, out.reason = ok and usable ~= nil,
         ok and usable or nil, ok and reason or "usability query failed"
     return out
 end
 local function capturePower(observed, action, facts)
+    local owner = XelAssist.Game.RootPowerEvidence
+    if owner then return owner:Capture(observed, action, facts, R:ActionKey(action)) end
     local out = { captured = true }
     if tonumber(facts.weaponCoefficient) ~= nil then
         local weapon = XelAssist.Game.WeaponPower
@@ -273,10 +273,15 @@ local function captureFacts(action)
         known, facts = pcall(actors.Facts, actors, action)
         known = known and type(facts) == "table"
     end
+    local stances = XelAssist.Graph.WarriorStances
+    if facts and stances then facts = stances:CaptureFacts(action, facts) end
+    if facts and XelAssist.Game.CrowdControl then facts = XelAssist.Game.CrowdControl:CaptureFacts(action, facts) end
+    if facts and XelAssist.Graph.ClassMechanics then facts = XelAssist.Graph.ClassMechanics:CaptureFacts(action, facts) end
     return facts and copy(facts, 9) or nil, known
 end
 local function captureAction(observed, source)
     local action = copyAction(source)
+    if XelAssist.Graph.ResistanceEvidence then XelAssist.Graph.ResistanceEvidence:Attach(action) end
     local key = R:ActionKey(action)
     local record = { key = key, action = action, recipients = {} }
     record.facts, record.factsKnown = captureFacts(action)
@@ -303,6 +308,9 @@ local function captureAction(observed, source)
     if triggered and triggered.ResultAction and triggered.EffectFacts then
         local result = triggered:ResultAction(action)
         if result ~= action then
+            local resistance = XelAssist.Graph.ResistanceEvidence
+            if resistance then resistance:AttachResult(action, result) end
+            if triggered.SealResultFacts then triggered:SealResultFacts(action, result) end
             local effectFacts = triggered:EffectFacts(action, record.facts or {})
             capturePower(observed, result, effectFacts or {})
         end
@@ -325,9 +333,9 @@ local function targetState(state, descriptor)
     end
     return state
 end
-local function auraEvidence(action, descriptor)
-    local capabilities = XelAssist.Game.Capabilities
-    local fn, argument
+local function auraEvidence(observed, action, descriptor) local rootAuras = XelAssist.Game.RootAuraEvidence
+    if rootAuras then return rootAuras:Capture(observed, action, descriptor) end
+    local capabilities, fn, argument = XelAssist.Game.Capabilities, nil, nil
     if descriptor.relation ~= "hostile" then
         fn, argument = capabilities and capabilities.UnitHasBuff, descriptor.unit
     elseif descriptor.unit == "target" then
@@ -340,7 +348,6 @@ local function auraEvidence(action, descriptor)
     else ok, active = pcall(fn, capabilities, argument) end
     return ok, ok and active and true or false
 end
-
 local function pendingEvidence(observed, action, descriptor)
     if not observed.pendingKnown then return false, false end
     local facts = action.facts or {}
@@ -351,7 +358,6 @@ local function pendingEvidence(observed, action, descriptor)
         action.name, action.actor, target)
     return ok, ok and active and true or false
 end
-
 local function targetEvidence(observed, descriptor)
     local key = R:RecipientKey(descriptor)
     if key == nil then return nil end
@@ -371,15 +377,14 @@ local function targetEvidence(observed, descriptor)
     observed.targetRecords[key] = out
     return out
 end
-
 local function captureRecipient(observed, descriptor)
     local action, state = observed.currentAction,
         targetState(observed.state, descriptor)
     local record = { key = R:RecipientKey(descriptor) }
     record.targetEvidence = targetEvidence(observed, descriptor)
-    record.auraKnown, record.auraActive = auraEvidence(action, descriptor)
-    record.pendingKnown, record.pending = pendingEvidence(
-        observed, action, descriptor)
+    record.auraKnown, record.auraActive = auraEvidence(observed, action, descriptor)
+    record.pendingKnown, record.pending = pendingEvidence(observed, action, descriptor)
+    if XelAssist.Graph.ClassMechanics then XelAssist.Graph.ClassMechanics:CaptureRecipient(observed, action, descriptor) end
     record.observationKnown = true
     if descriptor.relation == "hostile" and XelAssist.Combat.Observations
         and XelAssist.Combat.Observations.Blocker then
@@ -395,12 +400,11 @@ local function captureRecipient(observed, descriptor)
     else record.rangeKnown = false end
     observed.currentRecord.recipients[record.key] = record
 end
-
 function R:Begin(state, actions, observedAt)
     if type(state) ~= "table" or type(actions) ~= "table" then return nil end
     local observed = { xelRootObservation = true, state = state,
-        observedAt = tonumber(observedAt)
-            or (type(GetTime) == "function" and tonumber(GetTime()) or 0) or 0,
+        observedAt = tonumber(observedAt) or (type(GetTime) == "function"
+            and tonumber(GetTime()) or 0) or 0,
         config = copy(XelAssistCharDB or {}, 9), actions = {},
         actionRecords = {}, powerRecords = {}, targetRecords = {},
         sourceActions = actions,
@@ -408,13 +412,11 @@ function R:Begin(state, actions, observedAt)
     state.rootObservation = observed
     return observed
 end
-
 local function finishAction(observed)
     observed.actionIndex = observed.actionIndex + 1
     observed.currentRecord, observed.currentAction = nil, nil
     observed.recipients, observed.recipientIndex, observed.phase = nil, nil, "action"
 end
-
 function R:Step(observed)
     if type(observed) ~= "table" or not observed.xelRootObservation then
         return true, "invalid root observation"
@@ -434,7 +436,6 @@ function R:Step(observed)
     end
     return observed.complete and true or false
 end
-
 function R:Seal(observed)
     if type(observed) ~= "table" or not observed.xelRootObservation then
         return nil, "invalid root observation"
@@ -444,7 +445,6 @@ function R:Seal(observed)
     observed.sourceActions, observed.recipients = nil, nil
     observed.currentRecord, observed.currentAction = nil, nil
     observed.actionIndex, observed.recipientIndex = nil, nil
-    observed.state.rootObservation = observed
-    observed.state = nil
+    observed.state.rootObservation = observed; observed.state = nil
     return observed
 end

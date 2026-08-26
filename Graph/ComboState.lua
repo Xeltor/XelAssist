@@ -162,6 +162,18 @@ function C:TooltipFor(state, targetGUID, tooltip, allOwners)
     return out
 end
 
+local function publish(state, branches, unknownReason)
+    state.comboBranches = branches
+    state.comboProjected = true
+    state.comboObservedPoints = nil
+    state.comboObservedSelectedPoints = nil
+    state.comboTargetGUID = nil
+    state.comboGlobalExact = false
+    state.comboTransitionUnknown = unknownReason ~= nil
+    state.comboTransitionUnknownReason = unknownReason
+    C:Refresh(state)
+end
+
 function C:Apply(state, candidate, facts)
     local tooltip = candidate.tooltip or {}
     local gain = tonumber(tooltip.comboGain)
@@ -174,7 +186,13 @@ function C:Apply(state, candidate, facts)
         targetGUID = candidate.targetGUID or state.targetGUID or UNKNOWN_TARGET
     end
     local land = candidate.resistance
-        and candidate.resistance.landChance or 1
+        and tonumber(candidate.resistance.landChance) or nil
+    if candidate.resistance and land == nil then
+        publish(state, { { targetGUID = nil, points = 0, probability = 1 } },
+            "combo delivery probability unknown")
+        return true
+    end
+    land = land or 1
     land = clampProbability(land)
     local current, projected = self:Ensure(state), {}
     local i
@@ -199,12 +217,6 @@ function C:Apply(state, candidate, facts)
             addBranch(projected, branch.targetGUID, prior, probability)
         end
     end
-    state.comboBranches = projected
-    state.comboProjected = true
-    state.comboObservedPoints = nil
-    state.comboObservedSelectedPoints = nil
-    state.comboTargetGUID = nil
-    state.comboGlobalExact = false
-    self:Refresh(state)
+    publish(state, projected, nil)
     return true
 end

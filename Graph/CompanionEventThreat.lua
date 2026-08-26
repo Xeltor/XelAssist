@@ -21,9 +21,33 @@ function T:AddDamage(record, ambient, amount, pet)
     record.threat.petDelta = (tonumber(record.threat.petDelta) or 0) + threat
 end
 
+function T:HybridFlatThreat(state, action, delivery)
+    local facts = action and action.facts or {}
+    local actor = facts.damageActor or facts.effectActor
+        or action and action.actor
+    if actor ~= "pet" or facts.hybridPetThreat ~= true
+        or type(facts.petThreatGain) ~= "number" then return nil end
+    local effects = XelAssist.Game.Pets and XelAssist.Game.Pets.Effects
+    local multiplier = effects and effects:ThreatMultiplier(
+        state.actors and state.actors.pet) or 1
+    local probability = math.max(0, math.min(1, tonumber(delivery) or 1))
+    return math.max(0, facts.petThreatGain) * probability * multiplier
+end
+
 function T:ConsumeMelee(target, out, action, targetGuid, delivery, record,
     selected)
-    if not (XelAssist.Game.Pets and XelAssist.Game.Pets.Effects) then return end
+    local facts = action and action.facts or {}
+    local actor = facts.damageActor or facts.effectActor
+        or action and action.actor
+    local hybridApplied = false
+    if actor == "pet" and facts.hybridPetThreat == true
+        and type(facts.petThreatGain) == "number" then
+        hybridApplied = self:ApplyRelative(
+            target, out, action, record, selected, delivery) and true or false
+    end
+    if not (XelAssist.Game.Pets and XelAssist.Game.Pets.Effects) then
+        return hybridApplied and { hybridPetThreat = true } or nil
+    end
     local pet = out.actors and out.actors.pet
     local targetPet = target.actors and target.actors.pet
     local priorRoot = pet and pet.threatEstimate
@@ -38,6 +62,10 @@ function T:ConsumeMelee(target, out, action, targetGuid, delivery, record,
     end
     local effect = XelAssist.Game.Pets.Effects:ConsumeMelee(
         target, action, targetGuid, delivery)
+    local hunter = XelAssist.Graph.HunterControl
+    if effect and hunter then
+        hunter:ResolveDeferred(target, effect, targetGuid)
+    end
     if effect and record and effect.projectedThreat then
         record.projectedThreat = record.projectedThreat or {}
         record.projectedThreat.pet = (record.projectedThreat.pet or 0)
@@ -52,7 +80,7 @@ function T:ConsumeMelee(target, out, action, targetGuid, delivery, record,
         if selected and pet then pet.threatEstimate = estimate end
     end
     if pet and not selected then pet.threatEstimate = priorRoot end
-    return effect
+    return effect or hybridApplied and { hybridPetThreat = true } or nil
 end
 
 local function copyTable(source)

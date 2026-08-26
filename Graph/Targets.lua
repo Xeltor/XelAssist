@@ -1,28 +1,23 @@
 XelAssist.Graph.Targets = {}
 local T = XelAssist.Graph.Targets
-local S = XelAssist.Graph.State
-local Selection = XelAssist.Graph.TargetSelection
-local Admission = XelAssist.Graph.ActionAdmission
-local ContextPolicy = XelAssist.Graph.ActionContextPolicy
+local S, Selection = XelAssist.Graph.State, XelAssist.Graph.TargetSelection
+local Admission, ContextPolicy = XelAssist.Graph.ActionAdmission, XelAssist.Graph.ActionContextPolicy
 local APPLICATION_BLOCK_THRESHOLD = 0.75
 function T:VariableFriendlyAction(action) return Selection:VariableFriendlyAction(action) end
 function T:Targets(action, state) return Selection:Targets(action, state) end
 local function observed(method, state, action, descriptor)
     local root = XelAssist.Graph.RootObservation
     if not root then return nil, "absent" end
-    return root[method](root, state, action, descriptor)
-end
+    return root[method](root, state, action, descriptor) end
 local function configFor(state)
     local root = XelAssist.Graph.RootObservation
     if not root then return XelAssistCharDB or {}, "known" end
-    return root:ConfigOrLive(state)
-end
+    return root:ConfigOrLive(state) end
 local function frozenAura(action, state, descriptor)
     local active, status = observed("Aura", state, action, descriptor)
     if status ~= "known" and status ~= "absent" then return true,
         "aura evidence unknown" end
-    return active and true or false, status
-end
+    return active and true or false, status end
 local function friendlyAuraActive(action, state, descriptor)
     local record = descriptor and descriptor.record
         or descriptor and S:FriendlyByKey(state, descriptor.key)
@@ -52,9 +47,13 @@ local function friendlyAuraActive(action, state, descriptor)
     return false
 end
 function T:AuraActive(action, state, descriptor)
-    if descriptor and descriptor.relation ~= "hostile" then
-        return friendlyAuraActive(action, state, descriptor)
+    local mechanics = XelAssist.Graph.ClassMechanics
+    if mechanics then
+        local exact, handled, reason = mechanics:AuraActive(action, state, descriptor)
+        if handled then return exact, reason end
     end
+    if descriptor and descriptor.relation ~= "hostile" then return
+        friendlyAuraActive(action, state, descriptor) end
     local future = state.auras[action.name]
     if action.facts.stackable then
         local futureProbability = type(future) == "table"
@@ -86,9 +85,7 @@ function T:AuraActive(action, state, descriptor)
         return XelAssist.Game.Capabilities:TargetHasDebuff(action.name)
     end
     if not aura then return false end
-    if (tonumber(aura.applicationProbability) or 1) < APPLICATION_BLOCK_THRESHOLD then
-        return false
-    end
+    if (tonumber(aura.applicationProbability) or 1) < APPLICATION_BLOCK_THRESHOLD then return false end
     if action.facts.kind == "dot" and aura.mine == false then return false end
     local refresh = math.max(1.5, (aura.duration or 0) * 0.2)
     if aura.remaining ~= nil and aura.remaining <= refresh then return false end
@@ -111,8 +108,7 @@ function T:Relevant(action, state, descriptor)
         return policy and policy:Relevant(action, state) or false
     end
     local support = kind == "heal" or kind == "hot" or kind == "absorb" or kind == "buff"
-        or kind == "defensive" or kind == "resource" or kind == "threatDrop"
-        or kind == "modifier" or kind == "summon" or kind == "petHeal"
+        or kind == "defensive" or kind == "resource" or kind == "threatDrop" or kind == "modifier" or kind == "summon" or kind == "totem" or kind == "petHeal"
     if state.mode == "buff" then return kind == "buff" end
     if state.mode == "support" then return support end
     if state.mode == "single" or state.mode == "aoe" then return not support end
@@ -254,7 +250,7 @@ local function usabilityBlocker(action, state, descriptor, target, tooltip)
     local config, configStatus = configFor(state)
     if configStatus ~= "known" then return "config evidence unknown" end
     local toggles = config.toggles or {}
-    if not facts.consumable
+    if not facts.consumable and not facts.routineResourceCooldown
         and (facts.cooldown or (tooltip.cooldown and tooltip.cooldown >= 30))
         and not toggles.cooldowns then
         return "cooldown policy"
@@ -296,6 +292,10 @@ local function effectBlocker(owner, action, state, descriptor, target,
     if swingBlocker then return swingBlocker end
     if tooltip.requiresStealth and state.playerStealthKnown == true
         and state.playerStealthed ~= true then return "requires stealth" end
+    local persistent = XelAssist.Graph.CasterPersistentDamage
+    local persistentBlocker = persistent and persistent:Blocker(
+        action, state, descriptor, tooltip, actionStart)
+    if persistentBlocker then return persistentBlocker end
     if kind == "dot" or kind == "debuff" then
         local active, reason = owner:AuraActive(action, state, descriptor)
         if active then return reason or "already active" end
@@ -328,10 +328,12 @@ local function effectBlocker(owner, action, state, descriptor, target,
         and XelAssist.Game.Pets.Effects:Active(pet, action.name) then
         return "companion effect already active"
     end
-    if kind == "buff" or kind == "hot" or kind == "absorb" or kind == "resource" then
+    if (kind == "buff" or kind == "hot" or kind == "absorb" or kind == "resource") and not facts.paladinAction and not facts.shamanAction then
         local active, reason = owner:AuraActive(action, state, descriptor)
         if active then return reason or "already active" end
     end
+    local classBlocker = XelAssist.Graph.ClassMechanics and XelAssist.Graph.ClassMechanics:EvidenceBlocker(action, state, descriptor, tooltip, actionStart)
+    if classBlocker then return classBlocker end
     if kind == "interrupt" and not state.targetCasting then return "not casting" end
     if kind == "interrupt" and state.targetCastRemaining
         and actionStart >= state.targetCastRemaining then
@@ -348,6 +350,11 @@ local function effectBlocker(owner, action, state, descriptor, target,
     if kind == "crowdControl" and not toggles.petControl then
         return "pet control policy"
     end
+    local control = XelAssist.Graph.CrowdControl
+    local controlBlocker, controlHandled
+    if control then controlBlocker, controlHandled = control:Blocker(
+        action, state, descriptor, tooltip, actionStart) end
+    if controlHandled and controlBlocker then return controlBlocker end
     if facts.requiresCreature and state.targetCreatureType
         and facts.requiresCreature ~= state.targetCreatureType then
         return "creature immunity"
@@ -391,14 +398,18 @@ function T:Legal(action, state, descriptor)
         XelAssist.Graph.RootObservation:Facts(state, action) end
     if factsStatus == "absent" or not XelAssist.Graph.RootObservation then
         tooltip = XelAssist.Game.Actors:Facts(action)
-    elseif factsStatus ~= "known" then return false,
-        "action evidence unknown" end
+    elseif factsStatus ~= "known" then return false, "action evidence unknown" end
     local forms = XelAssist.Graph.DruidForms
     if forms then tooltip, blocker = forms:PrepareLegal(action, state, tooltip) end
     if blocker then return false, blocker end
+    if XelAssist.Graph.WarriorStances then tooltip, blocker = XelAssist.Graph.WarriorStances:PrepareLegal(action, state, tooltip) end
+    if blocker then return false, blocker end
+    if XelAssist.Graph.PriestShadowform then tooltip, blocker = XelAssist.Graph.PriestShadowform:PrepareLegal(action, state, tooltip) end
+    if blocker then return false, blocker end
+    blocker = XelAssist.Graph.ClassMechanics and XelAssist.Graph.ClassMechanics:Blocker(action, state, descriptor)
+    if blocker then return false, blocker end
     local config, configStatus = configFor(state)
-    if configStatus ~= "known" then return false,
-        "config evidence unknown" end
+    if configStatus ~= "known" then return false, "config evidence unknown" end
     if (state.time or 0) > 0 then
         local projected, key, value = {}, nil, nil
         for key, value in pairs(descriptor) do projected[key] = value end
@@ -411,7 +422,7 @@ function T:Legal(action, state, descriptor)
     if blocker then return false, blocker end blocker = usabilityBlocker(
         action, state, descriptor, target, tooltip)
     if blocker then return false, blocker end blocker =
-        ContextPolicy:Blocker(action, state)
+        ContextPolicy:Blocker(action, state, tooltip)
     if blocker then return false, blocker end
     blocker = XelAssist.Graph.Charge
         and XelAssist.Graph.Charge:Blocker(action, state, descriptor)
@@ -421,18 +432,19 @@ function T:Legal(action, state, descriptor)
     if blocker then return false, blocker end
     local actionStart
     actionStart, blocker = Admission:Start(action, state, tooltip)
-    if blocker then return false, blocker end blocker = Admission:Readiness(
-        action, state, tooltip, actionStart)
-    if blocker then return false, blocker end blocker =
-        XelAssist.Graph.SpatialRequirements:Blocker(
+    if blocker then return false, blocker end blocker = Admission:Readiness(action, state, tooltip, actionStart)
+    if blocker then return false, blocker end blocker = XelAssist.Graph.SpatialRequirements:Blocker(
         action, state, descriptor, target, tooltip)
     if blocker then return false, blocker end blocker = effectBlocker(
         self, action, state, descriptor, target,
         actionStart, tooltip, config)
-    if blocker then return false, blocker end blocker = XelAssist.Graph.ResourceExchange
-        and XelAssist.Graph.ResourceExchange:Blocker(action, state, tooltip)
-    if blocker then return false, blocker end blocker = XelAssist.Graph.HealthTransfer
-        and XelAssist.Graph.HealthTransfer:Blocker(action, state, tooltip)
+    if blocker then return false, blocker end
+    local rage = XelAssist.Graph.WarriorRage
+    local rageBlocker, rageHandled
+    if rage then rageBlocker, rageHandled = rage:Blocker(action, state, descriptor, tooltip) end
+    if rageBlocker then return false, rageBlocker end
+    blocker = not rageHandled and XelAssist.Graph.ResourceExchange and XelAssist.Graph.ResourceExchange:Blocker(action, state, tooltip)
+    if blocker then return false, blocker end blocker = XelAssist.Graph.HealthTransfer and XelAssist.Graph.HealthTransfer:Blocker(action, state, tooltip)
     if blocker then return false, blocker end
     return true, nil, tooltip, target, actionStart, descriptor, state
 end

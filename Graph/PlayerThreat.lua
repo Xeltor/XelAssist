@@ -3,6 +3,7 @@
 -- Pet threat deliberately bypasses player stance and talent components.
 XelAssist.Graph.PlayerThreat = {}
 local P = XelAssist.Graph.PlayerThreat
+local PaladinBlessingThreat = XelAssist.Graph.PaladinBlessingThreat
 
 local function nonNegative(value)
     value = tonumber(value)
@@ -10,26 +11,33 @@ local function nonNegative(value)
     return value
 end
 
+local function compose(state, actor, multiplier, exact, profile)
+    if not PaladinBlessingThreat then return multiplier, exact, profile end
+    local composed, composedExact, component = PaladinBlessingThreat:Resolve(
+        state, actor, multiplier, exact)
+    return composed, composedExact, component or profile
+end
+
 -- Conservative graph policy for bounded live evidence: a tank must not be
 -- credited with threat it may not produce, while a non-tank must not have
 -- threat risk understated. Exact observations use their exact multiplier.
 function P:Resolve(state, actor)
-    if actor ~= "player" then return 1, true, nil end
+    if actor ~= "player" then return compose(state, actor, 1, true, nil) end
     local profile = state and state.playerThreat
-    if profile == nil then return 1, true, nil end
+    if profile == nil then return compose(state, actor, 1, true, nil) end
     if profile.actor ~= "player" or profile.playerOnly ~= true then
-        return 1, false, profile
+        return compose(state, actor, 1, false, profile)
     end
     local exact = profile.exact == true
         and nonNegative(profile.multiplier) or nil
-    if exact then return exact, true, profile end
+    if exact then return compose(state, actor, exact, true, profile) end
     local minimum = nonNegative(profile.minimum)
     local maximum = nonNegative(profile.maximum)
     if minimum and maximum and maximum < minimum then
         minimum, maximum = nil, nil
     end
     local multiplier = state and state.tank and minimum or maximum
-    return multiplier or 1, false, profile
+    return compose(state, actor, multiplier or 1, false, profile)
 end
 
 function P:Scale(state, actor, amount)
@@ -46,6 +54,15 @@ local function attribute(record, actor, amount, exact)
     record.threat = record.threat or {}
     local field = actor == "pet" and "petDelta" or "playerDelta"
     record.threat[field] = (tonumber(record.threat[field]) or 0) + amount
+    if actor == "player" and record.threat.projectedPlayerReferenceKnown
+        and record.threat.projectedPlayerReference == false then
+        -- New positive player threat recreates a reference after Vanish. It
+        -- does not by itself prove which actor now owns the hostile victim.
+        record.threat.projectedPlayerReferenceKnown = true
+        record.threat.projectedPlayerReference = true
+        record.threat.projectedPlayerOwnershipUnknown = true
+        record.threat.projectedPlayerHasAggro = nil
+    end
     if actor == "player" and exact == false then
         record.threat.playerDeltaExact = false
         record.threat.containsBoundedPlayerThreat = true

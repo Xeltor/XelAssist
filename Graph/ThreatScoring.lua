@@ -30,17 +30,53 @@ local function priceResource(context, maximum, effective)
     end
 end
 
+local function hybridPetThreat(context, state, facts)
+    if facts.hybridPetThreat ~= true
+        or type(facts.petThreatGain) ~= "number" then return 0 end
+    local probability = math.max(0, math.min(1,
+        tonumber(context.effectDelivery) or 1))
+    local eventThreat = XelAssist.Graph.CompanionEventThreat
+    local amount = eventThreat and eventThreat:HybridFlatThreat(
+        state, context.action, probability) or 0
+    local policy = XelAssist.Graph.CompanionThreat
+    if policy then
+        local value, reason = policy:Score(state, context.action)
+        if reason then
+            context.value = context.value + value * probability
+            if value > 0 then context.reason = reason end
+        end
+    end
+    return amount
+end
+
+local function resourceMaximum(context, state)
+    if context.action.actor ~= "pet" then
+        return tonumber(state.resourceMax) or 0
+    end
+    local pet = state.actors and state.actors.pet
+    return pet and tonumber(pet.resourceMax) or 0
+end
+
 function T:Apply(context)
     local state, facts, kind = context.state, context.facts, context.kind
     local groupSize = tonumber(state.groupSize) or 0
-    local resourceMax = tonumber(state.resourceMax) or 0
-    if context.action.actor == "pet" then
-        local pet = state.actors and state.actors.pet
-        resourceMax = pet and pet.resourceMax or 0
-    end
+    local resourceMax = resourceMaximum(context, state)
     if kind == "petThreat" then
         context.threat = 0
         priceResource(context, resourceMax, 0)
+        return
+    end
+    if kind == "threatDrop" then
+        -- A threat-drop edge changes existing hostile references or offsets;
+        -- it does not emit a new positive threat packet. Its mechanic owner
+        -- already prices outcome uncertainty, while this layer only reserves
+        -- its resource cost and exposes partial confidence.
+        context.threat = 0
+        priceResource(context, resourceMax, 0)
+        if facts.inferred or facts.runtimeUnverified then
+            context.estimated = true
+        end
+        if context.estimated then context.value = context.value * 0.88 end
         return
     end
     local healing = kind == "heal" or kind == "hot" or kind == "petHeal"
@@ -75,8 +111,10 @@ function T:Apply(context)
         or facts.healingThreatActor or context.action.actor
     local playerThreatExact, playerThreatMultiplier = true, 1
     if actor == "pet" then
+        local flatThreat = hybridPetThreat(context, state, facts)
         threat = threat * (facts.deferredFlatThreat and 1 or 0.9)
             * petThreatFactor(state)
+            + flatThreat
         valueThreat = valueThreat * (facts.deferredFlatThreat and 1 or 0.9)
             * petThreatFactor(state)
         local petTank = XelAssistCharDB.petThreat == "tank"

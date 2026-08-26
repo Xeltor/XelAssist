@@ -36,6 +36,7 @@ XelAssist.Graph.State = {
 }
 
 dofile("Graph/HostileCastState.lua")
+dofile("Graph/IncomingAbsorbs.lua")
 dofile("Graph/IncomingConsequences.lua")
 dofile("Graph/HostileCastEvents.lua")
 

@@ -78,7 +78,11 @@ local function sync(state, record)
     state.targetCastProbability = record and record.castProbability or nil
     if record and record.threat then
         state.targetPlayerThreatDeltaExact = record.threat.playerDeltaExact ~= false
-        if record.threat.projectedOwnershipUnknown then
+        if record.threat.projectedPlayerReferenceKnown
+            and record.threat.projectedPlayerReference == false then
+            state.hasAggro = false
+        elseif record.threat.projectedPlayerOwnershipUnknown
+            or record.threat.projectedOwnershipUnknown then
             state.hasAggro = nil
         elseif record.threat.projectedPlayerHasAggro ~= nil then
             state.hasAggro = record.threat.projectedPlayerHasAggro
@@ -171,7 +175,9 @@ end
 
 local function pinnedGuid(value)
     return value and (value.targetGuid
-        or value.attackRound and value.attackRound.targetGuid) or nil
+        or value.attackRound and value.attackRound.targetGuid
+        or value.offhandAttackRound
+            and value.offhandAttackRound.targetGuid) or nil
 end
 
 local function stopPinned(state, record, field)

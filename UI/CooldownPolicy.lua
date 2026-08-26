@@ -36,7 +36,7 @@ end
 
 local function gated(action, tooltip)
     local facts = action and action.facts or {}
-    return not facts.consumable and (facts.cooldown
+    return not facts.consumable and not facts.routineResourceCooldown and (facts.cooldown
         or (tonumber(tooltip and tooltip.cooldown) or 0) >= 30)
 end
 

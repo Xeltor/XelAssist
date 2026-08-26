@@ -4,8 +4,57 @@
 XelAssist.Graph.Candidate = {}
 local C = XelAssist.Graph.Candidate
 
+local function formID(value)
+    if type(value) ~= "number" or value ~= value or value < 0
+        or value > 32 or math.floor(value) ~= value then return nil end
+    return value
+end
+
+local function formMask(value)
+    if type(value) ~= "number" or value ~= value or value < 0
+        or value > 4294967295 or math.floor(value) ~= value then return nil end
+    return value
+end
+
+local function consumerKey(context)
+    local value = context.setupConsumerKey
+    if value == nil and context.tooltip then
+        value = context.tooltip.setupConsumerKey
+    end
+    if value == nil and context.facts then
+        value = context.facts.setupConsumerKey
+    end
+    if type(value) ~= "string" or value == ""
+        or string.len(value) > 128 then return nil end
+    return value
+end
+
+-- A strategic setup identity is mechanical and locale-independent. Include
+-- both ends of the edge so distinct graph transitions never share a lane.
+local function strategicSetup(tooltip)
+    local warrior = tooltip and tooltip.warriorStanceTransition
+    local druid = tooltip and tooltip.druidFormTransition
+    local priest = tooltip and tooltip.priestShadowformTransition
+    if warrior and (druid or priest) or druid and priest then return nil end
+    local transition, prefix = warrior or druid or priest,
+        warrior and "warriorStance" or druid and "druidForm"
+            or priest and "priestShadowform" or nil
+    if not transition then return nil end
+    if warrior and transition.kind ~= "warriorStance" then return nil end
+    if druid and transition.kind ~= "shift"
+        and transition.kind ~= "cancel" then return nil end
+    if priest and transition.kind ~= "priestShadowform" then return nil end
+    local source, target = formID(transition.sourceForm),
+        formID(transition.targetForm)
+    if source == nil or target == nil or source == target then return nil end
+    return { key = prefix .. ":" .. tostring(source) .. ">" .. tostring(target),
+        source = source, target = target,
+        consumerKey = "playerForm:" .. tostring(target) }
+end
+
 function C:Build(context)
     local descriptor, facts = context.descriptor, context.facts
+    local setup = strategicSetup(context.tooltip)
     return {
         action = context.action, value = context.value, reason = context.reason,
         effectAction = context.effectAction, effectTooltip = context.effectTooltip,
@@ -25,10 +74,27 @@ function C:Build(context)
         cast = context.cast, downtime = context.advanceDowntime,
         valueDowntime = context.downtime,
         threat = context.threat, estimated = context.estimated,
+        rogueFeintExpectedThreatReduction =
+            context.rogueFeintExpectedThreatReduction,
         playerThreatExact = context.playerThreatExact,
         playerThreatMultiplier = context.playerThreatMultiplier,
         druidFormTransition = context.tooltip
             and context.tooltip.druidFormTransition,
+        warriorStanceTransition = context.tooltip
+            and context.tooltip.warriorStanceTransition,
+        priestShadowformTransition = context.tooltip
+            and context.tooltip.priestShadowformTransition,
+        classMechanicProjection = context.classMechanicProjection,
+        strategicSetup = setup and true or nil,
+        strategicSetupKey = setup and setup.key,
+        strategicSetupSourceForm = setup and setup.source,
+        strategicSetupTargetForm = setup and setup.target,
+        strategicSetupConsumerKey = setup and setup.consumerKey,
+        setupConsumerKey = consumerKey(context),
+        setupAllowedForms = formMask(context.tooltip
+            and context.tooltip.stances),
+        setupExcludedForms = formMask(context.tooltip
+            and context.tooltip.stancesNot),
         tooltip = context.tooltip, power = context.expectedPower,
         powerEvidence = context.powerEvidence,
         survival = context.survival,
@@ -51,6 +117,7 @@ function C:Build(context)
             and context.state.channelCommitment or nil,
         channelOpportunityValue = context.channelOpportunityValue,
         healthTransfer = context.healthTransfer,
+        healingTriage = context.healingTriage,
         recipientEffects = context.recipientEffects,
         areaRecipientGroups = context.areaRecipientGroups,
         areaUnknowns = context.areaUnknowns,

@@ -1,4 +1,4 @@
-# XelAssist 0.8.34
+# XelAssist 0.8.35
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -58,6 +58,20 @@ value, and interrupts compete on the consequence they actually prevent. Mixed,
 scripted, periodic, area, channel, missing-recipient, and unknown-level spells
 remain explicit uncertainty with one bounded interrupt fallback.
 
+Exact Mage Mana Shield and Priest Power Word: Shield consequences use that
+same frozen incoming-event model. Mana Shield values and consumes only physical
+damage up to the mana-backed capacity left after its cast cost; magic-only
+aggro adds no proxy value. Power Word: Shield projects its exact recipient's
+Weakened Soul lockout, so a future branch cannot shield the same unit again
+while another ally remains independently eligible.
+
+Shadowform is likewise an exact setup edge, not a Priest rule. The graph pays
+its captured effective mana cost, projects form 28, applies the installed 15%
+bonus to later player-owned Shadow damage before resistance, and reduces exact
+physical incoming damage by 15% before absorbs. The form action starts at zero
+value and survives only when those descendants repay it. Leaving Shadowform is
+not yet projected, so unavailable consumer legality fails closed.
+
 Health-funded companion channels use exact installed-client effect semantics
 rather than ordinary mana or pet-heal approximations. Health Funnel pays its
 initial player-health cost and each upkeep tick causally, heals only after a
@@ -77,8 +91,12 @@ Druid form actions are discovered from exact installed-client shapeshift atoms,
 not localized names. When ClassicAPI exposes the active form, explicit power
 slots, effective spell cost, and cancellation endpoint, Cat/Bear hidden mana is
 paid causally and a stale cancellation is rejected at dispatch. Destination
-rage or energy remains unknown until the client observes the completed shift,
-so this release does not pretend to plan a full future form-only sequence.
+rage or energy remains unknown unless a narrower exact bound exists: rank-five
+Furor now proves Cat Form's 40-energy floor, while Bear rage remains unknown.
+Prowl is likewise discovered from exact installed facts. It is an indefinite
+Cat-form, out-of-combat stealth setup with its real rank movement penalty, and
+receives no standalone value: a retained future action must actually require or
+benefit from stealth before the graph can justify it.
 
 Hunter special ranged attacks now share one causal ammunition ledger with Auto
 Shot. An ambient launch that spends the last round blocks a later casted shot
@@ -86,6 +104,15 @@ before it can gain value or spend mana. The graph can track exact Hunter-aspect
 replacement on the player, but deliberately suppresses aspect recommendations
 until their actual ranged power, avoidance, movement, resistance, melee power,
 or mana effects are represented downstream; it does not substitute proxy scores.
+Installed-client Web and Charge identities now retain their exact root, range,
+linked-effect, and movement-trigger topology without being mislabeled as cast
+interrupts. Intimidation arms a target-pinned next-pet-melee effect and can stop
+a modeled hostile cast only when the frozen pet swing phase, melee delivery,
+recipient, and arrival time prove that consequence. Missing evidence holds.
+All four installed Hunter's Mark ranks use numeric target-local aura evidence.
+Mark receives no generic debuff score: its ranged attack power is added only to
+later Auto Shots and exact ranged-weapon effects against that same hostile,
+after the weapon spell coefficient exactly as the server formula does.
 
 Player reactive actions use the exact Nampower aura-state bit required by the
 installed spell record. For client records that omit that requirement, an
@@ -97,6 +124,12 @@ Active leech channels now deliver damage, healing, and scaled player threat at
 their exact remaining tick boundaries. Resistance, lethal target-health caps,
 movement/action clipping, and target identity changes are resolved before any
 paired healing is granted.
+
+The exact first-rank Windfury Totem chain is represented for a solo Shaman.
+Placement itself has zero invented duration value; later qualifying main-hand
+white or melee-ability packets gain the expected nonrecursive extra attack and
+retire deterministic swing timing when a proc becomes possible. Group fanout
+and unaudited higher ranks remain explicit unknowns.
 
 Warrior melee now has a causal, non-executable continuation edge. Once an exact
 main-hand phase has been observed, the graph can wait through ordinary attacks,
@@ -134,6 +167,16 @@ partial-delivery branches cap at five; a landed cast at the cap refreshes the
 projected aura and adds threat without inventing a sixth stack. Because stance
 and talent multipliers are not yet included, the resulting player-threat delta
 is deliberately marked inexact and never used to fabricate an aggro switch.
+
+Warrior stance passives and exact Defiance ranks now travel with every branch:
+Defensive Stance rank-five threat is 1.56, while its damage and mitigation and
+Berserker's critical/damage-taken effects remain explicit causal evidence.
+Rogue Feint is a separate selected-hostile flat threat edge whose level-scaled
+amount is multiplied once by melee weapon-skill delivery. It never clears other
+hostiles or asserts who wins threat afterward. Paladin all-threat blessings
+compose their exact recipient-owned multiplier with those ordinary player
+threat components; the graph values the later consequences instead of carrying
+a preferred blessing list.
 
 ## Requirements
 
@@ -198,7 +241,7 @@ numbers and action names, not player or target names.
 
 `/xa diagnostics` also refreshes a durable, privacy-safe runtime audit containing
 dependency/API availability, discovered versus inferred action-node counts,
-Hunter focus and player energy evidence, controlled-companion swing evidence, and player
+Hunter focus plus player energy/mana evidence, controlled-companion swing evidence, and player
 main-hand/on-swing ownership evidence. It reports
 whether each clock is learning, dormant, or executable; it does not persist pet
 identity.
@@ -235,6 +278,12 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
 - group role, current target-of-target aggro, and relative action threat;
 - exact root-only Warrior Taunt rescue for a current pet or group member, with
   target/victim/roster race protection and no fabricated damage or threat total;
+- exact Warrior stance/Defiance threat, selected-target Rogue Feint,
+  recipient-owned Paladin all-threat blessings, target-local Hunter's Mark,
+  Priest Shadowform, and solo Windfury consequences, composed on later actions
+  without class priority rules;
+- exact Mage physical-only mana-backed absorbs and Priest recipient-local
+  Weakened Soul exclusion over the same frozen hostile-cast timeline;
 - interrupts, proc/stance usability, combo points, buffs, debuffs, ranks,
   area policy, cooldown policy, and reagents;
 - generic DBC-discovered combo generation and finishing moves, including
@@ -244,6 +293,13 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
 - session-only player energy timing learned from clean exact ticks, without a
   hardcoded server cadence or allowing a predicted tick to make the current
   macro press executable;
+- session-only player mana timing learned from exact power changes with
+  attributed spell energizes excluded. A root clock may fund a future action,
+  but a mana-funded cast closes it unless repeated observations prove that
+  exact spell's successful GO-to-passive-regeneration boundary;
+- exact Bloodrage immediate and finite delayed rage, base-health payment,
+  combat entry, and cooldown consequences, retained only when a later legal
+  rage spender proves the investment useful;
 - independent player and companion clocks; live pet identity, health, resource,
   target, action bar, spellbook ranks, cooldowns, autocast state, range, threat,
   commands, dispels, interrupts, crowd control, self-healing, sacrifice, and

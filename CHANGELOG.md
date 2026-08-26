@@ -1,5 +1,109 @@
 # Changelog
 
+## 0.8.35
+
+- Added exact target-local Hunter's Mark consequences for all four installed
+  ranks. The aura itself has no proxy utility: only later Auto Shots and exact
+  ranged-weapon actions receive its full post-coefficient ranged-attack-power
+  component. Numeric aura identity, rank interaction, recipient identity, and
+  ranged-lane evidence remain fail-closed.
+- Added exact Priest Shadowform as a neutral strategic setup edge. Its captured
+  forty-percent base-mana cost, fifteen-percent Shadow damage increase, and
+  fifteen-percent physical damage reduction flow through future damage and
+  frozen incoming events; consumer-side Holy/heal form exclusions remain
+  enforced. Projecting an exit from Shadowform is intentionally still unknown.
+- Added the installed first-rank Windfury Totem chain as a consequence-driven
+  solo Shaman edge. Its twenty-percent nonrecursive main-hand extra attack is
+  valued only on qualifying later attacks and makes subsequent swing phase
+  stochastic. Party fanout and higher-rank chains remain fail-closed.
+- Added exact Mage Mana Shield and Priest Power Word: Shield mechanics. Mana
+  Shield admits only an unchanged live two-mana-per-physical-damage ratio,
+  prices capacity after cast cost, and debits mana causally after ordinary
+  absorbs; Power Word: Shield observes and projects the exact Weakened Soul
+  recipient lockout. Its scorer now counts only frozen physical incoming casts;
+  magic-only aggro cannot manufacture shield value. Modified or incomplete
+  evidence fails closed.
+- Added exact Rogue Feint as a selected-hostile flat threat consequence. Its
+  level-scaled reduction uses the physical melee/weapon-skill delivery lane,
+  touches no other hostile, and never fabricates a victim switch; uncertain
+  delivery, ownership, and resource refund evidence remain conservative.
+- Added exact Paladin all-threat blessing evidence. A self-applied installed
+  25-percent reduction composes with stance/talent threat on later player
+  actions, so usefulness emerges from descendants rather than a blessing rule.
+  Greater/class fanout, ally output, changed topology, and unresolved stacking
+  remain fail-closed.
+- Corrected positive form-mask legality for installed spells carrying
+  `ALLOW_WHILE_NOT_SHAPESHIFTED`: neutral form remains legal while an unrelated
+  positive form does not. Negative masks such as Shadowform's Holy/heal
+  exclusions continue to apply independently at every graph depth.
+- Added exact Druid Prowl discovery without localized names or a class list.
+  Its Cat-form and out-of-combat gates, indefinite stealth lifecycle, and real
+  rank movement multipliers feed the existing setup graph, which still requires
+  a target action that actually benefits from stealth before recommending it.
+- Replaced Voidwalker Torment's taunt proxy with its exact installed
+  damage-plus-flat-threat ranks and represented Suffering as a conservative
+  selected-target threat lower bound. Delivery and pet threat modifiers scale
+  the flat component once; unresolved area damage remains withheld.
+- Corrected Warrior stance consequences from exact installed passives and
+  Defiance ranks. Rank-five Defensive threat is 1.56 rather than 1.495; future
+  stance edges immediately replace the old profile, while unknown live stance
+  retains the DBC-sealed 0.80-to-1.56 range. Defensive mitigation/damage and
+  Berserker critical/damage-taken evidence are retained for causal consumers.
+- Added exact Bloodrage consequences from installed trigger topology and live
+  base health: its immediate ten rage, ten one-rage ticks, sixty-second
+  cooldown, combat entry, and twenty-percent base-health payment share one
+  finite clock. It remains a neutral resource investment and is rejected when
+  its exact health payment would be lethal.
+- Added a session-learned player-mana clock without hardcoding Spirit, MP5,
+  tick cadence, or the five-second rule. Exact player power changes exclude
+  attributed energizes, learn a conservative passive envelope, and cross a
+  projected cast only after repeated evidence proves that exact spell's
+  successful GO-to-regeneration boundary; every mismatch fails closed.
+- Recovered Expose Armor's exact installed per-combo reduction, stored in DBC
+  as zero base plus 80/145/210/275/340 armor per point. The rank-safe value now
+  reaches the existing probabilistic combo and target-modifier transitions.
+  Target-modifier decoding was extracted from the capability catalogue into a
+  focused module, reducing the former legacy file below its review exception.
+- Added exact Warrior stance transitions and Druid form setup lanes that remain
+  neutral until a later form-gated action proves their value. Tactical Mastery
+  rage retention and rank-five Cat Furor's guaranteed 40-energy floor are
+  projected from sealed evidence; unknown Bear destination rage stays unknown.
+- Added one causal player dual-wield timeline. Main- and off-hand phases retain
+  their own learned cadence while a shared cross-hand scheduler resolves
+  simultaneous readiness, lethal first impacts, rage, and next-swing ownership
+  without double damage or a permanently poisoned timer.
+- Added exact direct-plus-periodic caster semantics for Fireball, Pyroblast, and
+  Frostfire Bolt. Their impact can repeat while the existing tail remains a
+  causal tick clock; Immolate and Holy Fire keep ordinary guarded-DoT behavior,
+  and unknown lifecycle signatures fail closed.
+- Added consequence-driven single-target crowd control, channel breakpoints,
+  direct-heal triage, bounded player threat drops, and frozen resistance and
+  weapon-skill evidence. Control without an exact lifecycle no longer receives
+  the old fixed proxy score.
+- Added exact installed-client Hunter Web, Charge, and Intimidation control
+  chains. Roots retain their movement-control lifecycle without pretending to
+  interrupt casts; Intimidation is valued only when a sealed target-pinned pet
+  swing can deliver its stun before an exact incoming consequence.
+- Preserved uncertainty when a combo action lacks an exact land probability,
+  and kept deferred pet-melee trigger probability separate from result-spell
+  delivery so a weaker later branch cannot replace a stronger control outcome.
+- Added name-independent Paladin aura/Judgement and Shaman totem state adapters,
+  exact form/equipment admission, and threat-drop coverage for Feign Death,
+  Vanish, and Fade. Unrepresented downstream effects remain explicit holds.
+- Reserved at most two deterministic strategic setup lanes inside the existing
+  sliced search budget. Only a sealed destination-dependent consumer closes a
+  lane, so form time cannot act as an implicit wait and setup-only paths cannot
+  be published.
+- Removed a cross-class root-observation hot path that reclassified every
+  ordinary action through Warrior stance DBC reads. Root capture now also
+  enumerates each recipient's auras once and shares identical weapon/school
+  power evidence across ranks inside one evaluation. The production benchmark
+  remains bounded at roughly 3.23 ms per test slice.
+- Extracted friendly healing/buff/absorb transitions and incoming absorb
+  ordering from the generic action-effect coordinators. The dedicated modules
+  preserve ordinary behavior while keeping class-specific shields reviewable
+  and all normal runtime files within the 450-line architecture ceiling.
+
 ## 0.8.34
 
 - Added name-independent Druid form discovery from installed-client semantics,

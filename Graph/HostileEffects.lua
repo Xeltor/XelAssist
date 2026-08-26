@@ -7,6 +7,7 @@ local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
 local Recipients = XelAssist.Graph.AreaRecipients
 local PlayerThreat = XelAssist.Graph.PlayerThreat
+local CompanionEventThreat = XelAssist.Graph.CompanionEventThreat
 
 local function activeTarget(state)
     if State.ActiveHostile then return State:ActiveHostile(state) end
@@ -371,6 +372,9 @@ function H:ApplyPrimaryThreat(out, candidate, context)
             amount, playerThreatExact = PlayerThreat:Scale(
                 out, actor, amount)
         end
+    elseif actor == "pet" and CompanionEventThreat then
+        amount = math.max(0, amount - (CompanionEventThreat:HybridFlatThreat(
+            out, context.action, candidate.effectDelivery) or 0))
     end
     if amount <= 0 then return end
     local record = activeTarget(out)

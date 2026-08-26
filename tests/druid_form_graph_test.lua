@@ -40,6 +40,7 @@ local state = { role = "auto", tank = false, resource = 42,
     actors = { player = { resource = 42, resourceMax = 100,
         resourceType = 3 } } }
 assert(Druid:Attach(state) and state.druidFormState.formID == 1
+    and state.playerForm.available and state.playerForm.formID == 1
     and state.resource == 42 and state.resourceMax == 100
     and state.resourceType == 3 and state.playerResourceExact,
     "root state must use the exact explicit primary slot without losing mana")
@@ -69,7 +70,8 @@ assert(Druid:Consume(state, candidate, context)
     and state.resource == 42 and state.resourceType == 3,
     "form payment must deduct hidden mana rather than active Cat energy")
 assert(Druid:Apply(state, candidate, context)
-    and state.druidFormState.formID == 5 and state.resourceType == 1
+    and state.druidFormState.formID == 5 and state.playerForm.formID == 5
+    and state.resourceType == 1
     and state.resource == 0 and state.resourceMax == 0
     and state.playerResourceExact == false
     and state.druidDestinationPowerUnknown
@@ -87,7 +89,8 @@ candidate = { action = cancelAction, cost = 0, tooltip = prepared,
 context = {}
 assert(Druid:Consume(state, candidate, context)
     and Druid:Apply(state, candidate, context)
-    and state.druidFormState.formID == 0 and state.resourceType == 0
+    and state.druidFormState.formID == 0 and state.playerForm.formID == 0
+    and state.resourceType == 0
     and state.resource == 97 and state.resourceMax == 260
     and state.playerResourceExact and not state.tank,
     "cancellation must restore the exact already-observed mana slot")

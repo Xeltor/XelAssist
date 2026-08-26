@@ -1,6 +1,8 @@
 XelAssist.Game.Capabilities = {}
 local C = XelAssist.Game.Capabilities
 local DruidForms = XelAssist.Game.Player and XelAssist.Game.Player.DruidFormState
+local WarriorRage = XelAssist.Game.Player and XelAssist.Game.Player.WarriorRage
+local ActionInference = XelAssist.Game.ActionInference
 local TIP_NAME = "XelAssistScanTip"
 local scanTip
 local function tooltipText(slot, bookType)
@@ -19,16 +21,13 @@ end
 -- Unknown active spells can still become graph nodes when installed-client DBC
 -- identity or their live tooltip proves an unambiguous combat effect. This
 -- avoids guessing buffs, debuffs, targets, threat, or prerequisites from names.
-function C:InferKnowledge(slot, bookType, spellId)
+function C:InferKnowledge(slot, bookType, spellId, skipClass)
     if IsPassiveSpell then
         local ok, passive = pcall(IsPassiveSpell, slot, bookType or BOOKTYPE_SPELL)
         if ok and (passive == true or passive == 1) then return nil end
     end
-    local dbcInferred = DruidForms and DruidForms:InferKnowledge(spellId)
-    dbcInferred = dbcInferred or XelAssist.Game.HealthTransfer
-        and XelAssist.Game.HealthTransfer:InferDBC(spellId)
-        or XelAssist.Game.ResourceExchange and XelAssist.Game.ResourceExchange:InferDBC(spellId)
-    if dbcInferred then return dbcInferred end
+    local exact, _, handled = ActionInference:ExactKnowledge(spellId, skipClass)
+    if handled then return exact end
     local text = tooltipText(slot, bookType)
     if text == "" then return nil end
     local exchange = XelAssist.Game.ResourceExchange and XelAssist.Game.ResourceExchange:Infer(text)
@@ -50,9 +49,7 @@ function C:InferKnowledge(slot, bookType, spellId)
     elseif string.find(text, "deals .-damage") or string.find(text, "causes .-damage")
         or string.find(text, "inflicts .-damage") or string.find(text, "for %d+ .-damage") then
         facts.kind = (string.find(text, "over %d+ sec") or string.find(text, "every %d+ sec")) and "dot" or "damage"
-    else
-        return nil
-    end
+    else return nil end
     if string.find(text, "channeled") then facts.channel = true end
     if string.find(text, "all enemies") or string.find(text, "nearby enemies")
         or string.find(text, "enemies within") then facts.aoe = true end
@@ -61,7 +58,6 @@ function C:InferKnowledge(slot, bookType, spellId)
     if cooldown and tonumber(cooldown) and tonumber(cooldown) >= 1 then facts.cooldown = true end
     return facts
 end
-
 function C:BuildSpellIndex()
     local slots, ranks, actions = {}, {}, {}
     local i = 1
@@ -83,8 +79,17 @@ function C:BuildSpellIndex()
             local ok, foundId = pcall(GetSpellIdForName, castName)
             if ok and foundId and foundId ~= 0 then spellId = foundId end
         end
-        local knowledge = XelAssist.Combat.Knowledge and XelAssist.Combat.Knowledge[name]
-        if not knowledge then knowledge = self:InferKnowledge(i, BOOKTYPE_SPELL, spellId) end
+        local classKnowledge, _, classHandled =
+            ActionInference:ClassKnowledge(spellId)
+        local knowledge = classKnowledge
+        if not classHandled then knowledge = XelAssist.Combat.Knowledge and XelAssist.Combat.Knowledge[name] end
+        local persistent = XelAssist.Game.Caster and XelAssist.Game.Caster.PersistentDamage
+        if not classHandled then
+            knowledge = persistent and persistent:Refine(spellId, knowledge) or knowledge
+        end
+        if not classHandled and not knowledge then
+            knowledge = self:InferKnowledge(i, BOOKTYPE_SPELL, spellId, true)
+        end
         if knowledge then
             table.insert(actions, { name = name, rankText = rank or "", rank = value,
                 slot = i, spellId = spellId, bookType = BOOKTYPE_SPELL,
@@ -97,17 +102,14 @@ function C:BuildSpellIndex()
     self.spellRanks = ranks
     self.actions = actions
 end
-
 function C:Invalidate()
     XelAssist.Game.CapabilityInvalidation:All(self)
 end
-
 function C:InvalidateEquipment()
     self.penetrationCache = nil
     self.penetrationFingerprint = nil
     if XelAssist.Game.HitBonuses then XelAssist.Game.HitBonuses:Invalidate() end
 end
-
 local WEAPON_SKILL_GLOBAL = {
     [0] = "AXES", [1] = "TWO_HANDED_AXES", [2] = "BOWS", [3] = "GUNS",
     [4] = "MACES", [5] = "TWO_HANDED_MACES", [6] = "POLEARMS", [7] = "SWORDS",
@@ -120,7 +122,6 @@ local WEAPON_SKILL_ENGLISH = {
     [8] = "Two-Handed Swords", [10] = "Staves", [13] = "Unarmed",
     [15] = "Daggers", [16] = "Thrown", [18] = "Crossbows", [19] = "Wands",
 }
-
 local function safeCall(fn, a, b, c)
     if not fn then return nil end
     local ok, first, second, third, fourth
@@ -131,7 +132,6 @@ local function safeCall(fn, a, b, c)
     if ok then return first, second, third, fourth end
     return nil
 end
-
 local function equippedItemId(slot)
     if GetEquippedItem then
         local item = safeCall(GetEquippedItem, "player", slot)
@@ -142,7 +142,6 @@ local function equippedItemId(slot)
     local _, _, itemId = string.find(link or "", "item:(%d+)")
     return tonumber(itemId)
 end
-
 local function itemClassAndSubclass(slot)
     local itemId = equippedItemId(slot)
     if not itemId then return nil, nil, nil end
@@ -500,79 +499,11 @@ function C:Penetration()
     return penetrationResult(totalSpell, totalArmor, true)
 end
 
-local function maskContains(mask, school)
-    mask = math.max(0, tonumber(mask) or 0)
-    local divisor = 2 ^ school
-    return math.floor(mask / divisor) - math.floor(mask / (divisor * 2)) * 2 == 1
-end
-
 -- Party-applied target modifiers may not exist in our spellbook, so their
 -- tooltip slot is unavailable. DBC effect arrays still expose the resistance
 -- school mask and damage-taken aura amount by spell id.
 function C:TargetModifierFacts(spellId, semantics)
-    if not spellId or not GetSpellRecField then return {} end
-    if not self.targetModifierFacts then self.targetModifierFacts = {} end
-    local cacheKey = tostring(spellId) .. ":" .. tostring(semantics and semantics.modifierGroup or "")
-    if self.targetModifierFacts[cacheKey] then return self.targetModifierFacts[cacheKey] end
-    local function array(field)
-        local ok, value = pcall(GetSpellRecField, spellId, field, 1)
-        if ok and type(value) == "table" then return value end
-        return nil
-    end
-    local effects = array("effect")
-    local auras = array("effectApplyAuraName")
-    local base = array("effectBasePoints")
-    local misc = array("effectMiscValue")
-    local perCombo = array("effectPointsPerComboPoint")
-    local out = { targetResistanceReduction = {}, targetDamageTaken = {},
-        source = "client DBC target modifier" }
-    local i
-    for i = 1, math.max(table.getn(effects or {}), table.getn(auras or {})) do
-        if not effects or effects[i] == 6 then
-            local aura = auras and tonumber(auras[i])
-            local baseValue = tonumber(base and base[i])
-            local signed = baseValue and baseValue + 1 or nil
-            local amount = math.abs(signed or 0)
-            local mask = tonumber(misc and misc[i]) or 0
-            if aura == 22 or aura == 123 or aura == 143 then
-                local school
-                for school = 0, 6 do
-                    if maskContains(mask, school) then
-                        if school == 0 and (semantics and semantics.armorDebuff
-                            or not semantics and signed and signed < 0) then
-                            out.targetArmorReduction = math.max(out.targetArmorReduction or 0, amount)
-                            if perCombo and tonumber(perCombo[i])
-                                and math.abs(tonumber(perCombo[i])) > 0 then
-                                out.targetArmorPerCombo = true
-                            end
-                        elseif school > 0 and (semantics and semantics.resistanceDebuff
-                            or not semantics and signed and signed < 0) then
-                            out.targetResistanceReduction[school] = math.max(
-                                out.targetResistanceReduction[school] or 0, amount)
-                        end
-                    end
-                end
-            elseif aura == 87 and signed and signed > 0 then
-                local school
-                for school = 0, 6 do
-                    if maskContains(mask, school) then
-                        out.targetDamageTaken[school] = math.max(
-                            out.targetDamageTaken[school] or 0, amount / 100)
-                    end
-                end
-            end
-        end
-    end
-    if not next(out.targetResistanceReduction) then out.targetResistanceReduction = nil end
-    if not next(out.targetDamageTaken) then out.targetDamageTaken = nil end
-    out.recognized = out.targetArmorReduction ~= nil
-        or out.targetResistanceReduction ~= nil or out.targetDamageTaken ~= nil
-    if out.recognized then
-        out.modifierGroup = semantics and semantics.modifierGroup
-            or "dbc:" .. tostring(spellId)
-    end
-    self.targetModifierFacts[cacheKey] = out
-    return out
+    return XelAssist.Game.TargetModifierFacts:Get(spellId, semantics)
 end
 
 -- Best-effort facts from the client tooltip. Unknown values stay nil: the
@@ -753,6 +684,8 @@ function C:Facts(action)
     XelAssist.Game.SpellTiming:Apply(action, out)
     if XelAssist.Game.SpellEffectPower then XelAssist.Game.SpellEffectPower:Apply(action, out, dbc, dbcArray) end
     if XelAssist.Game.HealthTransfer then XelAssist.Game.HealthTransfer:Apply(action, out, dbc, dbcArray) end
+    XelAssist.Game.TargetModifierFacts:Apply(action, out)
+    if WarriorRage then out = WarriorRage:CaptureFacts(action, out) end
     XelAssist.Game.SpellFactCache:Store(factCache, cacheKey, out)
     return out
 end

@@ -16,6 +16,15 @@ function T:ResultAction(action)
     local out = copy(action)
     out.facts = copy(action.facts)
     out.spellId = resultId
+    local evidence = action.triggeredResistanceEvidence
+    local sealed = evidence and tonumber(evidence.spellId) == tonumber(resultId)
+        and evidence or nil
+    out.resistanceMetadata = sealed and sealed.metadata or nil
+    out.resistanceMetadataCaptured = sealed
+        and sealed.metadataCaptured == true or nil
+    out.resistanceDynamicContext = sealed and sealed.dynamicContext or nil
+    out.resistanceDynamicContextCaptured = sealed
+        and sealed.dynamicContextCaptured == true or nil
     out.actor = out.facts.damageActor or out.facts.effectActor or action.actor
     if out.facts.resultMelee ~= nil then
         out.facts.melee = out.facts.resultMelee and true or false
@@ -67,12 +76,27 @@ function T:DBCResultFacts(spellId)
     return out
 end
 
+function T:SealResultFacts(action, result)
+    local resultId = result and result.spellId
+    if not (action and tonumber(resultId)) then return false end
+    action.triggeredResultFacts = {
+        spellId = resultId, facts = copy(self:DBCResultFacts(resultId)) }
+    action.triggeredResultFactsCaptured = true
+    return true
+end
+
 function T:EffectFacts(action, baseFacts)
     local result = self:ResultAction(action)
     if result == action then return baseFacts end
     local out = copy(baseFacts)
+    local sealed = action.triggeredResultFacts
+    local resultFacts
+    if sealed and tonumber(sealed.spellId) == tonumber(result.spellId) then
+        resultFacts = sealed.facts or {}
+    elseif action.triggeredResultFactsCaptured then resultFacts = {}
+    else resultFacts = self:DBCResultFacts(result.spellId) end
     local key, value
-    for key, value in pairs(self:DBCResultFacts(result.spellId)) do
+    for key, value in pairs(resultFacts) do
         out[key] = value
     end
     return out

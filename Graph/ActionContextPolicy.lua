@@ -4,8 +4,18 @@
 XelAssist.Graph.ActionContextPolicy = {}
 local P = XelAssist.Graph.ActionContextPolicy
 
-function P:Blocker(action, state)
+function P:Blocker(action, state, tooltip)
     local facts, kind = action.facts, action.facts.kind
+    local forms = XelAssist.Graph.FormRequirements
+    local formBlocker = forms and forms:Blocker(state, tooltip)
+    if formBlocker then return formBlocker end
+    local equipment = XelAssist.Graph.EquipmentRequirements
+    local equipmentBlocker = equipment and equipment:Blocker(state, tooltip)
+    if equipmentBlocker then return equipmentBlocker end
+    local threatDrop = XelAssist.Graph.ThreatDrop
+    local threatDropBlocker = threatDrop
+        and threatDrop:Blocker(action, state, tooltip)
+    if threatDropBlocker then return threatDropBlocker end
     local aspects = XelAssist.Graph.HunterAspects
     local aspectBlocker = aspects and aspects:Blocker(action)
     if aspectBlocker then return aspectBlocker end
@@ -14,6 +24,10 @@ function P:Blocker(action, state)
     if facts.wandRepeat and state.moving then return "moving" end
     if facts.outOfCombat and state.inCombat then return "combat state" end
     if facts.combatOnly and not state.inCombat then return "combat state" end
+    if kind == "resource" and state.playerResourceMinimumExact
+        and state.playerResourceExact ~= true then
+        return "resource ceiling unknown"
+    end
     if facts.stealthPreparation and state.playerStealthKnown == true
         and state.playerStealthed == true then return "already stealthed" end
     if facts.stealthPreparation and XelAssist.Graph.StealthSetup then

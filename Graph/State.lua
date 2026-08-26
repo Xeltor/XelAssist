@@ -24,39 +24,30 @@ end
 function S:HostileByUnit(state, unit)
     return XelAssist.Graph.HostileState:ByUnit(state, unit)
 end
-
 function S:SelectedHostile(state)
     return XelAssist.Graph.HostileState:Selected(state)
 end
-
 function S:ActiveHostile(state)
     return XelAssist.Graph.HostileState:Active(state)
 end
-
 function S:SyncSelectedHostile(state)
     return XelAssist.Graph.HostileState:SyncSelected(state)
 end
-
 function S:SyncHostileContext(state, key)
     return XelAssist.Graph.HostileState:SyncContext(state, key)
 end
-
 function S:SyncActiveHostile(state)
     return XelAssist.Graph.HostileState:SyncActive(state)
 end
-
 function S:RefreshHostileRecord(state, key)
     return XelAssist.Graph.HostileState:RefreshRecord(state, key)
 end
-
 function S:CommitSelectedHostile(state)
     return XelAssist.Graph.HostileState:CommitSelected(state)
 end
-
 function S:CommitHostileContext(state, key)
     return XelAssist.Graph.HostileState:CommitContext(state, key)
 end
-
 function S:CommitActiveHostile(state)
     return XelAssist.Graph.HostileState:CommitActive(state)
 end
@@ -100,7 +91,6 @@ end
 function S:ActiveTargetModifiers(encounter, targetResistance)
     return XelAssist.Combat.TargetModifiers:Active(encounter, targetResistance)
 end
-
 local function currentPlayerCast()
     local castName, castRemaining, casting, gcdRemaining, channeling, spellId =
         XelAssist.Game.Capabilities:CurrentCast()
@@ -202,6 +192,8 @@ local function snapshotContext()
             globalExact = false, source = "stock combo state" }
     local hitBonuses = XelAssist.Game.HitBonuses
         and XelAssist.Game.HitBonuses:Snapshot() or nil
+    local weaponSkills = XelAssist.Game.Capabilities.WeaponSkills
+        and XelAssist.Game.Capabilities:WeaponSkills() or nil
     return {
         actors = actors, encounter = encounter, inventory = inventory,
         friendlies = friendlies, target = target, healUnit = healUnit,
@@ -219,6 +211,7 @@ local function snapshotContext()
         playerStealthSource = playerStealthSource, onSwing = onSwing,
         onSwingCost = onSwingCost, playerResourceReserved = playerResourceReserved,
         comboObservation = comboObservation, hitBonuses = hitBonuses,
+        weaponSkills = weaponSkills,
     }
 end
 
@@ -247,7 +240,7 @@ local function newState(mode, context)
         resourceType = UnitPowerType and UnitPowerType("player") or nil,
         combo = context.comboObservation.points or 0,
         comboTargetGUID = context.comboObservation.ownerGUID,
-        hitBonuses = context.hitBonuses,
+        hitBonuses = context.hitBonuses, weaponSkills = context.weaponSkills,
         moving = context.moving,
         pet = actors.pet ~= nil, petLifecycle = actors.petLifecycle,
         actors = actors, inventory = context.inventory,
@@ -294,25 +287,28 @@ local function newState(mode, context)
     }
     return state
 end
-
 local function attachPlayerResource(state, actors)
-    local energy = XelAssist.Game.Player and XelAssist.Game.Player.EnergyEvidence
     local resources = XelAssist.Game.Player and XelAssist.Game.Player.Resources
-    if energy and resources then
-        local clock = energy:Observe(actors.player and actors.player.guid,
-            state.resource, state.resourceMax, GetTime(), false,
-            state.resourceType)
+    if resources then
+        local clock = resources:RootEvidence(state, actors.player, GetTime())
         resources:Attach(state, clock)
     end
+    local warrior = XelAssist.Game.Player and XelAssist.Game.Player.WarriorRage
+    if warrior then warrior:Attach(state) end
 end
 function S:Snapshot(mode)
     local context = snapshotContext()
     local state = newState(mode, context)
+    local forms = XelAssist.Game.Player and XelAssist.Game.Player.FormEvidence
+    if forms then state.playerForm = forms:Snapshot() end
+    if XelAssist.Graph.WarriorStances then XelAssist.Graph.WarriorStances:Attach(state) end
     if XelAssist.Graph.DruidForms then XelAssist.Graph.DruidForms:Attach(state) end
+    if XelAssist.Graph.ClassMechanics then XelAssist.Graph.ClassMechanics:Attach(state) end
     local reactive = XelAssist.Game.Player and XelAssist.Game.Player.ReactiveEvidence
     if reactive then state.playerReactive = reactive:Snapshot() end
-    local threat = XelAssist.Game.Player and XelAssist.Game.Player.Threat
-    if threat then state.playerThreat = threat:Snapshot() end
+    local stanceEffects = XelAssist.Game.Player
+        and XelAssist.Game.Player.WarriorStanceEffects
+    if stanceEffects then stanceEffects:Attach(state) end
     if XelAssist.Graph.ComboState then
         XelAssist.Graph.ComboState:Attach(state, state.combo,
             state.comboTargetGUID, context.comboObservation)
@@ -333,7 +329,6 @@ local function identityField(field)
     local lower = string.lower(field)
     return lower == "key" or string.sub(lower, -4) == "guid"
 end
-
 local function identityMap(field)
     if type(field) ~= "string" then return false end
     local lower = string.lower(field)
@@ -355,7 +350,6 @@ local function copyNested(value, depth, seen, field, atomic)
     end
     return out
 end
-
 function S:Copy(state)
     local out, key, value = {}, nil, nil
     for key, value in pairs(state) do out[key] = value end
@@ -433,12 +427,16 @@ function S:Copy(state)
     if state.playerAttack then
         out.playerAttack = copyNested(state.playerAttack, 2, seen, nil, atomic)
     end
+    if state.weaponSkills then out.weaponSkills = copyNested(
+        state.weaponSkills, 2, seen, nil, atomic) end
     if state.playerResourceClock then
         out.playerResourceClock = copyNested(
             state.playerResourceClock, 2, seen, nil, atomic)
     end
     if state.druidFormState then out.druidFormState = copyNested(
         state.druidFormState, 4, seen, nil, atomic) end
+    if state.playerForm then out.playerForm = copyNested(state.playerForm, 2, seen) end
+    if XelAssist.Graph.ClassMechanics then XelAssist.Graph.ClassMechanics:Copy(state, out) end
     if state.hostileCasts and XelAssist.Graph.HostileCastState then out.hostileCasts =
         XelAssist.Graph.HostileCastState:Copy(state.hostileCasts, out) end
     if out.hostiles then

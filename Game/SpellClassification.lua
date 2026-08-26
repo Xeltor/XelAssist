@@ -56,6 +56,13 @@ function S:Apply(action, out, dbc, dbcArray)
     -- Keep the stance mask as corroborating client evidence; the generic
     -- requires-stealth attribute above is authoritative across opener types.
     out.stances = dbc("stances")
+    out.stancesNot = dbc("stancesNot")
+    out.spellFamilyName = dbc("spellFamilyName")
+    out.spellFamilyFlags = dbc("spellFamilyFlags")
+    out.equippedItemClass = dbc("equippedItemClass")
+    out.equippedItemSubClassMask = dbc("equippedItemSubClassMask")
+    out.equippedItemInventoryTypeMask =
+        dbc("equippedItemInventoryTypeMask")
     if out.stances ~= nil and flagSet(out.stances, 536870912) then
         out.requiresStealth = true
     end
@@ -68,13 +75,51 @@ function S:Apply(action, out, dbc, dbcArray)
         local sides = dbcArray("effectDieSides")
         local diceLevel = dbcArray("effectDicePerLevel")
         local pointsLevel = dbcArray("effectRealPointsPerLevel")
+        local targets = dbcArray("effectImplicitTargetA")
+        local feign, vanish, fadeAmount = false, false, nil
+        local rogueVanish = out.spellFamilyName == 8
+            and out.spellFamilyFlags ~= nil
+            and flagSet(out.spellFamilyFlags, 2048)
+        local priestFade = out.spellFamilyName == 6
+            and out.spellFamilyFlags ~= nil
+            and flagSet(out.spellFamilyFlags, 16384)
+        local playerLevel = UnitLevel and tonumber(UnitLevel("player"))
+        local baseLevel, maxLevel, spellLevel = tonumber(dbc("baseLevel")),
+            tonumber(dbc("maxLevel")), tonumber(dbc("spellLevel"))
         local i, gain, gainUnknown = nil, 0, false
         for i = 1, table.getn(effects or {}) do
+            local effect, aura = tonumber(effects[i]),
+                tonumber(auras and auras[i])
             if tonumber(effects[i]) == 6
                 and tonumber(auras and auras[i]) == 16 then
                 out.appliesStealth = true
             end
-            if tonumber(effects[i]) == 80 then
+            -- Spell.dbc distinguishes the three player threat-drop shapes.
+            -- The action kind remains explicit knowledge; these installed-
+            -- client fields only select its causal projection.
+            if action.facts and action.facts.kind == "threatDrop"
+                and tonumber(targets and targets[i]) == 1 then
+                if effect == 6 and aura == 66 then feign = true
+                elseif effect == 79 and rogueVanish then vanish = true
+                elseif effect == 6 and aura == 4 and priestFade
+                    and playerLevel and baseLevel and maxLevel and spellLevel then
+                    local base = tonumber(points and points[i])
+                    local die = tonumber(dice and dice[i])
+                    local side = tonumber(sides and sides[i])
+                    local dieScale = tonumber(diceLevel and diceLevel[i])
+                    local scale = tonumber(pointsLevel and pointsLevel[i])
+                    if base and die and dieScale == 0 and scale
+                        and (side == 0 or side == 1) then
+                        local level = math.max(baseLevel, playerLevel)
+                        if maxLevel > 0 then level = math.min(level, maxLevel) end
+                        local value = base + die
+                            + (level - spellLevel) * scale
+                        if value < 0 and (not fadeAmount
+                            or -value > fadeAmount) then fadeAmount = -value end
+                    end
+                end
+            end
+            if effect == 80 then
                 local scaled = math.abs(tonumber(diceLevel and diceLevel[i]) or 0)
                     + math.abs(tonumber(pointsLevel and pointsLevel[i]) or 0)
                 local deterministic = tonumber(sides and sides[i]) or 0
@@ -85,6 +130,14 @@ function S:Apply(action, out, dbc, dbcArray)
                         + (tonumber(dice and dice[i]) or 0))
                 else gainUnknown = true end
             end
+        end
+        if feign then
+            out.threatDropModel = "resistible-all-or-nothing"
+        elseif vanish then
+            out.threatDropModel = "reference-clear"
+        elseif priestFade then
+            out.threatDropModel = "temporary-flat"
+            out.threatDropAmount = fadeAmount
         end
         if gainUnknown then out.comboGainUnknown = true
         elseif gain > 0 then out.comboGain = gain end

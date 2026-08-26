@@ -106,21 +106,55 @@ GetSkillLineInfo = function(index)
     if row then return row[1], row[2], row[3], row[4], row[5], row[6], row[7] end
 end
 
+local includeInvalidControl = false
 GetSpellName = function(slot)
     if slot == 1 then return "Frostbolt", "Rank 1" end
     if slot == 2 then return "Frostbolt", "Rank 2" end
+    if slot == 3 and includeInvalidControl then return "Localized Nova", "Rank 1" end
+    if slot == 4 and includeInvalidControl then return "Localized Channel", "Rank 1" end
+    if slot == 5 and includeInvalidControl then return "Localized Stance", "Rank 1" end
     return nil
 end
 GetSpellSlotTypeIdForName = function(name)
     if name == "Frostbolt(Rank 1)" then return 1, "spell", 116 end
     if name == "Frostbolt(Rank 2)" then return 2, "spell", 205 end
+    if name == "Localized Nova(Rank 1)" then return 3, "spell", 122 end
+    if name == "Localized Channel(Rank 1)" then return 4, "spell", 6358 end
+    if name == "Localized Stance(Rank 1)" then return 5, "spell", 90001 end
     return 0, "unknown", 0
 end
 GetSpellRecField = function(spellId, field)
+    if spellId == 6358 then
+        local channel = { spellFamilyName = 5, mechanic = 1,
+            attributesEx = 4, auraInterruptFlags = 2,
+            targetCreatureType = 64, maxAffectedTargets = 0,
+            effect = { 6, 0, 0 }, effectApplyAuraName = { 12, 0, 0 },
+            effectImplicitTargetA = { 6, 0, 0 },
+            effectImplicitTargetB = { 0, 0, 0 } }
+        return channel[field]
+    end
+    if spellId == 122 then
+        local nova = { spellFamilyName = 3, mechanic = 7,
+            attributesEx = 0,
+            auraInterruptFlags = 0, targetCreatureType = 0,
+            maxAffectedTargets = 0, effect = { 2, 6, 0 },
+            effectApplyAuraName = { 0, 26, 0 },
+            effectImplicitTargetA = { 22, 22, 0 },
+            effectImplicitTargetB = { 15, 15, 0 } }
+        return nova[field]
+    end
     if spellId == 300 then
         local modifier = { effect = { 6, 6, 0 }, effectApplyAuraName = { 22, 87, 0 },
             effectBasePoints = { -46, 5, 0 }, effectMiscValue = { 20, 20, 0 } }
         return modifier[field]
+    end
+    if spellId == 8647 then
+        local expose = { effect = { 6, 3, 0 },
+            effectApplyAuraName = { 22, 0, 0 },
+            effectBasePoints = { -1, 0, 0 },
+            effectMiscValue = { 1, 0, 0 },
+            effectPointsPerComboPoint = { -80, 0, 0 } }
+        return expose[field]
     end
     if spellId == 172 then
         local corruption = {
@@ -201,9 +235,12 @@ dofile("Game/SpellTiming.lua")
 dofile("Game/SpellClassification.lua")
 dofile("Game/SpellPower.lua")
 dofile("Game/SpellEffectPower.lua")
+dofile("Game/TargetModifierFacts.lua")
 dofile("Game/SpellFactCache.lua")
 dofile("Game/Range.lua")
 dofile("Game/ResourceCost.lua")
+dofile("Game/CrowdControl.lua")
+dofile("Game/ActionInference.lua")
 dofile("Game/CapabilityInvalidation.lua")
 dofile("Game/Capabilities.lua")
 dofile("Graph/ActionPower.lua")
@@ -233,6 +270,17 @@ local actions = XelAssist.Game.Capabilities:Actions()
 assert(table.getn(actions) == 2, "all learned ranks should become graph nodes")
 assert(actions[1].spellId == 116 and actions[2].spellId == 205, "ranked spell IDs were not resolved")
 assert(XelAssist.Game.Capabilities:CastName(actions[1]) == "Frostbolt(Rank 1)")
+includeInvalidControl = true
+XelAssist.Graph.WarriorStances = { InferKnowledge = function(_, spellId)
+    if spellId == 90001 then return nil, "invalid stance fixture", true end
+end }
+XelAssist.Game.Capabilities:Invalidate()
+local rebuilt = XelAssist.Game.Capabilities:Actions()
+assert(table.getn(rebuilt) == 2,
+    "recognized unsupported control must not fall through as generic tooltip damage")
+includeInvalidControl = false
+XelAssist.Game.Capabilities:Invalidate()
+actions = XelAssist.Game.Capabilities:Actions()
 
 local facts = XelAssist.Game.Capabilities:Facts(actions[1])
 assert(facts.cost == 50, "talent-adjusted tooltip cost should override base DBC cost")
@@ -462,6 +510,16 @@ local armorDebuff = XelAssist.Game.Capabilities:Facts({ name = "Expose Armor", s
     spellId = 201, bookType = BOOKTYPE_SPELL })
 assert(armorDebuff.targetArmorReduction == 450 and armorDebuff.targetArmorPerCombo,
     "target Armor reduction tooltip semantics missing")
+tooltipLines[2] = { left = "Finishing move that exposes the target, reducing armor per combo point:", right = nil }
+tooltipLines[3] = { left = "1 point: 80 armor", right = nil }
+local dbcArmorDebuff = XelAssist.Game.Capabilities:Facts({ name = "Localized Finisher",
+    slot = 9, spellId = 8647, bookType = BOOKTYPE_SPELL,
+    facts = { kind = "debuff", combo = true, armorDebuff = true,
+        modifierGroup = "majorArmor" } })
+assert(dbcArmorDebuff.targetArmorReduction == 80
+    and dbcArmorDebuff.targetArmorPerCombo
+    and dbcArmorDebuff.targetModifierSource == "installed client DBC target modifier",
+    "own-action facts must recover exact per-combo armor without tooltip grammar")
 tooltipLines[2] = { left = "Burns the enemy for 25 to 35 Fire damage and then an additional 60 Fire damage over 15 sec.", right = nil }
 tooltipLines[3] = { left = "2 sec cast", right = "30 yd range" }
 local hybrid = XelAssist.Game.Capabilities:Facts({ name = "Immolate", slot = 4,

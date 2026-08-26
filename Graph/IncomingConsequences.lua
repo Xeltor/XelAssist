@@ -3,6 +3,8 @@
 XelAssist.Graph.IncomingConsequences = {}
 local I = XelAssist.Graph.IncomingConsequences
 local State = XelAssist.Graph.State
+local IncomingAbsorbs = XelAssist.Graph.IncomingAbsorbs
+local PriestShadowform = XelAssist.Graph.PriestShadowform
 
 local function friendlyByGuid(state, guid)
     local friendlies = state and state.friendlies
@@ -65,88 +67,6 @@ local function healthOf(recipient)
     local exact = record.healthExact
     if exact == nil then exact = record.exact end
     return tonumber(record.health), tonumber(record.healthMax), exact == true
-end
-
-local function absorbNames(absorbs)
-    local names, name, value = {}, nil, nil
-    for name, value in pairs(absorbs or {}) do
-        if name ~= "available" and (type(value) == "number"
-            or type(value) == "table" and tonumber(value.amount)) then
-            table.insert(names, name)
-        end
-    end
-    table.sort(names)
-    return names
-end
-
-local function consumeSet(absorbs, damage, castProbability, seen)
-    local names, absorbed, partial = absorbNames(absorbs), 0, false
-    local i, name, entry, amount, probability, used, conditionalUsed
-    local hitRemaining, survival, expectedRemaining, remainingProbability
-    for i = 1, table.getn(names) do
-        name = names[i]
-        if not seen[name] and damage > 0 then
-            entry = absorbs[name]
-            amount = type(entry) == "table" and tonumber(entry.amount)
-                or tonumber(entry) or 0
-            probability = type(entry) == "table"
-                and tonumber(entry.applicationProbability) or 1
-            probability = math.max(0, math.min(1, probability or 1))
-            if probability > 0 then seen[name] = true end
-            -- Keep the shield amount conditional on that shield existing. A
-            -- 50%-likely hit that would consume it may consume only 50% of its
-            -- projected amount; the no-hit branch still owns the other half.
-            conditionalUsed = math.min(damage, amount)
-            used = conditionalUsed * probability
-            damage = math.max(0, damage - used)
-            absorbed = absorbed + used * castProbability
-            hitRemaining = math.max(0, amount - conditionalUsed)
-            survival = 1 - castProbability
-                + (hitRemaining > 0 and castProbability or 0)
-            expectedRemaining = (1 - castProbability) * amount
-                + castProbability * hitRemaining
-            remainingProbability = probability * survival
-            if survival > 0 then expectedRemaining = expectedRemaining / survival end
-            if remainingProbability <= 0 or expectedRemaining <= 0 then
-                absorbs[name] = nil
-            elseif type(entry) == "table" then
-                entry.amount = expectedRemaining
-                entry.applicationProbability = remainingProbability
-            else
-                absorbs[name] = remainingProbability < 1
-                    and { amount = expectedRemaining,
-                        applicationProbability = remainingProbability }
-                    or expectedRemaining
-            end
-            if probability < 1 or castProbability < 1 then partial = true end
-        end
-    end
-    return damage, absorbed, partial
-end
-
-local function consumeAbsorbs(state, recipient, damage, castProbability)
-    local seen, absorbed, partial = {}, 0, false
-    if recipient.friendly then
-        local used
-        damage, used, partial = consumeSet(
-            recipient.friendly.absorbs, damage, castProbability, seen)
-        absorbed = absorbed + used
-        if recipient.friendly.absorbs
-            and recipient.friendly.absorbs.available == false then
-            partial = true
-        end
-    elseif recipient.kind == "player" or recipient.kind == "pet" then
-        -- A capped friendly snapshot can still resolve these through actors.
-        -- That proves health identity, but not absence of live absorb auras.
-        partial = true
-    end
-    if recipient.kind == "player" and state.absorbs then
-        local used, rootPartial
-        damage, used, rootPartial = consumeSet(
-            state.absorbs, damage, castProbability, seen)
-        absorbed, partial = absorbed + used, partial or rootPartial
-    end
-    return damage * castProbability, absorbed, partial
 end
 
 local function syncFriendlyCompatibility(state, recipient)
@@ -229,9 +149,15 @@ function I:Preview(state, cast)
         return nil, "recipient health is unavailable"
     end
     local probability = castProbability(cast)
+    local rawAmount = math.max(0, tonumber(facts.amount) or 0)
+    if facts.kind == "damage" and PriestShadowform then
+        local adjusted, adjustmentReason, handled = PriestShadowform:AdjustIncoming(
+            state, recipient, rawAmount, facts.school)
+        if handled and adjusted == nil then return nil, adjustmentReason end
+        if handled then rawAmount = adjusted end
+    end
     return { facts = facts, recipient = recipient, guid = guid,
-        amount = self:ExpectedAmount(cast),
-        rawAmount = math.max(0, tonumber(facts.amount) or 0),
+        amount = rawAmount * probability, rawAmount = rawAmount,
         probability = probability, health = health,
         healthMax = maximum, healthExact = exact,
         absorbsExact = absorbsExact(recipient) }
@@ -248,8 +174,9 @@ function I:Apply(state, cast)
         recipient = preview.recipient.kind, recipientGuid = preview.guid,
         estimated = estimated, probability = preview.probability }
     if preview.facts.kind == "damage" then
-        local residual, absorbed, partial = consumeAbsorbs(
-            state, preview.recipient, preview.rawAmount, preview.probability)
+        local residual, absorbed, partial = IncomingAbsorbs:Consume(state,
+            preview.recipient, preview.rawAmount, preview.probability,
+            preview.facts.school)
         local after = math.max(0, health - residual)
         result.absorbed, result.effective = absorbed, health - after
         result.partial = partial or uncertain

@@ -14,9 +14,10 @@ local EventAuras = XelAssist.Graph.EventAuras
 local HostileCasts = XelAssist.Graph.HostileCastEvents
 local HealthTransfer = XelAssist.Graph.HealthTransfer
 local AmbientTargetHealth = XelAssist.Graph.AmbientTargetHealth
-local PlayerTaunt = XelAssist.Graph.PlayerTaunt
+local PlayerTaunt, ThreatDrop = XelAssist.Graph.PlayerTaunt, XelAssist.Graph.ThreatDrop
+local ControlDamage = XelAssist.Graph.CrowdControlTimeline
+local PlayerResourceTimeline = XelAssist.Graph.PlayerResourceTimeline
 local NIL_PROBE_TARGET = {}
-
 local function memoActionKey(action)
     local facts = action and action.facts or {}
     local actor = action and (action.actor or "player") or "player"
@@ -29,7 +30,6 @@ local function memoActionKey(action)
     end
     return actor .. "\001" .. action.name
 end
-
 local function repeatedActionKeys(actions)
     local seen, repeated, any, i = {}, {}, false, nil
     for i = 1, table.getn(actions or {}) do
@@ -41,7 +41,6 @@ local function repeatedActionKeys(actions)
     end
     return any and repeated or nil
 end
-
 -- Scoring asks the causal timeline for target health before every legal rank.
 -- Ranks of the same player spell often have an identical pre-application
 -- schedule, so repeating the deep state copy cannot change that forecast.  The
@@ -58,21 +57,18 @@ function L:BeginEvaluation(state, actions)
     state.xelTimelineProbeState = {}
     return cache
 end
-
 local function probeTarget(candidate)
     if candidate.targetKey ~= nil then return candidate.targetKey, "key" end
     if candidate.targetGUID ~= nil then return candidate.targetGUID, "guid" end
     if candidate.target ~= nil then return candidate.target, "unit" end
     return NIL_PROBE_TARGET, "none"
 end
-
 local function scalar(value)
     if value == nil then return "" end
     if value == true then return "1" end
     if value == false then return "0" end
     return tostring(value)
 end
-
 local function probeSignature(candidate)
     local action = candidate and candidate.action
     local tooltip = candidate and candidate.tooltip or {}
@@ -91,7 +87,6 @@ local function probeSignature(candidate)
         scalar(candidate.targetSource), scalar(candidate.ambientExcludedKind),
         scalar(candidate.ambientExcludedOffset) }, "\001")
 end
-
 local function cachedProbe(source, candidate)
     local cache = source and source.xelTimelineProbeCache
     local group = memoActionKey(candidate and candidate.action)
@@ -113,7 +108,6 @@ local function cachedProbe(source, candidate)
     local key = kind .. "\001" .. signature
     return targetCache[key], { bucket = targetCache, key = key }, cache
 end
-
 local function syncCandidateTarget(state, candidate)
     if not (candidate and candidate.targetRelation == "hostile"
         and state.hostiles) then return end
@@ -124,7 +118,6 @@ local function syncCandidateTarget(state, candidate)
         State:SyncSelectedHostile(state)
     end
 end
-
 local function append(events, entry, order, window)
     if window and (tonumber(entry.offset) or math.huge) > window then
         return order
@@ -139,7 +132,6 @@ local function append(events, entry, order, window)
     table.insert(events, entry)
     return order + 1
 end
-
 local function sortEvents(events)
     table.sort(events, function(left, right)
         if left.offset ~= right.offset then return left.offset < right.offset end
@@ -149,13 +141,11 @@ local function sortEvents(events)
         return left.order < right.order
     end)
 end
-
 local function hostileDefeated(out, candidate)
     if candidate.targetRelation ~= "hostile" then return false end
     if out.targetHealthExact and out.targetHealth <= 0 then return true end
     return not out.hostile
 end
-
 local function actorDefeated(out, candidate)
     local action = candidate and candidate.action or {}
     local actorName = action.actor == "pet" and "pet" or "player"
@@ -171,7 +161,6 @@ local function actorDefeated(out, candidate)
     end
     return false
 end
-
 local function advancePetEffects(out, elapsed)
     if elapsed <= 0 then return end
     if XelAssist.Game.Pets and XelAssist.Game.Pets.Effects then
@@ -184,20 +173,23 @@ local function advancePlayerResources(out, elapsed)
         and XelAssist.Game.Player.Resources
     if resources then resources:Advance(out, elapsed) end
 end
-
 local function advanceWand(out, elapsed)
     if WandCommitment then WandCommitment:Advance(out, elapsed) end
 end
 
 local function advanceState(out, elapsed, persistentAuras, eventAuras)
     if elapsed <= 0 then return end
+    local controlSnapshot = ControlDamage and ControlDamage:Snapshot(out)
     advancePetEffects(out, elapsed)
     advancePlayerResources(out, elapsed)
     advanceWand(out, elapsed)
+    if XelAssist.Graph.ClassMechanics then XelAssist.Graph.ClassMechanics:Advance(out, elapsed) end
     Ongoing:AdvanceState(out, elapsed, persistentAuras)
     Ongoing:AdvanceEventAuras(out, eventAuras, elapsed)
     if PlayerTaunt then PlayerTaunt:Advance(out) end
+    if ThreatDrop then ThreatDrop:Advance(out, elapsed) end
     if HostileCasts then HostileCasts:Advance(out, elapsed) end
+    if ControlDamage then ControlDamage:ResolveAdvance(out, controlSnapshot) end
 end
 
 local function finishPetReadyAt(out, candidate, actionApplied)
@@ -217,7 +209,6 @@ local function finishChosenBranches(out, candidate, context)
         EventAuras:AgeBranches(aura, context.applicationElapsed or 0)
     end
 end
-
 local function collectEvents(out, source, candidate, context)
     local events, order = {}, 1
     local window = math.max(0, tonumber(candidate.downtime) or 0)
@@ -250,6 +241,8 @@ local function collectEvents(out, source, candidate, context)
             offset = math.max(0, tonumber(candidate.wait) or 0),
             priority = 20 }, order, window)
     end
+    order = PlayerResourceTimeline
+        and PlayerResourceTimeline:Append(events, source, candidate, order, window) or order
     append(events, { owner = "action", kind = "chosenAction",
         offset = context.applicationOffset,
         priority = candidate.ambientActionPriority or 20 }, order, window)
@@ -262,6 +255,7 @@ local function startChosen(out, candidate, context)
         context.actionStartFailed = true
         return false
     end
+    if PlayerResourceTimeline then PlayerResourceTimeline:Begin(out, candidate) end
     local started = CompanionResources
         and CompanionResources:BeginChosen(out, candidate, context)
     context.actionStarted, context.actionStartFailed = started and true or false,
@@ -311,6 +305,7 @@ function L:BeforeAction(source, candidate)
             and math.abs(entry.offset - candidate.ambientExcludedOffset) < 0.0001
         if not excluded then
             prior = out.targetHealth
+            local controlSnapshot = ControlDamage and ControlDamage:Snapshot(out)
             if entry.kind == "chosenActionStart" then
                 startChosen(out, candidate, context)
             elseif entry.kind == "petAutocastTimelineCap" then
@@ -328,20 +323,23 @@ function L:BeforeAction(source, candidate)
                 Ongoing:ApplyEvent(out, source, candidate, context, entry)
                 Ongoing:TrackEventAuras(out, beforeAuras, eventAuras)
             end
+            if ControlDamage then ControlDamage:ResolveEvent(out, controlSnapshot, entry, candidate) end
             if out.targetHealthExact and out.targetHealth < prior then
                 damageEvents = damageEvents + 1
             end
         end
     end
     local ammunition, ammunitionKnown = applicationAmmunition(out, candidate)
+    local channelProjection = XelAssist.Graph.TimelineProbe
+        and XelAssist.Graph.TimelineProbe:Channel(out, candidate)
     return { targetHealth = out.targetHealth,
         defeated = hostileDefeated(out, candidate),
         damageEvents = damageEvents,
         autoLaunches = out.autoShot and out.autoShot.launches or 0,
         autoImpacts = out.autoShot and out.autoShot.impacts or 0,
-        ammunition = ammunition, ammunitionKnown = ammunitionKnown }
+        ammunition = ammunition, ammunitionKnown = ammunitionKnown,
+        channelProjection = channelProjection }
 end
-
 -- Scoring keeps intrinsic action value separate from the causal window that
 -- reaches a future start. Timeline probes must still see that full window.
 function L:BeforeScoredAction(source, candidate)
@@ -393,6 +391,7 @@ function L:Run(out, source, candidate, context)
         local step = entry.offset - elapsed
         advanceState(out, step, persistentAuras, eventAuras)
         elapsed = entry.offset
+        local controlSnapshot = ControlDamage and ControlDamage:Snapshot(out)
         if entry.kind == "chosenActionStart" then
             syncCandidateTarget(out, candidate)
             startChosen(out, candidate, context)
@@ -435,6 +434,7 @@ function L:Run(out, source, candidate, context)
             Ongoing:ApplyEvent(out, source, candidate, context, entry)
             Ongoing:TrackEventAuras(out, beforeAuras, eventAuras)
         end
+        if ControlDamage then ControlDamage:ResolveEvent(out, controlSnapshot, entry, candidate) end
     end
     local remainder = candidate.downtime - elapsed
     advanceState(out, remainder, persistentAuras, eventAuras)

@@ -6,6 +6,7 @@ local C = XelAssist.Graph.ChannelCommitment
 local HealthTransfer = XelAssist.Graph.HealthTransfer
 local SpellTiming = XelAssist.Game.SpellTiming
 local LeechChannel = XelAssist.Graph.LeechChannel
+local Breakpoint = XelAssist.Graph.ChannelBreakpoint
 
 local EXACT_CADENCE_SOURCE = "client DBC effectAmplitude"
 local MAX_CHANNEL_TICKS = 40
@@ -216,6 +217,8 @@ function C:Prepare(state, actions)
             state, healthTransferData, remaining, total) or nil
     local leechEvidence = LeechChannel and LeechChannel:Evidence(
         state, match, tooltip, cadence, targetMatches) or nil
+    local damageEvidence = Breakpoint and Breakpoint:DamageEvidence(
+        state, match, tooltip, cadence, targetMatches) or nil
     local value = continuationValue(
         state, kind, power, remaining, known, friendlyMissing)
     if healthTransferData then
@@ -238,6 +241,11 @@ function C:Prepare(state, actions)
         value = value, healthTransferData = healthTransferData,
         healthTransferPlan = healthTransferPlan,
         leechEvidence = leechEvidence,
+        damageEvidence = damageEvidence,
+        damageActor = match and (match.facts.damageActor
+            or match.facts.effectActor or match.actor or "player"),
+        threatFactor = match and math.max(0,
+            tonumber(match.facts.threat) or 1) or 1,
     }
 end
 
@@ -315,6 +323,9 @@ function C:Candidate(state)
             commitment.healthTransferData, current, commitment.total) or nil
     if commitment.healthTransferData and not transferPlan then return nil end
     local cadence = commitment.known and commitment.cadence or nil
+    if cadence and not commitment.healthTransferData and Breakpoint then
+        return Breakpoint:Candidate(state, commitment, ACTION)
+    end
     local timing = cadence and remainingCadence(cadence, current) or nil
     local projectedPower = timing and math.max(0,
         tonumber(cadence.tickPower) or 0) * timing.remainingTicks or 0
@@ -381,6 +392,9 @@ end
 function C:Apply(out, candidate)
     local facts = candidate and candidate.action and candidate.action.facts or {}
     if facts.channelContinuation then
+        if candidate.channelBreakpoint and Breakpoint then
+            return Breakpoint:Apply(out, candidate)
+        end
         if candidate.healthTransfer and HealthTransfer then
             HealthTransfer:Finish(out, candidate)
             if out.playerChanneling then

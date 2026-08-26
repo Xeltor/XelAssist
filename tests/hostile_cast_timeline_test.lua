@@ -21,6 +21,7 @@ XelAssist.Graph.State = {
     RefreshHostileRecord = function() end,
 }
 dofile("Graph/HostileCastState.lua")
+dofile("Graph/IncomingAbsorbs.lua")
 dofile("Graph/IncomingConsequences.lua")
 dofile("Graph/HostileCastEvents.lua")
 dofile("Graph/IncomingScoring.lua")

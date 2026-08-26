@@ -7,7 +7,12 @@ table.getn = table.getn or function(value)
     return count
 end
 local links = { [0] = "[Sharp Arrow]", [16] = "[Broken Sword]", [18] = "[Long Bow]" }
+local textures = { [0] = "ammo-texture", [16] = "sword-texture",
+    [17] = "uncached-equipped-texture", [18] = "bow-texture" }
 GetInventoryItemLink = function(_, slot) return links[slot] end
+GetInventoryItemTexture = function(_, slot)
+    return textures[slot]
+end
 GetInventoryItemCount = function(_, slot) return slot == 0 and 12 or 1 end
 GetInventoryItemDurability = function(slot)
     if slot == 16 then return 0, 40 end
@@ -26,6 +31,20 @@ GetItemInfo = function(link)
     end
     return "Long Bow", link, 1, 40, 30, "Weapon", "Bows", 1, "INVTYPE_RANGED", "bow"
 end
+C_Item = {
+    GetItemInfoInstant = function(link)
+        if string.find(link or "", "Broken Sword", 1, true) then
+            return 1001, "Weapon", "Swords", "INVTYPE_WEAPON", "sword", 2, 7
+        end
+        if string.find(link or "", "Long Bow", 1, true) then
+            return 1002, "Weapon", "Bows", "INVTYPE_RANGED", "bow", 2, 2
+        end
+    end,
+    GetItemInventoryTypeByID = function(id)
+        if id == 1001 then return 13 end
+        if id == 1002 then return 15 end
+    end,
+}
 GetContainerNumSlots = function(bag) return bag == 0 and 3 or 0 end
 local bagLinks = { [1] = "|Hitem:13446:0:0:0|h[Major Healing Potion]|h",
     [2] = "|Hitem:1111:0:0:0|h[Conjured Food]|h",
@@ -59,6 +78,17 @@ dofile("Game/Inventory.lua")
 local inventory = XelAssist.Game.Inventory:Snapshot()
 assert(inventory.ammo.known and inventory.ammo.count == 12 and inventory.ammo.link)
 assert(inventory.mainHand.broken and not inventory.ranged.broken)
+assert(inventory.mainHand.classificationKnown
+    and inventory.mainHand.classID == 2 and inventory.mainHand.subClassID == 7
+    and inventory.mainHand.inventoryType == 13,
+    "combat equipment must retain exact numeric item classification")
+assert(not inventory.offHand.classificationKnown and not inventory.offHand.empty,
+    "an occupied cache-cold lane must remain unknown rather than become empty")
+textures[17] = nil
+local emptyInventory = XelAssist.Game.Inventory:Snapshot()
+assert(emptyInventory.offHand.classificationKnown
+    and emptyInventory.offHand.empty,
+    "an exactly empty equipment lane must retain known emptiness")
 assert(inventory.ranged.itemSubtype == "Bows")
 assert(XelAssist.Game.Inventory:Blocker({ facts = { melee = true } }, { inventory = inventory }) == "broken main-hand")
 assert(not XelAssist.Game.Inventory:Blocker({ actor = "pet", facts = { melee = true } }, { inventory = inventory }),

@@ -8,6 +8,7 @@ local Effects = XelAssist.Graph.Effects
 local Targets = XelAssist.Graph.CompanionTargets
 local PlayerRage = XelAssist.Graph.PlayerRage
 local PlayerThreat = XelAssist.Graph.PlayerThreat
+local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 
 local MAX_EVENTS = 8
 local READY_DELAY = 0.05
@@ -242,7 +243,7 @@ end
 function S:StillCurrent(state, entry)
     local attack, round = state.playerAttack,
         state.playerAttack and state.playerAttack.attackRound
-    if not (attack and attack.active == true and round
+    if not (attack and attack.active == true and round and round.projectable
         and round.targetGuid == entry.targetGuid) then return false end
     return Targets:Resolve(state, entry) ~= nil
 end
@@ -361,14 +362,23 @@ function S:Apply(out, entry)
             source = "projected player main-hand round" }
     else
         local round = out.playerAttack and out.playerAttack.attackRound
-        local dealt = round and round.normalDamageKnown == true
-            and applyKnown(target, record, WHITE_ACTION, WHITE_TOOLTIP,
-                round.power, 1) or nil
+        local raw = round and round.normalDamageKnown == true
+            and round.power or nil
+        local windReason, windHandled, windDelivery
+        if raw and Windfury then
+            raw, windReason, windHandled, windDelivery =
+                Windfury:WhiteSwingRawPower(out, entry.targetGuid, raw)
+        end
+        local dealt = raw and applyKnown(target, record, WHITE_ACTION,
+            WHITE_TOOLTIP, raw, 1) or nil
         if dealt == nil then
-            markUnknown(target, record,
-                "ordinary player swing outcome magnitude unavailable")
+            markUnknown(target, record, windReason
+                or "ordinary player swing outcome magnitude unavailable")
         elseif PlayerRage then
             PlayerRage:GainFromWhite(out, dealt)
+        end
+        if windHandled and dealt ~= nil then
+            Windfury:AfterWhiteSwing(out, entry.targetGuid, windDelivery)
         end
     end
     refreshRecord(out, record)

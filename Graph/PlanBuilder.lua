@@ -167,6 +167,8 @@ function B:Build(state, observed, path, counter, started, observedAt)
         timelineProbeBypasses = probes.bypasses or 0,
         threat = best.threat, downtime = best.downtime, observed = observed,
         druidFormTransition = best.druidFormTransition,
+        warriorStanceTransition = best.warriorStanceTransition,
+        priestShadowformTransition = best.priestShadowformTransition,
         resistance = best.resistance, tooltip = best.tooltip,
         recipientEffects = best.recipientEffects,
         areaRecipientGroups = best.areaRecipientGroups,

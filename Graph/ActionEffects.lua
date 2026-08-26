@@ -14,9 +14,9 @@ local HealthTransfer = XelAssist.Graph.HealthTransfer
 local WandCommitment = XelAssist.Graph.WandCommitment
 local PlayerTaunt = XelAssist.Graph.PlayerTaunt
 local StackedModifiers = XelAssist.Graph.StackedModifiers
-local HunterAspects = XelAssist.Graph.HunterAspects
 local DruidForms = XelAssist.Graph.DruidForms
-
+local ThreatDrop, ClassMechanics = XelAssist.Graph.ThreatDrop, XelAssist.Graph.ClassMechanics
+local FriendlyActionEffects = XelAssist.Graph.FriendlyActionEffects
 function A:Context(source, candidate)
     local action, facts = candidate.action, candidate.action.facts
     local targetFacts = candidate.tooltip or {}
@@ -78,7 +78,6 @@ function A:Context(source, candidate)
                 source, self.projectedDelivery, prior, fallback, self.targetGUID)
         end
     end
-
     function context:AddProjectedModifierAura(state)
         if self.hasTargetModifier and self.targetModifierDuration
             and self.targetModifierDuration > 0 then
@@ -95,12 +94,10 @@ function A:Context(source, candidate)
     end
     return context
 end
-
 function A:Consume(out, candidate, context)
     return XelAssist.Graph.ActionConsumption:Consume(
         out, candidate, context)
 end
-
 local function applyModifierProjection(out, source, context)
     if context.hostileExclusiveFamily then
         Effects:ApplyExclusiveFamily(out, context.action,
@@ -114,58 +111,17 @@ local function applyModifierProjection(out, source, context)
             source, context.projectedDelivery, prior, fallback, context.targetGUID)
     end
 end
-
-local function applyFriendlyTarget(out, candidate, context)
-    if candidate.targetRelation == "hostile" then return nil end
-    local target = State:FriendlyByKey(out, candidate.targetKey)
-    if target and HunterAspects
-        and HunterAspects:Apply(target, candidate, context) then return true end
-    local kind = context.facts.kind
-    if not (target and (kind == "heal" or kind == "hot"
-        or kind == "absorb" or kind == "buff")) then return nil end
-    if kind == "heal" then
-        target.health = math.min(target.healthMax,
-            target.health + candidate.power)
-    elseif kind == "hot" then
-        local duration = math.max(1,
-            tonumber(candidate.tooltip.duration) or 12)
-        local rate = candidate.power / duration
-        target.auras = target.auras or {}
-        target.auras[context.action.name] = {
-            duration = duration,
-            remaining = duration,
-            mine = true,
-            periodicHealRate = rate,
-            applicationProbability = 1,
-        }
-    elseif kind == "absorb" then
-        local duration = tonumber(candidate.tooltip.duration)
-        target.absorbs = target.absorbs or {}
-        target.absorbs[context.action.name] = {
-            amount = candidate.power,
-            duration = duration,
-            remaining = duration,
-            applicationProbability = 1,
-        }
-    elseif kind == "buff" then
-        local duration = tonumber(candidate.tooltip.duration)
-        target.auras = target.auras or {}
-        target.auras[context.action.name] = {
-            duration = duration,
-            remaining = duration,
-            mine = true,
-            applicationProbability = 1,
-        }
-    end
-    return true
-end
 local function applyDamageOrSupport(out, source, candidate, context,
     targetLocal, dotDirect, dotPeriodic, dotDuration, dotElapsed)
+    if context.classMechanicHandled then return true end
     local facts = context.facts
     if WandCommitment and WandCommitment:Apply(out, candidate) then
         return true
     elseif facts.kind == "autoRepeat" then
         return false
+    elseif XelAssist.Graph.CasterPersistentDamage
+        and XelAssist.Graph.CasterPersistentDamage:Apply(
+            out, candidate, context) then return true
     elseif facts.kind == "damage" or facts.kind == "builder" then
         if candidate.areaDirectResolved
             and not candidate.areaSelectedIncluded then return true end
@@ -202,7 +158,11 @@ local function applyDamageOrSupport(out, source, candidate, context,
         return true
     elseif facts.kind == "absorb" and not facts.petSacrifice
         and not targetLocal then
-        out.absorbs[context.action.name] = candidate.power
+        if not (ClassMechanics
+            and ClassMechanics:ApplyExactAbsorb(out, nil, candidate)) then
+            out.absorbs[context.action.name] = candidate.power
+            if ClassMechanics then ClassMechanics:AfterAbsorb(out, candidate) end
+        end
         return true
     elseif facts.kind == "hot" and not targetLocal then
         local fraction = math.min(1,
@@ -211,8 +171,11 @@ local function applyDamageOrSupport(out, source, candidate, context,
             out.healHealth + candidate.power * fraction)
         return true
     elseif facts.kind == "threatDrop" then
-        out.hasAggro = false
-        return true
+        if XelAssist.Graph.RogueFeint
+            and XelAssist.Graph.RogueFeint:Apply(out, candidate) then
+            return true
+        end
+        return ThreatDrop and ThreatDrop:Apply(out, candidate) or false
     elseif facts.healthFundedChannel and HealthTransfer
         and HealthTransfer:Finish(out, candidate) then
         return true
@@ -277,6 +240,8 @@ local function applyActorOrInventory(out, candidate, context)
     elseif facts.kind == "command" and out.actors and out.actors.pet then
         XelAssist.Graph.CompanionCommandPolicy:Apply(out.actors.pet,
             action, candidate.targetGUID or out.targetGUID)
+    elseif XelAssist.Graph.WarriorRage
+        and XelAssist.Graph.WarriorRage:Apply(out, candidate) then return
     elseif ResourceExchange and ResourceExchange:Apply(out, candidate) then
         return
     elseif facts.kind == "resource" and facts.consumable then
@@ -305,10 +270,10 @@ local function applyCombatState(out, candidate, context)
     local facts = context.facts
     HostileEffects:FinalizeSelected(out, candidate, facts)
     XelAssist.Graph.ComboEffects:Apply(out, candidate, facts)
-end
-
+    end
 local function applyAura(out, source, candidate, context,
     targetLocal, dotPeriodic, dotDuration, dotElapsed)
+    if context.classMechanicHandled then return end
     local facts, action = context.facts, context.action
     local threatActor = facts.damageActor or facts.effectActor
         or action.actor or "player"
@@ -388,13 +353,25 @@ local function syncFriendlyCompatibility(state)
     end
 end
 function A:Apply(out, source, candidate, context)
+    if candidate.classMechanicProjection then
+        context.classMechanicHandled = true
+        context.classMechanicApplied = ClassMechanics and ClassMechanics:Apply(out, candidate) or false
+    end
     if DruidForms then DruidForms:Apply(out, candidate, context) end
+    if XelAssist.Graph.WarriorStances then XelAssist.Graph.WarriorStances:Apply(out, candidate) end
+    if XelAssist.Graph.PriestShadowform then
+        XelAssist.Graph.PriestShadowform:Apply(out, candidate)
+    end
+    if ClassMechanics and ClassMechanics:ApplyExactAura(out, candidate) then
+        context.classMechanicHandled = true
+    end
     applyModifierProjection(out, source, context)
     Readiness:Apply(out, candidate, context)
     local dotDirect, dotPeriodic, dotDuration, dotElapsed =
         DotProjection:Candidate(candidate)
-    local targetLocal = applyFriendlyTarget(out, candidate, context)
-    local primaryHandled = applyDamageOrSupport(
+    local targetLocal, friendlyRejected = FriendlyActionEffects:Apply(
+        out, candidate, context)
+    local primaryHandled = friendlyRejected or applyDamageOrSupport(
         out, source, candidate, context, targetLocal,
         dotDirect, dotPeriodic, dotDuration, dotElapsed)
     if not primaryHandled then
@@ -425,6 +402,10 @@ function A:Apply(out, source, candidate, context)
     end
     applyAura(out, source, candidate, context, targetLocal,
         dotPeriodic, dotDuration, dotElapsed)
+    if XelAssist.Graph.CrowdControl then XelAssist.Graph.CrowdControl:Apply(out, candidate, context) end
+    if XelAssist.Graph.ShamanWindfuryTotem then
+        XelAssist.Graph.ShamanWindfuryTotem:AfterCandidate(out, candidate)
+    end
     if WandCommitment then WandCommitment:AfterAction(out, candidate) end
     syncFriendlyCompatibility(out)
     if State.CommitActiveHostile then State:CommitActiveHostile(out) end

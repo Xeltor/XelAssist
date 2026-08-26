@@ -6,6 +6,7 @@ local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
 local Uncertainty = XelAssist.Graph.AutoShotUncertainty
 local PlayerThreat = XelAssist.Graph.PlayerThreat
+local HunterMark = XelAssist.Graph.HunterMark
 
 local MAX_HOSTILES = 5
 
@@ -126,6 +127,11 @@ end
 
 local function shotPower(observed, resistanceState)
     local power = math.max(0, tonumber(observed.shotDamage) or 0)
+    if HunterMark then
+        local bonus = HunterMark:AutoShotBonus(
+            resistanceState, observed.targetGuid)
+        if tonumber(bonus) then power = power + math.max(0, bonus) end
+    end
     local delivery = 1
     if power > 0 and XelAssist.Combat.Resistance then
         local estimate = XelAssist.Combat.Resistance:Estimate(
@@ -148,7 +154,8 @@ function A:CaptureLaunch(targetGuid, spellId, rawPower)
         or age < 0 or age > 2 then
         return tonumber(rawPower), nil
     end
-    return shotPower({ spellId = spellId, shotDamage = rawPower }, state)
+    return shotPower({ spellId = spellId, shotDamage = rawPower,
+        targetGuid = targetGuid }, state)
 end
 
 function A:ObserveLiveState(state)

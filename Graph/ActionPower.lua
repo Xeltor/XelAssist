@@ -3,6 +3,7 @@
 XelAssist.Graph.ActionPower = {}
 local P = XelAssist.Graph.ActionPower
 local Triggered = XelAssist.Combat.TriggeredActions
+local HunterMark = XelAssist.Graph.HunterMark
 
 local function comboPower(action, tooltip, state, targetGUID, comboAllOwners)
     if not (action.facts.combo or tooltip.comboSpendAll) then return 0 end
@@ -39,7 +40,7 @@ local function weaponBasis(action, tooltip, observed, status)
 end
 
 local function dbcWeaponPower(action, tooltip, state, targetGUID,
-    comboAllOwners, observed, status)
+    comboAllOwners, observed, status, effectTargetGUID)
     local coefficient = tonumber(tooltip.weaponCoefficient)
     if coefficient == nil then return nil end
     local basis, evidence = weaponBasis(action, tooltip, observed, status)
@@ -54,9 +55,18 @@ local function dbcWeaponPower(action, tooltip, state, targetGUID,
         and (tonumber(tooltip.weaponComboFlat) or 0) * points * percent
         or comboPower(action, tooltip, state, targetGUID, comboAllOwners)
     local direct = tonumber(tooltip.weaponDirectFlat) or 0
-    return weapon * coefficient
-        + (tonumber(tooltip.weaponFlat) or 0) * percent + combo + direct,
-        evidence
+    local power = weapon * coefficient
+        + (tonumber(tooltip.weaponFlat) or 0) * percent + combo + direct
+    if tooltip.hunterRangedWeaponEvidence then
+        if not HunterMark then return nil, { unknown = true,
+            gap = "Hunter's Mark graph unavailable" }, true end
+        local bonus, _, reason = HunterMark:WeaponActionBonus(
+            action, tooltip, state, effectTargetGUID, evidence)
+        if bonus == nil then return nil, { unknown = true,
+            gap = reason or "Hunter's Mark weapon consequence unavailable" }, true end
+        power = power + bonus
+    end
+    return power, evidence, false
 end
 
 local function unresolvedWeaponPower(action, tooltip, state, targetGUID,
@@ -72,7 +82,29 @@ local function unresolvedWeaponPower(action, tooltip, state, targetGUID,
     return math.max(10, (tonumber(tooltip.weaponFlat) or 0) + combo)
 end
 
-function P:Estimate(action, tooltip, state, targetGUID, comboAllOwners)
+local function addSpellBonus(action, tooltip, observed, status, base)
+    local kind = action.facts.kind
+    if (kind ~= "damage" and kind ~= "dot") or action.actor == "pet" then
+        return base, false
+    end
+    local bonus = status == "known"
+        and (observed.bonusCaptured and observed.bonusDamage or 0)
+        or XelAssist.Game.Capabilities:BonusDamage(tooltip.school)
+    if bonus <= 0 then return base, false end
+    local coefficient
+    if kind == "dot" then
+        coefficient = math.min(1, (tooltip.duration or 15) / 15)
+    else
+        coefficient = math.min(1, math.max(1.5, tooltip.cast or 0) / 3.5)
+    end
+    local area = action.facts.aoe or tooltip.topology
+        and tooltip.topology.area
+    if area then coefficient = coefficient * 0.5 end
+    return base + bonus * coefficient, true
+end
+
+function P:Estimate(action, tooltip, state, targetGUID, comboAllOwners,
+    effectTargetGUID)
     local observed, observationStatus = observedPower(action, state)
     if observationStatus ~= "absent" and observationStatus ~= "known" then
         return 0, true, { unknown = true,
@@ -95,8 +127,11 @@ function P:Estimate(action, tooltip, state, targetGUID, comboAllOwners)
         base, estimated = Triggered:ScriptedPower(action, state)
     end
     if not base then
-        base, evidence = dbcWeaponPower(action, tooltip, state, targetGUID,
-            comboAllOwners, observed, observationStatus)
+        local blocked
+        base, evidence, blocked = dbcWeaponPower(action, tooltip, state,
+            targetGUID, comboAllOwners, observed, observationStatus,
+            effectTargetGUID)
+        if blocked then return 0, true, evidence end
         if base ~= nil then estimated = true end
     end
     if not base and tooltip.weaponCoefficient ~= nil then
@@ -142,25 +177,10 @@ function P:Estimate(action, tooltip, state, targetGUID, comboAllOwners)
         and tonumber(action.facts.channelTicks) then
         base = base * action.facts.channelTicks
     end
-    if (action.facts.kind == "damage" or action.facts.kind == "dot")
-        and action.actor ~= "pet" then
-        local bonus = observationStatus == "known"
-            and (observed.bonusCaptured and observed.bonusDamage or 0)
-            or XelAssist.Game.Capabilities:BonusDamage(tooltip.school)
-        if bonus > 0 then
-            local coefficient
-            if action.facts.kind == "dot" then
-                coefficient = math.min(1, (tooltip.duration or 15) / 15)
-            else
-                coefficient = math.min(1,
-                    math.max(1.5, tooltip.cast or 0) / 3.5)
-            end
-            local area = action.facts.aoe or tooltip.topology
-                and tooltip.topology.area
-            if area then coefficient = coefficient * 0.5 end
-            base, estimated = base + bonus * coefficient, true
-        end
-    end
+    local bonusEstimated
+    base, bonusEstimated = addSpellBonus(
+        action, tooltip, observed, observationStatus, base)
+    if bonusEstimated then estimated = true end
     local damage = action.facts.kind == "damage"
         or action.facts.kind == "dot" or action.facts.kind == "builder"
     local effectActor = action.facts.damageActor

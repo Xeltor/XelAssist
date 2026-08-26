@@ -154,6 +154,9 @@ function T:Fixed(action, state)
         end
         return unitDescriptor(state, "target", "hostile", "selected")
     end
+    if facts.targetLocalThreatDrop then
+        return unitDescriptor(state, "target", "hostile", "selected")
+    end
     if kind == "summon" or facts.self or kind == "defensive"
         or kind == "resource" or kind == "threatDrop" or kind == "modifier" then
         return unitDescriptor(state, "player", "self", "self")
@@ -164,6 +167,9 @@ end
 function T:Targets(action, state)
     if not self:VariableFriendlyAction(action) then
         local fixed = self:Fixed(action, state)
+        if action.facts.targetLocalThreatDrop then
+            return fixed and { fixed } or {}
+        end
         if fixed and fixed.relation == "hostile" then
             local hostile = hostileDescriptors(action, state, fixed)
             if table.getn(hostile) > 0 then return hostile end

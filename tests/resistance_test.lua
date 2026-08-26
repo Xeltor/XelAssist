@@ -153,9 +153,30 @@ end }
 
 dofile("Combat/Delivery.lua")
 dofile("Combat/HitDelivery.lua")
+dofile("Combat/ResistanceMath.lua")
 dofile("Combat/ResistanceSubmissions.lua")
 dofile("Combat/Resistance.lua")
 dofile("Core/WandExecution.lua")
+
+-- This suite exercises pure graph estimates. Mirror RootObservation's mutable
+-- boundary by warming installed DBC facts once before any sealed state is used.
+local spellId
+for spellId in pairs(spellRecords) do
+    XelAssist.Combat.Resistance:SpellFacts(spellId)
+end
+local function seal(action)
+    if action.spellId then
+        action.resistanceMetadataCaptured = true
+        action.resistanceMetadata =
+            XelAssist.Combat.Resistance:SpellFacts(action.spellId)
+    end
+    if action.facts and action.facts.dynamicSchool then
+        action.resistanceDynamicContextCaptured = true
+        action.resistanceDynamicContext = XelAssist.Combat.Resistance:DynamicContext(
+            action.facts.dynamicSchool)
+    end
+    return action
+end
 
 local submittedForCurrentTarget = XelAssist.Combat.Resistance.Submitted
 function XelAssist.Combat.Resistance:Submitted(action, guid, tooltip, refresh)
@@ -180,7 +201,7 @@ local function deliveryByPrefix(profile, prefix)
 end
 local function isolatedState(guid, creatureId, level, values)
     local identity = { guid = guid, creatureId = creatureId, level = level,
-        instanceType = "none", isPlayer = false,
+        instanceType = "none", isPlayer = false, frozen = true,
         profileKey = "npc:" .. tostring(creatureId) .. ":l" .. tostring(level) .. ":none" }
     XelAssist.Combat.Resistance.identities[guid] = identity
     local profile = XelAssist.Combat.Resistance:Profile(identity, true)
@@ -188,6 +209,7 @@ local function isolatedState(guid, creatureId, level, values)
         liveTrusted = true, liveSource = "isolated live fixture",
         penetration = { spell = 0, armor = 0, known = true } },
         playerLevel = 60, encounter = { instanceType = "none", target = identity },
+        weaponSkills = weaponSkills,
         actors = { pet = { level = 60 } } }
 end
 
@@ -199,7 +221,8 @@ assert(string.find(qualifiedIdentity.profileKey, ":none", 1, true),
     "snapshot identity must retain instance context")
 assert(XelAssist.Combat.Resistance:RememberUnit("target") == qualifiedIdentity,
     "submission without encounter data must not overwrite qualified identity")
-local state = { targetResistance = snapshot, playerLevel = 60, actors = {
+local state = { targetResistance = snapshot, playerLevel = 60,
+    weaponSkills = weaponSkills, actors = {
     pet = { level = 60 } }, encounter = encounter() }
 local action = { name = "Fireball", spellId = 133, actor = "player",
     facts = { kind = "damage", ranged = true } }
@@ -211,6 +234,7 @@ close(fire.multiplier, 0.6064,
 assert(fire.schoolMask == 4 and fire.source == "Turtle UnitResistance target data",
     "school mask or live provenance missing")
 local hitState = { targetResistance = snapshot, playerLevel = 60,
+    weaponSkills = weaponSkills,
     hitBonuses = { melee = 1, ranged = 2, spell = 2,
         equipmentKnown = true, totalKnown = false,
         source = "test equipped hit", gap = "talent and aura +hit" },
@@ -468,6 +492,7 @@ assert(XelAssist.Combat.Resistance:Miss(719, "dynamic-miss-target", 1, "player-a
     "a first dynamic-school wand miss must remain attributable")
 XelAssist.Combat.Resistance:RememberSpellSchool(719, 6, nil,
     XelAssist.Combat.Resistance:DynamicContext("equippedWand"))
+seal(firstWandMiss)
 local discoveredWand = XelAssist.Combat.Resistance:Estimate(firstWandMiss, "target", {}, dynamicState)
 local dynamicDelivery = deliveryByPrefix(dynamicProfile,
     "physical-ranged:player:l60:p-:w")
@@ -811,6 +836,9 @@ assert(not playerDefense.targetDefenseKnown and playerDefense.targetDefense == 3
 local savedUnitDefense = UnitDefense
 playerSkillState.targetResistance.identity.guid = targetGuid
 UnitDefense = function(unit) if unit == "target" then return 250, 5 end end
+playerSkillState.targetResistance.identity.defenseBase = 250
+playerSkillState.targetResistance.identity.defenseModifier = 5
+playerSkillState.targetResistance.identity.defenseObserved = true
 local bonusedPlayerDefense = XelAssist.Combat.Resistance:Estimate(
     { name = "Bonused PvP Strike", spellId = 700, actor = "player",
         facts = { kind = "damage", melee = true } },
@@ -836,6 +864,9 @@ assert(ignoredNoLevelProfile and not noLevelPvP.targetDefenseKnown
     and noLevelPvP.targetDefense == nil,
     "PvP must never substitute live current Defense when maximum Defense lacks a target level")
 UnitDefense = function(unit) if unit == "target" then return 0, 0 end end
+playerSkillState.targetResistance.identity.defenseBase = nil
+playerSkillState.targetResistance.identity.defenseModifier = nil
+playerSkillState.targetResistance.identity.defenseObserved = false
 local unknownPetDefense = XelAssist.Combat.Resistance:Estimate(
     { name = "Pet PvP Strike", spellId = 700, actor = "pet",
         facts = { kind = "damage", melee = true } },
@@ -843,6 +874,9 @@ local unknownPetDefense = XelAssist.Combat.Resistance:Estimate(
 assert(not unknownPetDefense.targetDefenseKnown and unknownPetDefense.deliveryPriorUnknown,
     "a hostile UnitDefense zero sentinel must not prove current Defense for a pet attacker")
 UnitDefense = function(unit) if unit == "target" then return 300, 5 end end
+playerSkillState.targetResistance.identity.defenseBase = 300
+playerSkillState.targetResistance.identity.defenseModifier = 5
+playerSkillState.targetResistance.identity.defenseObserved = true
 local knownPetDefense = XelAssist.Combat.Resistance:Estimate(
     { name = "Pet PvP Strike", spellId = 700, actor = "pet",
         facts = { kind = "damage", melee = true } },
@@ -1379,10 +1413,12 @@ assert(XelAssist.Core.WandExecution:Submitted(targetGuid, wandAction),
     "executor-owned wand submission must seed dynamic resistance context")
 XelAssist.Combat.Resistance:DamageEvent(targetGuid, "player-a", 501, 50, "0,0,0", 0, 6,
     "2,0,0,0")
+seal(wandAction)
 local wand = XelAssist.Combat.Resistance:Estimate(wandAction,
     "target", {}, state)
 assert(wand.school == 6, "dynamic wand school must come from its observed damage event")
 rangedItemLink = "|Hitem:112:0:0:0|h[Changed Wand]|h"
+seal(wandAction)
 local changedWand = XelAssist.Combat.Resistance:Estimate(wandAction, "target", {}, state)
 assert(changedWand.school == nil and changedWand.unknown,
     "a changed dynamic-school source must not reuse stale wand observations")
@@ -1413,11 +1449,13 @@ assert(profile.contexts["2:player:l60:p0:direct"].landSamples == judgementLandBe
         .. "/" .. tostring(judgementDeliveryBefore) .. ", combined "
         .. tostring(profile.spells["20271:2:player:l60:p0:direct"].landSamples)
         .. "/" .. tostring(judgementSpellLandBefore + 1))
+seal(judgementAction)
 local judgement = XelAssist.Combat.Resistance:Estimate(judgementAction, "target", {}, state)
 assert(judgement.school == 2
     and XelAssist.Combat.Resistance.spellSchools[20271].byContext["activeSeal:9001"],
     "aura-first damage must retain the submitted dynamic source context")
 activeSealId = 9002
+seal(judgementAction)
 assert(XelAssist.Combat.Resistance:Estimate(judgementAction, "target", {}, state).unknown,
     "a changed active seal must not reuse another seal's learned school")
 activeSealId = 9001

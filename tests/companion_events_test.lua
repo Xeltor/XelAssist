@@ -1292,6 +1292,7 @@ XelAssist.Graph.AutoShotEffects = {
     CreateTimeline = function() return nil end,
     FinishTimeline = function() end,
 }
+dofile("Graph/FriendlyActionEffects.lua")
 dofile("Graph/ActionEffects.lua")
 dofile("Graph/Timeline.lua")
 

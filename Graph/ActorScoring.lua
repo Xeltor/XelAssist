@@ -67,12 +67,13 @@ function A:Score(context)
         context.reason = engaged and "empowers the active companion"
             or "protects the companion from control"
     elseif kind == "crowdControl" then
-        if facts.deferredUntilPetMelee then
-            context.value = state.hasAggro and not state.tank and 2050 or 600
-            context.reason = "arms the companion's next successful melee control"
+        if facts.crowdControlEvidence and XelAssist.Graph.CrowdControl then
+            return XelAssist.Graph.CrowdControl:Score(context)
         else
-            context.value, context.reason = state.hasAggro and not state.tank
-                and 2200 or 650, "controls a dangerous target"
+            -- Legality rejects this path. Keep scoring fail-closed as a second
+            -- boundary so a future caller cannot revive the old fixed proxy.
+            context.value, context.reason = -100000,
+                "exact crowd-control lifecycle unavailable"
         end
     elseif kind == "dispel" then
         context.value, context.reason = 700, "removes a harmful combat effect"

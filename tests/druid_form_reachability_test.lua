@@ -54,6 +54,7 @@ XelAssist.Game.ResourceExchange = nil
 
 dofile("Game/Player/DruidFormState.lua")
 dofile("Game/SpellClassification.lua")
+dofile("Game/ActionInference.lua")
 dofile("Game/CapabilityInvalidation.lua")
 dofile("Game/Capabilities.lua")
 
@@ -135,6 +136,8 @@ local state = { mode = "auto", hostile = true, inCombat = true,
 }
 assert(XelAssist.Graph.DruidForms:Attach(state),
     "the root graph must attach exact Cat energy and hidden mana")
+assert(state.playerForm and state.playerForm.formID == 1,
+    "the generic stance gate must share the exact attached Druid form")
 
 local observation = XelAssist.Graph.RootObservation:Begin(state, discovered, 100)
 local steps = 0
@@ -170,7 +173,8 @@ assert(XelAssist.Graph.ActionConsumption:Consume(state, candidate, context)
     and state.resource == 42,
     "chosen form payment must use hidden mana without spending Cat energy")
 assert(XelAssist.Graph.DruidForms:Apply(state, candidate, context)
-    and state.druidFormState.formID == 5 and state.resourceType == 1
+    and state.druidFormState.formID == 5 and state.playerForm.formID == 5
+    and state.resourceType == 1
     and state.playerResourceExact == false,
     "the Bear edge must remain reachable while destination rage stays unknown")
 
@@ -235,6 +239,7 @@ context = {}
 assert(XelAssist.Graph.ActionConsumption:Consume(
     state, cancelCandidate, context)
     and XelAssist.Graph.DruidForms:Apply(state, cancelCandidate, context)
+    and state.playerForm.formID == 0
     and state.resourceType == 0 and state.resource == 97
     and state.playerResourceExact,
     "cancel projection must restore the exact mana lane for later caster actions")

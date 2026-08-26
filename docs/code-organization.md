@@ -74,6 +74,9 @@ never class rotations or ordered priority lists.
   `Game/Pets/FocusEvidence.lua` owns session-only Hunter cadence learning,
   `FocusEvents.lua` owns standard/Nampower invalidation and attribution events,
   and `Resources.lua` owns conservative graph-clock arithmetic.
+  `Game/Pets/HunterControl.lua` seals exact installed-client Web, Charge, and
+  Intimidation trigger chains; `Graph/HunterControl.lua` alone turns those
+  facts into target-local control and deferred-melee consequences.
   `Game/AttackRounds.lua` owns session-only classified companion swing evidence,
   `AttackRoundEvents.lua` owns its invalidation boundary, and
   `PlayerAttack.lua` owns idempotent live player-Attack submission.
@@ -85,10 +88,16 @@ never class rotations or ordered priority lists.
   an actor identity or hardcodes a private-server regeneration rate.
   `Game/Player/Engagement.lua` owns exact DBC Attack-start/stop and stealth
   semantics. `Game/Player/ChannelRuntime.lua` owns the bounded native-event
-  fallback for active player channel identity. `EnergyEvidence.lua`,
-  `EnergyEvents.lua`, and `Resources.lua` own
-  live player-energy cadence learning, attribution/reset events, and projected
-  resource arithmetic respectively. `Game/SpatialEvidence.lua` owns immediate
+  fallback for active player channel identity. `EnergyEvidence.lua` and
+  `EnergyEvents.lua` own live player-energy cadence learning, while
+  `ManaEvidence.lua` and `ManaEvents.lua` separately learn attributed passive
+  mana and exact post-spend recovery. `Resources.lua` owns shared conservative
+  projection arithmetic. Focused player-class evidence lives beside those
+  resources: `MageManaShield.lua`, `PriestShield.lua`, `DruidProwl.lua`,
+  `PriestShadowform.lua`, `RogueFeint.lua`, `HunterMark.lua`,
+  `ShamanWindfuryTotem.lua`, `WarriorStanceEffects.lua`, and
+  `PaladinBlessingThreat.lua` each seal one installed mechanic without scoring
+  or ordering its class. `Game/SpatialEvidence.lua` owns immediate
   blocking and settled recovery for noisy live geometry edges.
 - `Combat` owns declarative player and companion spell meaning, stateless
   delivery rules, transient observations, and target evidence. Pet knowledge is
@@ -99,6 +108,16 @@ never class rotations or ordered priority lists.
 - `Game/SpellPower.lua` decodes OctoWoW's VMaNGOS weapon-effect aggregation
   from live Spell.dbc rows. `Game/SpellEffectPower.lua` derives only complete
   scalar direct/periodic totals from installed-client effect arrays.
+  `Game/TargetModifierFacts.lua` owns exact rank-safe DBC armor, resistance,
+  damage-taken, and per-combo modifier shapes for both learned actions and
+  attributable active auras; it contains no action ordering.
+  `Game/RootAuraEvidence.lua` owns one bounded helpful or harmful aura-name
+  snapshot per recipient and evaluation. It exposes only frozen presence or
+  conservative unknown evidence to `Graph/RootObservation.lua`; rank-heavy
+  action books never rescan the same unit once per candidate.
+  `Game/RootPowerEvidence.lua` similarly shares only identical weapon and
+  school-power lanes inside one evaluation while preserving separate immutable
+  action records.
   `Game/HealthTransfer.lua` recognizes exact health-funded companion-channel
   signatures and exposes their start, upkeep, cadence, and per-tick healing
   without converting health power into mana cost. `Game/SpellFactCache.lua`
@@ -115,6 +134,14 @@ never class rotations or ordered priority lists.
   projected-absorb consumption; `Graph/HostileCastEvents.lua` owns completion
   ordering and interrupt cancellation; and `Graph/IncomingScoring.lua` exposes
   those consequences to healing and absorb value without broadening admission.
+  `Graph/IncomingAbsorbs.lua`, `MageManaShieldScoring.lua`, and
+  `FriendlyActionEffects.lua` keep shield ordering, school eligibility, and
+  friendly projection outside the generic coordinators. `Graph/RogueFeint.lua`
+  owns selected-hostile threat reduction, while `PaladinBlessingThreat.lua`
+  composes a proven recipient-owned multiplier through `PlayerThreat.lua`.
+  `Graph/HunterMark.lua`, `PriestShadowform.lua`, and
+  `ShamanWindfuryTotem.lua` own target-local ranged power, form-conditioned
+  outgoing/incoming multipliers, and solo main-hand proc consequences.
   `Graph/SurvivalPressure.lua` converts learned target pressure into bounded
   cast, channel, periodic, and hostile-setup payoff without defining class
   strategy. `Graph/PeriodicScoring.lua` owns periodic combat progress and
@@ -129,6 +156,8 @@ never class rotations or ordered priority lists.
   `Graph/ResourceExchange.lua` owns conversion legality, value, and atomic
   state transitions; `Graph/ResourceInvestment.lua` retains a bounded setup
   lane only until later resource consumption proves its payoff;
+  `Graph/PlayerResourceTimeline.lua` owns the causal start boundary that keeps
+  pre-cast waits distinct from exact post-spend mana recovery;
   `Graph/SoulShardReserve.lua` prices bounded stock,
   eligible generation, and marginal consumption; `Graph/CooldownLedger.lua`
   captures exact-rank readiness
@@ -163,6 +192,9 @@ never class rotations or ordered priority lists.
   combo transitions, combo-scaled durations, and marginal efficiency;
   `Graph/SearchPolicy.lua` owns the
   automatic active-CPU/state horizon independently of visible HUD rows, while
+  `Graph/RootObservation.lua` slices mutable client capture and shares identical
+  weapon-basis, school-power, and recipient-aura evidence only inside that one
+  root snapshot. Sealing removes every live source reference before search.
   `Graph/SearchSession.lua` carries deterministic Lua 5.0 table cursors across
   short frame slices and exposes only complete accepted paths. The synchronous
   graph facade consumes the same continuation without yielding, so tests and

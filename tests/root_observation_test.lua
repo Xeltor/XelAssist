@@ -7,7 +7,8 @@ BOOKTYPE_SPELL = "spell"
 
 local calls = { facts = 0, usable = 0, cooldown = 0, range = 0,
     settled = 0, aura = 0, pending = 0, observed = 0, power = 0,
-    tapped = 0, tapOwner = 0 }
+    tapped = 0, tapOwner = 0, classFacts = 0, classRecipient = 0,
+    classBlocker = 0 }
 GetTime = function() return 100 end
 GetSpellCooldown = function()
     calls.cooldown = calls.cooldown + 1
@@ -101,6 +102,21 @@ XelAssist.Graph.CompanionResources = nil
 XelAssist.Graph.CompanionThreat = nil
 XelAssist.Graph.PlayerSwings = nil
 XelAssist.Graph.ResourceExchange = { Blocker = function() return nil end }
+XelAssist.Graph.ClassMechanics = {
+    CaptureFacts = function(_, _, facts)
+        calls.classFacts = calls.classFacts + 1
+        facts.classEvidenceCaptured = true
+        return facts
+    end,
+    CaptureRecipient = function()
+        calls.classRecipient = calls.classRecipient + 1
+    end,
+    Blocker = function() return nil end,
+    EvidenceBlocker = function()
+        calls.classBlocker = calls.classBlocker + 1
+        return nil, false
+    end,
+}
 
 dofile("Graph/ActionAdmission.lua")
 dofile("Graph/SpatialRequirements.lua")
@@ -147,7 +163,8 @@ assert(actionStatus == "known" and table.getn(actions) == 1,
     "sealed action catalog should be evaluation-owned")
 local action = actions[1]
 local facts, factsStatus = XelAssist.Graph.RootObservation:Facts(state, action)
-assert(factsStatus == "known" and facts.average == 100,
+assert(factsStatus == "known" and facts.average == 100
+    and facts.classEvidenceCaptured,
     "exact action facts should be frozen")
 local evidence, evidenceStatus = XelAssist.Graph.RootObservation:Recipient(
     state, action, descriptor)
@@ -159,6 +176,8 @@ assert(calls.facts == 1 and calls.usable == 1 and calls.cooldown == 1
     "each mutable root query should be captured once")
 assert(calls.tapped == 1 and calls.tapOwner == 1,
     "generic hostile tap evidence should be captured once per target")
+assert(calls.classFacts == 1 and calls.classRecipient == 1,
+    "class mechanics evidence should be captured once at the sliced root")
 
 source.facts.kind = "buff"
 XelAssistCharDB.toggles.cooldowns = false
@@ -196,6 +215,8 @@ assert(XelAssist.Graph.SpatialRequirements:Blocker(
 local legal, blocker = XelAssist.Graph.Targets:Legal(action, state, descriptor)
 assert(legal and blocker == nil,
     "target legality should consume only sealed evidence")
+assert(calls.classBlocker == 1,
+    "target legality should consult exact class evidence after root capture")
 
 local unknown = { name = "Unknown", rank = 1, spellId = 999,
     actor = "player", executor = "playerSpell",

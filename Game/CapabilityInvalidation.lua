@@ -14,5 +14,18 @@ function I:All(capabilities)
     local reactive = XelAssist.Game.Player
         and XelAssist.Game.Player.ReactiveEvidence
     if reactive then reactive:Invalidate() end
+    local persistent = XelAssist.Game.Caster
+        and XelAssist.Game.Caster.PersistentDamage
+    if persistent then persistent:Invalidate() end
+    local control = XelAssist.Game.CrowdControl
+    if control then control:Invalidate() end
+    local warriorRage = XelAssist.Game.Player
+        and XelAssist.Game.Player.WarriorRage
+    if warriorRage then warriorRage:Invalidate() end
+    local stanceEffects = XelAssist.Game.Player
+        and XelAssist.Game.Player.WarriorStanceEffects
+    if stanceEffects then stanceEffects:Invalidate() end
+    local inference = XelAssist.Game.ActionInference
+    if inference then inference:InvalidateClass() end
     capabilities:InvalidateEquipment()
 end

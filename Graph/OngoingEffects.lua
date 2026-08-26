@@ -7,17 +7,17 @@ local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
 local Companion = XelAssist.Graph.CompanionEvents
 local PlayerSwings = XelAssist.Graph.PlayerSwings
+local PlayerOffhand = XelAssist.Graph.PlayerOffhandSwings
+local PlayerSwingTimeline = XelAssist.Graph.PlayerSwingTimeline
 local EventAuras = XelAssist.Graph.EventAuras
 local LeechChannel = XelAssist.Graph.LeechChannel
 local MAX_HOSTILES = 5
-
 local function hostilesOf(state)
     local hostiles = state and state.hostiles
     if type(hostiles) ~= "table" or type(hostiles.order) ~= "table"
         or type(hostiles.byKey) ~= "table" then return nil end
     return hostiles
 end
-
 local function localRecord(state, key, guid)
     local hostiles = hostilesOf(state)
     local record = hostiles and key ~= nil and hostiles.byKey[key]
@@ -26,13 +26,11 @@ local function localRecord(state, key, guid)
     end
     return record
 end
-
 local function syncLocal(state, key, record, changed)
     if changed and record and State.RefreshHostileRecord then
         State:RefreshHostileRecord(state, key)
     end
 end
-
 local function candidateTargets(candidate, key, guid)
     if key == nil then return true end
     local descriptor = candidate and candidate.descriptor or {}
@@ -41,7 +39,6 @@ local function candidateTargets(candidate, key, guid)
     local candidateGuid = candidate and candidate.targetGUID or descriptor.guid
     return candidateGuid ~= nil and candidateGuid == guid
 end
-
 local function eventSource(source, entry)
     if entry.targetKey == nil then
         return hostilesOf(source) and nil or source
@@ -50,7 +47,6 @@ local function eventSource(source, entry)
     return State.HostileContext and State:HostileContext(
         source, entry.targetKey) or nil
 end
-
 local function advanceFriendlies(state, elapsed)
     if not state.friendlies or elapsed <= 0 then return end
     local i, name, aura
@@ -81,7 +77,6 @@ local function advanceFriendlies(state, elapsed)
         end
     end
 end
-
 local function advancePlayerCast(state, elapsed)
     if not state.playerCasting then return end
     local remaining = tonumber(state.castRemaining)
@@ -92,7 +87,6 @@ local function advancePlayerCast(state, elapsed)
         state.playerCastName = nil
     end
 end
-
 local function projectedEventState(source, candidate, context, entry, offset)
     local base = eventSource(source, entry)
     if not base then return nil end
@@ -106,7 +100,6 @@ local function projectedEventState(source, candidate, context, entry, offset)
     end
     return state
 end
-
 local function markTargetDeath(out)
     if not (out.targetHealthExact and out.targetHealth <= 0) then return end
     out.hostile = false
@@ -347,13 +340,18 @@ end
 function O:Events(out, source, candidate, context)
     EventAuras:BeginScheduled(out)
     local events = Companion and Companion:Events(out, candidate) or {}
-    local playerEvents = PlayerSwings and PlayerSwings:Events(out, candidate) or {}
+    local playerEvents = PlayerSwingTimeline
+        and PlayerSwingTimeline:Events(out, candidate)
+        or PlayerSwings and PlayerSwings:Events(out, candidate) or {}
+    local offhandEvents = PlayerSwingTimeline and {}
+        or PlayerOffhand and PlayerOffhand:Events(out, candidate) or {}
     local periodic = periodicEvents(out, source, candidate, context)
     local leech = LeechChannel and LeechChannel:Events(out, candidate) or {}
     local i
     for i = 1, table.getn(playerEvents) do
         table.insert(events, playerEvents[i])
     end
+    for i = 1, table.getn(offhandEvents) do table.insert(events, offhandEvents[i]) end
     for i = 1, table.getn(periodic) do table.insert(events, periodic[i]) end
     for i = 1, table.getn(leech) do table.insert(events, leech[i]) end
     return events
@@ -402,6 +400,9 @@ function O:ApplyEvent(out, source, candidate, context, entry)
     elseif entry.kind == "playerMainSwing"
         or entry.kind == "playerSwingTimelineCap" then
         if PlayerSwings then PlayerSwings:Apply(out, entry) end
+    elseif entry.kind == "playerOffhandSwing"
+        or entry.kind == "playerOffhandTimelineCap" then
+        if PlayerOffhand then PlayerOffhand:Apply(out, entry) end
     elseif entry.kind == "periodicTick"
         or entry.kind == "periodicSegment" then
         applyPeriodic(out, source, candidate, context, entry)

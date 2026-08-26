@@ -131,6 +131,9 @@ function T:Apply(state, candidate)
         local player = state.actors and state.actors.player
         if not (player and player.guid ~= nil) then return false end
         threat.projectedPlayerHasAggro = true
+        threat.projectedPlayerReferenceKnown = true
+        threat.projectedPlayerReference = true
+        threat.projectedPlayerOwnershipUnknown = nil
         threat.projectedPetHasAggro = false
         threat.projectedVictimGuid = player.guid
         threat.projectedOwnershipUnknown = nil

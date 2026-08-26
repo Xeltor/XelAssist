@@ -65,10 +65,35 @@ end
 
 local function equipped(slot)
     local link = GetInventoryItemLink and GetInventoryItemLink("player", slot) or nil
+    local texture = GetInventoryItemTexture
+        and GetInventoryItemTexture("player", slot) or nil
     local current, maximum
     if GetInventoryItemDurability then current, maximum = GetInventoryItemDurability(slot) end
-    return { slot = slot, link = link, durability = current, durabilityMax = maximum,
+    local out = { slot = slot, link = link, durability = current,
+        durabilityMax = maximum,
+        known = GetInventoryItemTexture and true or false,
+        empty = GetInventoryItemTexture and not texture and not link
+            and true or false,
         broken = link and maximum and maximum > 0 and current == 0 and true or false }
+    if not link then
+        out.classificationKnown = out.empty == true
+        return out
+    end
+    if C_Item and type(C_Item.GetItemInfoInstant) == "function"
+        and type(C_Item.GetItemInventoryTypeByID) == "function" then
+        local ok, id, _, _, _, _, classID, subClassID = pcall(
+            C_Item.GetItemInfoInstant, link)
+        local typeOK, inventoryType = pcall(
+            C_Item.GetItemInventoryTypeByID, id)
+        if ok and typeOK and tonumber(id) and tonumber(classID)
+            and tonumber(subClassID) and tonumber(inventoryType) then
+            out.itemId, out.classID, out.subClassID = tonumber(id),
+                tonumber(classID), tonumber(subClassID)
+            out.inventoryType, out.classificationKnown =
+                tonumber(inventoryType), true
+        end
+    end
+    return out
 end
 
 function I:Snapshot()

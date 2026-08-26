@@ -333,6 +333,10 @@ ev:SetScript("OnEvent", function()
             XelAssist.Game.Player.AttackRounds:Observe(
                 arg1, arg2, result, GetTime())
         end
+        if XelAssist.Game.Player and XelAssist.Game.Player.OffhandAttackRounds then
+            XelAssist.Game.Player.OffhandAttackRounds:Observe(
+                arg1, arg2, result, GetTime())
+        end
     end
     if event == "AURA_CAST_ON_SELF" or event == "AURA_CAST_ON_OTHER" then
         local spellName = SpellInfo and SpellInfo(arg1) or nil

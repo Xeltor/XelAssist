@@ -165,13 +165,15 @@ function E:ConsumeMelee(state, action, targetGuid, delivery)
             if effect.stunDuration and effect.stunDuration > 0 then
                 state.auras = state.auras or {}
                 local prior = state.auras[name]
-                local priorProbability = tonumber(
-                    prior and prior.applicationProbability) or 0
+                local priorProbability = tonumber(prior
+                    and prior.rawApplicationProbability)
+                    or tonumber(prior and prior.applicationProbability) or 0
                 if not prior or (tonumber(prior.remaining) or 0) <= 0
                     or proc > priorProbability then
                     state.auras[name] = { remaining = effect.stunDuration,
                         duration = effect.stunDuration, mine = true,
                         target = "target", applicationProbability = proc,
+                        rawApplicationProbability = proc,
                         sourceActor = "pet", deferred = true }
                 else
                     -- Distinct possible proc times are mutually exclusive

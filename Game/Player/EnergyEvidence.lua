@@ -186,4 +186,18 @@ function E:Snapshot(guid, energy, maximum, at)
         source = "live player energy tick envelope" }
 end
 
+function E:Status(at)
+    if not self.guid then return nil end
+    local snapshot = self:Snapshot(self.guid, self.lastEnergy,
+        self.lastMaximum, tonumber(at) or self.lastObservedAt)
+    return { verified = self.verifiedAmount ~= nil,
+        executable = snapshot and snapshot.phaseKnown and true or false,
+        amount = self.verifiedAmount, interval = self.verifiedInterval,
+        observedInterval = self.verifiedObservedInterval,
+        samples = self.verifiedSamples or self.candidateSamples or 0,
+        phaseKnown = snapshot and snapshot.phaseKnown and true or false,
+        energizeAttribution = self.externalEnergizeAvailable and true or false,
+        lastResetReason = self.lastResetReason }
+end
+
 E:ResetSession()

@@ -32,6 +32,9 @@ function A:CanChange(source)
     local round = attack and attack.attackRound
     if attack and attack.active == true and round and round.projectable
         and round.targetGuid ~= nil then return true end
+    local offhand = attack and attack.offhandAttackRound
+    if attack and attack.active == true and offhand and offhand.projectable
+        and offhand.targetGuid ~= nil then return true end
     if pet and (pet.targetExists == true or pet.pendingAutocast) then return true end
     if table.getn(source.hostileCasts and source.hostileCasts.order or {}) > 0
         or damagingAura(source.auras) then return true end

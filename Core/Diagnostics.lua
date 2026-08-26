@@ -57,6 +57,11 @@ function D:Audit(owner)
         onSwingExact = evidence.onSwingExact }
     local focus = XelAssist.Game.Pets and XelAssist.Game.Pets.FocusEvidence
     runtime.hunterFocus = focus and focus:Status() or nil
+    local player = XelAssist.Game.Player or {}
+    runtime.playerEnergy = player.EnergyEvidence
+        and player.EnergyEvidence:Status(GetTime and GetTime() or nil) or nil
+    runtime.playerMana = player.ManaEvidence
+        and player.ManaEvidence:Status(GetTime and GetTime() or nil) or nil
     local rounds = XelAssist.Game.AttackRounds
     runtime.companionSwings = rounds and rounds:Status() or nil
     local playerRounds = XelAssist.Game.Player
@@ -136,6 +141,29 @@ function D:Print(owner)
             .. ", energize attribution=" .. (focus.energizeAttribution and "on" or "off")
             .. ", phase=" .. (focus.phaseKnown and "known" or "unknown")
             .. ", last reset=" .. tostring(focus.lastResetReason or "none") .. ".")
+    end
+    local energy = runtime.playerEnergy
+    if energy then
+        local state = energy.executable and "executable"
+            or energy.verified and "verified-dormant" or "learning"
+        msg("Player energy: " .. state .. ", clean samples="
+            .. tostring(energy.samples or 0) .. ", gain="
+            .. tostring(energy.amount or "?") .. ", conservative="
+            .. seconds(energy.interval) .. "s, energize attribution="
+            .. (energy.energizeAttribution and "on" or "off") .. ".")
+    end
+    local mana = runtime.playerMana
+    if mana then
+        local state = mana.executable and "executable"
+            or mana.verified and "verified-dormant" or "learning"
+        msg("Player mana: " .. state .. ", clean samples="
+            .. tostring(mana.samples or 0) .. ", gain="
+            .. tostring(mana.amount or "?") .. ", conservative="
+            .. seconds(mana.interval) .. "s, post-spend="
+            .. (mana.postSpendKnown and seconds(mana.postSpendDelay)
+                .. "s/" .. tostring(mana.postSpendBoundary) or "learning")
+            .. ", energize attribution="
+            .. (mana.energizeAttribution and "on" or "off") .. ".")
     end
     local swings = runtime.companionSwings
     if swings then

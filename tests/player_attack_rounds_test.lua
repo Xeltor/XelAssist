@@ -12,7 +12,7 @@ local clock = 0
 local playerGuid, otherPlayerGuid = {}, {}
 local targetGuid, otherTargetGuid = {}, {}
 local currentPlayer, currentTarget = playerGuid, targetGuid
-local liveAttackSpeed = 2
+local liveAttackSpeed, liveOffhandSpeed = 2, 1.5
 local rawFields = {
     baseAttackTime = 2000,
     minDamage = 18,
@@ -27,7 +27,7 @@ UnitExists = function(unit)
 end
 UnitAttackSpeed = function(unit)
     assert(unit == "player")
-    return liveAttackSpeed, nil
+    return liveAttackSpeed, liveOffhandSpeed
 end
 UnitDamage = function(unit)
     assert(unit == "player")
@@ -99,9 +99,9 @@ assert(projected.projectable and projected.phaseKnown and projected.phaseExact
     "the exact ordinary result must expose a target-pinned phase snapshot")
 close(projected.interval, 2.05, "trusted player interval changed")
 close(projected.nextSwingIn, 1.55, "trusted player deadline changed")
-close(projected.minimum, 47.3, "player minimum damage formula changed")
-close(projected.maximum, 69.3, "player maximum damage formula changed")
-close(projected.power, 58.3, "player average damage formula changed")
+close(projected.minimum, 40, "displayed player minimum damage changed")
+close(projected.maximum, 60, "displayed player maximum damage changed")
+close(projected.power, 50, "displayed player average damage changed")
 assert(projected.normalDamageKnown and not projected.damageKnown
     and not projected.outcomeMagnitudeKnown,
     "damage descriptors must not invent the next white-swing outcome")
@@ -217,7 +217,33 @@ assert(raw.projectable and raw.verified and raw.samples == 3
     and raw.minimum == 18 and raw.maximum == 28
     and not raw.normalDamageKnown,
     "three clean raw intervals may prove cadence without inventing complete damage")
+
+-- Unequal weapon speeds periodically collide. The server may delay this hand
+-- by roughly 0.2s, but one delayed delivery is not a new recurring cadence.
+clock = 38.2
+assert(A:Observe(playerGuid, targetGuid, exactHit, clock)
+    and math.abs(A.record.observedInterval - 2.2) < 0.0001
+    and math.abs(A.record.interval - 2.05) < 0.0001,
+    "one raw cross-hand collision must not inflate the learned main cadence")
+clock = 40.2
+assert(A:Observe(playerGuid, targetGuid, exactHit, clock)
+    and math.abs(A.record.interval - 2.05) < 0.0001,
+    "a later clean raw round must retain the non-inflated cadence")
 UnitAttackSpeed, UnitDamage = stockUnitAttackSpeed, stockUnitDamage
+
+A:Reset("trusted unequal-speed collision test")
+clock = 37
+assert(A:Observe(playerGuid, targetGuid, exactHit, clock))
+clock = 39.2
+assert(A:Observe(playerGuid, targetGuid, exactHit, clock)
+    and math.abs(A.record.observedInterval - 2.2) < 0.0001
+    and math.abs(A.record.interval - 2.05) < 0.0001,
+    "trusted UnitAttackSpeed must survive a delayed cross-hand collision")
+clock = 41.2
+assert(A:Observe(playerGuid, targetGuid, exactHit, clock)
+    and math.abs(A.record.interval - 2.05) < 0.0001,
+    "trusted main cadence must not remain inflated after the collision")
+A:Reset("collision regression complete")
 
 dofile("Game/Player/AttackRoundEvents.lua")
 local E = XelAssist.Game.Player.AttackRoundEvents
