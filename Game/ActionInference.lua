@@ -23,6 +23,7 @@ local ROOT_INVALIDATION = { "MageFrostfire", "MageAcceleratedArcana",
     "MageArcanePower",
     "ShamanChainHealTiming", "ShamanFlameShockTiming", "ShamanWeaponImbues",
     "DruidAncientBrutality", "DruidEnrage", "DruidBloodFrenzy", "DruidGrowl",
+    "DruidThorns",
     "PriestDivergentActions", "PaladinLayOnHands",
     "WarriorShieldBash", "WarriorShieldSlam", "WarriorControl",
     "HunterFeignDeath",
@@ -73,6 +74,8 @@ function I:ClassKnowledge(spellId)
     facts, reason, handled = infer(player.DruidGrowl, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.DruidBarkskin, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.DruidThorns, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = inferPortfolio(player, ROGUE_INFERENCE, spellId)
     if handled then return facts, reason, true end

@@ -32,6 +32,7 @@ local DruidFrenziedRegeneration =
 local DruidEnrage = XelAssist.Graph.DruidEnrage
 local DruidBloodFrenzy = XelAssist.Graph.DruidBloodFrenzy
 local DruidBarkskin = XelAssist.Graph.DruidBarkskin
+local DruidThorns = XelAssist.Graph.DruidThorns
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local RogueRuthlessness = XelAssist.Graph.RogueRuthlessness
 local RoguePreparation = XelAssist.Graph.RoguePreparation
@@ -188,6 +189,9 @@ local function attachDruid(state, token)
     if DruidBarkskin then
         attached = DruidBarkskin:Attach(state, token) or attached
     end
+    if DruidThorns then
+        attached = DruidThorns:Attach(state, token) or attached
+    end
     local brutality = XelAssist.Graph.DruidAncientBrutality
     if brutality then
         attached = brutality:Attach(state, token) or attached
@@ -279,6 +283,7 @@ local function copyDruid(source, target)
     if DruidEnrage then DruidEnrage:Copy(source, target) end
     if DruidBloodFrenzy then DruidBloodFrenzy:Copy(source, target) end
     if DruidBarkskin then DruidBarkskin:Copy(source, target) end
+    if DruidThorns then DruidThorns:Copy(source, target) end
     local brutality = XelAssist.Graph.DruidAncientBrutality
     if brutality then brutality:Copy(source, target) end
 end
@@ -359,6 +364,7 @@ function S:Copy(source, target)
         or source.druidClearcasting ~= nil
         or source.druidFrenziedRegeneration ~= nil
         or source.druidBarkskin ~= nil
+        or source.druidThorns ~= nil
         or source.druidAncientBrutality ~= nil
         or source.shamanClearcasting ~= nil
         or source.shamanManaSpring ~= nil

@@ -94,7 +94,8 @@ local function laneFor(owner, attacker, victim, hand)
     end
     if table.getn(owner.lanes) >= owner.MAX_LANES then table.remove(owner.lanes, 1) end
     lane = { attackerGuid = attacker, victimGuid = victim, hand = hand,
-        intervals = {}, damages = {}, blockedAmounts = {}, generation = 0 }
+        intervals = {}, damages = {}, blockedAmounts = {}, eligibleHits = {},
+        generation = 0 }
     table.insert(owner.lanes, lane)
     return lane
 end
@@ -147,6 +148,14 @@ local function damagingFraction(values)
     return damaging / table.getn(values)
 end
 
+local function eligibleRetaliation(hitInfo, victimState)
+    victimState = tonumber(victimState)
+    if flag(hitInfo, 16) then return 0 end
+    if victimState == 2 or victimState == 3 or victimState == 6
+        or victimState == 7 or victimState == 8 then return 0 end
+    return (victimState == 1 or victimState == 5) and 1 or 0
+end
+
 function H:Observe(attackerGuid, victimGuid, totalDamage, hitInfo,
     victimState, subDamageCount, blockedAmount, totalAbsorb, totalResist, at)
     local victimUnit = friendlyUnit(victimGuid)
@@ -162,15 +171,18 @@ function H:Observe(attackerGuid, victimGuid, totalDamage, hitInfo,
     if not regime then return false end
     local lane = laneFor(self, attackerGuid, victimGuid, hand)
     if lane.regime and not sameRegime(lane.regime, regime) then
-        lane.intervals, lane.damages, lane.blockedAmounts, lane.lastAt = {}, {}, {}, nil
+        lane.intervals, lane.damages, lane.blockedAmounts, lane.eligibleHits,
+            lane.lastAt = {}, {}, {}, {}, nil
     end
     if lane.lastAt then
         local interval = at - lane.lastAt
         if interval <= 0 or interval > 10 then
-            lane.intervals, lane.damages = {}, {}
+            lane.intervals, lane.damages, lane.eligibleHits = {}, {}, {}
         else boundedInsert(lane.intervals, interval, self.INTERVAL_SAMPLES) end
     end
     boundedInsert(lane.damages, totalDamage, self.DAMAGE_SAMPLES)
+    boundedInsert(lane.eligibleHits,
+        eligibleRetaliation(hitInfo, victimState), self.DAMAGE_SAMPLES)
     if tonumber(blockedAmount) and blockedAmount > 0 then
         boundedInsert(lane.blockedAmounts, blockedAmount, self.DAMAGE_SAMPLES)
     end
@@ -249,6 +261,7 @@ function H:Snapshot(hostiles, friendlies, actors, at)
                 interval = interval, nextSwingIn = due - at,
                 expectedDamage = damage, generation = lane.generation,
                 damageProbability = damagingFraction(lane.damages),
+                retaliationProbability = average(lane.eligibleHits),
                 blockLowerBound = minimum(lane.blockedAmounts),
                 blockSamples = table.getn(lane.blockedAmounts),
                 mitigationRegime = regime,

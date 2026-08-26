@@ -54,6 +54,7 @@ assert(table.getn(snapshot.lanes) == 1
     and math.abs(snapshot.lanes[1].interval - 2.05) < 0.001
     and snapshot.lanes[1].expectedDamage == 10
     and snapshot.lanes[1].damageProbability == 0.75
+    and snapshot.lanes[1].retaliationProbability == 0.25
     and snapshot.lanes[1].blockLowerBound == 3
     and snapshot.lanes[1].blockSamples == 1
     and snapshot.playerDefense.exact

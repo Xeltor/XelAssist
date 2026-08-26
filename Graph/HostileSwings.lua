@@ -54,6 +54,8 @@ function S:Events(state, candidate)
                 attackerGuid = lane.attackerGuid, attackerKey = lane.attackerKey,
                 victimGuid = lane.victimGuid, victimKind = lane.victimKind,
                 generation = lane.generation, amount = lane.expectedDamage,
+                damageProbability = lane.damageProbability,
+                retaliationProbability = lane.retaliationProbability,
                 estimated = true, postMitigation = true })
             count = count + 1
             local resetAt = (tonumber(state.time) or 0) + offset
@@ -89,5 +91,7 @@ function S:Apply(state, entry)
     state.lastHostileSwing = { attackerGuid = entry.attackerGuid,
         victimGuid = entry.victimGuid, generation = entry.generation,
         effective = result.effective, estimated = true }
+    local thorns = XelAssist.Graph.DruidThorns
+    if thorns then thorns:ApplyRetaliation(state, entry) end
     return true
 end

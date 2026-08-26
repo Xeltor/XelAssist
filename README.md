@@ -1,4 +1,4 @@
-# XelAssist 0.8.82
+# XelAssist 0.8.83
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -103,6 +103,12 @@ Prowl is likewise discovered from exact installed facts. It is an indefinite
 Cat-form, out-of-combat stealth setup with its real rank movement penalty, and
 receives no standalone value: a retained future action must actually require or
 benefit from stealth before the graph can justify it.
+Thorns is also consequence-driven rather than generic buff utility. Its six
+installed ranks and Improved Thorns modifier are sealed at the root; a self-cast
+earns value only from phase-known hostile white attacks that can land on the
+player before the selected target dies. Those projected rounds retaliate once
+against their exact attacker after Nature resistance, while misses, dodges,
+parries, evades, immunities, and deflects contribute no invented trigger.
 
 Hunter special ranged attacks now share one causal ammunition ledger with Auto
 Shot. An ambient launch that spends the last round blocks a later casted shot

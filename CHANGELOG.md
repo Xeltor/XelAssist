@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.83
+
+- Added exact installed Druid Thorns rank ownership and the patch-5 Improved
+  Thorns duration/damage modifier. Self-cast Thorns now earns value only from
+  phase-known hostile white rounds that can land before the selected target
+  dies, and retaliates once against that exact attacker through Nature
+  resistance.
+- Added a distinct bounded landed/block retaliation probability to hostile
+  attack-round evidence. Misses, dodges, parries, evades, immunities and
+  deflects no longer masquerade as damage-shield triggers.
+
 ## 0.8.82
 
 - Persist a bounded, deterministic summary of root action blockers with each
