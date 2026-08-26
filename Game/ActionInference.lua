@@ -10,7 +10,7 @@ local HUNTER_INFERENCE = { "HunterHawk", "HunterMark",
 local WARRIOR_INFERENCE = { "WarriorThunderClap", "WarriorOverpower",
     "WarriorDemoralizingShout", "WarriorHeroicStrikeThreat", "WarriorExecute",
     "WarriorRevengeThreat", "WarriorBattleShout", "WarriorShieldWall",
-    "WarriorDevastate" }
+    "WarriorDevastate", "WarriorShieldBlock" }
 
 local function infer(module, spellId)
     if not (module and type(module.InferKnowledge) == "function") then
@@ -142,16 +142,13 @@ function I:InvalidateClass()
     if player.MageColdSnap then player.MageColdSnap:Invalidate() end
     if player.PriestShield then player.PriestShield:Invalidate() end
     if player.PriestShadowform then player.PriestShadowform:Invalidate() end
-    if player.PriestImprovedShadowform then
-        player.PriestImprovedShadowform:Invalidate()
-    end
+    if player.PriestImprovedShadowform then player.PriestImprovedShadowform:Invalidate() end
     if player.PriestInnerFocus then player.PriestInnerFocus:Invalidate() end
-    if player.PriestPowerInfusion then
-        player.PriestPowerInfusion:Invalidate()
-    end
+    if player.PriestPowerInfusion then player.PriestPowerInfusion:Invalidate() end
     if player.PriestChastise then player.PriestChastise:Invalidate() end
     if player.PriestFade then player.PriestFade:Invalidate() end
     if player.PriestAscendance then player.PriestAscendance:Invalidate() end
+    if player.PriestResurgentShield then player.PriestResurgentShield:Invalidate() end
     if player.DruidProwl then player.DruidProwl:Invalidate() end
     if player.DruidClearcasting then player.DruidClearcasting:Invalidate() end
     if player.DruidFrenziedRegeneration then
@@ -219,6 +216,7 @@ function I:InvalidateClass()
     if player.PaladinRighteousFury then
         player.PaladinRighteousFury:Invalidate()
     end
+    if player.PaladinMartyr then player.PaladinMartyr:Invalidate() end
     if player.ShamanActions then player.ShamanActions:Invalidate() end
     if player.ShamanWindfuryTotem then
         player.ShamanWindfuryTotem:Invalidate()

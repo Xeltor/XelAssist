@@ -6,6 +6,7 @@ local A = XelAssist.Graph.ClassActionMechanics
 
 local BattleShout = XelAssist.Graph.WarriorBattleShout
 local ShieldWall = XelAssist.Graph.WarriorShieldWall
+local ShieldBlock = XelAssist.Graph.WarriorShieldBlock
 local FelDomination = XelAssist.Graph.WarlockFelDomination
 local Hawk = XelAssist.Graph.HunterHawk
 local RapidFire = XelAssist.Graph.HunterRapidFire
@@ -141,6 +142,19 @@ local handlers = {
         end,
     },
     {
+        name = "Warrior Shield Block", module = ShieldBlock,
+        claims = function(facts)
+            return facts.warriorShieldBlock == true
+                or facts.warriorShieldBlockApplication ~= nil
+        end,
+        matches = function(projection)
+            return projection.warriorShieldBlockApplication ~= nil
+        end,
+        prepare = function(module, action, state, _, facts)
+            return module:Prepare(action, state, facts)
+        end,
+    },
+    {
         name = "Warrior Shield Wall", module = ShieldWall,
         claims = function(facts)
             return facts.warriorShieldWall == true
@@ -233,6 +247,7 @@ function A:Advance(state, elapsed)
     end
     if BattleShout then BattleShout:Advance(state, elapsed) end
     if ShieldWall then ShieldWall:Advance(state, elapsed) end
+    if ShieldBlock then ShieldBlock:Advance(state, elapsed) end
     if FelDomination then FelDomination:Advance(state, elapsed) end
     if RapidFire then RapidFire:Advance(state, elapsed) end
 end

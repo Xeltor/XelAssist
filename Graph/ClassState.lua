@@ -42,6 +42,7 @@ local PriestFade = XelAssist.Graph.PriestFade
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 local WarriorShieldWall = XelAssist.Graph.WarriorShieldWall
+local WarriorShieldBlock = XelAssist.Graph.WarriorShieldBlock
 local WarlockFelDominationRuntime =
     XelAssist.Game.Player.WarlockFelDomination
 local WarlockFelDomination = XelAssist.Graph.WarlockFelDomination
@@ -75,102 +76,133 @@ local function copy(value, depth, seen, field)
     return out
 end
 
+local function attachHunter(state, token)
+    local mark = HunterMark and HunterMark:Attach(state)
+    local hawk = HunterHawk and HunterHawk:Attach(state) or false
+    local rapid = HunterRapidFireRuntime and HunterRapidFire
+        and HunterRapidFire:Attach(
+            state, HunterRapidFireRuntime:Snapshot(token)) or false
+    local mana = HunterManaAspects and HunterManaAspects:Attach(state) or false
+    local alone = XelAssist.Graph.HunterAloneAgainstWorld
+        and XelAssist.Graph.HunterAloneAgainstWorld:Attach(state, token) or false
+    return mark ~= nil or hawk or rapid or mana or alone
+end
+local function attachPaladin(state, token)
+    if not Paladin then return false end
+    local attached = Paladin:Attach(state)
+    local might = PaladinMight and PaladinMight:Attach(state) or false
+    local wisdom = PaladinWisdom and PaladinWisdom:Attach(state) or false
+    if PaladinBlessingThreat then PaladinBlessingThreat:Attach(state) end
+    if PaladinRighteousFury then PaladinRighteousFury:Attach(state) end
+    local shock = PaladinHolyShockRuntime and PaladinHolyShock
+        and PaladinHolyShock:Attach(state,
+            PaladinHolyShockRuntime:Snapshot(token)) or false
+    return attached or might or wisdom or shock
+end
+local function attachShaman(state, token)
+    local attached = false
+    if Totems then
+        state.totems = Totems:Snapshot()
+        attached = state.totems and state.totems.available == true or false
+        if Windfury then Windfury:Attach(state) end
+    end
+    if ShamanManaSpring then
+        attached = ShamanManaSpring:Attach(state) or attached
+    end
+    if ShamanClearcastingRuntime then
+        attached = ShamanClearcastingRuntime:Attach(state, token) or attached
+    end
+    return attached
+end
+local function attachPriest(state, token)
+    local attached = PriestShadowform
+        and PriestShadowform:Attach(state, token) or false
+    if PriestImprovedShadowform then
+        attached = PriestImprovedShadowform:Attach(state) or attached
+    end
+    if PriestInnerFocusRuntime then
+        attached = PriestInnerFocusRuntime:Attach(state, token) or attached
+    end
+    if PriestAscendance then
+        attached = PriestAscendance:Attach(state) or attached
+    end
+    if XelAssist.Graph.PriestResurgentShield then
+        attached = XelAssist.Graph.PriestResurgentShield
+            :Attach(state, token) or attached
+    end
+    return attached
+end
+local function attachMage(state, token)
+    local attached = MageClearcastingRuntime
+        and MageClearcastingRuntime:Attach(state, token) or false
+    if MagePresenceOfMindRuntime then
+        attached = MagePresenceOfMindRuntime:Attach(state, token) or attached
+    end
+    if MageProcWindowsRuntime and MageProcWindows then
+        attached = MageProcWindows:Attach(state,
+            MageProcWindowsRuntime:Snapshot(token)) or attached
+    end
+    return attached
+end
+local function attachDruid(state, token)
+    local attached = DruidClearcastingRuntime
+        and DruidClearcastingRuntime:Attach(state, token) or false
+    if DruidFrenziedRegeneration then
+        attached = DruidFrenziedRegeneration:Attach(state, token) or attached
+    end
+    return attached
+end
+local function attachRogue(state)
+    local attached = RogueSlice and RogueSlice:Attach(state) ~= nil or false
+    if RogueRuthlessness then
+        attached = RogueRuthlessness:Attach(state) or attached
+    end
+    return attached
+end
+local function attachWarlock(state, token)
+    local attached = WarlockSoulLinkRuntime and WarlockSoulLink
+        and WarlockSoulLink:Attach(
+            state, WarlockSoulLinkRuntime:Snapshot(token)) or false
+    if WarlockFelDominationRuntime and WarlockFelDomination then
+        attached = WarlockFelDominationRuntime:Attach(state, token) or attached
+    end
+    if WarlockNightfallRuntime and WarlockNightfall then
+        attached = WarlockNightfall:Attach(state,
+            WarlockNightfallRuntime:Snapshot(token)) or attached
+    end
+    return attached
+end
+local function attachWarrior(state, token)
+    local attached = WarriorBattleShout
+        and WarriorBattleShout:Attach(state) or false
+    if WarriorShieldWall then
+        attached = WarriorShieldWall:Attach(state, token) or attached
+    end
+    return attached
+end
+
 function S:Attach(state)
     if not state then return false end
     local token = classToken()
     state.classMechanicClass = token
-    if token == "PALADIN" and Paladin then
-        local attached = Paladin:Attach(state)
-        local might = PaladinMight and PaladinMight:Attach(state) or false
-        local wisdom = PaladinWisdom and PaladinWisdom:Attach(state) or false
-        if PaladinBlessingThreat then PaladinBlessingThreat:Attach(state) end
-        if PaladinRighteousFury then PaladinRighteousFury:Attach(state) end
-        local shock = PaladinHolyShockRuntime and PaladinHolyShock
-            and PaladinHolyShock:Attach(state,
-                PaladinHolyShockRuntime:Snapshot(token)) or false
-        return attached or might or wisdom or shock
+    if token == "PALADIN" then
+        return attachPaladin(state, token)
     elseif token == "SHAMAN" then
-        local attached = false
-        if Totems then
-            state.totems = Totems:Snapshot()
-            attached = state.totems and state.totems.available == true or false
-            if Windfury then Windfury:Attach(state) end
-        end
-        if ShamanManaSpring then
-            attached = ShamanManaSpring:Attach(state) or attached
-        end
-        if ShamanClearcastingRuntime then
-            attached = ShamanClearcastingRuntime:Attach(state, token) or attached
-        end
-        return attached
+        return attachShaman(state, token)
     elseif token == "HUNTER" then
-        local mark = HunterMark and HunterMark:Attach(state)
-        local hawk = HunterHawk and HunterHawk:Attach(state) or false
-        local rapid = HunterRapidFireRuntime and HunterRapidFire
-            and HunterRapidFire:Attach(
-                state, HunterRapidFireRuntime:Snapshot(token)) or false
-        local mana = HunterManaAspects and HunterManaAspects:Attach(state) or false
-        return mark ~= nil or hawk or rapid or mana
+        return attachHunter(state, token)
     elseif token == "PRIEST" then
-        local attached = PriestShadowform
-            and PriestShadowform:Attach(state, token) or false
-        if PriestImprovedShadowform then
-            attached = PriestImprovedShadowform:Attach(state) or attached
-        end
-        if PriestInnerFocusRuntime then
-            attached = PriestInnerFocusRuntime:Attach(state, token) or attached
-        end
-        if PriestAscendance then
-            attached = PriestAscendance:Attach(state) or attached
-        end
-        return attached
+        return attachPriest(state, token)
     elseif token == "MAGE" then
-        local attached = MageClearcastingRuntime
-            and MageClearcastingRuntime:Attach(state, token) or false
-        if MagePresenceOfMindRuntime then
-            attached = MagePresenceOfMindRuntime:Attach(state, token)
-                or attached
-        end
-        if MageProcWindowsRuntime and MageProcWindows then
-            attached = MageProcWindows:Attach(state,
-                MageProcWindowsRuntime:Snapshot(token)) or attached
-        end
-        return attached
+        return attachMage(state, token)
     elseif token == "DRUID" then
-        local attached = DruidClearcastingRuntime
-            and DruidClearcastingRuntime:Attach(state, token) or false
-        if DruidFrenziedRegeneration then
-            attached = DruidFrenziedRegeneration:Attach(state, token)
-                or attached
-        end
-        return attached
+        return attachDruid(state, token)
     elseif token == "ROGUE" then
-        local attached = RogueSlice and RogueSlice:Attach(state) ~= nil
-            or false
-        if RogueRuthlessness then
-            attached = RogueRuthlessness:Attach(state) or attached
-        end
-        return attached
+        return attachRogue(state)
     elseif token == "WARLOCK" then
-        local attached = WarlockSoulLinkRuntime and WarlockSoulLink
-            and WarlockSoulLink:Attach(
-                state, WarlockSoulLinkRuntime:Snapshot(token)) or false
-        if WarlockFelDominationRuntime and WarlockFelDomination then
-            attached = WarlockFelDominationRuntime:Attach(state, token)
-                or attached
-        end
-        if WarlockNightfallRuntime and WarlockNightfall then
-            attached = WarlockNightfall:Attach(state,
-                WarlockNightfallRuntime:Snapshot(token)) or attached
-        end
-        return attached
+        return attachWarlock(state, token)
     elseif token == "WARRIOR" then
-        local attached = WarriorBattleShout
-            and WarriorBattleShout:Attach(state) or false
-        if WarriorShieldWall then
-            attached = WarriorShieldWall:Attach(state, token) or attached
-        end
-        return attached
+        return attachWarrior(state, token)
     end
     return false
 end
@@ -195,6 +227,9 @@ function S:Copy(source, target)
     if HunterHawk then HunterHawk:Copy(source, target) end
     if HunterRapidFire then HunterRapidFire:Copy(source, target) end
     if HunterManaAspects then HunterManaAspects:Copy(source, target) end
+    if XelAssist.Graph.HunterAloneAgainstWorld then
+        XelAssist.Graph.HunterAloneAgainstWorld:Copy(source, target)
+    end
     if MageClearcasting then MageClearcasting:Copy(source, target) end
     if MagePresenceOfMind then MagePresenceOfMind:Copy(source, target) end
     if MageColdSnap then MageColdSnap:Copy(source, target) end
@@ -213,11 +248,15 @@ function S:Copy(source, target)
         PriestImprovedShadowform:Copy(source, target)
     end
     if PriestAscendance then PriestAscendance:Copy(source, target) end
+    if XelAssist.Graph.PriestResurgentShield then
+        XelAssist.Graph.PriestResurgentShield:Copy(source, target)
+    end
     if PriestInnerFocus then PriestInnerFocus:Copy(source, target) end
     if PriestFade then PriestFade:Copy(source, target) end
     if Windfury then Windfury:Copy(source, target) end
     if WarriorBattleShout then WarriorBattleShout:Copy(source, target) end
     if WarriorShieldWall then WarriorShieldWall:Copy(source, target) end
+    if WarriorShieldBlock then WarriorShieldBlock:Copy(source, target) end
     if WarlockFelDomination then WarlockFelDomination:Copy(source, target) end
     if WarlockNightfall then WarlockNightfall:Copy(source, target) end
     if source.warlockSoulLink then
@@ -232,6 +271,7 @@ function S:Copy(source, target)
         or source.hunterMarkRoot ~= nil or source.hunterHawk ~= nil
         or source.hunterRapidFire ~= nil
         or source.hunterManaAspect ~= nil
+        or source.hunterAloneAgainstWorld ~= nil
         or source.mageClearcasting ~= nil
         or source.magePresenceOfMind ~= nil
         or source.mageColdSnapReset ~= nil
@@ -246,12 +286,14 @@ function S:Copy(source, target)
         or source.playerShadowformProfileExact == true
         or source.priestImprovedShadowform ~= nil
         or source.priestAscendance ~= nil
+        or source.priestResurgentShield ~= nil
         or source.priestInnerFocus ~= nil
         or source.priestFade ~= nil
         or source.shamanWindfuryTotem ~= nil
         or source.warlockSoulLink ~= nil
         or source.warriorBattleShout ~= nil
         or source.warriorShieldWall ~= nil
+        or source.warriorShieldBlock ~= nil
         or source.warlockFelDomination ~= nil
         or source.warlockNightfall ~= nil
 end

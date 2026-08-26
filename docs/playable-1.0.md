@@ -134,14 +134,14 @@ request to add a class priority rule:
 
 The patch-5-wide divergence audit also promoted these unowned ordinary-loop
 mechanics into the tracked backlog: Druid Ancient Brutality/Blood Frenzy;
-Hunter Coordinated Assault; Mage Frostfire resistance selection; Paladin Seal
-of the Martyr; Shaman Spirit Armor; and Warrior hidden haste, recipient, threat
-and cost passives. Improved Shadowform, Shiv, two-charge Elemental Focus and
-Nightfall/Shadow Trance now have causal installed-client ownership, with their
-remaining private regeneration, poison-delivery or proc-generation boundaries
-explicitly withheld. Client topology is available for the remaining backlog,
-but private arithmetic, proc phase or recipient behavior stays bounded until
-Octo-authoritative evidence exists.
+Hunter Coordinated Assault; Mage Frostfire resistance selection; Shaman Spirit
+Armor; and Warrior hidden haste, recipient, threat and cost passives. Seal of
+the Martyr, Resurgent Shield, Improved Shadowform, Shiv, two-charge Elemental
+Focus and Nightfall/Shadow Trance now have installed-client ownership, with
+their remaining private health, refund, regeneration, poison-delivery or
+proc-generation boundaries explicitly withheld. Client topology is available
+for the remaining backlog, but private arithmetic, proc phase or recipient
+behavior stays bounded until Octo-authoritative evidence exists.
 
 The wider topology sweep also searches changed ranks, replacement actions,
 triggered children, proc auras, forms, pet modifiers, equipment masks and
@@ -150,18 +150,21 @@ evidence-ranked queue includes:
 
 - Druid remaining Moonkin/Tree party and tooltip-only consequences, plus Feral
   Adrenaline;
-- Hunter Snake proc generation, Alone Against the World and Lock and Load;
+- Hunter Snake/Swift Aspects proc generation, sting exclusivity, traps and Lock
+  and Load;
 - Mage Hot Streak/Flash Freeze proc generation and post-proc baseline timing,
   Temporal Convergence and Resonance Cascade;
 - Paladin Holy Shock proc generation/post-consumption baseline and Blessed
   Strikes;
-- Priest Resurgent Shield and unresolved future Ascendance consequences;
+- Priest Resurgent Shield break arithmetic, custom mana-loop passives and
+  unresolved future Ascendance consequences;
 - Rogue Noxious Assault and observed Nightblade procs;
 - Shaman improved Chain Heal/Flame Shock, additional Elemental Focus triggers,
   Totemic Alignment and Calming Winds;
 - Warlock pet-cast modifiers, Mana Funnel and Shadow Strikes; and
-- Warrior Devastate's private supplemental threat, weapon-dependent Master
-  Strike, Improved Shield Block and hidden cooldown/cost modifiers.
+- Warrior Devastate's private supplemental threat, Shield Block value,
+  Shield Mastery/Reprisal, weapon-dependent Master Strike and hidden
+  cooldown/cost modifiers.
 
 An exact observed-aura plus engine-effective cost/cast/cooldown/duration layer
 can own deterministic SpellMods across classes. Proc generation, refunds,

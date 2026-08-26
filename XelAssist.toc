@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.49
+## Version: 0.8.50
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -44,6 +44,7 @@ Game\Player\PaladinRighteousFury.lua
 Game\Player\PaladinConsecration.lua
 Game\Player\PaladinHandOfReckoning.lua
 Game\Player\PaladinHolyShockModifiers.lua
+Game\Player\PaladinMartyr.lua
 Game\Player\TotemState.lua
 Game\Player\ShamanActions.lua
 Game\Player\ShamanWindfuryTotem.lua
@@ -62,6 +63,7 @@ Game\Player\PriestShield.lua
 Game\Player\PriestShadowform.lua
 Game\Player\PriestImprovedShadowform.lua
 Game\Player\PriestAscendance.lua
+Game\Player\PriestResurgentShield.lua
 Game\Player\PriestInnerFocus.lua
 Game\Player\PriestPowerInfusion.lua
 Game\Player\PriestChastise.lua
@@ -96,6 +98,7 @@ Game\Player\WarriorOverpower.lua
 Game\Player\WarriorDemoralizingShout.lua
 Game\Player\WarriorShieldWall.lua
 Game\Player\WarriorDevastate.lua
+Game\Player\WarriorShieldBlock.lua
 Game\ActionInference.lua
 Game\Player\WarriorRage.lua
 Game\CrowdControl.lua
@@ -127,6 +130,7 @@ Game\Pets\FocusEvidence.lua
 Game\Pets\FocusEvents.lua
 Game\Pets\Resources.lua
 Game\Pets\State.lua
+Game\Player\HunterAloneAgainstWorld.lua
 Game\Pets\Actions.lua
 Game\Pets\CommandState.lua
 Game\Pets\Effects.lua
@@ -175,6 +179,7 @@ Graph\PriestShadowform.lua
 Graph\PriestInnerFocus.lua
 Graph\PriestPowerInfusion.lua
 Graph\PriestAscendance.lua
+Graph\PriestResurgentShield.lua
 Graph\PriestFade.lua
 Graph\MagePresenceOfMind.lua
 Graph\MageColdSnap.lua
@@ -207,6 +212,7 @@ Graph\PaladinMight.lua
 Graph\PaladinRighteousFury.lua
 Graph\PaladinBlessingThreat.lua
 Graph\PaladinHolyShockModifiers.lua
+Graph\PaladinMartyr.lua
 Graph\ShamanWindfuryTotem.lua
 Graph\ShamanManaSpring.lua
 Graph\ShamanClearcasting.lua
@@ -219,6 +225,8 @@ Graph\PlayerThreat.lua
 Graph\HunterDistractingShot.lua
 Graph\WarriorBattleShout.lua
 Graph\WarriorShieldWall.lua
+Graph\WarriorShieldBlock.lua
+Graph\HunterAloneAgainstWorld.lua
 Graph\ClassEvidence.lua
 Graph\ClassState.lua
 Graph\ClassActionMechanics.lua

@@ -8,8 +8,6 @@ local PaladinConsecration = XelAssist.Game.Player.PaladinConsecration
 local PaladinRighteousness = XelAssist.Game.Player.PaladinRighteousness
 local PaladinMight = XelAssist.Game.Player.PaladinMight
 local PaladinWisdom = XelAssist.Game.Player.PaladinWisdom
-local PaladinHolyShockModifiers =
-    XelAssist.Game.Player.PaladinHolyShockModifiers
 local MageShield = XelAssist.Game.Player.MageManaShield
 local MageClearcasting = XelAssist.Game.Player.MageClearcasting
 local MagePresenceOfMind = XelAssist.Game.Player.MagePresenceOfMind
@@ -60,102 +58,61 @@ local WarlockDarkPactRuntime = XelAssist.Game.Player.WarlockDarkPact
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
 local WarlockNightfallRuntime = XelAssist.Game.Player.WarlockNightfall
 
+local CAPTURE_MODULES = {}
+local function captureModule(module)
+    if module and type(module.CaptureFacts) == "function" then
+        table.insert(CAPTURE_MODULES, module)
+    end
+end
+captureModule(PaladinRighteousness)
+captureModule(PaladinRighteousFury)
+captureModule(PaladinConsecration)
+captureModule(PaladinMight)
+captureModule(PaladinWisdom)
+captureModule(XelAssist.Game.Player.PaladinHolyShockModifiers)
+captureModule(XelAssist.Game.Player.PaladinMartyr)
+captureModule(MageShield)
+captureModule(MageClearcasting)
+captureModule(MagePresenceOfMind)
+captureModule(MageColdSnap)
+captureModule(MageProcWindowsRuntime)
+captureModule(DruidClearcasting)
+captureModule(DruidFrenziedRegeneration)
+captureModule(DruidCasterForms)
+captureModule(ShamanClearcasting)
+captureModule(ShamanManaSpring)
+captureModule(ShamanEarthShockRuntime)
+captureModule(ShamanLightningStrike)
+captureModule(RogueFeint)
+captureModule(RogueSliceRuntime)
+captureModule(RogueRuthlessness)
+captureModule(RoguePreparation)
+captureModule(WarriorBattleShout)
+captureModule(WarriorThunderClap)
+captureModule(WarriorExecute)
+captureModule(WarriorDemoralizingShout)
+captureModule(WarriorShieldWall)
+captureModule(WarlockFelDominationRuntime)
+captureModule(WarlockDarkPactRuntime)
+captureModule(WarlockNightfallRuntime)
+captureModule(HunterMark)
+captureModule(HunterHawk)
+captureModule(HunterDistractingShot)
+captureModule(HunterRapidFire)
+captureModule(HunterStingingNettle)
+captureModule(HunterManaAspects)
+captureModule(PriestShadowform)
+captureModule(PriestImprovedShadowform)
+captureModule(PriestAscendanceRuntime)
+captureModule(PriestInnerFocusRuntime)
+captureModule(PriestPowerInfusionRuntime)
+captureModule(PriestFadeRuntime)
+
 function E:CaptureFacts(action, facts, state)
-    local out = facts
-    if PaladinRighteousness then
-        out = PaladinRighteousness:CaptureFacts(action, out, state)
+    local out, index = facts, nil
+    for index = 1, table.getn(CAPTURE_MODULES) do
+        out = CAPTURE_MODULES[index]:CaptureFacts(action, out, state)
     end
-    if PaladinRighteousFury then
-        out = PaladinRighteousFury:CaptureFacts(action, out)
-    end
-    if PaladinConsecration then
-        out = PaladinConsecration:CaptureFacts(action, out)
-    end
-    if PaladinMight then out = PaladinMight:CaptureFacts(action, out) end
-    if PaladinWisdom then out = PaladinWisdom:CaptureFacts(action, out) end
-    if PaladinHolyShockModifiers then out = PaladinHolyShockModifiers:CaptureFacts(action, out, state) end
-    if MageShield then out = MageShield:CaptureFacts(action, out) end
-    if MageClearcasting then
-        out = MageClearcasting:CaptureFacts(action, out, state)
-    end
-    if MagePresenceOfMind then
-        out = MagePresenceOfMind:CaptureFacts(action, out, state)
-    end
-    if MageColdSnap then out = MageColdSnap:CaptureFacts(action, out) end
-    if MageProcWindowsRuntime then out = MageProcWindowsRuntime:CaptureFacts(action, out, state) end
-    if DruidClearcasting then
-        out = DruidClearcasting:CaptureFacts(action, out, state)
-    end
-    if DruidFrenziedRegeneration then
-        out = DruidFrenziedRegeneration:CaptureFacts(action, out)
-    end
-    if DruidCasterForms then out = DruidCasterForms:CaptureFacts(action, out, state) end
-    if ShamanClearcasting then
-        out = ShamanClearcasting:CaptureFacts(action, out, state)
-    end
-    if ShamanManaSpring then
-        out = ShamanManaSpring:CaptureFacts(action, out)
-    end
-    if ShamanEarthShockRuntime then
-        out = ShamanEarthShockRuntime:CaptureFacts(action, out, state)
-    end
-    if ShamanLightningStrike then
-        out = ShamanLightningStrike:CaptureFacts(action, out)
-    end
-    if RogueFeint then out = RogueFeint:CaptureFacts(action, out) end
-    if RogueSliceRuntime then out = RogueSliceRuntime:CaptureFacts(action, out) end
-    if RogueRuthlessness then
-        out = RogueRuthlessness:CaptureFacts(action, out)
-    end
-    if RoguePreparation then out = RoguePreparation:CaptureFacts(action, out) end
-    if WarriorBattleShout then
-        out = WarriorBattleShout:CaptureFacts(action, out)
-    end
-    if WarriorThunderClap then
-        out = WarriorThunderClap:CaptureFacts(action, out)
-    end
-    if WarriorExecute then out = WarriorExecute:CaptureFacts(action, out) end
-    if WarriorDemoralizingShout then
-        out = WarriorDemoralizingShout:CaptureFacts(action, out)
-    end
-    if WarriorShieldWall then
-        out = WarriorShieldWall:CaptureFacts(action, out)
-    end
-    if WarlockFelDominationRuntime then
-        out = WarlockFelDominationRuntime:CaptureFacts(action, out, state)
-    end
-    if WarlockDarkPactRuntime then
-        out = WarlockDarkPactRuntime:CaptureFacts(action, out)
-    end
-    if WarlockNightfallRuntime then
-        out = WarlockNightfallRuntime:CaptureFacts(action, out)
-    end
-    if HunterMark then out = HunterMark:CaptureFacts(action, out) end
-    if HunterHawk then out = HunterHawk:CaptureFacts(action, out) end
-    if HunterDistractingShot then
-        out = HunterDistractingShot:CaptureFacts(action, out, state)
-    end
-    if HunterRapidFire then
-        out = HunterRapidFire:CaptureFacts(action, out, state)
-    end
-    if HunterStingingNettle then
-        out = HunterStingingNettle:CaptureFacts(action, out)
-    end
-    if HunterManaAspects then out = HunterManaAspects:CaptureFacts(action, out) end
-    if PriestShadowform then
-        out = PriestShadowform:CaptureFacts(action, out)
-    end
-    if PriestImprovedShadowform then
-        out = PriestImprovedShadowform:CaptureFacts(action, out, state)
-    end
-    if PriestAscendanceRuntime then out = PriestAscendanceRuntime:CaptureFacts(action, out, state) end
-    if PriestInnerFocusRuntime then
-        out = PriestInnerFocusRuntime:CaptureFacts(action, out, state)
-    end
-    if PriestPowerInfusionRuntime then
-        out = PriestPowerInfusionRuntime:CaptureFacts(action, out)
-    end
-    if PriestFadeRuntime then out = PriestFadeRuntime:CaptureFacts(action, out) end
     return out
 end
 

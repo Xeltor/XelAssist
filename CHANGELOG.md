@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.50
+
+- Added Hunter Alone Against the World as an exact observed no-pet damage
+  modifier. It requires an explicitly dismissed pet lifecycle and matching
+  server aura, affects only player damage, and never guesses from a missing pet.
+- Added legal one/two-charge Shield Block projection from installed shield,
+  stance, rage and Improved Shield Block evidence. No mitigation is credited
+  until exact block value and incoming outcomes can be represented.
+- Bounded Seal of the Martyr's exact seal, melee child, Judgement child and
+  self-recipient topology. Its outgoing damage remains uncredited while the
+  private, material self-health arithmetic is unresolved.
+- Added observed Resurgence ownership for Resurgent Shield while leaving its
+  absorption-dependent Holy bonus and mana refund unprojected. Root engine
+  spell power already embodies an observed aura, preventing double counting.
+- Replaced the growing class-evidence call chain with ordered module dispatch
+  and split root state attachment into class-local helpers for Lua 5.0 limits.
+
 ## 0.8.49
 
 - Added observed-only Holy Shock GCD/cooldown modifier auras with exact numeric

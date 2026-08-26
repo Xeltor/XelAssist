@@ -27,6 +27,7 @@ local ClassMechanics = XelAssist.Graph.ClassMechanics
 local HunterMark = XelAssist.Graph.HunterMark
 local HunterDistractingShot = XelAssist.Graph.HunterDistractingShot
 local HunterStingingNettle = XelAssist.Graph.HunterStingingNettle
+local HunterAloneAgainstWorld = XelAssist.Graph.HunterAloneAgainstWorld
 local PriestShadowform = XelAssist.Graph.PriestShadowform
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local StateUtilityScoring = XelAssist.Graph.StateUtilityScoring
@@ -187,6 +188,9 @@ local function projectPeriodicDamage(context)
 end
 
 local function projectDamageAndResistance(context)
+    if HunterAloneAgainstWorld then
+        HunterAloneAgainstWorld:AdjustDamage(context)
+    end
     estimateResistance(context)
     projectPeriodicDamage(context)
 end
