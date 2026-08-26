@@ -142,6 +142,13 @@ warrior.inCombat, warrior.resource = true, 0
 expect("Warrior rage starvation", warrior, { attack, slam }, "Attack")
 warrior.resource = 25
 expect("Warrior rage recovery", warrior, { attack, slam }, "Heroic Strike")
+warrior.targetHealth, warrior.targetMax = 30, 204
+warrior.targetSurvival = { available = true, incomingDps = 7.2,
+    timeToDie = 4.1667, lowerTimeToDie = 3.75, upperTimeToDie = 4.58,
+    observedFor = 12, samples = 4, confidence = "limited samples" }
+warrior.playerAttack.active = true
+expect("Warrior late Rend restraint", warrior,
+    { attack, rend, slam }, "Heroic Strike")
 warrior.tank, warrior.role, warrior.groupSize = true, "tank", 4
 warrior.targetCasting, warrior.targetCastRemaining = true, 1
 expect("Warrior tank interrupt", warrior, { slam, shieldBash }, "Shield Bash", "tank")

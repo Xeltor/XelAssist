@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.71
+
+- Replaced the fixed periodic-progress score which could make one late Rend
+  tick dominate immediate attacks. DoTs now value only causally deliverable
+  damage, pay an equal resource-opportunity charge for forecast-unavailable
+  damage, and earn overlap value in proportion to effect completion.
+- Kept fully consumable periodic-only effects such as Rend and Corruption
+  competitive across the bounded horizon without granting that overlap to
+  direct-plus-periodic impact spells such as Pyroblast.
+- Added late-Rend, monotonic tick-delivery and cross-class regression coverage,
+  plus automatic logging of periodic damage forecast not to land.
+
 ## 0.8.70
 
 - Gave Shield Block bounded selected-attacker prevention instead of a legal but

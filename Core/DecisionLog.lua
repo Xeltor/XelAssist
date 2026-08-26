@@ -77,6 +77,7 @@ function L:Record(plan, mode)
         survivalDecisionFactor = plan.survival and plan.survival.decisionFactor,
         survivalExpectedPeriodicTicks = plan.survival
             and plan.survival.expectedPeriodicTicks,
+        periodicUndeliveredPower = plan.periodicUndeliveredPower,
         periodicRefreshOldExpectedTicks = plan.periodicRefresh
             and plan.periodicRefresh.oldExpectedTicks,
         periodicRefreshDisplacedPower = plan.periodicRefresh

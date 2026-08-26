@@ -182,6 +182,7 @@ function B:Build(state, observed, path, counter, started, observedAt)
         power = best.power, rawPower = best.rawPower,
         powerEvidence = best.powerEvidence,
         survival = best.survival,
+        periodicUndeliveredPower = best.periodicUndeliveredPower,
         periodicRefresh = best.periodicRefresh,
         pushbackProjection = best.pushbackProjection,
         shieldBlockPrevention = best.shieldBlockPrevention,
