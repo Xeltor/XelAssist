@@ -371,6 +371,7 @@ subprocess.run(["lua", str(root / "tests/priest_inner_focus_test.lua")], cwd=roo
 subprocess.run(["lua", str(root / "tests/priest_power_infusion_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/priest_chastise_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/priest_fade_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/priest_spirit_tap_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/paladin_wisdom_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/paladin_lay_on_hands_guard_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/shield_mechanics_integration_test.lua")], cwd=root, check=True)

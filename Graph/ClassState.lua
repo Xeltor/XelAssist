@@ -48,6 +48,8 @@ local PriestAscendance = XelAssist.Graph.PriestAscendance
 local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
 local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
 local PriestFade = XelAssist.Graph.PriestFade
+local PriestSpiritTapRuntime = XelAssist.Game.Player.PriestSpiritTap
+local PriestSpiritTap = XelAssist.Graph.PriestSpiritTap
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 local WarriorShieldWall = XelAssist.Graph.WarriorShieldWall
@@ -155,6 +157,10 @@ local function attachPriest(state, token)
     if XelAssist.Graph.PriestResurgentShield then
         attached = XelAssist.Graph.PriestResurgentShield
             :Attach(state, token) or attached
+    end
+    if PriestSpiritTapRuntime and PriestSpiritTap then
+        attached = PriestSpiritTap:Attach(state,
+            PriestSpiritTapRuntime:Snapshot(state, token)) or attached
     end
     return attached
 end
@@ -340,6 +346,7 @@ function S:Copy(source, target)
     end
     if PriestInnerFocus then PriestInnerFocus:Copy(source, target) end
     if PriestFade then PriestFade:Copy(source, target) end
+    if PriestSpiritTap then PriestSpiritTap:Copy(source, target) end
     if Windfury then Windfury:Copy(source, target) end
     copyWarrior(source, target)
     if WarlockFelDomination then WarlockFelDomination:Copy(source, target) end
@@ -377,7 +384,7 @@ function S:Copy(source, target)
         or source.priestAscendance ~= nil
         or source.priestResurgentShield ~= nil
         or source.priestInnerFocus ~= nil
-        or source.priestFade ~= nil
+        or source.priestFade ~= nil or source.priestSpiritTap ~= nil
         or source.shamanWindfuryTotem ~= nil
         or source.warlockSoulLink ~= nil
         or source.warriorBattleShout ~= nil

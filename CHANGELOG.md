@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.85
+
+- Added exact Octo patch-5 Spirit Tap rank ownership and its fifteen-second
+  +100-percent Spirit/50-percent casting-regeneration aura lifecycle.
+- Added one bounded player-kill consequence boundary covering direct, periodic,
+  wand, channel, white-swing, Auto Shot and secondary area damage. Only exact
+  player-owned kills of XP-yielding, player-tapped creatures can roll Spirit
+  Tap; pet and ineligible kills cannot.
+- Clipped a mana clock learned during active Spirit Tap at the exact aura
+  expiry. Projected procs do not invent an Octo Priest mana formula, while Mind
+  Blast-critical proc generation remains explicit until spell-critical
+  probability is root-sealed.
+
 ## 0.8.84
 
 - Prevented periodic-only actions such as Rend from spending resources when

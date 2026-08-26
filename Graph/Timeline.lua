@@ -16,7 +16,7 @@ local AmbientTargetHealth = XelAssist.Graph.AmbientTargetHealth
 local PlayerTaunt, ThreatDrop = XelAssist.Graph.PlayerTaunt, XelAssist.Graph.ThreatDrop
 local ControlDamage = XelAssist.Graph.CrowdControlTimeline
 local PlayerResourceTimeline = XelAssist.Graph.PlayerResourceTimeline
-local NIL_PROBE_TARGET = {}
+local PlayerKillConsequences, NIL_PROBE_TARGET = XelAssist.Graph.PlayerKillConsequences, {}
 local function memoActionKey(action)
     local facts = action and action.facts or {}
     local actor = action and (action.actor or "player") or "player"
@@ -250,7 +250,6 @@ local function collectEvents(out, source, candidate, context)
     sortEvents(events)
     return events, autoTimeline
 end
-
 local function startChosen(out, candidate, context)
     if hostileDefeated(out, candidate) or actorDefeated(out, candidate) then
         context.actionStartFailed = true
@@ -263,7 +262,6 @@ local function startChosen(out, candidate, context)
         not started and true or nil
     return started
 end
-
 local function applyPassive(out, source, candidate, context, entry)
     local beforeAuras = Ongoing:AuraSnapshot(out)
     if entry.kind == "petAutocastTimelineCap" and Companion then
@@ -305,6 +303,7 @@ function L:BeforeAction(source, candidate)
             and math.abs(entry.offset - candidate.ambientExcludedOffset) < 0.0001
         if not excluded then
             prior = out.targetHealth
+            local killSnapshot = PlayerKillConsequences and PlayerKillConsequences:Capture(out, candidate, entry)
             local controlSnapshot = ControlDamage and ControlDamage:Snapshot(out)
             if entry.kind == "chosenActionStart" then
                 startChosen(out, candidate, context)
@@ -325,6 +324,7 @@ function L:BeforeAction(source, candidate)
                 Ongoing:TrackEventAuras(out, beforeAuras, eventAuras)
             end
             if ControlDamage then ControlDamage:ResolveEvent(out, controlSnapshot, entry, candidate) end
+            if PlayerKillConsequences then PlayerKillConsequences:Resolve(out, candidate, entry, killSnapshot) end
             if out.targetHealthExact and out.targetHealth < prior then
                 damageEvents = damageEvents + 1
             end
@@ -341,8 +341,6 @@ function L:BeforeAction(source, candidate)
         ammunition = ammunition, ammunitionKnown = ammunitionKnown,
         channelProjection = channelProjection }
 end
--- Scoring keeps intrinsic action value separate from the causal window that
--- reaches a future start. Timeline probes must still see that full window.
 function L:BeforeScoredAction(source, candidate)
     local probe, key, value = {}, nil, nil
     for key, value in pairs(candidate) do probe[key] = value end
@@ -391,6 +389,7 @@ function L:Run(out, source, candidate, context)
         advanceState(out, step, persistentAuras, eventAuras)
         elapsed = entry.offset
         local controlSnapshot = ControlDamage and ControlDamage:Snapshot(out)
+        local killSnapshot = PlayerKillConsequences and PlayerKillConsequences:Capture(out, candidate, entry)
         if entry.kind == "chosenActionStart" then
             syncCandidateTarget(out, candidate)
             startChosen(out, candidate, context)
@@ -435,6 +434,7 @@ function L:Run(out, source, candidate, context)
             Ongoing:TrackEventAuras(out, beforeAuras, eventAuras)
         end
         if ControlDamage then ControlDamage:ResolveEvent(out, controlSnapshot, entry, candidate) end
+        if PlayerKillConsequences then PlayerKillConsequences:Resolve(out, candidate, entry, killSnapshot) end
     end
     local remainder = candidate.downtime - elapsed
     advanceState(out, remainder, persistentAuras, eventAuras)

@@ -274,6 +274,9 @@ never class rotations or ordered priority lists.
   `Game/Player/PushbackEvidence.lua` owns the bounded character/session delay
   envelope; `Graph/PushbackProjection.lua` combines it only with phase-known
   damaging hostile rounds and exact immunity state.
+  `Game/Player/PriestSpiritTap.lua` seals the installed rank and live aura;
+  `Graph/PlayerKillConsequences.lua` attributes bounded exact killing blows and
+  `Graph/PriestSpiritTap.lua` owns only the resulting branch-local lifecycle.
   `Core/AuraApplicationReservations.lua` owns exact landing, visibility-gap,
   aura-cap uncertainty, and cast-pushback extensions after the base reservation
   module establishes identity and lifecycle records.

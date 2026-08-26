@@ -14,6 +14,8 @@ end
 
 function R:Attach(state, evidence)
     state.playerResourceClock = copy(evidence)
+    local tap = XelAssist.Graph and XelAssist.Graph.PriestSpiritTap
+    if tap then tap:TagResourceClock(state, state.playerResourceClock) end
     return state
 end
 
@@ -87,6 +89,11 @@ function R:Advance(state, elapsed)
         return finiteRage:Advance(state, elapsed)
     end
     elapsed = math.max(0, tonumber(elapsed) or 0)
+    local spiritTap = XelAssist.Graph and XelAssist.Graph.PriestSpiritTap
+    local spiritTapExpired = false
+    if spiritTap then
+        elapsed, spiritTapExpired = spiritTap:ManaAdvance(state, elapsed)
+    end
     local clock, amount, interval, nextIn = self:ClockFor(state)
     local prior = tonumber(state.resource) or 0
     if elapsed > 0 and clock then
@@ -106,6 +113,9 @@ function R:Advance(state, elapsed)
     end
     local viper = XelAssist.Graph and XelAssist.Graph.HunterManaAspects
     if viper then viper:Advance(state, elapsed) end
+    if spiritTap then
+        spiritTap:FinishManaAdvance(state, spiritTapExpired)
+    end
     return (tonumber(state.resource) or prior) - prior
 end
 

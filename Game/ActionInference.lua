@@ -186,6 +186,7 @@ function I:InvalidateClass()
     if player.PriestPowerInfusion then player.PriestPowerInfusion:Invalidate() end
     if player.PriestChastise then player.PriestChastise:Invalidate() end
     if player.PriestFade then player.PriestFade:Invalidate() end
+    if player.PriestSpiritTap then player.PriestSpiritTap:Invalidate() end
     if player.PriestAscendance then player.PriestAscendance:Invalidate() end
     if player.PriestResurgentShield then player.PriestResurgentShield:Invalidate() end
     if player.DruidProwl then player.DruidProwl:Invalidate() end

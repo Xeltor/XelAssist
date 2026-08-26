@@ -119,10 +119,12 @@ request to add a class priority rule:
 - **Priest:** Shadow Mend now owns its exact 50-percent caster-health
   consequence, maximum-roll lethality boundary, ally/self transition and
   conservative healing-threat overestimate. Pain Spike remains withheld
-  because it heals its hostile target back after a private delay. Spirit Tap's
-  current kill-or-Mind-Blast-critical predicate and
-  active regeneration require exact server/observed proc evidence plus the same
-  mana-regime work. Vampiric Embrace/Touch and party-heal progression require
+  because it heals its hostile target back after a private delay. Spirit Tap
+  now owns its exact five-rank kill chance, player-only XP-yielding kill
+  boundary, fifteen-second aura lifecycle, and active-regime mana-clock expiry.
+  Projected procs deliberately create no mana until an Octo-specific active
+  regime is learned. Mind Blast critical generation remains withheld because
+  no root-sealed spell-critical probability exists. Vampiric Embrace/Touch and party-heal progression require
   target-owned delivered-damage triggers and bounded recipient fanout.
 - **Shaman:** Earth Shock now carries the exact current build-5875 two-times
   damage-threat profile, but live Octo acceptance and target mechanic-interrupt

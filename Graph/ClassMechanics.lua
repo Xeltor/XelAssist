@@ -14,6 +14,7 @@ local Totems = XelAssist.Game.Player.TotemState
 local ShamanActions = XelAssist.Game.Player.ShamanActions
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local PriestFade = XelAssist.Graph.PriestFade
+local PriestSpiritTap = XelAssist.Graph.PriestSpiritTap
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local ManaSpring = XelAssist.Graph.ShamanManaSpring
 local EarthShock = XelAssist.Graph.ShamanEarthShock
@@ -329,6 +330,7 @@ function M:Advance(state, elapsed)
     if PaladinMight then PaladinMight:Advance(state, elapsed) end
     if PaladinWisdom then PaladinWisdom:Advance(state, elapsed) end
     if PriestFade then PriestFade:Advance(state, elapsed) end
+    if PriestSpiritTap then PriestSpiritTap:Advance(state) end
     if WarriorBerserkerRage then WarriorBerserkerRage:Advance(state, elapsed) end
     if ActionMechanics then ActionMechanics:Advance(state, elapsed) end
     return expired
