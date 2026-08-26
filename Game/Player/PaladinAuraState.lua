@@ -9,6 +9,7 @@ local A = XelAssist.Game.Player.PaladinAuraState
 A.PALADIN_FAMILY = 10
 A.MAX_AURAS = 40
 A.MAX_LOW_FLAGS = 4294967295
+A.MAX_EXACT_FLAGS = 9007199254740991
 A.SEAL_BITS = { 9, 25, 27 }
 A.BLESSING_BITS = { 8, 28 }
 A.JUDGEMENT_BIT = 23
@@ -95,15 +96,19 @@ end
 function A:Classify(spellId)
     spellId = integer(spellId, 1, self.MAX_LOW_FLAGS)
     local family = spellId and dbc(spellId, "spellFamilyName") or nil
-    local flags = spellId and dbc(spellId, "spellFamilyFlags") or nil
+    local fullFlags = spellId and dbc(spellId, "spellFamilyFlags") or nil
     family = family and integer(family, 0, self.MAX_LOW_FLAGS) or nil
-    flags = flags and integer(flags, 0, self.MAX_LOW_FLAGS) or nil
-    if family == nil or flags == nil then
+    fullFlags = fullFlags
+        and integer(fullFlags, 0, self.MAX_EXACT_FLAGS) or nil
+    if family == nil or fullFlags == nil then
         return nil, "Paladin DBC family evidence unavailable", false
     end
+    local flags = fullFlags
+        - math.floor(fullFlags / 4294967296) * 4294967296
     if family ~= self.PALADIN_FAMILY then
         return { kind = "other", spellId = spellId, family = family,
-            flags = flags, exact = true }, nil, false
+            flags = flags, lowFlags = flags, fullFlags = fullFlags,
+            exact = true }, nil, false
     end
 
     local seal, blessing = anyBit(flags, self.SEAL_BITS),
@@ -130,9 +135,10 @@ function A:Classify(spellId)
         or blessing and "friendly" or judgement and "hostile"
         or righteousFury and "self" or nil
     return { kind = kind, spellId = spellId, family = family, flags = flags,
+        lowFlags = flags, fullFlags = fullFlags,
         exclusiveFamily = exclusiveFamily,
         recipientRelation = recipientRelation, exact = true,
-        source = "build-5875 Paladin low-word SpellFamily flags" }, nil,
+        source = "build-5875 exact Paladin SpellFamily flags" }, nil,
         kind ~= "other"
 end
 

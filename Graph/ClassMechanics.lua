@@ -5,6 +5,7 @@ XelAssist.Graph.ClassMechanics = {}
 local M = XelAssist.Graph.ClassMechanics
 local Paladin = XelAssist.Graph.PaladinAuraProjection
 local PaladinActions = XelAssist.Game.Player.PaladinActions
+local PaladinRighteousness = XelAssist.Graph.PaladinRighteousness
 local PaladinMight = XelAssist.Graph.PaladinMight
 local PaladinWisdom = XelAssist.Graph.PaladinWisdom
 local PaladinBlessingThreat = XelAssist.Graph.PaladinBlessingThreat
@@ -55,6 +56,14 @@ local function paladinProjection(action, state, descriptor, facts)
         return nil, "captured Paladin action classification unavailable", true
     end
     local outcome = facts.paladinDownstreamOutcome
+    if PaladinRighteousness then
+        local exact, reason, handled = PaladinRighteousness:Outcome(
+            action, state, descriptor, facts)
+        if handled then
+            if not exact then return nil, reason, true end
+            outcome = exact
+        end
+    end
     if PaladinRighteousFury then
         local exact, reason, handled = PaladinRighteousFury:Prepare(
             action, state, descriptor, facts.paladinDownstreamEffect)
@@ -77,6 +86,15 @@ local function paladinProjection(action, state, descriptor, facts)
     end
     projection.classMechanic = "paladin"
     projection.effect = effect
+    if PaladinRighteousness then
+        local prepared
+        prepared, reason, handled = PaladinRighteousness:Prepare(
+            state, projection, facts)
+        if handled then
+            if not prepared then return nil, reason, true end
+            projection = prepared
+        end
+    end
     if PaladinBlessingThreat then
         local prepared
         prepared, reason, handled = PaladinBlessingThreat:Prepare(
@@ -226,6 +244,10 @@ function M:Score(context, projection)
     if PaladinMight and projection.paladinMightTransition then
         return PaladinMight:Score(context, projection)
     end
+    if PaladinRighteousness
+        and projection.paladinRighteousnessTransition then
+        return PaladinRighteousness:Score(context, projection)
+    end
     if PaladinWisdom and projection.paladinWisdomTransition then
         local scored, reason = PaladinWisdom:Score(context, projection)
         if scored or reason then return scored, reason end
@@ -263,6 +285,10 @@ function M:Apply(state, candidate)
                 and PaladinRighteousFury:Apply(state, candidate) or false
         end
         if not Paladin:Apply(state, projection) then return false end
+        if projection.paladinRighteousnessTransition then
+            return PaladinRighteousness
+                and PaladinRighteousness:Apply(state, candidate) or false
+        end
         if projection.paladinBlessingThreat then
             if not (PaladinBlessingThreat
                 and PaladinBlessingThreat:Apply(state, projection)) then

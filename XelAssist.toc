@@ -35,6 +35,7 @@ Game\Player\DruidBearThreat.lua
 Game\Player\DruidCatThreat.lua
 Game\Player\PaladinAuraState.lua
 Game\Player\PaladinActions.lua
+Game\Player\PaladinRighteousness.lua
 Game\Player\PaladinMight.lua
 Game\Player\PaladinWisdom.lua
 Game\Player\PaladinBlessingThreat.lua
@@ -166,6 +167,7 @@ Graph\DruidForms.lua
 Graph\DruidClearcasting.lua
 Graph\WarriorStances.lua
 Graph\PaladinAuraProjection.lua
+Graph\PaladinRighteousness.lua
 Graph\PaladinWisdom.lua
 Graph\PaladinMight.lua
 Graph\PaladinRighteousFury.lua

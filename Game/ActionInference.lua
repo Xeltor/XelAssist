@@ -65,6 +65,9 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PaladinActions, spellId)
     if handled then
+        if facts and player.PaladinRighteousness then
+            facts = player.PaladinRighteousness:Promote(spellId, facts)
+        end
         if facts and player.PaladinMight then
             facts = player.PaladinMight:Promote(spellId, facts)
         end
@@ -169,6 +172,9 @@ function I:InvalidateClass()
     if player.WarlockDarkPact then player.WarlockDarkPact:Invalidate() end
     if player.WarlockSoulLink then player.WarlockSoulLink:Invalidate() end
     if player.PaladinActions then player.PaladinActions:Invalidate() end
+    if player.PaladinRighteousness then
+        player.PaladinRighteousness:Invalidate()
+    end
     if player.PaladinMight then player.PaladinMight:Invalidate() end
     if player.PaladinWisdom then player.PaladinWisdom:Invalidate() end
     if player.PaladinBlessingThreat then

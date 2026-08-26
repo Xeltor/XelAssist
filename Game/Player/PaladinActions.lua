@@ -51,6 +51,7 @@ end
 local function sealedClassification(found)
     return { kind = found.kind, spellId = found.spellId,
         family = found.family, flags = found.flags,
+        lowFlags = found.lowFlags, fullFlags = found.fullFlags,
         exclusiveFamily = found.exclusiveFamily,
         recipientRelation = found.recipientRelation,
         exact = found.exact, source = found.source }

@@ -22,6 +22,7 @@ local function copyClassification(source)
     if type(source) ~= "table" then return nil end
     return { kind = source.kind, spellId = source.spellId,
         family = source.family, flags = source.flags,
+        lowFlags = source.lowFlags, fullFlags = source.fullFlags,
         exclusiveFamily = source.exclusiveFamily,
         recipientRelation = source.recipientRelation,
         exact = source.exact, source = source.source }

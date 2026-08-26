@@ -4,6 +4,7 @@
 XelAssist.Graph.ClassEvidence = {}
 local E = XelAssist.Graph.ClassEvidence
 local PaladinRighteousFury = XelAssist.Game.Player.PaladinRighteousFury
+local PaladinRighteousness = XelAssist.Game.Player.PaladinRighteousness
 local PaladinMight = XelAssist.Game.Player.PaladinMight
 local PaladinWisdom = XelAssist.Game.Player.PaladinWisdom
 local MageShield = XelAssist.Game.Player.MageManaShield
@@ -45,6 +46,9 @@ local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
 
 function E:CaptureFacts(action, facts, state)
     local out = facts
+    if PaladinRighteousness then
+        out = PaladinRighteousness:CaptureFacts(action, out, state)
+    end
     if PaladinRighteousFury then
         out = PaladinRighteousFury:CaptureFacts(action, out)
     end

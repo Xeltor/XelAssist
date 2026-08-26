@@ -15,6 +15,7 @@ local records = {
     [19742] = { 10, 268500992 }, -- blessing bit 28 plus subtype bit
     [1038] = { 10, 256 },        -- blessing bit 8
     [20271] = { 10, 8388608 },   -- Judgement bit 23
+    [20287] = { 10, 68853694464 }, -- full Seal of Righteousness flags
     [25780] = { 10, 1 },         -- Righteous Fury bit 0
     [9999] = { 5, 134217728 },
     [9998] = { 10, 4294967296 },
@@ -71,10 +72,15 @@ local crusader = Auras:Classify(21082)
 local blessing = Auras:Classify(19740)
 local salvation = Auras:Classify(1038)
 local judgement = Auras:Classify(20271)
+local righteousness = Auras:Classify(20287)
 assert(seal.kind == "seal" and command.kind == "seal"
     and crusader.kind == "seal" and blessing.kind == "blessing"
     and salvation.kind == "blessing" and judgement.kind == "judgement",
     "family flags must classify mechanics without localized names")
+assert(righteousness.kind == "seal" and righteousness.flags == 134217728
+    and righteousness.lowFlags == 134217728
+    and righteousness.fullFlags == 68853694464,
+    "full Righteousness flags must retain their exact value and low word")
 assert(seal.exclusiveFamily == "paladinSeal"
     and seal.recipientRelation == "self"
     and blessing.exclusiveFamily == "paladinBlessingByCaster"
@@ -186,6 +192,16 @@ assert(judgeProjection == nil
     "unrepresentable downstream effects must fail closed")
 
 local oldPlayerAuras = playerAuras
+playerAuras = {
+    { name = "Righteousness", spellId = 20287, sourceUnit = "player",
+        sourceGUID = playerGUID, duration = 30 },
+    oldPlayerAuras[2], oldPlayerAuras[3],
+}
+local fullFlagPlayer = Auras:Observe("player", playerGUID)
+assert(fullFlagPlayer.available and fullFlagPlayer.activeSeal.spellId == 20287
+    and fullFlagPlayer.activeSeal.classification.fullFlags == 68853694464,
+    "live aura observation must retain a full Righteousness family value")
+playerAuras = oldPlayerAuras
 playerAuras = { oldPlayerAuras[1],
     { name = "Other Seal", spellId = 21082, sourceUnit = "player",
         sourceGUID = playerGUID } }
@@ -206,9 +222,11 @@ local hostile = Auras:Observe("target", "enemy-guid")
 assert(not hostile.available
     and hostile.reason == "Paladin aura recipient identity unavailable",
     "helpful aura state must reject a hostile recipient relation")
-local _, unrepresentable = Auras:Classify(9998)
-assert(unrepresentable == "Paladin DBC family evidence unavailable",
-    "family flags outside the exact Lua-5.0 low word must fail closed")
+local highOnly, highReason, highRecognized = Auras:Classify(9998)
+assert(highOnly and highOnly.kind == "other" and highOnly.flags == 0
+    and highOnly.fullFlags == 4294967296 and highReason == nil
+    and not highRecognized,
+    "exact high-word flags without a modeled low family must remain unclaimed")
 
 playerClass = "PRIEST"
 local wrongClass = Auras:Observe("player", playerGUID)

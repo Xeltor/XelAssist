@@ -286,6 +286,7 @@ subprocess.run(["lua", str(root / "tests/caster_channel_breakpoint_test.lua")], 
 subprocess.run(["lua", str(root / "tests/paladin_aura_state_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/paladin_actions_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/paladin_aura_projection_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/paladin_righteousness_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/paladin_blessing_threat_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/paladin_righteous_fury_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/paladin_might_test.lua")], cwd=root, check=True)
