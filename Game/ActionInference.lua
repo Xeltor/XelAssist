@@ -206,6 +206,7 @@ function I:InvalidateClass()
     if player.RogueShiv then player.RogueShiv:Invalidate() end
     if player.RogueMarkForDeath then player.RogueMarkForDeath:Invalidate() end
     if player.RogueBladeFlurry then player.RogueBladeFlurry:Invalidate() end
+    if player.RoguePoisons then player.RoguePoisons:Invalidate() end
     if player.HunterMark then player.HunterMark:Invalidate() end
     if player.HunterHawk then player.HunterHawk:Invalidate() end
     if player.HunterDistractingShot then

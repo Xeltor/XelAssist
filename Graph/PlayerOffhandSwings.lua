@@ -15,6 +15,7 @@ local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local HunterRapidFire = XelAssist.Graph.HunterRapidFire
 local DruidBarkskin = XelAssist.Graph.DruidBarkskin
 local DruidBloodFrenzy = XelAssist.Graph.DruidBloodFrenzy
+local RoguePoisons = XelAssist.Graph.RoguePoisons
 
 local WHITE_ACTION = { name = "Attack", actor = "player", facts = {
     kind = "damage", school = 0, melee = true, whiteAttack = true,
@@ -166,11 +167,12 @@ local function markUnknown(target, record, reason)
     target.playerOffhandUnknownReason = reason
 end
 
-local function applyKnown(target, record, rawPower)
+local function applyKnown(target, record, rawPower, action, tooltip)
+    action, tooltip = action or WHITE_ACTION, tooltip or WHITE_TOOLTIP
     local decision = 1
     if XelAssist.Combat.Resistance then
         local estimate = XelAssist.Combat.Resistance:Estimate(
-            WHITE_ACTION, "target", WHITE_TOOLTIP, target)
+            action, "target", tooltip, target)
         decision = Effects:Decision(estimate, target, true)
     end
     local expected = math.max(0,
@@ -195,7 +197,8 @@ local function applyKnown(target, record, rawPower)
         if target.targetHealth <= 0 then target.hostile = false end
     end
     if record and dealt > 0 then
-        PlayerThreat:Add(record, target, "player", dealt, 0)
+        PlayerThreat:Add(record, target, "player", dealt,
+            action.facts and action.facts.school or 0)
     end
     return dealt
 end
@@ -215,6 +218,13 @@ function O:Apply(out, entry)
             "ordinary player off-hand outcome magnitude unavailable")
     elseif PlayerRage then
         PlayerRage:GainFromWhite(out, dealt)
+    end
+    if dealt and dealt > 0 and RoguePoisons then
+        local _, poisonReason = RoguePoisons:ResolveWhite(
+            out, target, "off", function(action, tooltip, power)
+                return applyKnown(target, record, power, action, tooltip)
+            end)
+        if poisonReason then target.roguePoisonUnknownReason = poisonReason end
     end
     refreshRecord(out, record)
     return true

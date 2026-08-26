@@ -204,10 +204,13 @@ local function attachDruid(state, token)
     end
     return attached
 end
-local function attachRogue(state)
+local function attachRogue(state, token)
     local attached = RogueSlice and RogueSlice:Attach(state) ~= nil or false
     if RogueRuthlessness then
         attached = RogueRuthlessness:Attach(state) or attached
+    end
+    if XelAssist.Graph.RoguePoisons then
+        attached = XelAssist.Graph.RoguePoisons:Attach(state, token) or attached
     end
     return attached
 end
@@ -261,7 +264,7 @@ function S:Attach(state)
     elseif token == "DRUID" then
         return attachDruid(state, token)
     elseif token == "ROGUE" then
-        return attachRogue(state)
+        return attachRogue(state, token)
     elseif token == "WARLOCK" then
         return attachWarlock(state, token)
     elseif token == "WARRIOR" then
@@ -292,6 +295,15 @@ local function copyDruid(source, target)
     if DruidThorns then DruidThorns:Copy(source, target) end
     local brutality = XelAssist.Graph.DruidAncientBrutality
     if brutality then brutality:Copy(source, target) end
+end
+
+local function copyRogue(source, target)
+    if RogueSlice then RogueSlice:Copy(source, target) end
+    if RogueRuthlessness then RogueRuthlessness:Copy(source, target) end
+    if RoguePreparation then RoguePreparation:Copy(source, target) end
+    if XelAssist.Graph.RoguePoisons then
+        XelAssist.Graph.RoguePoisons:Copy(source, target)
+    end
 end
 
 function S:Copy(source, target)
@@ -333,9 +345,7 @@ function S:Copy(source, target)
     if ShamanManaSpring then ShamanManaSpring:Copy(source, target) end
     if ShamanWeaponImbues then ShamanWeaponImbues:Copy(source, target) end
     if XelAssist.Graph.ShamanStormstrike then XelAssist.Graph.ShamanStormstrike:Copy(source, target) end
-    if RogueSlice then RogueSlice:Copy(source, target) end
-    if RogueRuthlessness then RogueRuthlessness:Copy(source, target) end
-    if RoguePreparation then RoguePreparation:Copy(source, target) end
+    copyRogue(source, target)
     if PriestShadowform then PriestShadowform:Copy(source, target) end
     if PriestImprovedShadowform then
         PriestImprovedShadowform:Copy(source, target)

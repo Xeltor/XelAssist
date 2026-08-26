@@ -338,6 +338,9 @@ function A:Advance(state, elapsed)
     if DruidEnrage then DruidEnrage:Advance(state, elapsed) end
     if DruidBloodFrenzy then DruidBloodFrenzy:Advance(state, elapsed) end
     if ShamanWeaponImbues then ShamanWeaponImbues:Advance(state, elapsed) end
+    if XelAssist.Graph.RoguePoisons then
+        XelAssist.Graph.RoguePoisons:Advance(state, elapsed)
+    end
     if BattleShout then BattleShout:Advance(state, elapsed) end
     if ShieldWall then ShieldWall:Advance(state, elapsed) end
     if ShieldBlock then ShieldBlock:Advance(state, elapsed) end

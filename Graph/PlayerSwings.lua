@@ -13,6 +13,7 @@ local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 local WarriorThreat = XelAssist.Graph.WarriorThreatPackets
 local PaladinMight = XelAssist.Graph.PaladinMight
 local SwingArea = XelAssist.Graph.PlayerSwingArea
+local RoguePoisons = XelAssist.Graph.RoguePoisons
 local MAX_EVENTS = 8
 local READY_DELAY = 0.05
 local function afterCastLocks(state, candidate, offset)
@@ -430,6 +431,14 @@ function S:Apply(out, entry)
         elseif imbueReason then markUnknown(target, record, imbueReason)
         elseif PlayerRage then
             PlayerRage:GainFromWhite(out, dealt)
+        end
+        if dealt and dealt > 0 and RoguePoisons then
+            local _, poisonReason = RoguePoisons:ResolveWhite(
+                out, target, "main", function(action, tooltip, power, threat)
+                    return applyKnown(target, record,
+                        action, tooltip, power, threat)
+                end)
+            if poisonReason then target.roguePoisonUnknownReason = poisonReason end
         end
         if windHandled and dealt ~= nil then
             Windfury:AfterWhiteSwing(out, entry.targetGuid, windDelivery)

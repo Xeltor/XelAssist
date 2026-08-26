@@ -180,7 +180,13 @@ request to add a class priority rule:
   profiles alone cannot yet prove tank playability.
 - **Rogue:** current combo, energy, target-survival, stealth/rear, Slice and
   Dice, Ruthlessness, Preparation and Feint coverage is sufficient for focused
-  scenario proof. Poison stocks remain unresolved optimization. Octo's
+  scenario proof. Ordinary poison topology, carried stock and exact independent
+  main/off-hand lifetime/charges are now root-sealed. Landed white swings carry
+  finite Instant Poison damage and capped Deadly Poison application/refresh
+  branches with separate Nature delivery and discrete three-second ticks.
+  Poison item-to-hand execution, special/Shiv delivery, charge-retention
+  talents, utility poisons and custom private-script poisons remain withheld.
+  Octo's
   permanent Blade Flurry tradeoff is now identified exactly and withheld
   because its server-selected secondary recipient is not observable.
 

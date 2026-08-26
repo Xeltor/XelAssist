@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.85
+## Version: 0.8.86
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -96,6 +96,7 @@ Game\Player\RogueSurpriseAttack.lua
 Game\Player\RogueShiv.lua
 Game\Player\RogueMarkForDeath.lua
 Game\Player\RogueBladeFlurry.lua
+Game\Player\RoguePoisons.lua
 Game\Player\RogueSliceAndDice.lua
 Game\Player\RogueRuthlessness.lua
 Game\Player\RoguePreparation.lua
@@ -222,6 +223,7 @@ Graph\MageColdSnap.lua
 Graph\MageProcWindows.lua
 Graph\RoguePreparation.lua
 Graph\RogueBladeFlurry.lua
+Graph\RoguePoisons.lua
 Graph\WarriorRage.lua
 Graph\WarriorRevengeThreat.lua
 Graph\WarriorHeroicStrikeThreat.lua

@@ -333,6 +333,37 @@ local function levelFourWarrior()
     return source, { charge, attack, rend }
 end
 
+local function roguePoisonWhiteRounds()
+    local source = Fixture.State("smart")
+    source.inCombat = true
+    source.resource, source.resourceMax, source.resourceType = 100, 100, 3
+    source.actors.player.resource, source.actors.player.resourceMax = 100, 100
+    source.targetHealth, source.targetMax = 600, 600
+    source.targetDistance, source.distance = 0, 0
+    source.targetDistanceKind, source.distanceKind = "hitbox", "hitbox"
+    source.playerAttack = { supported=true, active=true, activeKnown=true,
+        clockKnown=true, attackRound={ verified=true, projectable=true,
+            phaseKnown=true, normalDamageKnown=true, power=24, interval=2,
+            nextSwingIn=.5, targetGuid=source.targetGUID } }
+    source.roguePoisons = { available=true, exact=true, hands={
+        main={available=true,exact=true,hand="main",active=true,isPoison=true,
+            remaining=180,charges=40,enchantId=323,profile={ valid=true,
+                exact=true,family="instant",spellId=8679,enchantId=323,
+                child=8680,chance=20,damageAverage=22 }},
+        off={available=true,exact=true,hand="off",active=false},
+    } }
+    XelAssist.Combat.Resistance = { Estimate=function()
+        return { landChance=.95, multiplier=.90, unknown=false }
+    end, Contrast=function() return nil end }
+    local actions, rank = {}, nil
+    for rank = 1, 12 do
+        table.insert(actions, Fixture.Action("Sinister Strike", rank,
+            "builder", 25 + rank, 45,
+            { melee=true, testMinRange=0, testMaxRange=5 }))
+    end
+    return source, actions
+end
+
 local cases = {
     { name = "level-4 Warrior Charge", depth = 3,
         Build = levelFourWarrior, expected = "Charge",
@@ -350,6 +381,9 @@ local cases = {
         Build = rankHeavyMage, expected = "Frostbolt" },
     { name = "rank-heavy Shaman caster", depth = 3,
         Build = rankHeavyShaman, expected = "Lightning Bolt" },
+    { name = "Rogue poison white rounds", depth = 4,
+        Build = roguePoisonWhiteRounds, expected = "Sinister Strike",
+        maxSlices = 20, maxActive = 35, maxSlice = 3.23, maxExpanded = 50 },
 }
 
 local index

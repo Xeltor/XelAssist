@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.86
+
+- Added installed Octo topology ownership for all ordinary Deadly, Instant,
+  Crippling and Mind-numbing Poison ranks, including their parent spell,
+  temporary enchant, triggered child, created item and item-use relationship.
+- Captured exact, independent main-hand/off-hand poison identity, remaining
+  lifetime and charges plus carried poison stock. Unknown temporary enchants
+  and unavailable item evidence remain explicit instead of becoming poison or
+  zero-stock assumptions.
+- Added branch-local Instant and Deadly Poison consequences to landed ordinary
+  white swings. Instant damage receives its own Nature delivery/mitigation;
+  Deadly uses capped probabilistic stacks, separate application resistance and
+  discrete three-second ticks. Failed refreshes preserve their existing tick
+  clocks, and expected proc attempts conservatively consume finite charges.
+
 ## 0.8.85
 
 - Added exact Octo patch-5 Spirit Tap rank ownership and its fifteen-second
