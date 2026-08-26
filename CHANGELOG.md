@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.73
+
+- Sealed installed Octo Enrage as an exact Bear/Dire Bear action with ten
+  one-second two-rage ticks, a ten-second lifetime and a sixty-second cooldown.
+  Its finite clock can now unlock later rage spenders without inventing an
+  immediate resource packet.
+- Represented Enrage's installed seventy-five-percent armor loss instead of
+  treating generated rage as free. Learned player-bound hostile white rounds
+  receive a conservative four-times post-mitigation damage upper bound while
+  the aura is active, and the bound expires with the rage clock.
+- Added fail-closed topology drift, form legality, active-aura, resource-tick,
+  incoming-exposure and lifecycle regression coverage.
+
 ## 0.8.72
 
 - Sealed Hunter pet Shell Shield from the installed patch-5 spell row: ten

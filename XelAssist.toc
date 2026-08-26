@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.72
+## Version: 0.8.73
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -34,6 +34,7 @@ Game\Player\DruidFrenziedRegeneration.lua
 Game\Player\DruidGrowl.lua
 Game\Player\DruidBarkskin.lua
 Game\Player\DruidAncientBrutality.lua
+Game\Player\DruidEnrage.lua
 Game\Player\DruidBloodFrenzy.lua
 Game\Player\DruidBearThreat.lua
 Game\Player\DruidCatThreat.lua
@@ -125,6 +126,7 @@ Game\Player\WarriorDevastate.lua
 Game\Player\WarriorShieldBlock.lua
 Game\Player\WarriorBerserkerRage.lua
 Game\ActionInference.lua
+Game\Player\FiniteRageClock.lua
 Game\Player\WarriorRage.lua
 Game\CrowdControl.lua
 Game\RootAuraEvidence.lua
@@ -230,6 +232,7 @@ Graph\DruidShiftResources.lua
 Graph\DruidBearThreat.lua
 Graph\DruidCatThreat.lua
 Graph\DruidFrenziedRegeneration.lua
+Graph\DruidEnrage.lua
 Graph\DruidBarkskin.lua
 Graph\DruidAncientBrutality.lua
 Graph\DruidBloodFrenzy.lua

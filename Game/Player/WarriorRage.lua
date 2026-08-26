@@ -281,6 +281,8 @@ function W:Attach(state)
 end
 
 function W:ClockFor(state)
+    local finiteRage = XelAssist.Game.Player.FiniteRageClock
+    if finiteRage then return finiteRage:ClockFor(state) end
     local clock = state and state.playerResourceClock
     if tonumber(state and state.resourceType) ~= self.RAGE
         or not (clock and clock.kind == "warriorBloodrage"

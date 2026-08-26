@@ -82,9 +82,9 @@ function R:BeginChosen(state, candidate)
 end
 
 function R:Advance(state, elapsed)
-    local warrior = XelAssist.Game.Player.WarriorRage
-    if warrior and warrior:Active(state) then
-        return warrior:Advance(state, elapsed)
+    local finiteRage = XelAssist.Game.Player.FiniteRageClock
+    if finiteRage and finiteRage:Active(state) then
+        return finiteRage:Advance(state, elapsed)
     end
     elapsed = math.max(0, tonumber(elapsed) or 0)
     local clock, amount, interval, nextIn = self:ClockFor(state)
@@ -126,9 +126,9 @@ local function probe(state, at)
 end
 
 function R:ResourceAt(state, at)
-    local warrior = XelAssist.Game.Player.WarriorRage
-    if warrior and warrior:Active(state) then
-        return warrior:ResourceAt(state, at)
+    local finiteRage = XelAssist.Game.Player.FiniteRageClock
+    if finiteRage and finiteRage:Active(state) then
+        return finiteRage:ResourceAt(state, at)
     end
     local wisdom = XelAssist.Graph and XelAssist.Graph.PaladinWisdom
     if wisdom then
@@ -140,9 +140,9 @@ function R:ResourceAt(state, at)
 end
 
 function R:Earliest(state, cost, readyAt)
-    local warrior = XelAssist.Game.Player.WarriorRage
-    if warrior and warrior:Active(state) then
-        return warrior:Earliest(state, cost, readyAt)
+    local finiteRage = XelAssist.Game.Player.FiniteRageClock
+    if finiteRage and finiteRage:Active(state) then
+        return finiteRage:Earliest(state, cost, readyAt)
     end
     local viper = XelAssist.Graph and XelAssist.Graph.HunterManaAspects
     if viper then

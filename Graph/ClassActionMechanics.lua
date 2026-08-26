@@ -16,11 +16,25 @@ local PresenceOfMind = XelAssist.Graph.MagePresenceOfMind
 local ColdSnap = XelAssist.Graph.MageColdSnap
 local MageEvocation = XelAssist.Graph.MageEvocation
 local FrenziedRegeneration = XelAssist.Graph.DruidFrenziedRegeneration
+local DruidEnrage = XelAssist.Graph.DruidEnrage
 local DruidBarkskin = XelAssist.Graph.DruidBarkskin
 local RoguePreparation = XelAssist.Graph.RoguePreparation
 local RogueBladeFlurry = XelAssist.Graph.RogueBladeFlurry
 
 local handlers = {
+    {
+        name = "Druid Enrage", module = DruidEnrage,
+        claims = function(facts)
+            return facts.druidEnrage == true
+                or facts.druidEnrageTransition ~= nil
+        end,
+        matches = function(projection)
+            return projection.druidEnrageTransition ~= nil
+        end,
+        prepare = function(module, action, state, descriptor, facts)
+            return module:Prepare(action, state, descriptor, facts)
+        end,
+    },
     {
         name = "Mage Evocation", module = MageEvocation,
         claims = function(facts)
@@ -289,6 +303,7 @@ function A:Advance(state, elapsed)
     if DruidBarkskin then
         DruidBarkskin:Advance(state, elapsed)
     end
+    if DruidEnrage then DruidEnrage:Advance(state, elapsed) end
     if BattleShout then BattleShout:Advance(state, elapsed) end
     if ShieldWall then ShieldWall:Advance(state, elapsed) end
     if ShieldBlock then ShieldBlock:Advance(state, elapsed) end

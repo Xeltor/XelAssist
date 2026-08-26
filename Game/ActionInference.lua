@@ -22,7 +22,7 @@ local WARRIOR_INFERENCE = { "WarriorThunderClap", "WarriorOverpower",
 local ROOT_INVALIDATION = { "MageFrostfire", "MageAcceleratedArcana",
     "MageArcanePower",
     "ShamanChainHealTiming", "ShamanFlameShockTiming",
-    "DruidAncientBrutality", "DruidBloodFrenzy", "DruidGrowl",
+    "DruidAncientBrutality", "DruidEnrage", "DruidBloodFrenzy", "DruidGrowl",
     "PriestDivergentActions", "PaladinLayOnHands",
     "WarriorShieldBash", "WarriorShieldSlam", "WarriorControl",
     "HunterFeignDeath",
@@ -67,6 +67,8 @@ function I:ClassKnowledge(spellId)
     facts, reason, handled = infer(player.DruidProwl, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.DruidFrenziedRegeneration, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.DruidEnrage, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.DruidGrowl, spellId)
     if handled then return facts, reason, true end

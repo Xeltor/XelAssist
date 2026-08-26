@@ -80,6 +80,9 @@ function S:Apply(state, entry)
     local companionDefensives = XelAssist.Graph.CompanionDefensives
     if companionDefensives then amount = companionDefensives:AdjustIncoming(
         state, entry, amount) end
+    local druidEnrage = XelAssist.Graph.DruidEnrage
+    if druidEnrage then amount = druidEnrage:AdjustProjectedSwing(
+        state, entry, amount) end
     local result = Incoming:ApplyResolvedDamage(state, entry.victimGuid,
         amount, true, "projected hostile white swing")
     if not result then state.incomingProjectionPartial = true; return false end

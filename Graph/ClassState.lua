@@ -28,6 +28,7 @@ local DruidClearcastingRuntime = XelAssist.Game.Player.DruidClearcasting
 local DruidClearcasting = XelAssist.Graph.DruidClearcasting
 local DruidFrenziedRegeneration =
     XelAssist.Graph.DruidFrenziedRegeneration
+local DruidEnrage = XelAssist.Graph.DruidEnrage
 local DruidBarkskin = XelAssist.Graph.DruidBarkskin
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local RogueRuthlessness = XelAssist.Graph.RogueRuthlessness
@@ -171,6 +172,9 @@ local function attachDruid(state, token)
     if DruidFrenziedRegeneration then
         attached = DruidFrenziedRegeneration:Attach(state, token) or attached
     end
+    if DruidEnrage then
+        attached = DruidEnrage:Attach(state, token) or attached
+    end
     if DruidBarkskin then
         attached = DruidBarkskin:Attach(state, token) or attached
     end
@@ -253,6 +257,7 @@ local function copyDruid(source, target)
     if DruidFrenziedRegeneration then
         DruidFrenziedRegeneration:Copy(source, target)
     end
+    if DruidEnrage then DruidEnrage:Copy(source, target) end
     if DruidBarkskin then DruidBarkskin:Copy(source, target) end
     local brutality = XelAssist.Graph.DruidAncientBrutality
     if brutality then brutality:Copy(source, target) end

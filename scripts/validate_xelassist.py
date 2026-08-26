@@ -276,6 +276,7 @@ subprocess.run(["lua", str(root / "tests/shaman_chain_heal_timing_test.lua")], c
 subprocess.run(["lua", str(root / "tests/shaman_flame_shock_timing_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/druid_ancient_brutality_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/druid_blood_frenzy_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/druid_enrage_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/shaman_earth_shock_wiring_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/attack_rounds_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/player_attack_test.lua")], cwd=root, check=True)

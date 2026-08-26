@@ -401,7 +401,7 @@ assert(XelAssistCharDB.schema == 5
     and XelAssistCharDB.toggles.engagedTargets == false,
     "saved-variable schema did not migrate with safe hostile-target defaults")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.72" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.73" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.class == "MAGE" and runtime.level == 12
     and runtime.role == "auto" and runtime.session.decisions == 0,
     "runtime smoke identity and session evidence missing")
