@@ -66,7 +66,6 @@ local function retainCandidate(buckets, candidate, order)
         bucket[targetKey] = candidate
     end
 end
-
 local function flattenCandidates(buckets)
     local out, _, bucket, candidate = {}, nil, nil, nil
     for _, bucket in pairs(buckets) do
@@ -164,6 +163,7 @@ local function advanceTop(session)
         end
     elseif top.stage == "flatten" then
         top.candidates = flattenCandidates(top.buckets)
+        if G.RogueComboInvestment then G.RogueComboInvestment:Adjust(top.candidates, top.state) end
         top.stage = "movement"
     elseif top.stage == "movement" then
         local candidate = MovementSetup and MovementSetup:Candidate(

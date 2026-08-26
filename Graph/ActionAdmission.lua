@@ -96,6 +96,9 @@ local function observedCooldown(action, state, actionStart)
     end
     local rootReady = cooldown.applicable
         and math.max(0, tonumber(cooldown.remaining) or 0) or 0
+    local coldSnap = XelAssist.Graph.MageColdSnap
+    if coldSnap and coldSnap:RootCooldownCleared(
+        state, action, record.facts) then rootReady = 0 end
     local ledger = XelAssist.Graph.CooldownLedger
     local projected = ledger and ledger.ReadyAt
         and tonumber(ledger:ReadyAt(state, action)) or 0

@@ -14,7 +14,9 @@ end
 
 function I:ClassKnowledge(spellId)
     local player = XelAssist.Game.Player or {}
-    local facts, reason, handled = infer(player.MagePresenceOfMind, spellId)
+    local facts, reason, handled = infer(player.MageColdSnap, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.MagePresenceOfMind, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.MageManaShield, spellId)
     if handled then return facts, reason, true end
@@ -105,6 +107,7 @@ function I:InvalidateClass()
     if player.MagePresenceOfMind then
         player.MagePresenceOfMind:Invalidate()
     end
+    if player.MageColdSnap then player.MageColdSnap:Invalidate() end
     if player.PriestShield then player.PriestShield:Invalidate() end
     if player.PriestShadowform then player.PriestShadowform:Invalidate() end
     if player.PriestInnerFocus then player.PriestInnerFocus:Invalidate() end

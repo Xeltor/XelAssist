@@ -14,6 +14,7 @@ local MageClearcastingRuntime = XelAssist.Game.Player.MageClearcasting
 local MageClearcasting = XelAssist.Graph.MageClearcasting
 local MagePresenceOfMindRuntime = XelAssist.Game.Player.MagePresenceOfMind
 local MagePresenceOfMind = XelAssist.Graph.MagePresenceOfMind
+local MageColdSnap = XelAssist.Graph.MageColdSnap
 local DruidClearcastingRuntime = XelAssist.Game.Player.DruidClearcasting
 local DruidClearcasting = XelAssist.Graph.DruidClearcasting
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
@@ -132,6 +133,7 @@ function S:Copy(source, target)
     if HunterHawk then HunterHawk:Copy(source, target) end
     if MageClearcasting then MageClearcasting:Copy(source, target) end
     if MagePresenceOfMind then MagePresenceOfMind:Copy(source, target) end
+    if MageColdSnap then MageColdSnap:Copy(source, target) end
     if DruidClearcasting then DruidClearcasting:Copy(source, target) end
     if ShamanClearcasting then ShamanClearcasting:Copy(source, target) end
     if ShamanManaSpring then ShamanManaSpring:Copy(source, target) end
@@ -151,6 +153,7 @@ function S:Copy(source, target)
         or source.hunterMarkRoot ~= nil or source.hunterHawk ~= nil
         or source.mageClearcasting ~= nil
         or source.magePresenceOfMind ~= nil
+        or source.mageColdSnapReset ~= nil
         or source.druidClearcasting ~= nil
         or source.shamanClearcasting ~= nil
         or source.shamanManaSpring ~= nil

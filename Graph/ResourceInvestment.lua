@@ -84,7 +84,7 @@ end
 
 -- SearchSession uses only sealed action facts to avoid rescanning the complete
 -- catalog for each reserved setup lane. Unknown or malformed masks fail closed.
-function R:PotentialConsumer(path, _, sealedFacts)
+function R:PotentialConsumer(path, action, sealedFacts)
     if not (path and path.strategicSetupOpen == true
         and type(sealedFacts) == "table") then return false end
     local key = sealedFacts.setupConsumerKey
@@ -101,6 +101,11 @@ function R:PotentialConsumer(path, _, sealedFacts)
     local manaSpring = XelAssist.Graph.ShamanManaSpring
     if key == nil and manaSpring then
         key = manaSpring:ConsumerKey(sealedFacts)
+    end
+    local coldSnap = XelAssist.Graph.MageColdSnap
+    if key == nil and coldSnap
+        and coldSnap:PotentialConsumer(path, action, sealedFacts) then
+        key = coldSnap.CONSUMER_KEY
     end
     if type(key) ~= "string" or key == ""
         or string.len(key) > 128 then key = nil end

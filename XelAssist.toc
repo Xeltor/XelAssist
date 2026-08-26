@@ -45,6 +45,7 @@ Game\Player\ShamanClearcasting.lua
 Game\Player\MageManaShield.lua
 Game\Player\MageClearcasting.lua
 Game\Player\MagePresenceOfMind.lua
+Game\Player\MageColdSnap.lua
 Game\Player\PriestShield.lua
 Game\Player\PriestShadowform.lua
 Game\Player\PriestInnerFocus.lua
@@ -136,6 +137,7 @@ Graph\PriestShadowform.lua
 Graph\PriestInnerFocus.lua
 Graph\PriestPowerInfusion.lua
 Graph\MagePresenceOfMind.lua
+Graph\MageColdSnap.lua
 Graph\WarriorRage.lua
 Graph\WarriorRevengeThreat.lua
 Graph\WarriorHeroicStrikeThreat.lua
@@ -248,6 +250,7 @@ Graph\PeriodicScoring.lua
 Graph\StateUtilityScoring.lua
 Graph\SoulShardReserve.lua
 Graph\Candidate.lua
+Graph\RogueComboInvestment.lua
 Graph\Scoring.lua
 Graph\Transitions.lua
 Graph\SearchPolicy.lua

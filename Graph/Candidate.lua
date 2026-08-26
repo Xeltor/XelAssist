@@ -44,6 +44,11 @@ local function consumerKey(context)
         value = manaSpring:ConsumerKey(context.tooltip)
             or manaSpring:ConsumerKey(context.facts)
     end
+    local coldSnap = XelAssist.Graph.MageColdSnap
+    if value == nil and coldSnap then
+        value = coldSnap:ConsumerKey(
+            context.state, context.action, context.tooltip)
+    end
     if type(value) ~= "string" or value == ""
         or string.len(value) > 128 then return nil end
     return value
@@ -60,6 +65,8 @@ local function strategicSetup(tooltip)
         and XelAssist.Graph.PriestPowerInfusion:StrategicSetup(tooltip)
     local manaSpring = XelAssist.Graph.ShamanManaSpring
         and XelAssist.Graph.ShamanManaSpring:StrategicSetup(tooltip)
+    local coldSnap = XelAssist.Graph.MageColdSnap
+        and XelAssist.Graph.MageColdSnap:StrategicSetup(tooltip)
     local warrior = tooltip and tooltip.warriorStanceTransition
     local druid = tooltip and tooltip.druidFormTransition
     local priest = tooltip and tooltip.priestShadowformTransition
@@ -68,12 +75,13 @@ local function strategicSetup(tooltip)
         if value then selected, count = value, count + 1 end
     end
     include(innerFocus); include(presence); include(powerInfusion)
-    include(manaSpring)
+    include(manaSpring); include(coldSnap)
     include(warrior)
     include(druid); include(priest)
     if count ~= 1 then return nil end
     if selected == innerFocus or selected == presence
-        or selected == powerInfusion or selected == manaSpring then return selected end
+        or selected == powerInfusion or selected == manaSpring
+        or selected == coldSnap then return selected end
     local transition, prefix = warrior or druid or priest,
         warrior and "warriorStance" or druid and "druidForm"
             or priest and "priestShadowform" or nil
@@ -137,6 +145,7 @@ function C:Build(context)
         powerEvidence = context.powerEvidence,
         survival = context.survival,
         comboAvailability = context.comboAvailability,
+        comboEfficiencyPenalty = context.comboEfficiencyPenalty,
         comboTargetGUID = context.comboTargetGUID,
         comboAllOwners = context.comboAllOwners,
         effectivePower = context.effectivePower, rawPower = context.power,

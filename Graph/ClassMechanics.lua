@@ -15,6 +15,7 @@ local HunterHawk = XelAssist.Graph.HunterHawk
 local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
 local PriestPowerInfusion = XelAssist.Graph.PriestPowerInfusion
 local MagePresenceOfMind = XelAssist.Graph.MagePresenceOfMind
+local MageColdSnap = XelAssist.Graph.MageColdSnap
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local ManaSpring = XelAssist.Graph.ShamanManaSpring
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
@@ -72,6 +73,11 @@ end
 local function magePresenceOfMindClaimed(facts)
     return facts.magePresenceOfMind == true
         or facts.magePresenceOfMindTransition ~= nil
+end
+
+local function mageColdSnapClaimed(facts)
+    return facts.mageColdSnap == true
+        or facts.mageColdSnapTransition ~= nil
 end
 
 local function paladinProjection(action, state, descriptor, facts)
@@ -159,7 +165,12 @@ end
 function M:Prepare(action, state, descriptor, tooltip)
     local actionFacts = action and action.facts or {}
     local facts = tooltip or actionFacts
-    if magePresenceOfMindClaimed(facts)
+    if mageColdSnapClaimed(facts) or mageColdSnapClaimed(actionFacts) then
+        if not MageColdSnap then
+            return nil, "Mage Cold Snap graph unavailable", true
+        end
+        return MageColdSnap:Prepare(action, state, facts)
+    elseif magePresenceOfMindClaimed(facts)
         or magePresenceOfMindClaimed(actionFacts) then
         if not MagePresenceOfMind then
             return nil, "Mage Presence of Mind graph unavailable", true
@@ -264,6 +275,9 @@ function M:Score(context, projection)
     if not (context and projection and projection.classMechanic) then
         return false, "class mechanic projection unavailable"
     end
+    if MageColdSnap and projection.mageColdSnapTransition then
+        return MageColdSnap:Score(context, projection)
+    end
     if MagePresenceOfMind and projection.magePresenceOfMindTransition then
         return MagePresenceOfMind:Score(context, projection)
     end
@@ -337,6 +351,8 @@ function M:Apply(state, candidate)
     elseif projection.classMechanic == "warriorBattleShout"
         and WarriorBattleShout then
         return WarriorBattleShout:Apply(state, candidate)
+    elseif projection.mageColdSnapTransition and MageColdSnap then
+        return MageColdSnap:Apply(state, candidate)
     elseif projection.magePresenceOfMindTransition
         and MagePresenceOfMind then
         return MagePresenceOfMind:Apply(state, candidate)
