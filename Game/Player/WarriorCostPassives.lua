@@ -94,7 +94,13 @@ local function modifiers(id)
         GetSpellModifiers,id,P.COST_OPERATION)
     flat, percent, changed = number(flat), number(percent), number(changed)
     if not ok or not flat or not percent or not changed then return nil end
-    return { flat=flat, percent=percent, changed=changed }
+    local rawPercent = percent
+    -- Nampower's build-5875 wrapper exposes the engine's neutral percentage
+    -- accumulator as 100 when there is no flat modifier. With a flat cost
+    -- passive it already subtracts that baseline and returns zero.
+    if flat==0 and changed==0 and percent==100 then percent=0 end
+    return { flat=flat, percent=percent, rawPercent=rawPercent,
+        changed=changed }
 end
 local function effective(id)
     if not (C_Spell and type(C_Spell.GetSpellPowerCost)=="function") then
@@ -133,6 +139,7 @@ function P:CaptureFacts(action, facts)
         cost=out.cost, passiveLearned=owner.learned,
         passiveSpellId=owner.spellId, passiveRank=owner.rank,
         modifierFlat=mod.flat, modifierPercent=mod.percent,
+        modifierRawPercent=mod.rawPercent,
         source="patch-5 ownership plus engine-effective rage cost" }
     return out
 end

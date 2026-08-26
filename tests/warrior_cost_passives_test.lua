@@ -78,6 +78,21 @@ capture(12294,20,53200)
 learned[53200]=nil
 capture(23881,30,nil)
 
+-- The installed Nampower wrapper leaves the engine's neutral percentage
+-- accumulator at 100 when no flat SpellMod exists. A low-level Warrior with
+-- no Improved Heroic Strike must still be allowed to spend capped rage.
+learned[12664]=nil
+modifiers[78]={0,100,0}
+charged[78]=150
+local baseHeroic=select(1,capture(78,15,nil))
+assert(Graph:Blocker(baseHeroic,
+ {resourceType=1,resource=44,resourceMax=100},hostile,
+ baseHeroic.facts)==nil,
+ "neutral Nampower percent baseline must not withhold Heroic Strike")
+learned[12664]=true
+modifiers[78]={-30,0,4}
+charged[78]=120
+
 learned[53200]=true
 charged[12294]=210
 local badAction={spellId=12294,facts={kind="damage",melee=true}}

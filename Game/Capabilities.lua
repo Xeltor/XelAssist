@@ -10,6 +10,8 @@ local RogueShiv = XelAssist.Game.Player and XelAssist.Game.Player.RogueShiv
 local RogueMark = XelAssist.Game.Player and XelAssist.Game.Player.RogueMarkForDeath
 local ActionInference = XelAssist.Game.ActionInference
 local RacialActions = XelAssist.Game.RacialActions
+local ShamanShockCooldown = XelAssist.Game.Player
+    and XelAssist.Game.Player.ShamanShockCooldown
 local function captureWarriorFacts(action, facts)
     if WarriorChargeCombat then
         facts = WarriorChargeCombat:CaptureFacts(action, facts)
@@ -24,6 +26,17 @@ local function captureRogueFacts(action, facts)
     if RogueShiv then facts = RogueShiv:CaptureFacts(action, facts) end
     if RogueMark then facts = RogueMark:CaptureFacts(action, facts) end
     return facts
+end
+local function captureShamanFacts(action, facts)
+    if ShamanShockCooldown then
+        facts = ShamanShockCooldown:CaptureFacts(action, facts)
+    end
+    return facts
+end
+local function captureClassFacts(action, facts)
+    facts = captureRogueFacts(action, facts)
+    facts = captureWarriorFacts(action, facts)
+    return captureShamanFacts(action, facts)
 end
 local TIP_NAME = "XelAssistScanTip"
 local scanTip
@@ -726,8 +739,7 @@ function C:Facts(action)
     if XelAssist.Game.SpellEffectPower then XelAssist.Game.SpellEffectPower:Apply(action, out, dbc, dbcArray) end
     if XelAssist.Game.HealthTransfer then XelAssist.Game.HealthTransfer:Apply(action, out, dbc, dbcArray) end
     XelAssist.Game.TargetModifierFacts:Apply(action, out)
-    out = captureRogueFacts(action, out)
-    out = captureWarriorFacts(action, out)
+    out = captureClassFacts(action, out)
     XelAssist.Game.SpellFactCache:Store(factCache, cacheKey, out)
     return out
 end

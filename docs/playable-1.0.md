@@ -137,6 +137,8 @@ request to add a class priority rule:
   damage-threat profile, but live Octo acceptance and target mechanic-interrupt
   immunity remain blockers for claiming complete tank/interrupt behavior. Its
   damage, binary delivery, cast predicate and school-lock lifecycle are modeled.
+  Every installed Earth, Flame and Frost Shock rank carries category 19 and its
+  root-captured Reverberation SpellMod into future shared-cooldown branches.
   Molten Blast now refreshes only the caster's existing Flame Shock and preserves
   its tick phase. Earth/Water Shield charges and proc amounts are known, but the
   live three-second proc phase is not observable and repeated procs remain withheld.

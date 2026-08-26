@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.89
+
+- Fixed low-level Warriors withholding Heroic Strike as an unknown-cost action.
+  Nampower reports the neutral cost percentage accumulator as 100 when no flat
+  modifier exists; XelAssist now normalizes that documented baseline to zero,
+  so unmodified rage spenders remain exact instead of leaving Rend as the only
+  executable combat action while rage caps.
+- Added exact patch-5 Reverberation support for all seventeen Earth, Flame and
+  Frost Shock ranks. Root capture combines their category-19 topology with the
+  engine cooldown SpellMod, so future branches use the effective 5.667, 5.334
+  or 5.000-second shared cooldown instead of raw six-second DBC timing.
+- Missing, malformed or contradictory talent/SpellMod evidence retains the
+  conservative raw cooldown rather than inventing faster Shock readiness.
+
 ## 0.8.88
 
 - Let Shield Wall and Barkskin earn defensive action value from the exact
