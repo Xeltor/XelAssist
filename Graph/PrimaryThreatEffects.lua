@@ -5,7 +5,7 @@ local P = XelAssist.Graph.PrimaryThreatEffects
 local State = XelAssist.Graph.State
 local PlayerThreat = XelAssist.Graph.PlayerThreat
 local CompanionEventThreat = XelAssist.Graph.CompanionEventThreat
-local Revenge = XelAssist.Graph.WarriorRevengeThreat
+local WarriorThreat = XelAssist.Graph.WarriorThreatPackets
 
 local function activeTarget(state)
     if State.ActiveHostile then return State:ActiveHostile(state) end
@@ -14,8 +14,8 @@ end
 
 local function damageThreat(out, candidate, context, actor)
     local amount, profileExact, handled
-    if Revenge then
-        amount, profileExact, handled = Revenge:AppliedThreat(
+    if WarriorThreat then
+        amount, profileExact, handled = WarriorThreat:AppliedThreat(
             context, candidate, context.appliedHostileDamage)
     end
     if handled and amount == nil then return nil, nil end

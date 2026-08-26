@@ -5,6 +5,7 @@ XelAssist.Graph.ClassMechanics = {}
 local M = XelAssist.Graph.ClassMechanics
 local Paladin = XelAssist.Graph.PaladinAuraProjection
 local PaladinActions = XelAssist.Game.Player.PaladinActions
+local PaladinMight = XelAssist.Graph.PaladinMight
 local PaladinBlessingThreat = XelAssist.Graph.PaladinBlessingThreat
 local PaladinRighteousFury = XelAssist.Graph.PaladinRighteousFury
 local Totems = XelAssist.Game.Player.TotemState
@@ -12,10 +13,21 @@ local ShamanActions = XelAssist.Game.Player.ShamanActions
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local HunterHawk = XelAssist.Graph.HunterHawk
 local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
+local PriestPowerInfusion = XelAssist.Graph.PriestPowerInfusion
+local MagePresenceOfMind = XelAssist.Graph.MagePresenceOfMind
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 local Evidence = XelAssist.Graph.ClassEvidence
 local ClassState = XelAssist.Graph.ClassState
+
+local function mergeActionFacts(action, captured)
+    local facts, key, value = {}, nil, nil
+    for key, value in pairs(action and action.facts or {}) do
+        facts[key] = value
+    end
+    for key, value in pairs(captured or {}) do facts[key] = value end
+    return facts
+end
 
 function M:Attach(state)
     return ClassState and ClassState:Attach(state) or false
@@ -51,8 +63,18 @@ local function priestInnerFocusClaimed(facts)
         or facts.priestInnerFocusTransition ~= nil
 end
 
-local function paladinProjection(action, state, descriptor)
-    local facts = action.facts or {}
+local function priestPowerInfusionClaimed(facts)
+    return facts.priestPowerInfusion == true
+        or facts.priestPowerInfusionTransition ~= nil
+end
+
+local function magePresenceOfMindClaimed(facts)
+    return facts.magePresenceOfMind == true
+        or facts.magePresenceOfMindTransition ~= nil
+end
+
+local function paladinProjection(action, state, descriptor, facts)
+    facts = mergeActionFacts(action, facts)
     if not (facts.paladinAction == true
         and type(facts.paladinClassification) == "table"
         and facts.paladinClassification.exact == true) then
@@ -90,6 +112,15 @@ local function paladinProjection(action, state, descriptor)
             projection = prepared
         end
     end
+    if PaladinMight then
+        local prepared
+        prepared, reason, handled = PaladinMight:Prepare(
+            state, projection, facts)
+        if handled then
+            if not prepared then return nil, reason, true end
+            projection = prepared
+        end
+    end
     return projection, nil, true
 end
 
@@ -119,7 +150,13 @@ end
 function M:Prepare(action, state, descriptor, tooltip)
     local actionFacts = action and action.facts or {}
     local facts = tooltip or actionFacts
-    if hunterHawkClaimed(facts) or hunterHawkClaimed(actionFacts) then
+    if magePresenceOfMindClaimed(facts)
+        or magePresenceOfMindClaimed(actionFacts) then
+        if not MagePresenceOfMind then
+            return nil, "Mage Presence of Mind graph unavailable", true
+        end
+        return MagePresenceOfMind:PrepareSetup(action, state, facts)
+    elseif hunterHawkClaimed(facts) or hunterHawkClaimed(actionFacts) then
         if not HunterHawk then
             return nil, "Hunter Hawk graph unavailable", true
         end
@@ -130,6 +167,13 @@ function M:Prepare(action, state, descriptor, tooltip)
             return nil, "Priest Inner Focus graph unavailable", true
         end
         return PriestInnerFocus:PrepareSetup(action, state, facts)
+    elseif priestPowerInfusionClaimed(facts)
+        or priestPowerInfusionClaimed(actionFacts) then
+        if not PriestPowerInfusion then
+            return nil, "Priest Power Infusion graph unavailable", true
+        end
+        return PriestPowerInfusion:Prepare(
+            action, state, descriptor, facts)
     elseif warriorClaimed(facts) or warriorClaimed(actionFacts) then
         if not WarriorBattleShout then
             return nil, "Warrior Battle Shout graph unavailable", true
@@ -140,7 +184,7 @@ function M:Prepare(action, state, descriptor, tooltip)
         if not (Paladin and PaladinActions) then
             return nil, "Paladin graph mechanic unavailable", true
         end
-        return paladinProjection(action, state, descriptor)
+        return paladinProjection(action, state, descriptor, facts)
     elseif shamanClaimed(actionFacts) or shamanClaimed(facts) then
         if not (Totems and ShamanActions) then
             return nil, "Shaman graph mechanic unavailable", true
@@ -211,6 +255,16 @@ function M:Score(context, projection)
     if not (context and projection and projection.classMechanic) then
         return false, "class mechanic projection unavailable"
     end
+    if MagePresenceOfMind and projection.magePresenceOfMindTransition then
+        return MagePresenceOfMind:Score(context, projection)
+    end
+    if PriestPowerInfusion
+        and projection.priestPowerInfusionTransition then
+        return PriestPowerInfusion:Score(context, projection)
+    end
+    if PaladinMight and projection.paladinMightTransition then
+        return PaladinMight:Score(context, projection)
+    end
     if PaladinBlessingThreat then
         local scored, reason = PaladinBlessingThreat:Score(context, projection)
         if scored or reason then return scored, reason end
@@ -246,8 +300,14 @@ function M:Apply(state, candidate)
         end
         if not Paladin:Apply(state, projection) then return false end
         if projection.paladinBlessingThreat then
-            return PaladinBlessingThreat
-                and PaladinBlessingThreat:Apply(state, projection) or false
+            if not (PaladinBlessingThreat
+                and PaladinBlessingThreat:Apply(state, projection)) then
+                return false
+            end
+        end
+        if projection.paladinMightTransition then
+            if not (PaladinMight
+                and PaladinMight:Apply(state, projection)) then return false end
         end
         return true
     elseif projection.classMechanic == "shaman" and Totems then
@@ -259,6 +319,12 @@ function M:Apply(state, candidate)
     elseif projection.classMechanic == "warriorBattleShout"
         and WarriorBattleShout then
         return WarriorBattleShout:Apply(state, candidate)
+    elseif projection.magePresenceOfMindTransition
+        and MagePresenceOfMind then
+        return MagePresenceOfMind:Apply(state, candidate)
+    elseif projection.priestPowerInfusionTransition
+        and PriestPowerInfusion then
+        return PriestPowerInfusion:Apply(state, candidate)
     elseif projection.priestInnerFocusTransition and PriestInnerFocus then
         return PriestInnerFocus:Apply(state, candidate)
     elseif projection.hunterHawk and HunterHawk then
@@ -271,5 +337,6 @@ function M:Advance(state, elapsed)
     local expired = Totems and Totems:Advance(state, elapsed) or 0
     if RogueSlice then RogueSlice:Advance(state, elapsed) end
     if WarriorBattleShout then WarriorBattleShout:Advance(state, elapsed) end
+    if PaladinMight then PaladinMight:Advance(state, elapsed) end
     return expired
 end

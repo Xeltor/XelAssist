@@ -4,21 +4,26 @@
 XelAssist.Graph.ClassEvidence = {}
 local E = XelAssist.Graph.ClassEvidence
 local PaladinRighteousFury = XelAssist.Game.Player.PaladinRighteousFury
+local PaladinMight = XelAssist.Game.Player.PaladinMight
 local MageShield = XelAssist.Game.Player.MageManaShield
 local MageClearcasting = XelAssist.Game.Player.MageClearcasting
+local MagePresenceOfMind = XelAssist.Game.Player.MagePresenceOfMind
 local ShamanClearcasting = XelAssist.Game.Player.ShamanClearcasting
 local PriestShield = XelAssist.Game.Player.PriestShield
 local RogueFeint = XelAssist.Game.Player.RogueFeint
 local RogueFeintGraph = XelAssist.Graph.RogueFeint
 local RogueSliceRuntime = XelAssist.Game.Player.RogueSliceAndDice
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
+local RogueRuthlessness = XelAssist.Game.Player.RogueRuthlessness
 local HunterMark = XelAssist.Game.Player.HunterMark
 local HunterMarkGraph = XelAssist.Graph.HunterMark
 local HunterHawk = XelAssist.Game.Player.HunterHawk
 local PriestShadowform = XelAssist.Game.Player.PriestShadowform
 local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
+local PriestPowerInfusionRuntime = XelAssist.Game.Player.PriestPowerInfusion
+local PriestPowerInfusion = XelAssist.Graph.PriestPowerInfusion
 local WarriorBattleShout = XelAssist.Game.Player.WarriorBattleShout
-local WarriorRevengeThreat = XelAssist.Graph.WarriorRevengeThreat
+local WarriorThreatPackets = XelAssist.Graph.WarriorThreatPackets
 local WarlockDarkPactRuntime = XelAssist.Game.Player.WarlockDarkPact
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
 
@@ -27,15 +32,22 @@ function E:CaptureFacts(action, facts, state)
     if PaladinRighteousFury then
         out = PaladinRighteousFury:CaptureFacts(action, out)
     end
+    if PaladinMight then out = PaladinMight:CaptureFacts(action, out) end
     if MageShield then out = MageShield:CaptureFacts(action, out) end
     if MageClearcasting then
         out = MageClearcasting:CaptureFacts(action, out, state)
+    end
+    if MagePresenceOfMind then
+        out = MagePresenceOfMind:CaptureFacts(action, out, state)
     end
     if ShamanClearcasting then
         out = ShamanClearcasting:CaptureFacts(action, out, state)
     end
     if RogueFeint then out = RogueFeint:CaptureFacts(action, out) end
     if RogueSliceRuntime then out = RogueSliceRuntime:CaptureFacts(action, out) end
+    if RogueRuthlessness then
+        out = RogueRuthlessness:CaptureFacts(action, out)
+    end
     if WarriorBattleShout then
         out = WarriorBattleShout:CaptureFacts(action, out)
     end
@@ -50,17 +62,34 @@ function E:CaptureFacts(action, facts, state)
     if PriestInnerFocusRuntime then
         out = PriestInnerFocusRuntime:CaptureFacts(action, out, state)
     end
+    if PriestPowerInfusionRuntime then
+        out = PriestPowerInfusionRuntime:CaptureFacts(action, out)
+    end
     return out
 end
 
 function E:AuraActive(action, state, descriptor, tooltip, lead)
-    if not HunterMarkGraph then return nil, false end
-    return HunterMarkGraph:AuraActive(
-        action, state, descriptor, tooltip, lead)
+    local active, handled, reason
+    if PriestPowerInfusion then
+        active, handled, reason = PriestPowerInfusion:AuraActive(
+            action, state, descriptor, tooltip, lead)
+        if handled then return active, true, reason end
+    end
+    if HunterMarkGraph then return HunterMarkGraph:AuraActive(
+        action, state, descriptor, tooltip, lead) end
+    return nil, false
 end
 
 function E:CaptureRecipient(observed, action, descriptor)
-    if PriestShield then return PriestShield:Capture(observed, action, descriptor) end
+    local handled, record
+    if PriestShield then
+        handled, record = PriestShield:Capture(observed, action, descriptor)
+        if handled then return true, record end
+    end
+    if PriestPowerInfusionRuntime then
+        return PriestPowerInfusionRuntime:CaptureRecipient(
+            observed, action, descriptor)
+    end
     return false, nil
 end
 
@@ -84,8 +113,8 @@ function E:Blocker(action, state, descriptor, tooltip, actionStart)
             action, state, descriptor, tooltip)
         if handled then return blocker, true end
     end
-    if WarriorRevengeThreat then
-        blocker, handled = WarriorRevengeThreat:Blocker(
+    if WarriorThreatPackets then
+        blocker, handled = WarriorThreatPackets:Blocker(
             action, state, descriptor)
         if handled then return blocker, true end
     end

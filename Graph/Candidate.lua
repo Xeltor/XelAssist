@@ -29,6 +29,16 @@ local function consumerKey(context)
         value = priest:ConsumerKey(context.tooltip)
             or priest:ConsumerKey(context.facts)
     end
+    local presence = XelAssist.Graph.MagePresenceOfMind
+    if value == nil and presence then
+        value = presence:ConsumerKey(context.tooltip)
+            or presence:ConsumerKey(context.facts)
+    end
+    local powerInfusion = XelAssist.Graph.PriestPowerInfusion
+    if value == nil and powerInfusion then
+        value = powerInfusion:ConsumerKey(context.tooltip)
+            or powerInfusion:ConsumerKey(context.facts)
+    end
     if type(value) ~= "string" or value == ""
         or string.len(value) > 128 then return nil end
     return value
@@ -39,12 +49,23 @@ end
 local function strategicSetup(tooltip)
     local innerFocus = XelAssist.Graph.PriestInnerFocus
         and XelAssist.Graph.PriestInnerFocus:StrategicSetup(tooltip)
+    local presence = XelAssist.Graph.MagePresenceOfMind
+        and XelAssist.Graph.MagePresenceOfMind:StrategicSetup(tooltip)
+    local powerInfusion = XelAssist.Graph.PriestPowerInfusion
+        and XelAssist.Graph.PriestPowerInfusion:StrategicSetup(tooltip)
     local warrior = tooltip and tooltip.warriorStanceTransition
     local druid = tooltip and tooltip.druidFormTransition
     local priest = tooltip and tooltip.priestShadowformTransition
-    if innerFocus and (warrior or druid or priest)
-        or warrior and (druid or priest) or druid and priest then return nil end
-    if innerFocus then return innerFocus end
+    local selected, count = nil, 0
+    local function include(value)
+        if value then selected, count = value, count + 1 end
+    end
+    include(innerFocus); include(presence); include(powerInfusion)
+    include(warrior)
+    include(druid); include(priest)
+    if count ~= 1 then return nil end
+    if selected == innerFocus or selected == presence
+        or selected == powerInfusion then return selected end
     local transition, prefix = warrior or druid or priest,
         warrior and "warriorStance" or druid and "druidForm"
             or priest and "priestShadowform" or nil

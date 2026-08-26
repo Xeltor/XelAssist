@@ -11,6 +11,8 @@ local PlayerThreat = XelAssist.Graph.PlayerThreat
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
+local WarriorThreat = XelAssist.Graph.WarriorThreatPackets
+local PaladinMight = XelAssist.Graph.PaladinMight
 
 local MAX_EVENTS = 8
 local READY_DELAY = 0.05
@@ -259,19 +261,26 @@ local function refreshRecord(out, record)
     end
 end
 
-local function applyThreat(record, state, amount)
+local function applyThreat(record, state, amount, profileExact)
     if not record or amount <= 0 then return end
-    PlayerThreat:Add(record, state, "player", amount, 0)
+    if profileExact == nil then
+        PlayerThreat:Add(record, state, "player", amount, 0)
+        return
+    end
+    local scaled, stanceExact = PlayerThreat:Scale(
+        state, "player", amount, 0)
+    PlayerThreat:AddScaled(record, "player", scaled,
+        profileExact ~= false and stanceExact ~= false)
 end
 
 local function applyKnown(target, record, action, tooltip, rawPower,
     threatMultiplier)
     if not (action and tooltip and tonumber(rawPower)) then return nil end
-    local decision = 1
+    local decision, delivery = 1, 1
     if XelAssist.Combat.Resistance then
         local estimate = XelAssist.Combat.Resistance:Estimate(
             action, "target", tooltip, target)
-        decision = Effects:Decision(estimate, target, true)
+        decision, delivery = Effects:Decision(estimate, target, true)
     end
     local expected = math.max(0, rawPower * (tonumber(decision) or 1))
     local dealt = expected
@@ -290,9 +299,19 @@ local function applyKnown(target, record, action, tooltip, rawPower,
         dealt = before - target.targetHealth
         if target.targetHealth <= 0 then target.hostile = false end
     else return nil end
-    applyThreat(record, target,
-        dealt * (tonumber(threatMultiplier) or 1))
-    return dealt
+    local threat = dealt * (tonumber(threatMultiplier) or 1)
+    local profileExact, reason
+    if WarriorThreat then
+        local compound, exact, handled
+        compound, exact, handled, reason = WarriorThreat:SwingThreat(
+            action, dealt, tonumber(delivery) or 1)
+        if handled then
+            if compound == nil then return dealt, reason end
+            threat, profileExact = compound, exact
+        end
+    end
+    applyThreat(record, target, threat, profileExact)
+    return dealt, nil
 end
 
 local function commitCost(out, pending)
@@ -347,6 +366,15 @@ local function markUnknown(target, record, reason)
     target.playerSwingUnknownReason = reason
 end
 
+local function markThreatUnknown(target, record, reason)
+    if record then
+        record.threat = record.threat or {}
+        record.threat.playerDeltaExact = false
+        record.threat.playerSwingProfileUnknown = true
+    end
+    target.playerSwingThreatUnknownReason = reason
+end
+
 function S:Apply(out, entry)
     if entry.kind == "playerSwingTimelineCap" then return true end
     if not self:StillCurrent(out, entry) then return false end
@@ -358,9 +386,16 @@ function S:Apply(out, entry)
         commitCooldown(out, pending, entry)
         if pending.targetGuid ~= nil and pending.targetGuid ~= entry.targetGuid then
             markUnknown(target, record, "next-swing target changed")
-        elseif applyKnown(target, record, pending.action, pending.tooltip,
-            pending.rawPower, pending.threatMultiplier) == nil then
-            markUnknown(target, record, "next-swing outcome magnitude unavailable")
+        else
+            local dealt, threatReason = applyKnown(target, record,
+                pending.action, pending.tooltip, pending.rawPower,
+                pending.threatMultiplier)
+            if dealt == nil then
+                markUnknown(target, record,
+                    "next-swing outcome magnitude unavailable")
+            elseif threatReason then
+                markThreatUnknown(target, record, threatReason)
+            end
         end
         out.playerAttack.onSwing = { occupied = false, pending = false,
             exact = true, phase = "graph-resolved",
@@ -377,6 +412,12 @@ function S:Apply(out, entry)
                 WarriorBattleShout:MainHandWhiteBonus(out)
             raw = bonus and raw + bonus or nil
         end
+        local mightReason
+        if raw and PaladinMight and out.paladinMight then
+            local bonus
+            bonus, _, mightReason = PaladinMight:MainHandWhiteBonus(out)
+            raw = bonus and raw + bonus or nil
+        end
         local windReason, windHandled, windDelivery
         if raw and Windfury then
             raw, windReason, windHandled, windDelivery =
@@ -387,6 +428,7 @@ function S:Apply(out, entry)
         if dealt == nil then
             markUnknown(target, record, windReason
                 or battleShoutReason
+                or mightReason
                 or "ordinary player swing outcome magnitude unavailable")
         elseif PlayerRage then
             PlayerRage:GainFromWhite(out, dealt)

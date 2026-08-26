@@ -277,8 +277,8 @@ local function newState(mode, context)
         healDistance = context.healDistance,
         healDistanceKind = context.healDistanceKind,
         talentPoints = XelAssist.Game.Capabilities:TalentPoints(),
-        instantNext = XelAssist.Game.Capabilities:UnitHasBuff("player", "Nature's Swiftness")
-            or XelAssist.Game.Capabilities:UnitHasBuff("player", "Presence of Mind"),
+        instantNext = XelAssist.Game.Capabilities:UnitHasBuff(
+            "player", "Nature's Swiftness"),
         auras = target.projectedAuras, absorbs = {}, readyAt = {}, time = 0,
         playerGcdReadyAt = math.max(context.gcdRemaining or 0,
             XelAssist.Game.Capabilities:GCDRemaining()),

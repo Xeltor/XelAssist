@@ -18,7 +18,9 @@ local DruidForms = XelAssist.Graph.DruidForms
 local MageClearcasting = XelAssist.Graph.MageClearcasting
 local ShamanClearcasting = XelAssist.Graph.ShamanClearcasting
 local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
+local MagePresenceOfMind = XelAssist.Graph.MagePresenceOfMind
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
+local RogueRuthlessness = XelAssist.Graph.RogueRuthlessness
 local ThreatDrop, ClassMechanics = XelAssist.Graph.ThreatDrop, XelAssist.Graph.ClassMechanics
 local FriendlyActionEffects = XelAssist.Graph.FriendlyActionEffects
 function A:Context(source, candidate)
@@ -275,7 +277,11 @@ end
 local function applyCombatState(out, candidate, context)
     local facts = context.facts
     HostileEffects:FinalizeSelected(out, candidate, facts)
-    XelAssist.Graph.ComboEffects:Apply(out, candidate, facts)
+    local handled = RogueRuthlessness
+        and RogueRuthlessness:Apply(out, candidate) or false
+    if not handled then
+        XelAssist.Graph.ComboEffects:Apply(out, candidate, facts)
+    end
     end
 local function applyAura(out, source, candidate, context,
     targetLocal, dotPeriodic, dotDuration, dotElapsed)
@@ -362,6 +368,9 @@ function A:Apply(out, source, candidate, context)
     if MageClearcasting then MageClearcasting:Consume(out, candidate) end
     if ShamanClearcasting then ShamanClearcasting:Consume(out, candidate) end
     if PriestInnerFocus then PriestInnerFocus:Consume(out, candidate) end
+    if MagePresenceOfMind then
+        MagePresenceOfMind:Consume(out, candidate)
+    end
     if candidate.classMechanicProjection then
         context.classMechanicHandled = true
         context.classMechanicApplied = ClassMechanics and ClassMechanics:Apply(out, candidate) or false

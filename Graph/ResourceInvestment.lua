@@ -90,6 +90,14 @@ function R:PotentialConsumer(path, _, sealedFacts)
     local key = sealedFacts.setupConsumerKey
     local priest = XelAssist.Graph.PriestInnerFocus
     if key == nil and priest then key = priest:ConsumerKey(sealedFacts) end
+    local presence = XelAssist.Graph.MagePresenceOfMind
+    if key == nil and presence then
+        key = presence:ConsumerKey(sealedFacts)
+    end
+    local powerInfusion = XelAssist.Graph.PriestPowerInfusion
+    if key == nil and powerInfusion then
+        key = powerInfusion:ConsumerKey(sealedFacts)
+    end
     if type(key) ~= "string" or key == ""
         or string.len(key) > 128 then key = nil end
     return dependencyMatches(path, key,

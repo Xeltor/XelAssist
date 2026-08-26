@@ -4,7 +4,7 @@
 XelAssist.Graph.ThreatScoring = {}
 local T = XelAssist.Graph.ThreatScoring
 local PlayerThreat = XelAssist.Graph.PlayerThreat
-local Revenge = XelAssist.Graph.WarriorRevengeThreat
+local WarriorThreat = XelAssist.Graph.WarriorThreatPackets
 
 local function playerThreatRisk(state)
     return state.hasAggro or state.targetPlayerThreatDeltaExact == false
@@ -58,13 +58,13 @@ local function resourceMaximum(context, state)
     return pet and tonumber(pet.resourceMax) or 0
 end
 
-local function augmentRevenge(context, threat, valueThreat)
-    if not Revenge then return threat, valueThreat, nil end
+local function augmentWarrior(context, threat, valueThreat)
+    if not WarriorThreat then return threat, valueThreat, nil end
     local handled, reason
-    threat, valueThreat, handled, reason = Revenge:Augment(
+    threat, valueThreat, handled, reason = WarriorThreat:Augment(
         context, threat, valueThreat)
     if handled and (threat == nil or valueThreat == nil) then
-        return nil, nil, reason or "Revenge threat evidence unavailable"
+        return nil, nil, reason or "Warrior threat evidence unavailable"
     end
     return threat, valueThreat, nil
 end
@@ -76,7 +76,9 @@ local function scalePlayer(state, actor, context, threat, valueThreat)
             state, actor, threat, context.threatSchool)
         valueThreat = valueThreat * multiplier
     end
-    if Revenge then exact = Revenge:Exactness(context, exact) end
+    if WarriorThreat then
+        exact = WarriorThreat:Exactness(context, exact)
+    end
     return threat, valueThreat, exact, multiplier
 end
 
@@ -128,12 +130,12 @@ function T:Apply(context)
         valueThreat = valueThreatPower
             * (tonumber(facts.petThreatMultiplierOnCast) or 1)
     end
-    local revengeReason
-    threat, valueThreat, revengeReason = augmentRevenge(
+    local warriorReason
+    threat, valueThreat, warriorReason = augmentWarrior(
         context, threat, valueThreat)
-    if revengeReason then
+    if warriorReason then
         context.threat, context.value, context.estimated = 0, -100000, true
-        context.reason = revengeReason
+        context.reason = warriorReason
         return
     end
     local actor = facts.damageActor or facts.effectActor

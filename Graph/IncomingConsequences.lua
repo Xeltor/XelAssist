@@ -5,6 +5,7 @@ local I = XelAssist.Graph.IncomingConsequences
 local State = XelAssist.Graph.State
 local IncomingAbsorbs = XelAssist.Graph.IncomingAbsorbs
 local PriestShadowform = XelAssist.Graph.PriestShadowform
+local WarlockSoulLink = XelAssist.Graph.WarlockSoulLink
 
 local function friendlyByGuid(state, guid)
     local friendlies = state and state.friendlies
@@ -177,6 +178,22 @@ function I:Apply(state, cast)
         local residual, absorbed, partial = IncomingAbsorbs:Consume(state,
             preview.recipient, preview.rawAmount, preview.probability,
             preview.facts.school)
+        if WarlockSoulLink and preview.recipient.kind == "player" then
+            local split, plan, applied, splitReason =
+                WarlockSoulLink:ApplyResidual(state, preview.recipient,
+                    residual, not (partial or uncertain))
+            residual = split
+            if applied then
+                result.soulLinkSplit = plan
+                partial = partial or plan.exact ~= true
+            elseif state.classMechanicClass == "WARLOCK" then
+                local _, known = WarlockSoulLink:Active(state)
+                if known == false then
+                    partial = true
+                    result.soulLinkReason = splitReason
+                end
+            end
+        end
         local after = math.max(0, health - residual)
         result.absorbed, result.effective = absorbed, health - after
         result.partial = partial or uncertain

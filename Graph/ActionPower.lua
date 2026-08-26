@@ -5,6 +5,8 @@ local P = XelAssist.Graph.ActionPower
 local Triggered = XelAssist.Combat.TriggeredActions
 local HunterRangedPower = XelAssist.Graph.HunterRangedPower
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
+local PaladinMight = XelAssist.Graph.PaladinMight
+local WarlockSoulLink = XelAssist.Graph.WarlockSoulLink
 
 local function comboPower(action, tooltip, state, targetGUID, comboAllOwners)
     if not (action.facts.combo or tooltip.comboSpendAll) then return 0 end
@@ -74,6 +76,16 @@ local function dbcWeaponPower(action, tooltip, state, targetGUID,
             action, tooltip, state, evidence)
         if bonus == nil then return nil, { unknown = true,
             gap = reason or "Battle Shout weapon consequence unavailable" }, true end
+        power = power + bonus
+    end
+    if tooltip.paladinMainHandWeaponEvidence then
+        if not PaladinMight then return nil, { unknown = true,
+            gap = "Paladin Might graph unavailable" }, true end
+        local bonus, _, reason = PaladinMight:WeaponActionBonus(
+            action, tooltip, state, evidence)
+        if bonus == nil then return nil, { unknown = true,
+            gap = reason or "Paladin Might weapon consequence unavailable" },
+            true end
         power = power + bonus
     end
     return power, evidence, false
@@ -199,6 +211,17 @@ function P:Estimate(action, tooltip, state, targetGUID, comboAllOwners,
         and XelAssist.Game.Pets.Effects then
         base = base * XelAssist.Game.Pets.Effects:DamageMultiplier(
             state.actors and state.actors.pet)
+    end
+    if damage and state.classMechanicClass == "WARLOCK"
+        and WarlockSoulLink then
+        local adjusted, known, _, reason = WarlockSoulLink:AdjustOutgoing(
+            state, effectActor or "player", base)
+        if adjusted ~= nil then base = adjusted end
+        if known == false then
+            estimated = true
+            evidence = evidence or {}
+            evidence.soulLinkGap = reason or "Soul Link evidence unavailable"
+        end
     end
     return base, estimated, evidence
 end

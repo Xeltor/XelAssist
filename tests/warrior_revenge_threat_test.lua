@@ -99,6 +99,15 @@ assert(Runtime:Evidence(actions[6572])
 
 dofile("Graph/WarriorRevengeThreat.lua")
 local Graph = XelAssist.Graph.WarriorRevengeThreat
+XelAssist.Graph.WarriorHeroicStrikeThreat = {
+    Is = function() return false end,
+    Blocker = function() return nil, false end,
+    Augment = function(_, _, left, right)
+        return left, right, false, nil
+    end,
+    AppliedThreat = function() return nil, nil, false, nil end,
+}
+dofile("Graph/WarriorThreatPackets.lua")
 local blocker, handled = Graph:Blocker(actions[6572], {},
     { relation = "hostile" })
 assert(blocker == nil and handled,

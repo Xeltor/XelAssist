@@ -42,7 +42,7 @@ XelAssist.Combat.Knowledge = {
     ["Shield Slam"] = { kind = "damage", melee = true, threat = 2.0 },
     ["Whirlwind"] = { kind = "damage", aoe = true, melee = true, threat = 1.0 },
     ["Slam"] = { kind = "damage", melee = true },
-    ["Heroic Strike"] = { kind = "damage", melee = true, threat = 1.4 },
+    ["Heroic Strike"] = { kind = "damage", melee = true },
     ["Cleave"] = { kind = "damage", aoe = true, melee = true, threat = 1.2 },
     ["Rend"] = { kind = "dot", melee = true, bleed = true, ignoresArmor = true },
     ["Sunder Armor"] = { kind = "debuff", melee = true, stackable = 5,

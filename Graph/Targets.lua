@@ -339,6 +339,11 @@ function T:Legal(action, state, descriptor)
             action, state, tooltip)
     end
     if blocker then return false, blocker end
+    if XelAssist.Graph.MagePresenceOfMind then
+        tooltip, blocker = XelAssist.Graph.MagePresenceOfMind:PrepareLegal(
+            action, state, tooltip)
+    end
+    if blocker then return false, blocker end
     if XelAssist.Graph.ShamanClearcasting then
         tooltip, blocker = XelAssist.Graph.ShamanClearcasting:PrepareLegal(
             action, state, tooltip)

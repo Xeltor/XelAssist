@@ -14,13 +14,17 @@ end
 
 function I:ClassKnowledge(spellId)
     local player = XelAssist.Game.Player or {}
-    local facts, reason, handled = infer(player.MageManaShield, spellId)
+    local facts, reason, handled = infer(player.MagePresenceOfMind, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.MageManaShield, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PriestShield, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PriestShadowform, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PriestInnerFocus, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.PriestPowerInfusion, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.DruidProwl, spellId)
     if handled then return facts, reason, true end
@@ -32,6 +36,8 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.HunterMark, spellId)
     if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.WarriorHeroicStrikeThreat, spellId)
+    if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarriorRevengeThreat, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarriorBattleShout, spellId)
@@ -40,6 +46,9 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PaladinActions, spellId)
     if handled then
+        if facts and player.PaladinMight then
+            facts = player.PaladinMight:Promote(spellId, facts)
+        end
         if facts and player.PaladinBlessingThreat then
             facts = player.PaladinBlessingThreat:Promote(spellId, facts)
         end
@@ -86,13 +95,22 @@ function I:InvalidateClass()
     local player = XelAssist.Game.Player or {}
     if player.MageManaShield then player.MageManaShield:Invalidate() end
     if player.MageClearcasting then player.MageClearcasting:Invalidate() end
+    if player.MagePresenceOfMind then
+        player.MagePresenceOfMind:Invalidate()
+    end
     if player.PriestShield then player.PriestShield:Invalidate() end
     if player.PriestShadowform then player.PriestShadowform:Invalidate() end
     if player.PriestInnerFocus then player.PriestInnerFocus:Invalidate() end
+    if player.PriestPowerInfusion then
+        player.PriestPowerInfusion:Invalidate()
+    end
     if player.DruidProwl then player.DruidProwl:Invalidate() end
     if player.DruidBearThreat then player.DruidBearThreat:Invalidate() end
     if player.DruidCatThreat then player.DruidCatThreat:Invalidate() end
     if player.RogueSliceAndDice then player.RogueSliceAndDice:Invalidate() end
+    if player.RogueRuthlessness then
+        player.RogueRuthlessness:Invalidate()
+    end
     if player.RogueFeint then player.RogueFeint:Invalidate() end
     if player.HunterMark then player.HunterMark:Invalidate() end
     if player.HunterHawk then player.HunterHawk:Invalidate() end
@@ -102,8 +120,13 @@ function I:InvalidateClass()
     if player.WarriorRevengeThreat then
         player.WarriorRevengeThreat:Invalidate()
     end
+    if player.WarriorHeroicStrikeThreat then
+        player.WarriorHeroicStrikeThreat:Invalidate()
+    end
     if player.WarlockDarkPact then player.WarlockDarkPact:Invalidate() end
+    if player.WarlockSoulLink then player.WarlockSoulLink:Invalidate() end
     if player.PaladinActions then player.PaladinActions:Invalidate() end
+    if player.PaladinMight then player.PaladinMight:Invalidate() end
     if player.PaladinBlessingThreat then
         player.PaladinBlessingThreat:Invalidate()
     end

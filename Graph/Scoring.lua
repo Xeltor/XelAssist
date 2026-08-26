@@ -30,6 +30,7 @@ local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local StateUtilityScoring = XelAssist.Graph.StateUtilityScoring
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
+local PriestPowerInfusion = XelAssist.Graph.PriestPowerInfusion
 local function legalityAndTiming(action, state, descriptor)
     local allowed, blocker, tooltip, target, actionStart, resolved, targetState =
         Targets:Legal(action, state, descriptor)
@@ -364,6 +365,10 @@ function Scoring:Evaluate(action, state, descriptor)
         end
     end
     if PriestShadowform then PriestShadowform:AdjustDamage(context) end
+    if PriestPowerInfusion then
+        local adjusted, reason, handled = PriestPowerInfusion:Adjust(context)
+        if handled and not adjusted and reason then return nil, reason end
+    end
     projectDamageAndResistance(context)
     if Windfury then Windfury:Adjust(context) end
     PlayerSwingScoring:Project(context)
