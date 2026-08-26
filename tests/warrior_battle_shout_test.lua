@@ -197,6 +197,7 @@ assert(projection and projection.attackPower == 19.5
     "a clean solo root must prepare the exact AP consequence")
 
 dofile("Graph/ClassEvidence.lua")
+dofile("Graph/ClassState.lua")
 dofile("Graph/ClassMechanics.lua")
 local integrated, integratedReason, integratedHandled =
     XelAssist.Graph.ClassMechanics:Prepare(

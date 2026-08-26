@@ -226,6 +226,7 @@ assert(catalogFacts and catalogHandled and catalogReason == nil
     and catalogFacts.priestInnerFocus,
     "the production action-inference boundary must discover Inner Focus")
 dofile("Graph/ClassEvidence.lua")
+dofile("Graph/ClassState.lua")
 dofile("Graph/ClassMechanics.lua")
 local mechanics = XelAssist.Graph.ClassMechanics
 local integratedFacts = mechanics:CaptureFacts(

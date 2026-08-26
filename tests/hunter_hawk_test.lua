@@ -184,6 +184,7 @@ assert(Graph:Score(context, projection) and context.value == 0
     and context.reason == "changes exact ranged weapon damage",
     "the aspect edge must have no fixed or role-typed utility")
 dofile("Graph/ClassEvidence.lua")
+dofile("Graph/ClassState.lua")
 dofile("Graph/ClassMechanics.lua")
 local integrated, integratedReason, integratedHandled =
     XelAssist.Graph.ClassMechanics:Prepare(

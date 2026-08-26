@@ -170,6 +170,7 @@ Capabilities.Usable = function() return true end
 
 dofile("Graph/PaladinAuraProjection.lua")
 dofile("Graph/ClassEvidence.lua")
+dofile("Graph/ClassState.lua")
 dofile("Graph/ClassMechanics.lua")
 dofile("Graph/State.lua")
 

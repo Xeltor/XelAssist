@@ -260,6 +260,7 @@ XelAssist.Graph.PaladinAuraProjection = {
     Invalidate = function() end,
 }
 dofile("Graph/ClassEvidence.lua")
+dofile("Graph/ClassState.lua")
 dofile("Graph/ClassMechanics.lua")
 local integration = state({ [playerGUID] = aura(19740,
     ordinaryBase.paladinClassification, playerGUID) })

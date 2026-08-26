@@ -213,6 +213,7 @@ assert(not blocker and claimed and projection.drained == 40
     "exact player and demon mana must admit the transfer")
 
 dofile("Graph/ClassEvidence.lua")
+dofile("Graph/ClassState.lua")
 dofile("Graph/ClassMechanics.lua")
 local integratedFacts = XelAssist.Graph.ClassMechanics:CaptureFacts(
     action, facts, graphState)

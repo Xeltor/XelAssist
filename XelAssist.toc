@@ -143,6 +143,7 @@ Graph\RogueSliceAndDice.lua
 Graph\PlayerThreat.lua
 Graph\WarriorBattleShout.lua
 Graph\ClassEvidence.lua
+Graph\ClassState.lua
 Graph\ClassMechanics.lua
 Graph\FormRequirements.lua
 Graph\EquipmentRequirements.lua

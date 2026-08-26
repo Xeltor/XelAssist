@@ -82,6 +82,7 @@ assert(XelAssist.Game.ActionInference:ClassKnowledge(1).mageManaShield
     "class inference must dispatch exact Mage and Priest shield identities")
 
 dofile("Graph/ClassEvidence.lua")
+dofile("Graph/ClassState.lua")
 dofile("Graph/ClassMechanics.lua")
 local Mechanics = XelAssist.Graph.ClassMechanics
 local mageAction = { name = "Opaque mana shield",
