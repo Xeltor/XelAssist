@@ -45,6 +45,7 @@ Game\Player\ShamanActions.lua
 Game\Player\ShamanWindfuryTotem.lua
 Game\Player\ShamanManaSpring.lua
 Game\Player\ShamanClearcasting.lua
+Game\Player\ShamanEarthShock.lua
 Game\Player\MageManaShield.lua
 Game\Player\MageClearcasting.lua
 Game\Player\MagePresenceOfMind.lua
@@ -177,6 +178,7 @@ Graph\PaladinBlessingThreat.lua
 Graph\ShamanWindfuryTotem.lua
 Graph\ShamanManaSpring.lua
 Graph\ShamanClearcasting.lua
+Graph\ShamanEarthShock.lua
 Graph\RogueFeint.lua
 Graph\MageClearcasting.lua
 Graph\RogueSliceAndDice.lua

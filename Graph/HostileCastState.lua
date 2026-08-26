@@ -2,11 +2,27 @@
 -- remain comparison keys only; graph branches never mutate live observations.
 XelAssist.Graph.HostileCastState = {}
 local C = XelAssist.Graph.HostileCastState
+local ShamanEarthShock = XelAssist.Game.Player
+    and XelAssist.Game.Player.ShamanEarthShock
 
-local function copyTable(source)
-    if type(source) ~= "table" then return source end
+local function identityField(field)
+    if type(field) ~= "string" then return false end
+    field = string.lower(field)
+    return field == "key" or string.sub(field, -3) == "key"
+        or string.sub(field, -4) == "guid"
+end
+
+local function copyTable(source, depth, field, seen)
+    if type(source) ~= "table" or identityField(field) then return source end
+    depth = depth or 7
+    if depth <= 0 then return source end
+    seen = seen or {}
+    if seen[source] then return seen[source] end
     local out, key, value = {}, nil, nil
-    for key, value in pairs(source) do out[key] = value end
+    seen[source] = out
+    for key, value in pairs(source) do
+        out[key] = copyTable(value, depth - 1, key, seen)
+    end
     return out
 end
 
@@ -69,6 +85,9 @@ end
 
 local function appendObserved(state, collection, observed)
     local cast = copyTable(observed)
+    if ShamanEarthShock and state.classMechanicClass == "SHAMAN" then
+        cast = ShamanEarthShock:CaptureCast(cast)
+    end
     local record, key = hostileByGuid(state, cast.casterGuid)
     cast.hostileKey = key
     cast.probability = tonumber(cast.probability) or 1

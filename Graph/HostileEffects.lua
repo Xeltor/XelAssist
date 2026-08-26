@@ -9,6 +9,7 @@ local Recipients = XelAssist.Graph.AreaRecipients
 local PlayerThreat = XelAssist.Graph.PlayerThreat
 local PrimaryThreat = XelAssist.Graph.PrimaryThreatEffects
 local WarriorThreat = XelAssist.Graph.WarriorThreatPackets
+local ShamanEarthShock = XelAssist.Graph.ShamanEarthShock
 
 local function activeTarget(state)
     if State.ActiveHostile then return State:ActiveHostile(state) end
@@ -383,9 +384,15 @@ end
 function H:FinalizeSelected(out, candidate, facts)
     local target = activeTarget(out)
     local castEvents = XelAssist.Graph.HostileCastEvents
-    local exactInterrupt = castEvents and castEvents:Interrupt(
-        out, candidate, facts) or false
-    if not exactInterrupt and (facts.kind == "interrupt" or facts.interrupt)
+    local earthShockHandled = false
+    if ShamanEarthShock then
+        local _, handled = ShamanEarthShock:Apply(out, candidate)
+        earthShockHandled = handled == true
+    end
+    local exactInterrupt = not earthShockHandled and castEvents
+        and castEvents:Interrupt(out, candidate, facts) or false
+    if not earthShockHandled and not exactInterrupt
+        and (facts.kind == "interrupt" or facts.interrupt)
         and out.targetCasting then
         local prior = out.targetCastProbability
         if prior == nil then prior = 1 end

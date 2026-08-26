@@ -166,7 +166,7 @@ function C:Build(context)
         warriorDemoralizingShoutPackets = context.warriorDemoralizingShoutPackets,
         priestShadowformTransition = context.tooltip
             and context.tooltip.priestShadowformTransition,
-        classMechanicProjection = context.classMechanicProjection,
+        classMechanicProjection = context.classMechanicProjection, shamanEarthShockTransition = context.shamanEarthShockTransition,
         strategicSetup = setup and true or nil,
         strategicSetupKey = setup and setup.key,
         strategicSetupSourceForm = setup and setup.source,

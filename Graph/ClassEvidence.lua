@@ -16,6 +16,8 @@ local DruidFrenziedRegeneration =
     XelAssist.Game.Player.DruidFrenziedRegeneration
 local ShamanClearcasting = XelAssist.Game.Player.ShamanClearcasting
 local ShamanManaSpring = XelAssist.Game.Player.ShamanManaSpring
+local ShamanEarthShockRuntime = XelAssist.Game.Player.ShamanEarthShock
+local ShamanEarthShock = XelAssist.Graph.ShamanEarthShock
 local PriestShield = XelAssist.Game.Player.PriestShield
 local RogueFeint = XelAssist.Game.Player.RogueFeint
 local RogueFeintGraph = XelAssist.Graph.RogueFeint
@@ -74,6 +76,9 @@ function E:CaptureFacts(action, facts, state)
     end
     if ShamanManaSpring then
         out = ShamanManaSpring:CaptureFacts(action, out)
+    end
+    if ShamanEarthShockRuntime then
+        out = ShamanEarthShockRuntime:CaptureFacts(action, out, state)
     end
     if RogueFeint then out = RogueFeint:CaptureFacts(action, out) end
     if RogueSliceRuntime then out = RogueSliceRuntime:CaptureFacts(action, out) end
@@ -181,6 +186,11 @@ function E:Blocker(action, state, descriptor, tooltip, actionStart)
     end
     if HunterMarkGraph then
         blocker, handled = HunterMarkGraph:Blocker(
+            action, state, descriptor, tooltip, actionStart)
+        if handled then return blocker, true end
+    end
+    if ShamanEarthShock then
+        blocker, handled = ShamanEarthShock:Blocker(
             action, state, descriptor, tooltip, actionStart)
         if handled then return blocker, true end
     end

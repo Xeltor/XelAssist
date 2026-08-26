@@ -34,6 +34,7 @@ local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
 local PriestPowerInfusion = XelAssist.Graph.PriestPowerInfusion
 local PriestFade = XelAssist.Graph.PriestFade
 local WarriorDemoralizingShout = XelAssist.Graph.WarriorDemoralizingShout
+local ShamanEarthShock = XelAssist.Graph.ShamanEarthShock
 local function legalityAndTiming(action, state, descriptor)
     local allowed, blocker, tooltip, target, actionStart, resolved, targetState =
         Targets:Legal(action, state, descriptor)
@@ -322,7 +323,8 @@ local function applyActionAdjustments(context)
         and context.descriptor.relation ~= "hostile"
         and (kind == "heal" or kind == "hot"
             or kind == "absorb" or kind == "buff")
-    if facts.interrupt and kind ~= "interrupt" then
+    if facts.interrupt and kind ~= "interrupt"
+        and not context.shamanEarthShockInterruptOwned then
         local events = XelAssist.Graph.HostileCastEvents
         local value, reason
         if events then value, reason = events:InterruptValue(context) end
@@ -383,6 +385,10 @@ function Scoring:Evaluate(action, state, descriptor)
         local adjusted, reason, handled = PriestPowerInfusion:Adjust(context)
         if handled and not adjusted and reason then return nil, reason end
     end
+    if ShamanEarthShock then
+        local prepared, reason, handled = ShamanEarthShock:Prepare(context)
+        if handled and not prepared then return nil, reason end
+    end
     projectDamageAndResistance(context)
     if Windfury then Windfury:Adjust(context) end
     PlayerSwingScoring:Project(context)
@@ -404,6 +410,11 @@ function Scoring:Evaluate(action, state, descriptor)
         return Candidate:Build(context)
     end
     scoreKindUtility(context)
+    if ShamanEarthShock then
+        local scored, reason, handled = ShamanEarthShock:Score(context)
+        if handled and not scored then return nil, reason end
+        context.shamanEarthShockInterruptOwned = handled and true or nil
+    end
     if XelAssist.Graph.SoulShardReserve then
         XelAssist.Graph.SoulShardReserve:Score(context)
     end

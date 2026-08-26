@@ -16,6 +16,7 @@ local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local PriestFade = XelAssist.Graph.PriestFade
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local ManaSpring = XelAssist.Graph.ShamanManaSpring
+local EarthShock = XelAssist.Graph.ShamanEarthShock
 local ActionMechanics = XelAssist.Graph.ClassActionMechanics
 local Evidence = XelAssist.Graph.ClassEvidence
 local ClassState = XelAssist.Graph.ClassState
@@ -320,6 +321,7 @@ function M:Apply(state, candidate)
 end
 
 function M:Advance(state, elapsed)
+    if EarthShock then EarthShock:Advance(state, elapsed) end
     if ManaSpring then ManaSpring:Advance(state, elapsed) end
     local expired = Totems and Totems:Advance(state, elapsed) or 0
     if RogueSlice then RogueSlice:Advance(state, elapsed) end
