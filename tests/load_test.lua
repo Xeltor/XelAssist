@@ -401,7 +401,7 @@ assert(XelAssistCharDB.schema == 5
     and XelAssistCharDB.toggles.engagedTargets == false,
     "saved-variable schema did not migrate with safe hostile-target defaults")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.81" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.82" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.class == "MAGE" and runtime.level == 12
     and runtime.role == "auto" and runtime.session.decisions == 0,
     "runtime smoke identity and session evidence missing")
@@ -1057,7 +1057,10 @@ assert(XelAssistLog[1].resistanceDecisionMultiplier == 1.2
     and XelAssistLog[1].shieldBlockPrevented == 36.5625
     and XelAssistLog[1].shieldBlockExpectedBlocks == 1.828125
     and XelAssistLog[1].shieldBlockIncomingRounds == 3
-    and XelAssistLog[1].shieldBlockSamples == 2,
+    and XelAssistLog[1].shieldBlockSamples == 2
+    and XelAssistLog[1].rootBlockers[1].name == "Backstab"
+    and XelAssistLog[1].rootBlockers[1].reasons[1]
+        == "must be behind target",
     "decision log must retain resistance, survival and bounded mitigation evidence")
 assert(XelAssistCharDB.runtime.session.decisions == smokeDecisions + 1
     and XelAssistCharDB.runtime.session.maxSliceMs == displayPlan.maxSliceMs,

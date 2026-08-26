@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.82
+
+- Persist a bounded, deterministic summary of root action blockers with each
+  decision. Fresh Warrior sessions can now show why alternatives such as
+  Battle Shout or Rend were rejected without enabling extra in-game logging.
+
 ## 0.8.81
 
 - Added exact patch-5 Shield Mastery ownership and linked first-block/Riposte

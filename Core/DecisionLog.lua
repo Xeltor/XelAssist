@@ -21,6 +21,29 @@ local function resistanceComponents(plan)
     return out
 end
 
+local function rootBlockers(plan)
+    local source, keys = plan and plan.rootBlockers, {}
+    if type(source) ~= "table" then return nil end
+    local key
+    for key in pairs(source) do table.insert(keys, key) end
+    table.sort(keys)
+    local out, index, row, reason = {}, nil, nil, nil
+    for index = 1, math.min(8, table.getn(keys)) do
+        row = source[keys[index]]
+        if type(row) == "table" then
+            local reasons = {}
+            for reason in pairs(type(row.reasons) == "table" and row.reasons or {}) do
+                table.insert(reasons, tostring(reason))
+            end
+            table.sort(reasons)
+            table.insert(out, { name = row.name, rank = row.rank,
+                actor = row.actor, spellId = row.spellId,
+                reasons = { reasons[1], reasons[2], reasons[3] } })
+        end
+    end
+    return table.getn(out) > 0 and out or nil
+end
+
 local function recordSession(plan)
     if type(XelAssistCharDB.runtime) ~= "table" then
         XelAssistCharDB.runtime = {}
@@ -49,6 +72,7 @@ function L:Record(plan, mode)
         graphElapsed = plan.elapsed, graphExpanded = plan.expanded,
         graphSlices = plan.slices, graphMaxSliceMs = plan.maxSliceMs,
         graphDepth = plan.completedDepth, graphHorizon = plan.decisionHorizon,
+        rootBlockers = rootBlockers(plan),
         graphBudgetLimited = plan.budgetLimited and true or false,
         timelineProbeHits = plan.timelineProbeHits,
         timelineProbeMisses = plan.timelineProbeMisses,
