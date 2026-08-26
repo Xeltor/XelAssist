@@ -401,7 +401,7 @@ assert(XelAssistCharDB.schema == 5
     and XelAssistCharDB.toggles.engagedTargets == false,
     "saved-variable schema did not migrate with safe hostile-target defaults")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.69" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.70" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.class == "MAGE" and runtime.level == 12
     and runtime.role == "auto" and runtime.session.decisions == 0,
     "runtime smoke identity and session evidence missing")
@@ -539,6 +539,8 @@ local estimatedFollowAction = { name = "Arcane Intellect", rank = 1, actor = "pl
 local displayPlan = { action = tooltipAction, target = "target", reason = "test resistance",
     confidence = "partial data", value = 1, threat = 1, downtime = 1.5,
     maxSliceMs = 2.5, observed = {},
+    shieldBlockPrevention = { prevented = 36.5625,
+        expectedBlocks = 1.828125, rounds = 3, blockSamples = 2 },
     survival = { available = true, timeToDie = 4.2, incomingDps = 120,
         observedFor = 3.5, confidence = "observed", decisionFactor = 0.64 },
     rootBlockers = { ["Backstab:1:player"] = { name = "Backstab", rank = 1,
@@ -1051,8 +1053,12 @@ assert(XelAssistLog[1].resistanceDecisionMultiplier == 1.2
     and XelAssistLog[1].resistanceMode == "mixed"
     and XelAssistLog[1].survivalTimeToDie == 4.2
     and XelAssistLog[1].survivalIncomingDps == 120
-    and XelAssistLog[1].survivalDecisionFactor == 0.64,
-    "decision log must retain the resistance and survival evidence actually scored")
+    and XelAssistLog[1].survivalDecisionFactor == 0.64
+    and XelAssistLog[1].shieldBlockPrevented == 36.5625
+    and XelAssistLog[1].shieldBlockExpectedBlocks == 1.828125
+    and XelAssistLog[1].shieldBlockIncomingRounds == 3
+    and XelAssistLog[1].shieldBlockSamples == 2,
+    "decision log must retain resistance, survival and bounded mitigation evidence")
 assert(XelAssistCharDB.runtime.session.decisions == smokeDecisions + 1
     and XelAssistCharDB.runtime.session.maxSliceMs == displayPlan.maxSliceMs,
     "decision recording must persist automatic session smoke evidence")

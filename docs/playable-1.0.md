@@ -97,9 +97,13 @@ request to add a class priority rule:
   Each lane is sealed to the victim's armor, defense, level and form regime and
   is retired across equipment, form or player-aura changes; pet and ally lanes
   remain independently bound to their own current mitigation state.
-  Exact counterfactual block/armor/absorb value, attack-power and speed debuffs,
-  Shield Block facing/skill/value, defensive pet autocasts and avoidance-driven
-  reactive windows remain global gates for tank and healer proof.
+  Shield Block can now value only the selected non-rear attacker: stock block
+  chance and phase-known rounds combine with the minimum same-regime observed
+  block packet, while an exact one/two-charge probability distribution reduces
+  later projected damage and rage. Off-target facing, cold-start block magnitude,
+  other counterfactual armor/absorb value, attack-power and speed debuffs,
+  defensive pet autocasts and avoidance-driven reactive windows remain global
+  gates for tank and healer proof.
 - **Mage:** custom Arcane Power changes cast speed, drains maximum mana every
   second, suppresses mana gain, cannot be cancelled and kills the caster below
   ten-percent mana. Icicles can shatter into large self-damage, while
@@ -199,7 +203,8 @@ evidence-ranked queue includes:
 - Shaman charged shield phases, additional Elemental Focus triggers, Totemic
   Alignment and Calming Winds;
 - Warlock pet-cast modifiers, Mana Funnel and Shadow Strikes; and
-- Warrior Devastate's private supplemental threat, Shield Block value,
+- Warrior Devastate's private supplemental threat, off-target and cold-start
+  Shield Block value,
   Shield Mastery/Reprisal, weapon-dependent Master Strike and hidden
   cooldown/cost modifiers.
 

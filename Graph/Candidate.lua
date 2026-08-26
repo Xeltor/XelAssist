@@ -150,10 +150,20 @@ local function strategicSetup(tooltip)
         consumerKey = "playerForm:" .. tostring(target) }
 end
 
+local function attachMechanicEvidence(out, context)
+    out.classMechanicProjection = context.classMechanicProjection
+    out.shieldBlockPrevention = context.shieldBlockPrevention
+    out.shamanEarthShockTransition = context.shamanEarthShockTransition
+    out.stingingNettleTransition = context.stingingNettleTransition
+    out.shamanStormstrikeConsumption = context.shamanStormstrikeConsumption
+    out.healthTransfer = context.healthTransfer
+    out.shadowMend = context.shadowMend
+end
+
 function C:Build(context)
     local descriptor, facts = context.descriptor, context.facts
     local setup = strategicSetup(context.tooltip)
-    return {
+    local out = {
         action = context.action, value = context.value, reason = context.reason,
         effectAction = context.effectAction, effectTooltip = context.effectTooltip,
         target = context.target, targetKey = descriptor and descriptor.key,
@@ -183,7 +193,6 @@ function C:Build(context)
         warriorDemoralizingShoutPackets = context.warriorDemoralizingShoutPackets, warriorExecuteExtraRage = context.warriorExecuteExtraRage,
         priestShadowformTransition = context.tooltip
             and context.tooltip.priestShadowformTransition,
-        classMechanicProjection = context.classMechanicProjection, shamanEarthShockTransition = context.shamanEarthShockTransition, stingingNettleTransition = context.stingingNettleTransition, shamanStormstrikeConsumption = context.shamanStormstrikeConsumption,
         strategicSetup = setup and true or nil,
         strategicSetupKey = setup and setup.key,
         strategicSetupSourceForm = setup and setup.source,
@@ -216,7 +225,6 @@ function C:Build(context)
         channelCommitment = (context.clipsChannel or context.preservesChannel)
             and context.state.channelCommitment or nil,
         channelOpportunityValue = context.channelOpportunityValue,
-        healthTransfer = context.healthTransfer, shadowMend = context.shadowMend,
         healingTriage = context.healingTriage, dispelDecision = context.tooltip and context.tooltip.dispelDecision,
         recipientEffects = context.recipientEffects,
         areaRecipientGroups = context.areaRecipientGroups,
@@ -249,4 +257,6 @@ function C:Build(context)
         spatialConditionalOnly = descriptor
             and descriptor.spatialConditionalOnly,
     }
+    attachMechanicEvidence(out, context)
+    return out
 end

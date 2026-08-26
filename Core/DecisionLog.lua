@@ -88,7 +88,15 @@ function L:Record(plan, mode)
         pushbackEvents = plan.pushbackProjection
             and plan.pushbackProjection.events,
         pushbackSamples = plan.pushbackProjection
-            and plan.pushbackProjection.samples })
+            and plan.pushbackProjection.samples,
+        shieldBlockPrevented = plan.shieldBlockPrevention
+            and plan.shieldBlockPrevention.prevented,
+        shieldBlockExpectedBlocks = plan.shieldBlockPrevention
+            and plan.shieldBlockPrevention.expectedBlocks,
+        shieldBlockIncomingRounds = plan.shieldBlockPrevention
+            and plan.shieldBlockPrevention.rounds,
+        shieldBlockSamples = plan.shieldBlockPrevention
+            and plan.shieldBlockPrevention.blockSamples })
     while table.getn(XelAssistLog) > 200 do table.remove(XelAssistLog, 1) end
     recordSession(plan)
 end

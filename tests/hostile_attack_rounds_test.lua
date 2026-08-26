@@ -21,7 +21,10 @@ end
 UnitDefense = function() return 20, 0 end
 UnitLevel = function() return 10 end
 GetShapeshiftForm = function() return 0 end
-XelAssist = { Game = { Hostiles = {
+GetBlockChance = function() return 5 end
+XelAssist = { Game = { Geometry = {
+    Observe = function() return { behind = false, source = "UnitXP" } end,
+}, Hostiles = {
     ProvesGuid = function(_, guid) return guid == hostileGuid end,
 } } }
 dofile("Game/HostileAttackRounds.lua")
@@ -40,7 +43,7 @@ assert(H:Observe(hostileGuid, playerGuid, 12, 0, 0, 0, 0, 0, 0, 2))
 assert(H:Observe(hostileGuid, playerGuid, 0, 0, 1, 0, 0, 0, 0, 4))
 assert(H:Observe(hostileGuid, playerGuid, 18, 0, 0, 0, 3, 0, 0, 6))
 assert(H:Observe(hostileGuid, playerGuid, 10, 0, 0, 0, 0, 0, 0, 8))
-local hostiles = { order = { hostileGuid }, byKey = {
+local hostiles = { order = { hostileGuid }, selectedKey = hostileGuid, byKey = {
     [hostileGuid] = { key = hostileGuid, guid = hostileGuid, dead = false },
 } }
 local actors = { player = { guid = playerGuid }, pet = { guid = petGuid } }
@@ -50,7 +53,12 @@ assert(table.getn(snapshot.lanes) == 1
     and snapshot.lanes[1].victimGuid == playerGuid
     and math.abs(snapshot.lanes[1].interval - 2.05) < 0.001
     and snapshot.lanes[1].expectedDamage == 10
-    and snapshot.lanes[1].damageProbability == 0.75,
+    and snapshot.lanes[1].damageProbability == 0.75
+    and snapshot.lanes[1].blockLowerBound == 3
+    and snapshot.lanes[1].blockSamples == 1
+    and snapshot.playerDefense.exact
+    and snapshot.playerDefense.blockChance == 5
+    and snapshot.playerDefense.selectedBehindPlayer == false,
     "three clean intervals must expose one opaque, estimated post-mitigation lane")
 
 armor.player = 120

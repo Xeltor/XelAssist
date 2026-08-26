@@ -12,6 +12,7 @@ GetShapeshiftForm = function() return 0 end
 XelAssist = { Graph = { State = {} } }
 dofile("Graph/PlayerRage.lua")
 dofile("Graph/IncomingConsequences.lua")
+dofile("Graph/WarriorShieldBlock.lua")
 dofile("Graph/HostileSwings.lua")
 local S = XelAssist.Graph.HostileSwings
 local root = { actors = { player = { guid = playerGuid, health = 100,
@@ -40,6 +41,27 @@ assert(S:Apply(root, events[1])
 assert(S:Apply(root, events[2]) and root.actors.player.health == 70
     and root.resource == 2,
     "successive projected rounds must each apply once")
+
+local shielded = { actors = { player = { guid = playerGuid, health = 100,
+        healthMax = 100, healthExact = true } }, resource = 0,
+    resourceMax = 100, resourceType = 1, playerLevel = 10,
+    playerResourceExact = true, warriorShieldBlock = { active = true,
+        projected = true, attackerKey = hostileGuid,
+        addedBlockChance = 0.75, blockLowerBound = 10,
+        expectedCharges = 2, chargeDistribution = { [2] = 1 } } }
+assert(S:Apply(shielded, events[1])
+    and math.abs(shielded.actors.player.health - 92.5) < 0.000001
+    and math.abs(shielded.warriorShieldBlock.expectedCharges - 1.25) < 0.000001
+    and shielded.resource == 0,
+    "a matching selected-attacker swing must consume expected block charges "
+        .. "and apply only bounded residual damage")
+local otherSwing = {}
+for key, value in pairs(events[1]) do otherSwing[key] = value end
+otherSwing.attackerKey = "other"
+assert(S:Apply(shielded, otherSwing)
+    and math.abs(shielded.actors.player.health - 77.5) < 0.000001
+    and math.abs(shielded.warriorShieldBlock.expectedCharges - 1.25) < 0.000001,
+    "off-target attackers must receive no invented facing or block prevention")
 
 local manaUser = { actors = { player = { guid = playerGuid, health = 100,
         healthMax = 100, healthExact = true } }, resource = 0,

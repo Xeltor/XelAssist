@@ -94,7 +94,7 @@ local function laneFor(owner, attacker, victim, hand)
     end
     if table.getn(owner.lanes) >= owner.MAX_LANES then table.remove(owner.lanes, 1) end
     lane = { attackerGuid = attacker, victimGuid = victim, hand = hand,
-        intervals = {}, damages = {}, generation = 0 }
+        intervals = {}, damages = {}, blockedAmounts = {}, generation = 0 }
     table.insert(owner.lanes, lane)
     return lane
 end
@@ -131,6 +131,13 @@ local function average(values)
     return total / table.getn(values)
 end
 
+local function minimum(values)
+    if table.getn(values) == 0 then return nil end
+    local value, i = values[1], nil
+    for i = 2, table.getn(values) do value = math.min(value, values[i]) end
+    return value
+end
+
 local function damagingFraction(values)
     if table.getn(values) == 0 then return nil end
     local damaging, i = 0, nil
@@ -155,7 +162,7 @@ function H:Observe(attackerGuid, victimGuid, totalDamage, hitInfo,
     if not regime then return false end
     local lane = laneFor(self, attackerGuid, victimGuid, hand)
     if lane.regime and not sameRegime(lane.regime, regime) then
-        lane.intervals, lane.damages, lane.lastAt = {}, {}, nil
+        lane.intervals, lane.damages, lane.blockedAmounts, lane.lastAt = {}, {}, {}, nil
     end
     if lane.lastAt then
         local interval = at - lane.lastAt
@@ -164,6 +171,9 @@ function H:Observe(attackerGuid, victimGuid, totalDamage, hitInfo,
         else boundedInsert(lane.intervals, interval, self.INTERVAL_SAMPLES) end
     end
     boundedInsert(lane.damages, totalDamage, self.DAMAGE_SAMPLES)
+    if tonumber(blockedAmount) and blockedAmount > 0 then
+        boundedInsert(lane.blockedAmounts, blockedAmount, self.DAMAGE_SAMPLES)
+    end
     lane.lastAt, lane.lastDamage, lane.hitInfo = at, totalDamage, hitInfo
     lane.victimState = tonumber(victimState)
     lane.blocked, lane.absorbed, lane.resisted = tonumber(blockedAmount) or 0,
@@ -206,6 +216,20 @@ function H:Snapshot(hostiles, friendlies, actors, at)
     out.playerPushback = XelAssist.Game.Player
         and XelAssist.Game.Player.PushbackEvidence
         and XelAssist.Game.Player.PushbackEvidence:Snapshot() or nil
+    if hostiles and hostiles.selectedKey and type(GetBlockChance) == "function"
+        and XelAssist.Game.Geometry then
+        local ok, chance = pcall(GetBlockChance)
+        local geometry = XelAssist.Game.Geometry:Observe("target", "player")
+        chance = ok and finite(chance) or nil
+        if chance and chance >= 0 and chance <= 100
+            and type(geometry.behind) == "boolean" then
+            out.playerDefense = { exact = true,
+                selectedKey = hostiles.selectedKey,
+                selectedBehindPlayer = geometry.behind,
+                blockChance = chance,
+                source = "stock block chance and reverse UnitXP geometry" }
+        end
+    end
     at = tonumber(at)
     if not at then return out end
     for i = 1, table.getn(self.lanes) do
@@ -225,6 +249,8 @@ function H:Snapshot(hostiles, friendlies, actors, at)
                 interval = interval, nextSwingIn = due - at,
                 expectedDamage = damage, generation = lane.generation,
                 damageProbability = damagingFraction(lane.damages),
+                blockLowerBound = minimum(lane.blockedAmounts),
+                blockSamples = table.getn(lane.blockedAmounts),
                 mitigationRegime = regime,
                 phaseKnown = true, magnitudeEstimated = true,
                 source = "observed hostile post-mitigation white rounds" })

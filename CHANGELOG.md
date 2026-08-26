@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.70
+
+- Gave Shield Block bounded selected-attacker prevention instead of a legal but
+  permanently zero-value window. Stock block chance, exact non-rear geometry,
+  phase-known hostile rounds and the minimum observed same-regime block packet
+  now produce a conservative incremental mitigation value.
+- Projected hostile swings consume Shield Block's one/two charges through a
+  bounded probability distribution, reducing both expected health loss and the
+  rage generated from that loss. Off-target facing and cold-start block value
+  remain explicitly uncredited.
+- Added automatic Shield Block evidence to the decision log and retire learned
+  mitigation packets across spell, talent, level, equipment, form and aura
+  changes.
+
 ## 0.8.69
 
 - Learned exact normal-cast pushback increments from Octo's

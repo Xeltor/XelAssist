@@ -173,6 +173,9 @@ end
 local function resetHostileMitigationEvidence(name, unit)
     if not XelAssist.Game.HostileAttackRounds then return end
     if name == "UNIT_INVENTORY_CHANGED" and unit == "player"
+        or name == "SPELLS_CHANGED"
+        or name == "CHARACTER_POINTS_CHANGED"
+        or name == "PLAYER_LEVEL_UP"
         or name == "UPDATE_SHAPESHIFT_FORM"
         or name == "UPDATE_SHAPESHIFT_FORMS"
         or name == "UNIT_AURA" and unit == "player" then

@@ -54,6 +54,7 @@ dofile("Graph/PlayerThreat.lua")
 dofile("Graph/ThreatDrop.lua")
 dofile("Graph/RogueFeint.lua")
 dofile("Graph/ClassEvidence.lua")
+dofile("Graph/WarriorShieldBlock.lua")
 dofile("Graph/ClassState.lua")
 dofile("Graph/ClassActionMechanics.lua")
 dofile("Graph/ClassMechanics.lua")
@@ -61,6 +62,7 @@ dofile("Graph/ReactiveState.lua")
 dofile("Graph/HostileCastState.lua")
 dofile("Graph/IncomingAbsorbs.lua")
 dofile("Graph/IncomingConsequences.lua")
+dofile("Graph/HostileSwings.lua")
 dofile("Graph/HostileCastEvents.lua")
 dofile("Graph/IncomingScoring.lua")
 dofile("Graph/HealingTriage.lua")
@@ -865,6 +867,30 @@ assert(XelAssistTestEndFightCandidate.value > 0
     "evidence-based end-of-fight gating must not disable utility on a durable target")
 XelAssistTestEndFightWeakness, XelAssistTestEndFightTargets = nil, nil
 XelAssistTestEndFightCandidate, XelAssistTestEndFightBlocker = nil, nil
+
+currentState = state("smart")
+currentState.class = "WARRIOR"
+currentState.role, currentState.tank, currentState.hasAggro = "tank", true, true
+currentState.resourceType, currentState.resource = 1, 30
+currentState.resourceMax, currentState.playerResourceExact = 100, true
+currentState.playerForm = { available = true, formID = 18 }
+currentState.inventory = { offHand = { classificationKnown = true,
+    classID = 4, subClassID = 6, broken = false } }
+currentState.hostileSwings = { playerDefense = { exact = true,
+    selectedKey = "selected", selectedBehindPlayer = false, blockChance = 5 },
+    lanes = { { phaseKnown = true, victimKind = "player",
+        attackerKey = "selected", interval = 2, nextSwingIn = 1,
+        expectedDamage = 30, blockLowerBound = 20, blockSamples = 2 } } }
+scenarioActions = { action("Shield Block", 1, "defensive", 0, 10, {
+        self = true, gcd = 0, warriorShieldBlock = true,
+        warriorShieldBlockEvidence = { exact = true, spellId = 2565,
+            charges = 2, duration = 6, blockChanceBonus = 75, cost = 10 } }),
+    action("Weak strike", 1, "damage", 5, 0, { melee = true }) }
+plan = expect("Warrior selected-attacker Shield Block", "Shield Block")
+assert(plan.shieldBlockPrevention
+    and math.abs(plan.shieldBlockPrevention.prevented - 36.5625) < 0.000001
+    and plan.shieldBlockPrevention.rounds == 3,
+    "the production plan must retain bounded Shield Block prevention evidence")
 
 currentState = state("smart"); currentState.playerLevel = 60
 currentState.targetResistances = { 0, 0, 240, 0, 0, 0, 0 }

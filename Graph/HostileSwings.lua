@@ -1,5 +1,6 @@
--- Projected hostile white rounds use learned post-mitigation damage only for
--- survival timing. Counterfactual block/armor/absorb value remains unknown.
+-- Projected hostile white rounds use learned post-mitigation damage for
+-- survival timing. A class mechanic may reduce a round only when it owns
+-- bounded counterfactual evidence for that exact attacker and recipient.
 XelAssist.Graph.HostileSwings = {}
 local S = XelAssist.Graph.HostileSwings
 local Incoming = XelAssist.Graph.IncomingConsequences
@@ -72,8 +73,12 @@ end
 function S:Apply(state, entry)
     if not (entry and entry.kind == "hostileWhiteSwing" and Incoming
         and Incoming.ApplyResolvedDamage) then return false end
+    local amount = entry.amount
+    local shieldBlock = XelAssist.Graph.WarriorShieldBlock
+    if shieldBlock then amount = shieldBlock:AdjustProjectedSwing(
+        state, entry, amount) end
     local result = Incoming:ApplyResolvedDamage(state, entry.victimGuid,
-        entry.amount, true, "projected hostile white swing")
+        amount, true, "projected hostile white swing")
     if not result then state.incomingProjectionPartial = true; return false end
     state.lastHostileSwing = { attackerGuid = entry.attackerGuid,
         victimGuid = entry.victimGuid, generation = entry.generation,
