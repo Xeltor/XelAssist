@@ -282,7 +282,6 @@ local function periodicEventDamage(source, candidate, context, entry)
         base, candidate, context, entry, entry.left, baseState)
     return math.max(0, right - left)
 end
-
 local function applyPeriodic(out, source, candidate, context, entry)
     if entry.scheduleToken and not EventAuras:ScheduledCurrent(out,
         entry.targetKey, entry.targetGuid, entry.auraName,
@@ -304,15 +303,15 @@ local function applyPeriodic(out, source, candidate, context, entry)
             record.dead, record.projectedDefeated = true, true
         end
         syncLocal(out, entry.targetKey, record, damage > 0)
-        return
+        return damage > 0
     end
     if hostilesOf(out) or not out.targetHealthExact or out.targetHealth <= 0 then
         return
     end
     out.targetHealth = math.max(0, out.targetHealth - damage)
     markTargetDeath(out)
+    return damage > 0
 end
-
 local function advanceObservedTargetAuras(state, elapsed)
     local function age(auras)
         local changed, name, aura = false, nil, nil
@@ -356,10 +355,8 @@ function O:Events(out, source, candidate, context)
     for i = 1, table.getn(leech) do table.insert(events, leech[i]) end
     return events
 end
-
 function O:Prepare(out, source, candidate, context)
     return self:Events(out, source, candidate, context) end
-
 -- Capture only auras that existed at the start of this timeline. Auras
 -- created or replaced by an event use EventAuras' damage-aware causal clock.
 function O:PersistentAuraSnapshot(state)
@@ -379,7 +376,6 @@ function O:PersistentAuraSnapshot(state)
     end
     return snapshot
 end
-
 function O:AdvanceState(out, elapsed, persistentAuras)
     elapsed = math.max(0, tonumber(elapsed) or 0)
     if elapsed <= 0 then return end
@@ -389,7 +385,6 @@ function O:AdvanceState(out, elapsed, persistentAuras)
     advanceAuraDurations(out, elapsed, persistentAuras)
     advanceObservedTargetAuras(out, elapsed)
 end
-
 function O:ApplyEvent(out, source, candidate, context, entry)
     if entry.kind == "petAutocast" or entry.kind == "petAutocastUnknown"
         or entry.kind == "petAutocastStart" or entry.kind == "petWhiteSwing"
@@ -405,7 +400,12 @@ function O:ApplyEvent(out, source, candidate, context, entry)
         if PlayerOffhand then PlayerOffhand:Apply(out, entry) end
     elseif entry.kind == "periodicTick"
         or entry.kind == "periodicSegment" then
-        applyPeriodic(out, source, candidate, context, entry)
+        local delivered = applyPeriodic(out, source, candidate, context, entry)
+        if entry.kind == "periodicTick"
+            and XelAssist.Graph.DruidAncientBrutality then
+            XelAssist.Graph.DruidAncientBrutality:ApplyTick(out, entry,
+                delivered, EventAuras:ScheduledScale(entry.scheduleToken))
+        end
     elseif entry.kind == "leechChannelTick"
         or entry.kind == "leechChannelFinish" then
         if LeechChannel then LeechChannel:ApplyEvent(out, candidate, entry) end

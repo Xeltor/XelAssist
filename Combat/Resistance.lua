@@ -1251,6 +1251,23 @@ local function projectedActionFacts(action, tooltip, state)
     return out
 end
 
+local function selectedResistanceSchool(owner, action, state, result, school)
+    local frostfire = XelAssist.Game and XelAssist.Game.Player
+        and XelAssist.Game.Player.MageFrostfire
+    if not frostfire then return school end
+    local selected, handled, source = frostfire:ResistanceSchool(action, state)
+    if not handled then return school end
+    if selected == nil then
+        result.source = source or "Frostfire resistance unavailable"
+        result.frostfireResistanceUnknown = true
+        return nil, true
+    end
+    result.resistanceSchool = selected
+    result.resistanceSchoolName = owner:SchoolName(selected)
+    result.resistanceSelectionSource = source
+    return selected
+end
+
 function R:Estimate(action, target, tooltip, state, componentCall)
     local facts = projectedActionFacts(action, tooltip, state)
     if not componentCall and type(facts.damageComponents) == "table" then
@@ -1341,7 +1358,6 @@ function R:Estimate(action, target, tooltip, state, componentCall)
             projectedReduction = direct.projectedReduction or periodic.projectedReduction,
             directDamage = directDamage, periodicDamage = periodicDamage }
     end
-
     local school, ignoresArmor, ignoreResistances, schoolSource =
         self:School(action, tooltip, state)
     local metadata = action and action.resistanceMetadata
@@ -1358,6 +1374,8 @@ function R:Estimate(action, target, tooltip, state, componentCall)
         ignoreResistances = ignoreResistances }
     if school ~= nil then result.schoolMask = 2 ^ school end
     if target ~= "target" or school == nil then return result end
+    local resistanceSchool = selectedResistanceSchool(self, action, state, result, school)
+    if resistanceSchool == nil then return result end
     local kind = facts.kind
     local damageKind = kind == "damage" or kind == "dot" or kind == "builder"
     local deliveryModel, deliveryModelKnown, deliveryModelSource =
@@ -1367,7 +1385,6 @@ function R:Estimate(action, target, tooltip, state, componentCall)
     local physicalSubtype = deliverySubtypeFor(facts, metadata, deliveryModel)
     local alwaysHit = facts.alwaysHit or metadata.alwaysHit or false
     result.alwaysHit = alwaysHit and true or false
-
     local snapshot = state and state.targetResistance
     local live = snapshot and snapshot.live
     local evidenceEpoch = state and (tonumber(state.resistanceEpoch)
@@ -1375,7 +1392,7 @@ function R:Estimate(action, target, tooltip, state, componentCall)
     if facts.resistancePhase then result.periodic = facts.resistancePhase == "periodic"
     else result.periodic = facts.kind == "dot" or facts.channel or metadata.periodic or false end
     result.binary = deliveryModel == "magic" and (facts.binary or metadata.binary) or false
-    local context = self:CasterContext(nil, school, state, action)
+    local context = self:CasterContext(nil, resistanceSchool, state, action)
     -- `facts.ranged` describes targeting geometry in the action catalogue; it
     -- does not mean the spell uses the physical ranged hit table.  Delivery
     -- class must come from the school, an explicit semantic override, or DBC.
@@ -1391,7 +1408,7 @@ function R:Estimate(action, target, tooltip, state, componentCall)
     end
     local pen = context.penetrationKnown and (context.penetration or 0) or 0
     result.penetration, result.penetrationUnknown = pen, not context.penetrationKnown
-    local raw, identity = live and tonumber(live[school]), snapshot and snapshot.identity
+    local raw, identity = live and tonumber(live[resistanceSchool]), snapshot and snapshot.identity
     if not identity and not state then
         local currentGuid = guidFor("target")
         identity = currentGuid and self.identities[currentGuid] or self:Identity("target")
@@ -1399,12 +1416,12 @@ function R:Estimate(action, target, tooltip, state, componentCall)
     if not identity then result.targetIdentityUnknown = true end
     local profile = self:Profile(identity, false)
     local rawSource = live and (snapshot.liveSource or "live target resistance") or nil
-    local cached = profile and profile.raw and profile.raw[school]
+    local cached = profile and profile.raw and profile.raw[resistanceSchool]
     if raw == nil and cached and cached.kind == "base"
         and ageWeight(cached.lastSeen, evidenceEpoch) > 0.05 then
         raw, rawSource = tonumber(cached.value), "cached Turtle base resistance"
     end
-    local rawKey = tostring(school) .. ":" .. tostring(context.key)
+    local rawKey = tostring(resistanceSchool) .. ":" .. tostring(context.key)
     local rawRecord = profile and profile.inferredRawContexts
         and profile.inferredRawContexts[rawKey]
     local rawSamples = rawRecord and (rawRecord.samples or 0)
@@ -1428,12 +1445,12 @@ function R:Estimate(action, target, tooltip, state, componentCall)
             .. " damage outcomes"
     end
     local projectedReduction = snapshot and snapshot.projectedReduction
-        and tonumber(snapshot.projectedReduction[school]) or 0
+        and tonumber(snapshot.projectedReduction[resistanceSchool]) or 0
     if raw ~= nil and projectedReduction and projectedReduction ~= 0 then
         -- On the supported post-1.8 server path, penetration/reduction cannot
         -- turn a nonnegative base resistance into vulnerability. An already
         -- negative base remains negative and can become more vulnerable.
-        if school == 0 or raw >= 0 then raw = math.max(0, raw - projectedReduction)
+        if resistanceSchool == 0 or raw >= 0 then raw = math.max(0, raw - projectedReduction)
         else raw = raw - projectedReduction end
         rawSource = (rawSource or "target resistance") .. " after projected "
             .. tostring(snapshot.projectedBy or "debuff")
@@ -1454,8 +1471,8 @@ function R:Estimate(action, target, tooltip, state, componentCall)
     local modifierContext = self:ModifierContext(context, projectedReduction)
     local mitigationContext = self:PhaseContext(modifierContext, mitigationPhase)
     local landContext = self:PhaseContext(modifierContext, landPhase)
-    local mitigationKey = tostring(school) .. ":" .. tostring(mitigationContext.key)
-    local landKey = tostring(school) .. ":" .. tostring(landContext.key)
+    local mitigationKey = tostring(resistanceSchool) .. ":" .. tostring(mitigationContext.key)
+    local landKey = tostring(resistanceSchool) .. ":" .. tostring(landContext.key)
     local mitigationRecord = profile and profile.contexts and profile.contexts[mitigationKey]
     local landRecord = profile and profile.contexts and profile.contexts[landKey]
     local learnedMitigation, ignoredLanding, mitigationSamples =
@@ -1464,21 +1481,21 @@ function R:Estimate(action, target, tooltip, state, componentCall)
         learnedValues(landRecord, evidenceEpoch)
     local mitigationFromBaseline, landFromBaseline = false, false
     if mitigationContext.key ~= baselineMitigationContext.key and not learnedMitigation then
-        local key = tostring(school) .. ":" .. tostring(baselineMitigationContext.key)
+        local key = tostring(resistanceSchool) .. ":" .. tostring(baselineMitigationContext.key)
         local baseline = profile and profile.contexts and profile.contexts[key]
         learnedMitigation, ignoredLanding, mitigationSamples =
             learnedValues(baseline, evidenceEpoch)
         mitigationFromBaseline = learnedMitigation ~= nil
     end
     if landContext.key ~= baselineLandContext.key and not learnedResistanceLanding then
-        local key = tostring(school) .. ":" .. tostring(baselineLandContext.key)
+        local key = tostring(resistanceSchool) .. ":" .. tostring(baselineLandContext.key)
         local baseline = profile and profile.contexts and profile.contexts[key]
         ignoredMitigation, learnedResistanceLanding, landSamples =
             learnedValues(baseline, evidenceEpoch)
         landFromBaseline = learnedResistanceLanding ~= nil
     end
     local spellContextKey = action and action.spellId and tostring(action.spellId)
-        .. ":" .. tostring(school) .. ":" .. tostring(landContext.key)
+        .. ":" .. tostring(resistanceSchool) .. ":" .. tostring(landContext.key)
     local combinedRecord = spellContextKey and profile and profile.spells
         and profile.spells[spellContextKey]
     local ignoredCombinedMitigation, learnedCombined, combinedSamples =
@@ -1486,7 +1503,7 @@ function R:Estimate(action, target, tooltip, state, componentCall)
     local combinedFromBaseline = false
     if landContext.key ~= baselineLandContext.key and not learnedCombined and action
         and action.spellId then
-        local baselineKey = tostring(action.spellId) .. ":" .. tostring(school)
+        local baselineKey = tostring(action.spellId) .. ":" .. tostring(resistanceSchool)
             .. ":" .. tostring(baselineLandContext.key)
         combinedRecord = profile and profile.spells and profile.spells[baselineKey]
         ignoredCombinedMitigation, learnedCombined, combinedSamples =
@@ -1534,7 +1551,7 @@ function R:Estimate(action, target, tooltip, state, componentCall)
     if raw == nil and projectedReduction > 0 and mitigationFromBaseline
         and learnedMitigation then
         learnedMitigation = projectedLearnedMitigation(learnedMitigation,
-            projectedReduction, attackerLevel, result.periodic, school)
+            projectedReduction, attackerLevel, result.periodic, resistanceSchool)
         projectedLearned = true
     end
     if raw == nil and projectedReduction > 0 and result.binary
@@ -1577,12 +1594,12 @@ function R:Estimate(action, target, tooltip, state, componentCall)
     elseif ignoreResistances then
         if raw ~= nil and raw < 0 then
             modeled, effective, resisted, resistanceChance = magicMultiplier(raw,
-                attackerLevel, pen, targetLevel, school,
+                attackerLevel, pen, targetLevel, resistanceSchool,
                 not (identity and identity.isPlayer), result.periodic)
         else modeled, effective, resisted, resistanceChance = 1, raw, 0, 0 end
     else
         modeled, effective, resisted, resistanceChance = magicMultiplier(raw, attackerLevel, pen,
-            targetLevel, school, not (identity and identity.isPlayer), result.periodic)
+            targetLevel, resistanceSchool, not (identity and identity.isPlayer), result.periodic)
     end
     local modeledSource
     if modeled then modeledSource = rawSource end

@@ -7,6 +7,8 @@ local ROGUE_INFERENCE = { "RogueSliceAndDice", "RoguePreparation",
     "RogueFeint", "RogueSurpriseAttack", "RogueShiv", "RogueMarkForDeath" }
 local HUNTER_INFERENCE = { "HunterHawk", "HunterMark",
     "HunterDistractingShot", "HunterRapidFire", "HunterManaAspects" }
+local SHAMAN_INFERENCE = { "ShamanChainHealTiming", "ShamanEarthShock",
+    "ShamanMoltenBlast", "ShamanLightningStrike" }
 local WARRIOR_INFERENCE = { "WarriorThunderClap", "WarriorOverpower",
     "WarriorDemoralizingShout", "WarriorHeroicStrikeThreat", "WarriorExecute",
     "WarriorRevengeThreat", "WarriorBattleShout", "WarriorShieldWall",
@@ -61,11 +63,7 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = inferPortfolio(player, HUNTER_INFERENCE, spellId)
     if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.ShamanEarthShock, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.ShamanMoltenBlast, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.ShamanLightningStrike, spellId)
+    facts, reason, handled = inferPortfolio(player, SHAMAN_INFERENCE, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = inferPortfolio(player, WARRIOR_INFERENCE, spellId)
     if handled then return facts, reason, true end
@@ -133,8 +131,18 @@ function I:ExactKnowledge(spellId, skipClass)
     return facts, nil, facts ~= nil
 end
 
+local function invalidateNamed(player, names)
+    local i, module
+    for i = 1, table.getn(names) do
+        module = player[names[i]]
+        if module then module:Invalidate() end
+    end
+end
+
 function I:InvalidateClass()
     local player = XelAssist.Game.Player or {}
+    invalidateNamed(player, { "MageFrostfire", "ShamanChainHealTiming",
+        "DruidAncientBrutality" })
     if player.MageManaShield then player.MageManaShield:Invalidate() end
     if player.MageEvocation then player.MageEvocation:Invalidate() end
     if player.MageClearcasting then player.MageClearcasting:Invalidate() end

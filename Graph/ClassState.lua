@@ -150,6 +150,10 @@ local function attachDruid(state, token)
     if DruidFrenziedRegeneration then
         attached = DruidFrenziedRegeneration:Attach(state, token) or attached
     end
+    local brutality = XelAssist.Graph.DruidAncientBrutality
+    if brutality then
+        attached = brutality:Attach(state, token) or attached
+    end
     return attached
 end
 local function attachRogue(state)
@@ -238,6 +242,10 @@ function S:Copy(source, target)
     if DruidFrenziedRegeneration then
         DruidFrenziedRegeneration:Copy(source, target)
     end
+    local brutality = XelAssist.Graph.DruidAncientBrutality
+    if brutality then
+        brutality:Copy(source, target)
+    end
     if ShamanClearcasting then ShamanClearcasting:Copy(source, target) end
     if ShamanManaSpring then ShamanManaSpring:Copy(source, target) end
     if RogueSlice then RogueSlice:Copy(source, target) end
@@ -278,6 +286,7 @@ function S:Copy(source, target)
         or source.mageProcWindows ~= nil
         or source.druidClearcasting ~= nil
         or source.druidFrenziedRegeneration ~= nil
+        or source.druidAncientBrutality ~= nil
         or source.shamanClearcasting ~= nil
         or source.shamanManaSpring ~= nil
         or source.rogueSliceAndDice ~= nil

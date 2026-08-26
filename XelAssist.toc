@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.50
+## Version: 0.8.51
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -31,6 +31,7 @@ Game\Player\FormEvidence.lua
 Game\Player\DruidFormState.lua
 Game\Player\DruidClearcasting.lua
 Game\Player\DruidFrenziedRegeneration.lua
+Game\Player\DruidAncientBrutality.lua
 Game\Player\DruidBearThreat.lua
 Game\Player\DruidCatThreat.lua
 Game\Player\DruidCasterForms.lua
@@ -53,12 +54,14 @@ Game\Player\ShamanClearcasting.lua
 Game\Player\ShamanEarthShock.lua
 Game\Player\ShamanLightningStrike.lua
 Game\Player\ShamanMoltenBlast.lua
+Game\Player\ShamanChainHealTiming.lua
 Game\Player\MageManaShield.lua
 Game\Player\MageEvocation.lua
 Game\Player\MageClearcasting.lua
 Game\Player\MagePresenceOfMind.lua
 Game\Player\MageColdSnap.lua
 Game\Player\MageProcWindows.lua
+Game\Player\MageFrostfire.lua
 Game\Player\PriestShield.lua
 Game\Player\PriestShadowform.lua
 Game\Player\PriestImprovedShadowform.lua
@@ -202,6 +205,7 @@ Graph\DruidShiftResources.lua
 Graph\DruidBearThreat.lua
 Graph\DruidCatThreat.lua
 Graph\DruidFrenziedRegeneration.lua
+Graph\DruidAncientBrutality.lua
 Graph\DruidForms.lua
 Graph\DruidClearcasting.lua
 Graph\WarriorStances.lua

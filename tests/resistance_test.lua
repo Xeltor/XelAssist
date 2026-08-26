@@ -1,4 +1,4 @@
-XelAssist = { Game = {}, Combat = {}, Core = {}, Graph = {}, UI = {} }
+XelAssist = { Game = { Player = {} }, Combat = {}, Core = {}, Graph = {}, UI = {} }
 table.getn = table.getn or function(value)
     local count = 0
     while value[count + 1] ~= nil do count = count + 1 end
@@ -133,6 +133,10 @@ local spellRecords = {
         effect = { 6, 0, 0 }, effectApplyAuraName = { 53, 0, 0 } },
     [20271] = { school = 2, dmgClass = 1, attributesEx4 = 0,
         effect = { 2, 6, 0 }, effectApplyAuraName = { 0, 22, 0 } },
+    [45400] = { school = 4, attributes = 65536, spellFamilyName = 3,
+        spellFamilyFlags = 1073741857, dmgClass = 1, attributesEx4 = 0,
+        effect = { 2, 6, 0 }, effectApplyAuraName = { 0, 3, 0 },
+        effectImplicitTargetA = { 6, 6, 0 }, effectAmplitude = { 0, 2000, 0 } },
 }
 GetSpellRecField = function(spellId, field)
     local record = spellRecords[spellId]
@@ -141,6 +145,7 @@ end
 GetSpellRangeData = function(index)
     if index == 2 then return 0, 5, 0, "noncombat" end
 end
+GetSpellDuration = function(id) return id == 45400 and 8000 or nil end
 GetCVar = function() return "1" end
 GetNampowerVersion = function() return 4, 6, 2 end
 local activeSealId = 9001
@@ -155,6 +160,7 @@ dofile("Combat/Delivery.lua")
 dofile("Combat/HitDelivery.lua")
 dofile("Combat/ResistanceMath.lua")
 dofile("Combat/ResistanceSubmissions.lua")
+dofile("Game/Player/MageFrostfire.lua")
 dofile("Combat/Resistance.lua")
 dofile("Core/WandExecution.lua")
 
@@ -233,6 +239,17 @@ close(fire.multiplier, 0.6064,
     "150 Fire resistance plus equal-level spell delivery at level 60")
 assert(fire.schoolMask == 4 and fire.source == "Turtle UnitResistance target data",
     "school mask or live provenance missing")
+local frostfireFacts = XelAssist.Game.Player.MageFrostfire:CaptureFacts(
+    { spellId = 45400 }, { kind = "damage", ranged = true, school = 4 })
+local frostfireAction = seal({ name = "Frostfire Bolt", spellId = 45400,
+    actor = "player", facts = frostfireFacts })
+local _, frostfireState = isolatedState("frostfire-target", 99001, 60,
+    { [0] = 0, [1] = 0, [2] = 40, [3] = 0, [4] = 120, [5] = 0, [6] = 0 })
+local frostfire = XelAssist.Combat.Resistance:Estimate(
+    frostfireAction, "target", { school = 4 }, frostfireState)
+assert(frostfire.school == 4 and frostfire.schoolMask == 16
+    and frostfire.resistanceSchool == 2 and frostfire.raw == 40,
+    "Frostfire must keep Frost damage identity while checking lower Fire resistance")
 local hitState = { targetResistance = snapshot, playerLevel = 60,
     weaponSkills = weaponSkills,
     hitBonuses = { melee = 1, ranged = 2, spell = 2,

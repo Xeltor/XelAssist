@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.8.51
+
+- Added a patch-5-wide installed Spell.dbc topology audit that ranks class and
+  linked family-neutral records, including replacement spells, passive auras,
+  proc children, resource effects and hidden trigger relationships.
+- Added exact Frostfire Bolt resistance selection: the graph uses the lower
+  proven effective Fire/Frost resistance while preserving the spell's Frost
+  damage school for vulnerability semantics. Missing evidence fails closed.
+- Corrected Octo Improved Chain Heal ownership as an exact cast-time reduction,
+  not a guessed throughput modifier; live engine cast time remains authoritative.
+- Added Ancient Brutality's exact Cat-side three/five-energy consequence only
+  after a scheduled, player-owned bleed tick causally deals damage. Bear dodge
+  behavior and any private arithmetic remain withheld.
+
 ## 0.8.50
 
 - Added Hunter Alone Against the World as an exact observed no-pet damage

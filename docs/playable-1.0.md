@@ -133,9 +133,10 @@ request to add a class priority rule:
   live smoke test proves they block ordinary leveling.
 
 The patch-5-wide divergence audit also promoted these unowned ordinary-loop
-mechanics into the tracked backlog: Druid Ancient Brutality/Blood Frenzy;
-Hunter Coordinated Assault; Mage Frostfire resistance selection; Shaman Spirit
-Armor; and Warrior hidden haste, recipient, threat and cost passives. Seal of
+mechanics into the tracked backlog: Druid Blood Frenzy and Ancient Brutality's
+Bear branch; Hunter Coordinated Assault; Shaman Spirit Armor; and Warrior hidden
+haste, recipient, threat and cost passives. Frostfire resistance selection and
+Improved Chain Heal timing are now exact. Seal of
 the Martyr, Resurgent Shield, Improved Shadowform, Shiv, two-charge Elemental
 Focus and Nightfall/Shadow Trance now have installed-client ownership, with
 their remaining private health, refund, regeneration, poison-delivery or
