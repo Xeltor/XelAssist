@@ -9,12 +9,16 @@ local PaladinBlessingThreat = XelAssist.Graph.PaladinBlessingThreat
 local PaladinRighteousFury = XelAssist.Graph.PaladinRighteousFury
 local Totems = XelAssist.Game.Player.TotemState
 local ShamanActions = XelAssist.Game.Player.ShamanActions
+local ShamanClearcastingRuntime = XelAssist.Game.Player.ShamanClearcasting
+local ShamanClearcasting = XelAssist.Graph.ShamanClearcasting
 local MageClearcastingRuntime = XelAssist.Game.Player.MageClearcasting
 local MageClearcasting = XelAssist.Graph.MageClearcasting
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local HunterMarkGraph = XelAssist.Graph.HunterMark
 local HunterHawk = XelAssist.Graph.HunterHawk
 local PriestShadowform = XelAssist.Graph.PriestShadowform
+local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
+local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 local Evidence = XelAssist.Graph.ClassEvidence
@@ -53,17 +57,28 @@ function M:Attach(state)
         if PaladinBlessingThreat then PaladinBlessingThreat:Attach(state) end
         if PaladinRighteousFury then PaladinRighteousFury:Attach(state) end
         return attached
-    elseif token == "SHAMAN" and Totems then
-        state.totems = Totems:Snapshot()
-        local attached = state.totems and state.totems.available == true or false
-        if Windfury then Windfury:Attach(state) end
+    elseif token == "SHAMAN" then
+        local attached = false
+        if Totems then
+            state.totems = Totems:Snapshot()
+            attached = state.totems and state.totems.available == true or false
+            if Windfury then Windfury:Attach(state) end
+        end
+        if ShamanClearcastingRuntime then
+            attached = ShamanClearcastingRuntime:Attach(state, token) or attached
+        end
         return attached
     elseif token == "HUNTER" then
         local mark = HunterMarkGraph and HunterMarkGraph:Attach(state)
         local hawk = HunterHawk and HunterHawk:Attach(state) or false
         return mark ~= nil or hawk
-    elseif token == "PRIEST" and PriestShadowform then
-        return PriestShadowform:Attach(state, token)
+    elseif token == "PRIEST" then
+        local attached = PriestShadowform
+            and PriestShadowform:Attach(state, token) or false
+        if PriestInnerFocusRuntime then
+            attached = PriestInnerFocusRuntime:Attach(state, token) or attached
+        end
+        return attached
     elseif token == "MAGE" and MageClearcastingRuntime then
         return MageClearcastingRuntime:Attach(state, token)
     elseif token == "ROGUE" and RogueSlice then
@@ -86,8 +101,10 @@ function M:Copy(source, target)
     if source.hunterMarkRoot then target.hunterMarkRoot = source.hunterMarkRoot end
     if HunterHawk then HunterHawk:Copy(source, target) end
     if MageClearcasting then MageClearcasting:Copy(source, target) end
+    if ShamanClearcasting then ShamanClearcasting:Copy(source, target) end
     if RogueSlice then RogueSlice:Copy(source, target) end
     if PriestShadowform then PriestShadowform:Copy(source, target) end
+    if PriestInnerFocus then PriestInnerFocus:Copy(source, target) end
     if Windfury then Windfury:Copy(source, target) end
     if WarriorBattleShout then WarriorBattleShout:Copy(source, target) end
     return source.paladinAuraState ~= nil
@@ -96,8 +113,10 @@ function M:Copy(source, target)
         or source.hunterMarkRoot ~= nil
         or source.hunterHawk ~= nil
         or source.mageClearcasting ~= nil
+        or source.shamanClearcasting ~= nil
         or source.rogueSliceAndDice ~= nil
         or source.playerShadowformProfileExact == true
+        or source.priestInnerFocus ~= nil
         or source.shamanWindfuryTotem ~= nil
         or source.warriorBattleShout ~= nil
 end
@@ -121,6 +140,11 @@ end
 local function hunterHawkClaimed(facts)
     return facts.hunterHawk == true
         or facts.requiresExactHunterHawkDownstream == true
+end
+
+local function priestInnerFocusClaimed(facts)
+    return facts.priestInnerFocus == true
+        or facts.priestInnerFocusTransition ~= nil
 end
 
 local function paladinProjection(action, state, descriptor)
@@ -196,6 +220,12 @@ function M:Prepare(action, state, descriptor, tooltip)
             return nil, "Hunter Hawk graph unavailable", true
         end
         return HunterHawk:Prepare(action, state, descriptor, facts)
+    elseif priestInnerFocusClaimed(facts)
+        or priestInnerFocusClaimed(actionFacts) then
+        if not PriestInnerFocus then
+            return nil, "Priest Inner Focus graph unavailable", true
+        end
+        return PriestInnerFocus:PrepareSetup(action, state, facts)
     elseif warriorClaimed(facts) or warriorClaimed(actionFacts) then
         if not WarriorBattleShout then
             return nil, "Warrior Battle Shout graph unavailable", true
@@ -289,6 +319,9 @@ function M:Score(context, projection)
         local scored, reason = Windfury:Score(context, projection)
         if scored or reason then return scored, reason end
     end
+    if PriestInnerFocus and projection.priestInnerFocusTransition then
+        return PriestInnerFocus:Score(context, projection)
+    end
     if HunterHawk and projection.hunterHawk then
         return HunterHawk:Score(context, projection)
     end
@@ -322,6 +355,8 @@ function M:Apply(state, candidate)
     elseif projection.classMechanic == "warriorBattleShout"
         and WarriorBattleShout then
         return WarriorBattleShout:Apply(state, candidate)
+    elseif projection.priestInnerFocusTransition and PriestInnerFocus then
+        return PriestInnerFocus:Apply(state, candidate)
     elseif projection.hunterHawk and HunterHawk then
         return HunterHawk:Apply(state, candidate)
     end

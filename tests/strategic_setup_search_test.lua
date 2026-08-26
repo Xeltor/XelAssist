@@ -1,4 +1,7 @@
-XelAssist = { Core = {}, Game = {}, Graph = {} }
+XelAssist = { Core = {}, Game = { Player = { PriestInnerFocus = {
+    SPELL_ID = 14751, COST_MASK = 3606577115,
+    CRIT_MASK = 3646176912, COST_PERCENT = -100,
+} } }, Graph = {} }
 XelAssistCharDB = { graphDepth = 3 }
 table.getn = table.getn or function(values) return #values end
 
@@ -6,12 +9,14 @@ local clock = 0
 function GetTime() return 10 end
 function debugprofilestop() return clock end
 
+dofile("Graph/PriestInnerFocus.lua")
 dofile("Graph/Candidate.lua")
 local Candidate = XelAssist.Graph.Candidate
 
 local function built(action, state, value, tooltip)
     local relation = tooltip and (tooltip.warriorStanceTransition
-        or tooltip.druidFormTransition or tooltip.priestShadowformTransition)
+        or tooltip.druidFormTransition or tooltip.priestShadowformTransition
+        or tooltip.priestInnerFocusTransition)
         and "self" or "hostile"
     return Candidate:Build({ action = action, facts = action.facts,
         state = state or {}, tooltip = tooltip or {}, value = value,
@@ -58,6 +63,19 @@ assert(priest.strategicSetup == true
     and priest.strategicSetupConsumerKey == "playerForm:28"
     and priest.priestShadowformTransition.targetForm == 28,
     "Shadowform must use the same neutral destination-consumer setup lane")
+local focusTransition = { kind = "priestInnerFocus", spellId = 14751,
+    charges = 1, indefinite = true, costMask = 3606577115,
+    critMask = 3646176912, costPercent = -100, evidenceExact = true }
+local focus = built({ name = "Opaque modifier", rank = 1, actor = "player",
+    facts = { kind = "modifier" } }, {}, 0,
+    { priestInnerFocusTransition = focusTransition })
+assert(focus.strategicSetup == true
+    and focus.strategicSetupKey == "priestInnerFocus:14751"
+    and focus.strategicSetupSourceForm == nil
+    and focus.strategicSetupTargetForm == nil
+    and focus.strategicSetupConsumerKey
+        == "priestInnerFocus:affectedCost",
+    "Inner Focus must open a stable non-form setup lane with no fixed utility")
 local malformed = built(warriorAction, {}, 0, { warriorStanceTransition = {
     kind = "warriorStance", sourceForm = 17, targetForm = "18" } })
 assert(malformed.strategicSetup == nil
@@ -98,6 +116,24 @@ assert(Investment:PotentialConsumer(openWarrior, {}, { stances = 131072 })
     and not Investment:PotentialConsumer(openWarrior, {},
         { stances = 65536 + 131072 }),
     "setup consumer prefiltering must require an exact sealed destination mask")
+
+local focusConsumer = built({ name = "Opaque heal", rank = 1,
+    actor = "player", facts = { kind = "heal" } }, {}, 50,
+    { priestInnerFocusCost = { claimed = true, exact = true,
+        costAffected = true, baselineCost = 155 } })
+local openFocus = Investment:Advance({ state = { resource = 500 } }, focus, {})
+assert(Investment:IsStrategic(focus)
+    and openFocus.strategicSetupOpen == true
+    and Investment:PotentialConsumer(openFocus, focusConsumer.action,
+        focusConsumer.tooltip)
+    and Investment:Advance(openFocus, focusConsumer, {})
+        .strategicSetupOpen == nil,
+    "one exact affected-cost action must close the bounded Inner Focus lane")
+local falseConsumer = { priestInnerFocusCost = { claimed = true, exact = false,
+    costAffected = true, baselineCost = 155 } }
+assert(not Investment:PotentialConsumer(
+    openFocus, focusConsumer.action, falseConsumer),
+    "an unsealed cost contract must not keep the Inner Focus setup lane alive")
 
 local function candidateBefore(a, b)
     if a.value ~= b.value then return a.value > b.value end

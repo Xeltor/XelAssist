@@ -36,13 +36,15 @@ function R:Is(candidate)
 end
 
 function R:IsStrategic(candidate)
-    return candidate and candidate.strategicSetup == true
+    if not (candidate and candidate.strategicSetup == true
         and type(candidate.strategicSetupKey) == "string"
         and candidate.strategicSetupKey ~= ""
-        and formID(candidate.strategicSetupSourceForm) ~= nil
-        and formID(candidate.strategicSetupTargetForm) ~= nil
         and type(candidate.strategicSetupConsumerKey) == "string"
-        and candidate.strategicSetupConsumerKey ~= "" or false
+        and candidate.strategicSetupConsumerKey ~= "") then return false end
+    local source = candidate.strategicSetupSourceForm
+    local target = candidate.strategicSetupTargetForm
+    return source == nil and target == nil or formID(source) ~= nil
+        and formID(target) ~= nil
 end
 
 function R:Expandable(candidate, prior)
@@ -86,6 +88,8 @@ function R:PotentialConsumer(path, _, sealedFacts)
     if not (path and path.strategicSetupOpen == true
         and type(sealedFacts) == "table") then return false end
     local key = sealedFacts.setupConsumerKey
+    local priest = XelAssist.Graph.PriestInnerFocus
+    if key == nil and priest then key = priest:ConsumerKey(sealedFacts) end
     if type(key) ~= "string" or key == ""
         or string.len(key) > 128 then key = nil end
     return dependencyMatches(path, key,

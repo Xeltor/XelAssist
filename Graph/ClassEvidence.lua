@@ -6,6 +6,7 @@ local E = XelAssist.Graph.ClassEvidence
 local PaladinRighteousFury = XelAssist.Game.Player.PaladinRighteousFury
 local MageShield = XelAssist.Game.Player.MageManaShield
 local MageClearcasting = XelAssist.Game.Player.MageClearcasting
+local ShamanClearcasting = XelAssist.Game.Player.ShamanClearcasting
 local PriestShield = XelAssist.Game.Player.PriestShield
 local RogueFeint = XelAssist.Game.Player.RogueFeint
 local RogueFeintGraph = XelAssist.Graph.RogueFeint
@@ -15,6 +16,7 @@ local HunterMark = XelAssist.Game.Player.HunterMark
 local HunterMarkGraph = XelAssist.Graph.HunterMark
 local HunterHawk = XelAssist.Game.Player.HunterHawk
 local PriestShadowform = XelAssist.Game.Player.PriestShadowform
+local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
 local WarriorBattleShout = XelAssist.Game.Player.WarriorBattleShout
 local WarlockDarkPactRuntime = XelAssist.Game.Player.WarlockDarkPact
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
@@ -28,6 +30,9 @@ function E:CaptureFacts(action, facts, state)
     if MageClearcasting then
         out = MageClearcasting:CaptureFacts(action, out, state)
     end
+    if ShamanClearcasting then
+        out = ShamanClearcasting:CaptureFacts(action, out, state)
+    end
     if RogueFeint then out = RogueFeint:CaptureFacts(action, out) end
     if RogueSliceRuntime then out = RogueSliceRuntime:CaptureFacts(action, out) end
     if WarriorBattleShout then
@@ -40,6 +45,9 @@ function E:CaptureFacts(action, facts, state)
     if HunterHawk then out = HunterHawk:CaptureFacts(action, out) end
     if PriestShadowform then
         out = PriestShadowform:CaptureFacts(action, out)
+    end
+    if PriestInnerFocusRuntime then
+        out = PriestInnerFocusRuntime:CaptureFacts(action, out, state)
     end
     return out
 end

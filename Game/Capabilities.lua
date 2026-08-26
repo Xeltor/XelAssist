@@ -112,6 +112,12 @@ function C:InvalidateEquipment()
     local clearcasting = XelAssist.Game.Player
         and XelAssist.Game.Player.MageClearcasting
     if clearcasting then clearcasting:InvalidateCosts() end
+    local shamanClearcasting = XelAssist.Game.Player
+        and XelAssist.Game.Player.ShamanClearcasting
+    if shamanClearcasting then shamanClearcasting:InvalidateCosts() end
+    local innerFocus = XelAssist.Game.Player
+        and XelAssist.Game.Player.PriestInnerFocus
+    if innerFocus then innerFocus:InvalidateCosts() end
 end
 local WEAPON_SKILL_GLOBAL = {
     [0] = "AXES", [1] = "TWO_HANDED_AXES", [2] = "BOWS", [3] = "GUNS",

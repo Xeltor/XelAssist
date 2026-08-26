@@ -6,6 +6,7 @@ local D = XelAssist.Graph.DruidForms
 local Forms = XelAssist.Game.Player.DruidFormState
 local ShiftResources = XelAssist.Graph.DruidShiftResources
 local BearThreat = XelAssist.Graph.DruidBearThreat
+local CatThreat = XelAssist.Graph.DruidCatThreat
 
 local function shallow(source)
     local out, key, value = {}, nil, nil
@@ -78,6 +79,7 @@ function D:Attach(state)
     if ShiftResources then ShiftResources:Attach(state) end
     local synced = self:Sync(state)
     if synced and BearThreat then BearThreat:Attach(state) end
+    if synced and CatThreat then CatThreat:Attach(state) end
     return synced
 end
 
@@ -142,6 +144,7 @@ function D:Apply(state, candidate, context)
     end
     local synced = self:Sync(state)
     if synced and BearThreat then BearThreat:AfterForm(state) end
+    if synced and CatThreat then CatThreat:AfterForm(state) end
     return synced
 end
 

@@ -20,6 +20,8 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PriestShadowform, spellId)
     if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.PriestInnerFocus, spellId)
+    if handled then return facts, reason, true end
     facts, reason, handled = infer(player.DruidProwl, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.RogueSliceAndDice, spellId)
@@ -84,8 +86,10 @@ function I:InvalidateClass()
     if player.MageClearcasting then player.MageClearcasting:Invalidate() end
     if player.PriestShield then player.PriestShield:Invalidate() end
     if player.PriestShadowform then player.PriestShadowform:Invalidate() end
+    if player.PriestInnerFocus then player.PriestInnerFocus:Invalidate() end
     if player.DruidProwl then player.DruidProwl:Invalidate() end
     if player.DruidBearThreat then player.DruidBearThreat:Invalidate() end
+    if player.DruidCatThreat then player.DruidCatThreat:Invalidate() end
     if player.RogueSliceAndDice then player.RogueSliceAndDice:Invalidate() end
     if player.RogueFeint then player.RogueFeint:Invalidate() end
     if player.HunterMark then player.HunterMark:Invalidate() end
@@ -105,6 +109,7 @@ function I:InvalidateClass()
     if player.ShamanWindfuryTotem then
         player.ShamanWindfuryTotem:Invalidate()
     end
+    if player.ShamanClearcasting then player.ShamanClearcasting:Invalidate() end
     local projection = XelAssist.Graph and XelAssist.Graph.PaladinAuraProjection
     if projection then projection:Invalidate() end
 end

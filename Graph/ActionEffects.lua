@@ -16,6 +16,8 @@ local PlayerTaunt = XelAssist.Graph.PlayerTaunt
 local StackedModifiers = XelAssist.Graph.StackedModifiers
 local DruidForms = XelAssist.Graph.DruidForms
 local MageClearcasting = XelAssist.Graph.MageClearcasting
+local ShamanClearcasting = XelAssist.Graph.ShamanClearcasting
+local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
 local ThreatDrop, ClassMechanics = XelAssist.Graph.ThreatDrop, XelAssist.Graph.ClassMechanics
 local FriendlyActionEffects = XelAssist.Graph.FriendlyActionEffects
@@ -358,6 +360,8 @@ local function syncFriendlyCompatibility(state)
 end
 function A:Apply(out, source, candidate, context)
     if MageClearcasting then MageClearcasting:Consume(out, candidate) end
+    if ShamanClearcasting then ShamanClearcasting:Consume(out, candidate) end
+    if PriestInnerFocus then PriestInnerFocus:Consume(out, candidate) end
     if candidate.classMechanicProjection then
         context.classMechanicHandled = true
         context.classMechanicApplied = ClassMechanics and ClassMechanics:Apply(out, candidate) or false

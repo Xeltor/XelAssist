@@ -24,6 +24,11 @@ local function consumerKey(context)
     if value == nil and context.facts then
         value = context.facts.setupConsumerKey
     end
+    local priest = XelAssist.Graph.PriestInnerFocus
+    if value == nil and priest then
+        value = priest:ConsumerKey(context.tooltip)
+            or priest:ConsumerKey(context.facts)
+    end
     if type(value) ~= "string" or value == ""
         or string.len(value) > 128 then return nil end
     return value
@@ -32,10 +37,14 @@ end
 -- A strategic setup identity is mechanical and locale-independent. Include
 -- both ends of the edge so distinct graph transitions never share a lane.
 local function strategicSetup(tooltip)
+    local innerFocus = XelAssist.Graph.PriestInnerFocus
+        and XelAssist.Graph.PriestInnerFocus:StrategicSetup(tooltip)
     local warrior = tooltip and tooltip.warriorStanceTransition
     local druid = tooltip and tooltip.druidFormTransition
     local priest = tooltip and tooltip.priestShadowformTransition
-    if warrior and (druid or priest) or druid and priest then return nil end
+    if innerFocus and (warrior or druid or priest)
+        or warrior and (druid or priest) or druid and priest then return nil end
+    if innerFocus then return innerFocus end
     local transition, prefix = warrior or druid or priest,
         warrior and "warriorStance" or druid and "druidForm"
             or priest and "priestShadowform" or nil

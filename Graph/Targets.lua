@@ -339,6 +339,16 @@ function T:Legal(action, state, descriptor)
             action, state, tooltip)
     end
     if blocker then return false, blocker end
+    if XelAssist.Graph.ShamanClearcasting then
+        tooltip, blocker = XelAssist.Graph.ShamanClearcasting:PrepareLegal(
+            action, state, tooltip)
+    end
+    if blocker then return false, blocker end
+    if XelAssist.Graph.PriestInnerFocus then
+        tooltip, blocker = XelAssist.Graph.PriestInnerFocus:PrepareLegal(
+            action, state, tooltip)
+    end
+    if blocker then return false, blocker end
     blocker = XelAssist.Graph.ClassMechanics
         and XelAssist.Graph.ClassMechanics:Blocker(
             action, state, descriptor, tooltip)

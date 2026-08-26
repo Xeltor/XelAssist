@@ -30,6 +30,7 @@ Game\Geometry.lua
 Game\Player\FormEvidence.lua
 Game\Player\DruidFormState.lua
 Game\Player\DruidBearThreat.lua
+Game\Player\DruidCatThreat.lua
 Game\Player\PaladinAuraState.lua
 Game\Player\PaladinActions.lua
 Game\Player\PaladinBlessingThreat.lua
@@ -37,10 +38,12 @@ Game\Player\PaladinRighteousFury.lua
 Game\Player\TotemState.lua
 Game\Player\ShamanActions.lua
 Game\Player\ShamanWindfuryTotem.lua
+Game\Player\ShamanClearcasting.lua
 Game\Player\MageManaShield.lua
 Game\Player\MageClearcasting.lua
 Game\Player\PriestShield.lua
 Game\Player\PriestShadowform.lua
+Game\Player\PriestInnerFocus.lua
 Game\Player\DruidProwl.lua
 Game\Player\RogueFeint.lua
 Game\Player\RogueSliceAndDice.lua
@@ -118,6 +121,7 @@ Graph\HunterMark.lua
 Graph\HunterHawk.lua
 Graph\HunterRangedPower.lua
 Graph\PriestShadowform.lua
+Graph\PriestInnerFocus.lua
 Graph\WarriorRage.lua
 Graph\CasterPersistentDamage.lua
 Graph\CrowdControl.lua
@@ -125,12 +129,14 @@ Graph\DispelDecision.lua
 Graph\HunterAspects.lua
 Graph\DruidShiftResources.lua
 Graph\DruidBearThreat.lua
+Graph\DruidCatThreat.lua
 Graph\DruidForms.lua
 Graph\WarriorStances.lua
 Graph\PaladinAuraProjection.lua
 Graph\PaladinRighteousFury.lua
 Graph\PaladinBlessingThreat.lua
 Graph\ShamanWindfuryTotem.lua
+Graph\ShamanClearcasting.lua
 Graph\RogueFeint.lua
 Graph\MageClearcasting.lua
 Graph\RogueSliceAndDice.lua
