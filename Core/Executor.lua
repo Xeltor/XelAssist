@@ -159,8 +159,8 @@ local function dispatchPlayer(action, plan, castName, friendly, selfQueue, captu
     return true, nil, guid
 end
 local function rejectPlayer(owner, reason, directReason)
-    if directReason then owner.lastReason = directReason
-    else owner:Fallback(reason) end
+    if not directReason then owner:Fallback(reason); return false end
+    owner.lastReason = directReason
     XelAssist.UI.HUD:RequestRefresh(true)
     return false
 end

@@ -337,6 +337,7 @@ subprocess.run(["lua", str(root / "tests/rogue_preparation_test.lua")], cwd=root
 subprocess.run(["lua", str(root / "tests/hit_bonuses_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/recommendation_stability_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/recommendation_snapshot_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/recommendation_invalidation_coalescing_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/hud_cooldown_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/spatial_evidence_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/player_energy_resources_test.lua")], cwd=root, check=True)

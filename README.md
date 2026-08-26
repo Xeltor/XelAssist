@@ -364,6 +364,9 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
   equivalent 5 Hz recomputations do not visually blink;
 - target/ally/controlled-actor identity plus instance, zone, creature ID,
   classification, raid marker, combat state, and owned timed aura evidence.
+  Friendly spell expansion admits only proven player characters plus the
+  player's explicitly controlled companion; ordinary friendly NPCs are never
+  buff or healing recipients regardless of their unit token;
 - a deterministic, GUID-deduplicated snapshot of at most five hostiles visible
   through selected, mouseover, pet-target, and party/raid-target unit tokens,
   with target-local health, aura, resistance, modifier, geometry, victim, and

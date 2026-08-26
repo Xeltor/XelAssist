@@ -47,7 +47,7 @@ function Theme:AddSectionRail(frame, y)
     return rail
 end
 
-function Theme:CreateOptionalCooldown(owner, size)
+function Theme:CreateOptionalCooldown(owner, anchor)
     -- Vanilla 1.12 exposes CooldownFrameTemplate through a Model frame. Some
     -- later clients expose a Cooldown frame type instead. Treat the overlay as
     -- optional so a client-specific constructor cannot abort the entire HUD
@@ -57,8 +57,11 @@ function Theme:CreateOptionalCooldown(owner, size)
         "CooldownFrameTemplate")
     if not ok or not cooldown then return nil end
     local configured = pcall(function()
-        cooldown:SetWidth(size - 2); cooldown:SetHeight(size - 2)
-        cooldown:SetPoint("CENTER", owner, "CENTER", 0, 0)
+        -- Bind the sweep to the rendered icon itself.  Centering an independently
+        -- sized Model template on the button is subtly inset on some Vanilla
+        -- clients even when both nominal dimensions match.
+        cooldown:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, 0)
+        cooldown:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", 0, 0)
     end)
     if not configured then
         if cooldown.Hide then pcall(cooldown.Hide, cooldown) end
@@ -75,7 +78,7 @@ function Theme:CreateActionIcon(owner, size, withCooldown)
     icon:SetPoint("CENTER", plate, "CENTER", 0, 0)
     local cooldown
     if withCooldown then
-        cooldown = self:CreateOptionalCooldown(owner, size)
+        cooldown = self:CreateOptionalCooldown(owner, icon)
     end
     return icon, plate, cooldown
 end

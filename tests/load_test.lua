@@ -330,6 +330,20 @@ assert(rawget(XelAssist.UI.HUD.frame.main, "template") == nil
     "recommendation icons must survive an unavailable optional cooldown overlay")
 assert(XelAssistTestLastCooldownFrameType == "Model",
     "Vanilla cooldown overlays must prefer the client-compatible Model frame type")
+do
+    XelAssistTestRejectCooldownTemplate = false
+    local owner = CreateFrame("Button", nil, UIParent)
+    local icon, _, cooldown = XelAssist.UI.Theme:CreateActionIcon(owner, 52, true)
+    local first, second = cooldown and cooldown.points and cooldown.points[1],
+        cooldown and cooldown.points and cooldown.points[2]
+    assert(cooldown and first and second
+        and first[1] == "TOPLEFT" and first[2] == icon
+        and first[3] == "TOPLEFT" and first[4] == 0 and first[5] == 0
+        and second[1] == "BOTTOMRIGHT" and second[2] == icon
+        and second[3] == "BOTTOMRIGHT" and second[4] == 0 and second[5] == 0,
+        "the HUD cooldown sweep must cover the exact rendered icon geometry")
+    XelAssistTestRejectCooldownTemplate = true
+end
 assert(XelAssist.UI.Settings.frame.macro.frameType == "Frame"
     and XelAssist.UI.Settings.frame.macro.command == "/xa"
     and XelAssist.UI.Settings.frame.macro.text:GetText() == "/xa"

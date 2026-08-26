@@ -9,6 +9,15 @@
   because server income-rate and Berserker Rage modifiers are not observable.
 - Moved the resource owner ahead of incoming consequences in TOC order and
   covered the live load path, repeated hostile rounds and non-rage recipients.
+- Coalesced repeated invalidations that describe one target-death or rejected
+  dispatch transition. The first transition still retires execution immediately,
+  while duplicate pre-frame events no longer advance publication epochs or
+  repaint the HUD repeatedly.
+- Anchored the Vanilla cooldown sweep to the visible icon corners so its GCD
+  spiral exactly covers the rendered action texture at every HUD scale.
+- Excluded every ordinary friendly NPC from buff and healing target discovery,
+  whether selected, moused over, or exposed through a group-shaped token. The
+  player and explicitly controlled companion remain valid owned recipients.
 
 ## 0.8.38
 

@@ -195,6 +195,21 @@ assert(npcMouseover.total == 1 and npcMouseover.byUnit.mouseover == nil,
 
 units = {
     player = unit("player-guid", 1000, 1000, true, { distance = 0 }),
+    target = unit("friendly-npc", 200, 1000, true, { player = false }),
+    targettarget = unit("friendly-npc-2", 100, 1000, true, { player = false }),
+    party1 = unit("friendly-npc-3", 100, 1000, true, { player = false }),
+}
+local npcTargets = XelAssist.Game.Friendlies:Snapshot({
+    player = { unit = "player", guid = "player-guid" },
+    allies = { { unit = "party1", guid = "friendly-npc-3" } },
+})
+assert(npcTargets.total == 1 and npcTargets.byUnit.target == nil
+    and npcTargets.byUnit.targettarget == nil
+    and npcTargets.byUnit.party1 == nil,
+    "friendly NPCs must never enter healing or buff expansion from any token")
+
+units = {
+    player = unit("player-guid", 1000, 1000, true, { distance = 0 }),
     party1 = unit("ally-1", 100, 1000, true),
     target = unit("external-guid", 990, 1000, true),
 }

@@ -54,12 +54,27 @@ function Controller:CancelActive(owner, reason)
 end
 
 function Controller:Invalidate(owner, reason, mode)
-    self:CancelActive(owner, reason)
-    RecommendationSnapshot:Invalidate(reason)
+    local cancelled = self:CancelActive(owner, reason)
+    -- Several client events can describe the same terminal transition before
+    -- the next OnUpdate (target health, death, queue failure and target loss).
+    -- Once no evaluation or publication remains, retiring that same empty
+    -- state again only advances epochs and repaints the HUD. Coalesce the
+    -- burst while preserving the first immediate forced replacement.
+    local pending = owner.invalidationPending == true
+        and owner.refreshRequested == true
+        and owner.forceRequested == true
+        and not cancelled and not owner.activeEvaluation
+        and (mode == nil or owner.requestedMode == nil
+            or owner.requestedMode == mode)
+    if not pending then
+        RecommendationSnapshot:Invalidate(reason)
+        owner.invalidationPending = true
+    end
     owner.refreshRequested, owner.forceRequested = true, true
     if mode then owner.requestedMode = mode end
     owner.elapsed = POLL_SECONDS
-    if owner.SetUpdating then owner:SetUpdating(reason) end
+    if not pending and owner.SetUpdating then owner:SetUpdating(reason) end
+    return not pending
 end
 
 function Controller:MarkTargetDirty(owner)
@@ -129,6 +144,7 @@ function Controller:Commit(owner, active, plan, err)
 end
 
 function Controller:Begin(owner, force, mode)
+    owner.invalidationPending = nil
     local selected = selectedMode(owner, mode)
     local observedAt = GetTime()
     local active = { mode = selected, force = force and true or false,
