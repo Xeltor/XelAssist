@@ -15,6 +15,8 @@ local WandCommitment = XelAssist.Graph.WandCommitment
 local PlayerTaunt = XelAssist.Graph.PlayerTaunt
 local StackedModifiers = XelAssist.Graph.StackedModifiers
 local DruidForms = XelAssist.Graph.DruidForms
+local MageClearcasting = XelAssist.Graph.MageClearcasting
+local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
 local ThreatDrop, ClassMechanics = XelAssist.Graph.ThreatDrop, XelAssist.Graph.ClassMechanics
 local FriendlyActionEffects = XelAssist.Graph.FriendlyActionEffects
 function A:Context(source, candidate)
@@ -242,6 +244,8 @@ local function applyActorOrInventory(out, candidate, context)
             action, candidate.targetGUID or out.targetGUID)
     elseif XelAssist.Graph.WarriorRage
         and XelAssist.Graph.WarriorRage:Apply(out, candidate) then return
+    elseif WarlockDarkPact and WarlockDarkPact:Apply(out, candidate) then
+        return
     elseif ResourceExchange and ResourceExchange:Apply(out, candidate) then
         return
     elseif facts.kind == "resource" and facts.consumable then
@@ -353,6 +357,7 @@ local function syncFriendlyCompatibility(state)
     end
 end
 function A:Apply(out, source, candidate, context)
+    if MageClearcasting then MageClearcasting:Consume(out, candidate) end
     if candidate.classMechanicProjection then
         context.classMechanicHandled = true
         context.classMechanicApplied = ClassMechanics and ClassMechanics:Apply(out, candidate) or false

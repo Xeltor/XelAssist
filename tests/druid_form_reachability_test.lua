@@ -114,9 +114,11 @@ dofile("Graph/DruidForms.lua")
 dofile("Graph/TargetSelection.lua")
 dofile("Graph/ActionAdmission.lua")
 dofile("Graph/ActionContextPolicy.lua")
+dofile("Graph/TargetAuras.lua")
 dofile("Graph/Targets.lua")
 dofile("Graph/Candidate.lua")
 dofile("Graph/ActionConsumption.lua")
+dofile("Graph/RootActionFacts.lua")
 dofile("Graph/RootObservation.lua")
 
 local player = { unit = "player", relation = "self", source = "self",

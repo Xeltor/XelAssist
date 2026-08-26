@@ -44,6 +44,7 @@ XelAssist.Graph.State = {}
 XelAssist.Graph.SpatialRequirements = { CaptureRoot = function() return nil end }
 
 dofile("Game/RootAuraEvidence.lua")
+dofile("Graph/RootActionFacts.lua")
 dofile("Graph/RootObservation.lua")
 
 local actions = {}

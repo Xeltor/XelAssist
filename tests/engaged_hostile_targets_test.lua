@@ -160,6 +160,7 @@ XelAssist.Graph.ActionAdmission = {
 XelAssist.Graph.SpatialRequirements = { Blocker = function() return nil end }
 XelAssist.Graph.ResourceExchange = { Blocker = function() return nil end }
 dofile("Graph/ActionContextPolicy.lua")
+dofile("Graph/TargetAuras.lua")
 dofile("Graph/Targets.lua")
 
 targets = XelAssist.Graph.Targets:Targets(dot, state)
@@ -218,6 +219,7 @@ XelAssist.Graph.ActionPower = {
 }
 dofile("Graph/PeriodicScoring.lua")
 dofile("Graph/Candidate.lua")
+dofile("Graph/StateUtilityScoring.lua")
 dofile("Graph/Scoring.lua")
 
 local execute = { name = "Shadowburn", actor = "player",

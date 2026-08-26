@@ -41,6 +41,7 @@ XelAssist.Graph.ResistanceEvidence = nil
 XelAssist.Graph.TargetSelection = { Targets = function() return {} end }
 
 dofile("Game/RootPowerEvidence.lua")
+dofile("Graph/RootActionFacts.lua")
 dofile("Graph/RootObservation.lua")
 
 local actions = {}

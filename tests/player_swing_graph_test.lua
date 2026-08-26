@@ -44,6 +44,13 @@ XelAssist.Graph.AutoShotUncertainty = {
     Apply = function() end,
     Carry = function() end,
 }
+local battleShoutWhiteCalls = 0
+XelAssist.Graph.WarriorBattleShout = {
+    MainHandWhiteBonus = function()
+        battleShoutWhiteCalls = battleShoutWhiteCalls + 1
+        return 10, false, nil
+    end,
+}
 
 dofile("Graph/CompanionTargets.lua")
 dofile("Graph/PlayerRage.lua")
@@ -137,6 +144,15 @@ local normal = { action = { name = "Wait", actor = "player",
     target = "target", targetGUID = targetGuid,
     targetRelation = "hostile", cast = 0, wait = 0,
     occupancy = 1.5, downtime = 1.5, actionStart = armed.time }
+local shoutedState = copy(state)
+shoutedState.warriorBattleShout = { available = true }
+local shoutedWhite = XelAssist.Graph.Transitions:Advance(shoutedState, normal)
+assert(shoutedWhite.targetHealth == 140 and battleShoutWhiteCalls == 1,
+    "an exact Battle Shout AP delta must augment an ordinary main-hand round")
+local shoutedArmed = XelAssist.Graph.Transitions:Advance(shoutedState, candidate)
+local shoutedSpecial = XelAssist.Graph.Transitions:Advance(shoutedArmed, normal)
+assert(shoutedSpecial.targetHealth == 120 and battleShoutWhiteCalls == 1,
+    "a next-swing replacement must not receive the ordinary white AP delta twice")
 local resolved = XelAssist.Graph.Transitions:Advance(armed, normal)
 assert(resolved.resource == 20 and resolved.playerResourceReserved == 0,
     "the exact swing must pay the reserved cost once")
@@ -221,6 +237,7 @@ XelAssist.Game.Capabilities.BonusDamage = function() return 0 end
 dofile("Graph/ActionPower.lua")
 dofile("Graph/PeriodicScoring.lua")
 dofile("Graph/Candidate.lua")
+dofile("Graph/StateUtilityScoring.lua")
 dofile("Graph/Scoring.lua")
 dofile("Graph/PlayerAttackCommitment.lua")
 

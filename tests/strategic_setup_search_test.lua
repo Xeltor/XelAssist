@@ -11,7 +11,8 @@ local Candidate = XelAssist.Graph.Candidate
 
 local function built(action, state, value, tooltip)
     local relation = tooltip and (tooltip.warriorStanceTransition
-        or tooltip.druidFormTransition) and "self" or "hostile"
+        or tooltip.druidFormTransition or tooltip.priestShadowformTransition)
+        and "self" or "hostile"
     return Candidate:Build({ action = action, facts = action.facts,
         state = state or {}, tooltip = tooltip or {}, value = value,
         reason = value > 0 and "positive outcome" or "mechanical setup",
@@ -49,6 +50,14 @@ local druid = built({ name = "Forma", rank = 1, actor = "player",
 assert(druid.strategicSetup == true
     and druid.strategicSetupKey == "druidForm:0>1",
     "Druid shifts must receive a distinct stable mechanical setup key")
+local priest = built({ name = "Opaque form", rank = 1, actor = "player",
+    facts = { kind = "form" } }, {}, 0, { priestShadowformTransition = {
+        kind = "priestShadowform", sourceForm = 0, targetForm = 28 } })
+assert(priest.strategicSetup == true
+    and priest.strategicSetupKey == "priestShadowform:0>28"
+    and priest.strategicSetupConsumerKey == "playerForm:28"
+    and priest.priestShadowformTransition.targetForm == 28,
+    "Shadowform must use the same neutral destination-consumer setup lane")
 local malformed = built(warriorAction, {}, 0, { warriorStanceTransition = {
     kind = "warriorStance", sourceForm = 17, targetForm = "18" } })
 assert(malformed.strategicSetup == nil

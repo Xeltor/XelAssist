@@ -169,6 +169,7 @@ Capabilities.GCDRemaining = function() return 0 end
 Capabilities.Usable = function() return true end
 
 dofile("Graph/PaladinAuraProjection.lua")
+dofile("Graph/ClassEvidence.lua")
 dofile("Graph/ClassMechanics.lua")
 dofile("Graph/State.lua")
 
@@ -197,7 +198,9 @@ XelAssist.Graph.SpatialRequirements = { Blocker = function() return nil end }
 XelAssist.Graph.ActionPower = {
     Estimate = function() return 0, false, { exact = true } end,
 }
+dofile("Graph/TargetAuras.lua")
 dofile("Graph/Targets.lua")
+dofile("Graph/StateUtilityScoring.lua")
 dofile("Graph/Scoring.lua")
 
 local function selfDescriptor(state)

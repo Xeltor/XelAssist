@@ -31,7 +31,8 @@ local function maskFor(value)
 end
 
 function R:Is(candidate)
-    return facts(candidate).healthConversion == true
+    local found = facts(candidate)
+    return found.healthConversion == true or found.petManaConversion == true
 end
 
 function R:IsStrategic(candidate)

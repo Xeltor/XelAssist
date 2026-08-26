@@ -172,7 +172,8 @@ function A:ApplyPeriodicThreat(record, aura, dealt, state)
     local multiplier = aura and tonumber(aura.periodicThreatMultiplier)
     if not (record and actor and multiplier and dealt > 0) then return end
     local amount = dealt * multiplier
-    PlayerThreat:Add(record, state, actor, amount)
+    PlayerThreat:Add(record, state, actor, amount,
+        aura.periodicTooltip and aura.periodicTooltip.school)
 end
 
 function A:Damage(aura, state, span)

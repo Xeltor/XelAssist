@@ -66,6 +66,7 @@ end
 
 function H:Blocker(action)
     if self:Is(action) then
+        if action.facts.hunterAspectEffectRepresented == true then return nil end
         return "Hunter aspect effects are not represented"
     end
 end

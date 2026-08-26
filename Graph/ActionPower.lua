@@ -3,7 +3,8 @@
 XelAssist.Graph.ActionPower = {}
 local P = XelAssist.Graph.ActionPower
 local Triggered = XelAssist.Combat.TriggeredActions
-local HunterMark = XelAssist.Graph.HunterMark
+local HunterRangedPower = XelAssist.Graph.HunterRangedPower
+local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 
 local function comboPower(action, tooltip, state, targetGUID, comboAllOwners)
     if not (action.facts.combo or tooltip.comboSpendAll) then return 0 end
@@ -58,12 +59,21 @@ local function dbcWeaponPower(action, tooltip, state, targetGUID,
     local power = weapon * coefficient
         + (tonumber(tooltip.weaponFlat) or 0) * percent + combo + direct
     if tooltip.hunterRangedWeaponEvidence then
-        if not HunterMark then return nil, { unknown = true,
-            gap = "Hunter's Mark graph unavailable" }, true end
-        local bonus, _, reason = HunterMark:WeaponActionBonus(
+        if not HunterRangedPower then return nil, { unknown = true,
+            gap = "Hunter ranged power graph unavailable" }, true end
+        local adjusted, reason = HunterRangedPower:WeaponPower(power,
             action, tooltip, state, effectTargetGUID, evidence)
+        if adjusted == nil then return nil, { unknown = true,
+            gap = reason or "Hunter weapon consequence unavailable" }, true end
+        power = adjusted
+    end
+    if tooltip.warriorMainHandWeaponEvidence then
+        if not WarriorBattleShout then return nil, { unknown = true,
+            gap = "Battle Shout graph unavailable" }, true end
+        local bonus, _, reason = WarriorBattleShout:WeaponActionBonus(
+            action, tooltip, state, evidence)
         if bonus == nil then return nil, { unknown = true,
-            gap = reason or "Hunter's Mark weapon consequence unavailable" }, true end
+            gap = reason or "Battle Shout weapon consequence unavailable" }, true end
         power = power + bonus
     end
     return power, evidence, false

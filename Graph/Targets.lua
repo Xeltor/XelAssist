@@ -2,7 +2,7 @@ XelAssist.Graph.Targets = {}
 local T = XelAssist.Graph.Targets
 local S, Selection = XelAssist.Graph.State, XelAssist.Graph.TargetSelection
 local Admission, ContextPolicy = XelAssist.Graph.ActionAdmission, XelAssist.Graph.ActionContextPolicy
-local APPLICATION_BLOCK_THRESHOLD = 0.75
+local TargetAuras = XelAssist.Graph.TargetAuras
 function T:VariableFriendlyAction(action) return Selection:VariableFriendlyAction(action) end
 function T:Targets(action, state) return Selection:Targets(action, state) end
 local function observed(method, state, action, descriptor)
@@ -14,82 +14,10 @@ local function configFor(state)
     if not root then return XelAssistCharDB or {}, "known" end
     return root:ConfigOrLive(state) end
 local function frozenAura(action, state, descriptor)
-    local active, status = observed("Aura", state, action, descriptor)
-    if status ~= "known" and status ~= "absent" then return true,
-        "aura evidence unknown" end
-    return active and true or false, status end
-local function friendlyAuraActive(action, state, descriptor)
-    local record = descriptor and descriptor.record
-        or descriptor and S:FriendlyByKey(state, descriptor.key)
-    if not record then return false end
-    local aura = record.auras and record.auras[action.name]
-    if not aura and record.absorbs and record.absorbs[action.name] then
-        aura = record.absorbs[action.name]
-    end
-    if aura then
-        if type(aura) ~= "table" then return true end
-        local probability = tonumber(aura.applicationProbability) or 1
-        local refresh = math.max(1.5, (tonumber(aura.duration) or 0) * 0.2)
-        if probability >= APPLICATION_BLOCK_THRESHOLD
-            and (aura.remaining == nil or aura.remaining > refresh) then
-            return true
-        end
-    end
-    if (state.time or 0) <= 0 then
-        local active, status = frozenAura(action, state, descriptor)
-        if status ~= "absent" then return active,
-            status ~= "known" and status or nil end
-        if XelAssist.Game.Capabilities.UnitHasBuff then
-            return XelAssist.Game.Capabilities:UnitHasBuff(
-                descriptor.unit, action.name)
-        end
-    end
-    return false
+    return TargetAuras:Frozen(action, state, descriptor)
 end
 function T:AuraActive(action, state, descriptor)
-    local mechanics = XelAssist.Graph.ClassMechanics
-    if mechanics then
-        local exact, handled, reason = mechanics:AuraActive(action, state, descriptor)
-        if handled then return exact, reason end
-    end
-    if descriptor and descriptor.relation ~= "hostile" then return
-        friendlyAuraActive(action, state, descriptor) end
-    local future = state.auras[action.name]
-    if action.facts.stackable then
-        local futureProbability = type(future) == "table"
-            and tonumber(future.applicationProbability) or 1
-        local stacks = futureProbability >= APPLICATION_BLOCK_THRESHOLD
-            and type(future) == "table"
-            and tonumber(future.expectedStacks or future.stacks) or 0
-        local live = state.targetAuras and state.targetAuras[action.name]
-        local liveProbability = live and (tonumber(live.applicationProbability) or 1) or 0
-        stacks = math.max(stacks or 0, liveProbability >= APPLICATION_BLOCK_THRESHOLD
-            and (tonumber(live.stacks) or 1) or 0)
-        return stacks >= action.facts.stackable and not action.facts.refreshAtStackCap
-    end
-    if future then
-        if type(future) ~= "table" then return true end
-        local probability = tonumber(future.applicationProbability) or 1
-        local refresh = math.max(1.5, (future.duration or 0) * 0.2)
-        if probability >= APPLICATION_BLOCK_THRESHOLD
-            and (future.remaining == nil or future.remaining > refresh) then
-            return true
-        end
-    end
-    local aura = state.targetAuras and state.targetAuras[action.name]
-    if not aura and descriptor and descriptor.unit == "target"
-        and (state.time or 0) <= 0 then
-        local active, status = frozenAura(action, state, descriptor)
-        if status ~= "absent" then return active,
-            status ~= "known" and status or nil end
-        return XelAssist.Game.Capabilities:TargetHasDebuff(action.name)
-    end
-    if not aura then return false end
-    if (tonumber(aura.applicationProbability) or 1) < APPLICATION_BLOCK_THRESHOLD then return false end
-    if action.facts.kind == "dot" and aura.mine == false then return false end
-    local refresh = math.max(1.5, (aura.duration or 0) * 0.2)
-    if aura.remaining ~= nil and aura.remaining <= refresh then return false end
-    return true
+    return TargetAuras:Active(action, state, descriptor)
 end
 function T:Relevant(action, state, descriptor)
     local kind = action.facts.kind
@@ -406,7 +334,14 @@ function T:Legal(action, state, descriptor)
     if blocker then return false, blocker end
     if XelAssist.Graph.PriestShadowform then tooltip, blocker = XelAssist.Graph.PriestShadowform:PrepareLegal(action, state, tooltip) end
     if blocker then return false, blocker end
-    blocker = XelAssist.Graph.ClassMechanics and XelAssist.Graph.ClassMechanics:Blocker(action, state, descriptor)
+    if XelAssist.Graph.MageClearcasting then
+        tooltip, blocker = XelAssist.Graph.MageClearcasting:PrepareLegal(
+            action, state, tooltip)
+    end
+    if blocker then return false, blocker end
+    blocker = XelAssist.Graph.ClassMechanics
+        and XelAssist.Graph.ClassMechanics:Blocker(
+            action, state, descriptor, tooltip)
     if blocker then return false, blocker end
     local config, configStatus = configFor(state)
     if configStatus ~= "known" then return false, "config evidence unknown" end

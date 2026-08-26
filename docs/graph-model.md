@@ -60,18 +60,22 @@ rounds and applies full replacement-hit consequences, while
 combo-scaled durations, `Graph/ComboEffects.lua` applies DBC-derived combo
 transitions, `Graph/ComboScoring.lua` owns marginal finisher efficiency, and
 `Graph/SearchPolicy.lua` owns the bounded time horizon independently of the HUD.
-`Graph/State.lua`, `Graph/Targets.lua`, `Graph/Effects.lua`,
-`Graph/Scoring.lua`, `Graph/OngoingEffects.lua`, `Graph/ActionEffects.lua`,
-`Graph/Timeline.lua`, and `Graph/Transitions.lua` own one planning stage each;
+`Graph/State.lua`, `Graph/TargetAuras.lua`, `Graph/Targets.lua`,
+`Graph/Effects.lua`, `Graph/StateUtilityScoring.lua`, `Graph/Scoring.lua`,
+`Graph/OngoingEffects.lua`, `Graph/ActionEffects.lua`, `Graph/Timeline.lua`, and
+`Graph/Transitions.lua` own one planning stage each;
 `Graph/Engine.lua` is the bounded-search facade.
 Architecture tests prevent the old monolith or a dependency cycle from returning.
 
 `Game/Player/DruidFormState.lua` owns exact local form and explicit power-slot
 evidence; `Graph/DruidForms.lua` alone projects hidden-mana payments and form
 changes, while `Game/Player/DruidProwl.lua` contributes only a target-pinned
-stealth setup contract. `Game/Player/WarriorStanceEffects.lua` seals stance and
-Defiance consequences; `Graph/WarriorStances.lua` replaces that profile after a
-neutral transition. `Game/Player/RogueFeint.lua` and `Graph/RogueFeint.lua`
+stealth setup contract. The Druid Bear-threat evidence/graph pair attaches the
+installed 30-percent all-school passive only to proven Bear and Dire Bear forms,
+and composes it only onto player-owned threat.
+`Game/Player/WarriorStanceEffects.lua` seals stance and Defiance consequences;
+`Graph/WarriorStances.lua` replaces that profile after a neutral transition.
+`Game/Player/RogueFeint.lua` and `Graph/RogueFeint.lua`
 own exact selected-target threat reduction without broadening it into a global
 drop. `Game/Player/ReactiveEvidence.lua` decodes exact player aura-state
 bits, while `Graph/ReactiveState.lua` enforces their root-only lifetime and
@@ -81,12 +85,19 @@ aspect replacement and a fail-closed gate until downstream effects exist.
 consumers own physical mana-backed capacity and recipient-local lockout.
 `HunterMark.lua` owns numeric target-local ranged attack power, while
 `Graph/HunterMark.lua` exposes value only through matching ranged-weapon and
-Auto Shot descendants. `PriestShadowform.lua` owns a neutral form transition
+Auto Shot descendants. The Hawk evidence/graph pair tracks self ranged AP
+relative to the root character sheet; `Graph/HunterRangedPower.lua` composes
+that signed delta with target-side Hunter's Mark for matching ranged attacks.
+`PriestShadowform.lua` owns a neutral form transition
 whose later Shadow output and pre-absorb physical mitigation supply its value.
 The Shaman Windfury evidence/graph pair owns only the exact solo first-rank
 extra-main-hand consequence; unresolved group fanout never becomes utility.
 Paladin blessing threat is another downstream multiplier: lifecycle discovery
 does not choose it, and only later player-threat consequences create value.
+Righteous Fury similarly affects only proven Holy threat. Battle Shout has no
+fixed buff score; descendants recover its exact root-relative main-hand AP
+damage. Dark Pact is a neutral pet-to-player mana transfer and can survive the
+beam only until later player-mana consumption proves that transfer useful.
 `Graph/LeechChannel.lua`
 owns delivered hostile-damage/player-healing tick pairs. None of these modules
 contains a class action order.

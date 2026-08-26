@@ -138,7 +138,7 @@ function C:Candidate(state)
     local threat, threatExact, threatMultiplier = power, true, 1
     if PlayerThreat then
         threat, threatExact, threatMultiplier =
-            PlayerThreat:Scale(state, "player", power)
+            PlayerThreat:Scale(state, "player", power, 0)
     end
     return { action = ACTION, value = 0.01, reason = reason,
         target = "target", targetKey = key, targetGUID = round.targetGuid,

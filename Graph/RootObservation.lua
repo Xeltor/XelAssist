@@ -1,6 +1,7 @@
 -- Sliced, evaluation-owned capture of mutable root evidence.
 XelAssist.Graph.RootObservation = {}
 local R = XelAssist.Graph.RootObservation
+local ActionFacts = XelAssist.Graph.RootActionFacts
 local function part(value)
     if value == nil then return "" end
     return tostring(value)
@@ -266,25 +267,14 @@ local function captureSetup(observed)
     end
     observed.phase = "action"
 end
-local function captureFacts(action)
-    local forms, actors, facts, known = XelAssist.Graph.DruidForms, XelAssist.Game.Actors, nil, nil
-    if forms then facts, known = forms:CaptureFacts(action, actors)
-    elseif actors and actors.Facts then
-        known, facts = pcall(actors.Facts, actors, action)
-        known = known and type(facts) == "table"
-    end
-    local stances = XelAssist.Graph.WarriorStances
-    if facts and stances then facts = stances:CaptureFacts(action, facts) end
-    if facts and XelAssist.Game.CrowdControl then facts = XelAssist.Game.CrowdControl:CaptureFacts(action, facts) end
-    if facts and XelAssist.Graph.ClassMechanics then facts = XelAssist.Graph.ClassMechanics:CaptureFacts(action, facts) end
-    return facts and copy(facts, 9) or nil, known
-end
 local function captureAction(observed, source)
     local action = copyAction(source)
     if XelAssist.Graph.ResistanceEvidence then XelAssist.Graph.ResistanceEvidence:Attach(action) end
     local key = R:ActionKey(action)
     local record = { key = key, action = action, recipients = {} }
-    record.facts, record.factsKnown = captureFacts(action)
+    local facts
+    facts, record.factsKnown = ActionFacts:Capture(action, observed.state)
+    record.facts = facts and copy(facts, 9) or nil
     record.usability = captureUsability(observed, action)
     record.cooldown = captureCooldown(observed, action)
     local reagent = action.facts and action.facts.reagentName

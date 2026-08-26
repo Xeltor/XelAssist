@@ -22,14 +22,25 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.DruidProwl, spellId)
     if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.RogueSliceAndDice, spellId)
+    if handled then return facts, reason, true end
     facts, reason, handled = infer(player.RogueFeint, spellId)
     if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.HunterHawk, spellId)
+    if handled then return facts, reason, true end
     facts, reason, handled = infer(player.HunterMark, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.WarriorBattleShout, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.WarlockDarkPact, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PaladinActions, spellId)
     if handled then
         if facts and player.PaladinBlessingThreat then
             facts = player.PaladinBlessingThreat:Promote(spellId, facts)
+        end
+        if facts and player.PaladinRighteousFury then
+            facts = player.PaladinRighteousFury:Promote(spellId, facts)
         end
         return facts, reason, true
     end
@@ -70,14 +81,25 @@ end
 function I:InvalidateClass()
     local player = XelAssist.Game.Player or {}
     if player.MageManaShield then player.MageManaShield:Invalidate() end
+    if player.MageClearcasting then player.MageClearcasting:Invalidate() end
     if player.PriestShield then player.PriestShield:Invalidate() end
     if player.PriestShadowform then player.PriestShadowform:Invalidate() end
     if player.DruidProwl then player.DruidProwl:Invalidate() end
+    if player.DruidBearThreat then player.DruidBearThreat:Invalidate() end
+    if player.RogueSliceAndDice then player.RogueSliceAndDice:Invalidate() end
     if player.RogueFeint then player.RogueFeint:Invalidate() end
     if player.HunterMark then player.HunterMark:Invalidate() end
+    if player.HunterHawk then player.HunterHawk:Invalidate() end
+    if player.WarriorBattleShout then
+        player.WarriorBattleShout:Invalidate()
+    end
+    if player.WarlockDarkPact then player.WarlockDarkPact:Invalidate() end
     if player.PaladinActions then player.PaladinActions:Invalidate() end
     if player.PaladinBlessingThreat then
         player.PaladinBlessingThreat:Invalidate()
+    end
+    if player.PaladinRighteousFury then
+        player.PaladinRighteousFury:Invalidate()
     end
     if player.ShamanActions then player.ShamanActions:Invalidate() end
     if player.ShamanWindfuryTotem then

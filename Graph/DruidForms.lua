@@ -5,6 +5,7 @@ XelAssist.Graph.DruidForms = {}
 local D = XelAssist.Graph.DruidForms
 local Forms = XelAssist.Game.Player.DruidFormState
 local ShiftResources = XelAssist.Graph.DruidShiftResources
+local BearThreat = XelAssist.Graph.DruidBearThreat
 
 local function shallow(source)
     local out, key, value = {}, nil, nil
@@ -75,7 +76,9 @@ function D:Attach(state)
     if not (snapshot and snapshot.available == true) then return false end
     state.druidFormState = snapshot
     if ShiftResources then ShiftResources:Attach(state) end
-    return self:Sync(state)
+    local synced = self:Sync(state)
+    if synced and BearThreat then BearThreat:Attach(state) end
+    return synced
 end
 
 function D:Prepare(action, state, tooltip)
@@ -137,7 +140,9 @@ function D:Apply(state, candidate, context)
     if ShiftResources then
         ShiftResources:Apply(state.druidFormState, projection)
     end
-    return self:Sync(state)
+    local synced = self:Sync(state)
+    if synced and BearThreat then BearThreat:AfterForm(state) end
+    return synced
 end
 
 function D:CancelUsable()

@@ -9,6 +9,8 @@ local Targets = XelAssist.Graph.CompanionTargets
 local PlayerRage = XelAssist.Graph.PlayerRage
 local PlayerThreat = XelAssist.Graph.PlayerThreat
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
+local RogueSlice = XelAssist.Graph.RogueSliceAndDice
+local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 
 local MAX_EVENTS = 8
 local READY_DELAY = 0.05
@@ -226,7 +228,10 @@ function S:Events(state, candidate)
     while offset <= window and count < MAX_EVENTS do
         table.insert(events, event(state, round, round.targetGuid, key,
             targetLocal, offset, window))
-        offset, count = afterCastLocks(state, candidate, offset + interval),
+        local reset = RogueSlice
+            and RogueSlice:IntervalAfter(state, "main", offset, interval)
+            or interval
+        offset, count = afterCastLocks(state, candidate, offset + reset),
             count + 1
     end
     round.readyHeld = nil
@@ -256,7 +261,7 @@ end
 
 local function applyThreat(record, state, amount)
     if not record or amount <= 0 then return end
-    PlayerThreat:Add(record, state, "player", amount)
+    PlayerThreat:Add(record, state, "player", amount, 0)
 end
 
 local function applyKnown(target, record, action, tooltip, rawPower,
@@ -364,6 +369,14 @@ function S:Apply(out, entry)
         local round = out.playerAttack and out.playerAttack.attackRound
         local raw = round and round.normalDamageKnown == true
             and round.power or nil
+        local battleShoutReason
+        if raw and WarriorBattleShout and out.warriorBattleShout
+            and out.warriorBattleShout.available == true then
+            local bonus
+            bonus, _, battleShoutReason =
+                WarriorBattleShout:MainHandWhiteBonus(out)
+            raw = bonus and raw + bonus or nil
+        end
         local windReason, windHandled, windDelivery
         if raw and Windfury then
             raw, windReason, windHandled, windDelivery =
@@ -373,6 +386,7 @@ function S:Apply(out, entry)
             WHITE_TOOLTIP, raw, 1) or nil
         if dealt == nil then
             markUnknown(target, record, windReason
+                or battleShoutReason
                 or "ordinary player swing outcome magnitude unavailable")
         elseif PlayerRage then
             PlayerRage:GainFromWhite(out, dealt)

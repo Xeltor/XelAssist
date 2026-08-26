@@ -11,6 +11,7 @@ local PlayerThreat = XelAssist.Graph.PlayerThreat
 
 local MAX_EVENTS = 8
 local READY_DELAY = 0.05
+local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 
 local WHITE_ACTION = { name = "Attack", actor = "player", facts = {
     kind = "damage", school = 0, melee = true, whiteAttack = true,
@@ -111,7 +112,10 @@ function O:Events(state, candidate)
     while offset <= window and count < MAX_EVENTS do
         table.insert(events, event(state, round, round.targetGuid,
             key, targetLocal, offset, window))
-        offset = afterCastLocks(state, candidate, offset + interval)
+        local reset = RogueSlice
+            and RogueSlice:IntervalAfter(state, "off", offset, interval)
+            or interval
+        offset = afterCastLocks(state, candidate, offset + reset)
         count = count + 1
     end
     round.readyHeld = nil
@@ -182,7 +186,7 @@ local function applyKnown(target, record, rawPower)
         if target.targetHealth <= 0 then target.hostile = false end
     end
     if record and dealt > 0 then
-        PlayerThreat:Add(record, target, "player", dealt)
+        PlayerThreat:Add(record, target, "player", dealt, 0)
     end
     return dealt
 end

@@ -433,8 +433,8 @@ function S:Copy(state)
         out.playerResourceClock = copyNested(
             state.playerResourceClock, 2, seen, nil, atomic)
     end
-    if state.druidFormState then out.druidFormState = copyNested(
-        state.druidFormState, 4, seen, nil, atomic) end
+    if state.druidFormState then out.druidFormState = copyNested(state.druidFormState, 4, seen, nil, atomic) end
+    if XelAssist.Graph.DruidBearThreat then XelAssist.Graph.DruidBearThreat:Copy(state, out) end
     if state.playerForm then out.playerForm = copyNested(state.playerForm, 2, seen) end
     if XelAssist.Graph.ClassMechanics then XelAssist.Graph.ClassMechanics:Copy(state, out) end
     if state.hostileCasts and XelAssist.Graph.HostileCastState then out.hostileCasts =

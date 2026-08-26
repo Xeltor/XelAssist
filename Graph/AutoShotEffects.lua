@@ -6,7 +6,7 @@ local State = XelAssist.Graph.State
 local Effects = XelAssist.Graph.Effects
 local Uncertainty = XelAssist.Graph.AutoShotUncertainty
 local PlayerThreat = XelAssist.Graph.PlayerThreat
-local HunterMark = XelAssist.Graph.HunterMark
+local HunterRangedPower = XelAssist.Graph.HunterRangedPower
 
 local MAX_HOSTILES = 5
 
@@ -126,12 +126,10 @@ local function actionFor(observed)
 end
 
 local function shotPower(observed, resistanceState)
-    local power = math.max(0, tonumber(observed.shotDamage) or 0)
-    if HunterMark then
-        local bonus = HunterMark:AutoShotBonus(
-            resistanceState, observed.targetGuid)
-        if tonumber(bonus) then power = power + math.max(0, bonus) end
-    end
+    local power = HunterRangedPower and HunterRangedPower:AutoShotPower(
+        observed.shotDamage, resistanceState, observed.targetGuid)
+        or math.max(0, tonumber(observed.shotDamage) or 0)
+    power = tonumber(power) or 0
     local delivery = 1
     if power > 0 and XelAssist.Combat.Resistance then
         local estimate = XelAssist.Combat.Resistance:Estimate(
@@ -178,7 +176,7 @@ end
 
 local function addImpactThreat(record, state, amount)
     if not record or amount <= 0 then return end
-    PlayerThreat:Add(record, state, "player", amount)
+    PlayerThreat:Add(record, state, "player", amount, 0)
 end
 
 local function applyLaunch(out, launchState, observed, shot)

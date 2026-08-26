@@ -126,7 +126,7 @@ function T:Apply(context)
     else
         if PlayerThreat then
             threat, playerThreatExact, playerThreatMultiplier =
-                PlayerThreat:Scale(state, actor, threat)
+                PlayerThreat:Scale(state, actor, threat, context.threatSchool)
             valueThreat = valueThreat * playerThreatMultiplier
         end
         context.playerThreatExact = playerThreatExact

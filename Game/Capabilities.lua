@@ -109,6 +109,9 @@ function C:InvalidateEquipment()
     self.penetrationCache = nil
     self.penetrationFingerprint = nil
     if XelAssist.Game.HitBonuses then XelAssist.Game.HitBonuses:Invalidate() end
+    local clearcasting = XelAssist.Game.Player
+        and XelAssist.Game.Player.MageClearcasting
+    if clearcasting then clearcasting:InvalidateCosts() end
 end
 local WEAPON_SKILL_GLOBAL = {
     [0] = "AXES", [1] = "TWO_HANDED_AXES", [2] = "BOWS", [3] = "GUNS",

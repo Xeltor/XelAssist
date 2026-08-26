@@ -102,7 +102,7 @@ local function recipientEffect(context, key, record, primary, collateral)
         threatMultiplier = threatMultiplier * 0.9 * multiplier
     else
         local _, exact, multiplier = PlayerThreat:Scale(
-            context.state, actor, 1)
+            context.state, actor, 1, context.threatSchool)
         threatMultiplier = threatMultiplier * multiplier
         playerThreatExact = exact
     end
@@ -370,7 +370,7 @@ function H:ApplyPrimaryThreat(out, candidate, context)
                 and XelAssist.Game.Pets.Effects:ThreatMultiplier(pet) or 1)
         else
             amount, playerThreatExact = PlayerThreat:Scale(
-                out, actor, amount)
+                out, actor, amount, context.threatSchool)
         end
     elseif actor == "pet" and CompanionEventThreat then
         amount = math.max(0, amount - (CompanionEventThreat:HybridFlatThreat(
