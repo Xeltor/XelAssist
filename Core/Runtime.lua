@@ -167,6 +167,16 @@ local function observeHostileRound()
             arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, GetTime())
     end
 end
+local function resetHostileMitigationEvidence(name, unit)
+    if not XelAssist.Game.HostileAttackRounds then return end
+    if name == "UNIT_INVENTORY_CHANGED" and unit == "player"
+        or name == "UPDATE_SHAPESHIFT_FORM"
+        or name == "UPDATE_SHAPESHIFT_FORMS"
+        or name == "UNIT_AURA" and unit == "player" then
+        XelAssist.Game.HostileAttackRounds:Reset(
+            "player mitigation regime changed")
+    end
+end
 local ev = CreateFrame("Frame")
 ev:RegisterEvent("ADDON_LOADED")
 ev:RegisterEvent("PLAYER_LOGIN")
@@ -250,6 +260,7 @@ ev:SetScript("OnEvent", function()
             XelAssist.Game.Capabilities:InvalidateEquipment()
         end
     end
+    resetHostileMitigationEvidence(event, arg1)
     if event == "CHAT_MSG_SPELL_SELF_DAMAGE" and XelAssist.Combat.Observations then
         local outcome, outcomeTarget, outcomeSpell = XelAssist.Combat.Observations:CombatMessage(arg1)
         if outcome == "retry" or outcome == "immune" then

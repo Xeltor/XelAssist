@@ -34,7 +34,8 @@ mana/rage/energy/focus and finite inventory; GCD, pushback-aware cast and channe
 cooldown clocks; exact or bounded range and position; target-local auras and
 pending applications; physical weapon-skill and spell-delivery evidence;
 school resistance and immunity observations; player, pet and group threat;
-incoming cast consequences; crowd control, interrupts, absorbs and healing;
+victim-regime-bound observed hostile white rounds; incoming cast consequences;
+crowd control, interrupts, absorbs and healing;
 exact recipient/type/count-bounded dispels; and bounded hostile/friendly
 recipient collections.
 

@@ -94,6 +94,9 @@ request to add a class priority rule:
 
 - **Shared incoming melee:** a bounded attacker/victim white-round ledger now
   projects observed post-mitigation health loss and baseline Warrior/Bear rage.
+  Each lane is sealed to the victim's armor, defense, level and form regime and
+  is retired across equipment, form or player-aura changes; pet and ally lanes
+  remain independently bound to their own current mitigation state.
   Exact counterfactual block/armor/absorb value, attack-power and speed debuffs,
   Shield Block facing/skill/value, defensive pet autocasts and avoidance-driven
   reactive windows remain global gates for tank and healer proof.

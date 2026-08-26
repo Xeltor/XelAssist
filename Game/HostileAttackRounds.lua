@@ -27,17 +27,62 @@ local function owned(guid)
     return guid ~= nil and (guid == liveGuid("player") or guid == liveGuid("pet"))
 end
 
-local function friendly(guid)
-    if guid == nil then return false end
-    if guid == liveGuid("player") or guid == liveGuid("pet") then return true end
+local function friendlyUnit(guid)
+    if guid == nil then return nil end
+    if guid == liveGuid("player") then return "player" end
+    if guid == liveGuid("pet") then return "pet" end
     local raid = type(GetNumRaidMembers) == "function"
         and math.max(0, math.min(40, tonumber(GetNumRaidMembers()) or 0)) or 0
     local party = type(GetNumPartyMembers) == "function"
         and math.max(0, math.min(4, tonumber(GetNumPartyMembers()) or 0)) or 0
     local i
-    for i = 1, raid do if liveGuid("raid" .. i) == guid then return true end end
-    for i = 1, party do if liveGuid("party" .. i) == guid then return true end end
-    return false
+    for i = 1, raid do
+        if liveGuid("raid" .. i) == guid then return "raid" .. i end
+    end
+    for i = 1, party do
+        if liveGuid("party" .. i) == guid then return "party" .. i end
+    end
+    return nil
+end
+
+local function finite(value)
+    value = tonumber(value)
+    if value == nil or value ~= value or value == math.huge
+        or value == -math.huge then return nil end
+    return value
+end
+
+local function mitigationRegime(unit)
+    if type(UnitArmor) ~= "function" or liveGuid(unit) == nil then return nil end
+    local ok, base, effective, armor, positive, negative = pcall(UnitArmor, unit)
+    base, effective, armor = finite(base), finite(effective), finite(armor)
+    if not ok or base == nil or effective == nil or armor == nil then return nil end
+    local defenseBase, defenseModifier
+    if type(UnitDefense) == "function" then
+        local defenseOk
+        defenseOk, defenseBase, defenseModifier = pcall(UnitDefense, unit)
+        defenseBase, defenseModifier = finite(defenseBase), finite(defenseModifier)
+        if not defenseOk or defenseBase == nil or defenseModifier == nil then
+            return nil
+        end
+    end
+    local level = type(UnitLevel) == "function" and finite(UnitLevel(unit)) or nil
+    if level == nil then return nil end
+    local form = unit == "player" and type(GetShapeshiftForm) == "function"
+        and finite(GetShapeshiftForm()) or 0
+    if form == nil then return nil end
+    return { baseArmor = base, effectiveArmor = effective, armor = armor,
+        positiveArmor = finite(positive) or 0, negativeArmor = finite(negative) or 0,
+        defenseBase = defenseBase, defenseModifier = defenseModifier,
+        level = level, form = form }
+end
+
+local function sameRegime(left, right)
+    if type(left) ~= "table" or type(right) ~= "table" then return false end
+    local key, value
+    for key, value in pairs(left) do if right[key] ~= value then return false end end
+    for key, value in pairs(right) do if left[key] ~= value then return false end end
+    return true
 end
 
 local function laneFor(owner, attacker, victim, hand)
@@ -88,15 +133,21 @@ end
 
 function H:Observe(attackerGuid, victimGuid, totalDamage, hitInfo,
     victimState, subDamageCount, blockedAmount, totalAbsorb, totalResist, at)
+    local victimUnit = friendlyUnit(victimGuid)
     if attackerGuid == nil or victimGuid == nil or owned(attackerGuid)
-        or not friendly(victimGuid) or not (XelAssist.Game.Hostiles
+        or victimUnit == nil or not (XelAssist.Game.Hostiles
             and XelAssist.Game.Hostiles:ProvesGuid(attackerGuid)) then return false end
     hitInfo = tonumber(hitInfo)
     if hitInfo == nil or flag(hitInfo, 65536) then return false end
     at, totalDamage = tonumber(at), tonumber(totalDamage)
     if not at or not totalDamage or totalDamage < 0 then return false end
     local hand = flag(hitInfo, 4) and "off" or "main"
+    local regime = mitigationRegime(victimUnit)
+    if not regime then return false end
     local lane = laneFor(self, attackerGuid, victimGuid, hand)
+    if lane.regime and not sameRegime(lane.regime, regime) then
+        lane.intervals, lane.damages, lane.lastAt = {}, {}, nil
+    end
     if lane.lastAt then
         local interval = at - lane.lastAt
         if interval <= 0 or interval > 10 then
@@ -110,6 +161,7 @@ function H:Observe(attackerGuid, victimGuid, totalDamage, hitInfo,
         tonumber(totalAbsorb) or 0, tonumber(totalResist) or 0
     lane.interval, lane.expectedDamage = stableInterval(lane.intervals),
         average(lane.damages)
+    lane.victimUnit, lane.regime = victimUnit, regime
     lane.generation = lane.generation + 1
     return true
 end
@@ -125,13 +177,17 @@ local function retainedHostile(hostiles, guid)
 end
 
 local function retainedFriendly(friendlies, actors, guid)
-    if actors and actors.player and actors.player.guid == guid then return "player" end
-    if actors and actors.pet and actors.pet.guid == guid then return "pet" end
+    if actors and actors.player and actors.player.guid == guid then
+        return "player", "player"
+    end
+    if actors and actors.pet and actors.pet.guid == guid then return "pet", "pet" end
     local i, key, record
     for i = 1, table.getn(friendlies and friendlies.order or {}) do
         key = friendlies.order[i]
         record = friendlies.byKey and friendlies.byKey[key]
-        if record and record.guid == guid then return record.relation or "ally" end
+        if record and record.guid == guid then
+            return record.relation or "ally", record.unit
+        end
     end
     return nil
 end
@@ -143,16 +199,20 @@ function H:Snapshot(hostiles, friendlies, actors, at)
     for i = 1, table.getn(self.lanes) do
         local lane = self.lanes[i]
         local attackerKey = retainedHostile(hostiles, lane.attackerGuid)
-        local victimKind = retainedFriendly(friendlies, actors, lane.victimGuid)
+        local victimKind, victimUnit = retainedFriendly(
+            friendlies, actors, lane.victimGuid)
+        local regime = victimUnit and mitigationRegime(victimUnit) or nil
         local interval, damage = tonumber(lane.interval), tonumber(lane.expectedDamage)
         local due = interval and lane.lastAt and lane.lastAt + interval or nil
-        if attackerKey and victimKind and interval and damage and due and due > at
+        if attackerKey and victimKind and sameRegime(lane.regime, regime)
+            and interval and damage and due and due > at
             and due - at <= interval * self.STALE_MULTIPLIER then
             table.insert(out.lanes, { attackerGuid = lane.attackerGuid,
                 attackerKey = attackerKey, victimGuid = lane.victimGuid,
                 victimKind = victimKind, hand = lane.hand,
                 interval = interval, nextSwingIn = due - at,
                 expectedDamage = damage, generation = lane.generation,
+                mitigationRegime = regime,
                 phaseKnown = true, magnitudeEstimated = true,
                 source = "observed hostile post-mitigation white rounds" })
         end

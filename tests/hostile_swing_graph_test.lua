@@ -5,6 +5,10 @@ table.getn = table.getn or function(value)
 end
 
 local playerGuid, hostileGuid = {}, {}
+UnitArmor = function() return 100, 100, 100, 0, 0 end
+UnitDefense = function() return 20, 0 end
+UnitLevel = function() return 10 end
+GetShapeshiftForm = function() return 0 end
 XelAssist = { Graph = { State = {} } }
 dofile("Graph/PlayerRage.lua")
 dofile("Graph/IncomingConsequences.lua")

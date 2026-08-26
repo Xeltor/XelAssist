@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.67
+
+- Bound every learned hostile white-swing lane to the exact victim armor,
+  defense, level and form regime under which its post-mitigation damage was
+  observed. Stale Warrior, Bear, pet and ally damage can no longer survive a
+  mitigation change and corrupt survival, rage or healing forecasts.
+- Retire incoming-melee learning immediately on player equipment, form and
+  aura changes. Pet and group recipients retain independent regimes, so one
+  actor's armor change neither reuses nor erases another actor's evidence.
+
 ## 0.8.66
 
 - Admitted Octo Shadow Mend through its exact patch-5 identity and documented

@@ -401,7 +401,7 @@ assert(XelAssistCharDB.schema == 5
     and XelAssistCharDB.toggles.engagedTargets == false,
     "saved-variable schema did not migrate with safe hostile-target defaults")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.66" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.67" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.class == "MAGE" and runtime.level == 12
     and runtime.role == "auto" and runtime.session.decisions == 0,
     "runtime smoke identity and session evidence missing")
@@ -453,6 +453,19 @@ assert(routedAttackRound and routedAttackRound[1] == "player-guid"
     and routedAttackRound[3].outcome == "miss"
     and routedAttackRound[4] == mockTime,
     "core must route the classified round and exact observation time once")
+local hostileResetReason
+local originalHostileReset = XelAssist.Game.HostileAttackRounds.Reset
+function XelAssist.Game.HostileAttackRounds:Reset(reason)
+    hostileResetReason = reason
+end
+fireEvent("UNIT_AURA", "player")
+assert(hostileResetReason == "player mitigation regime changed",
+    "player aura changes must retire stale post-mitigation hostile rounds")
+hostileResetReason = nil
+fireEvent("UNIT_INVENTORY_CHANGED", "player")
+assert(hostileResetReason == "player mitigation regime changed",
+    "equipment changes must retire stale post-mitigation hostile rounds")
+XelAssist.Game.HostileAttackRounds.Reset = originalHostileReset
 assert(routedPlayerRound and routedPlayerRound[1] == "player-guid"
     and routedPlayerRound[2] == "target-guid"
     and routedPlayerRound[3].exactDelivery
