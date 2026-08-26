@@ -115,6 +115,9 @@ function C:InvalidateEquipment()
     local shamanClearcasting = XelAssist.Game.Player
         and XelAssist.Game.Player.ShamanClearcasting
     if shamanClearcasting then shamanClearcasting:InvalidateCosts() end
+    local druidClearcasting = XelAssist.Game.Player
+        and XelAssist.Game.Player.DruidClearcasting
+    if druidClearcasting then druidClearcasting:InvalidateCosts() end
     local innerFocus = XelAssist.Game.Player
         and XelAssist.Game.Player.PriestInnerFocus
     if innerFocus then innerFocus:InvalidateCosts() end

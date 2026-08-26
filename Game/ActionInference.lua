@@ -36,6 +36,8 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.HunterMark, spellId)
     if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.HunterDistractingShot, spellId)
+    if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarriorHeroicStrikeThreat, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarriorRevengeThreat, spellId)
@@ -105,6 +107,7 @@ function I:InvalidateClass()
         player.PriestPowerInfusion:Invalidate()
     end
     if player.DruidProwl then player.DruidProwl:Invalidate() end
+    if player.DruidClearcasting then player.DruidClearcasting:Invalidate() end
     if player.DruidBearThreat then player.DruidBearThreat:Invalidate() end
     if player.DruidCatThreat then player.DruidCatThreat:Invalidate() end
     if player.RogueSliceAndDice then player.RogueSliceAndDice:Invalidate() end
@@ -114,6 +117,9 @@ function I:InvalidateClass()
     if player.RogueFeint then player.RogueFeint:Invalidate() end
     if player.HunterMark then player.HunterMark:Invalidate() end
     if player.HunterHawk then player.HunterHawk:Invalidate() end
+    if player.HunterDistractingShot then
+        player.HunterDistractingShot:Invalidate()
+    end
     if player.WarriorBattleShout then
         player.WarriorBattleShout:Invalidate()
     end

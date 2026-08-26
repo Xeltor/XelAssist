@@ -15,6 +15,7 @@ local WandCommitment = XelAssist.Graph.WandCommitment
 local PlayerTaunt = XelAssist.Graph.PlayerTaunt
 local StackedModifiers = XelAssist.Graph.StackedModifiers
 local DruidForms = XelAssist.Graph.DruidForms
+local DruidClearcasting = XelAssist.Graph.DruidClearcasting
 local MageClearcasting = XelAssist.Graph.MageClearcasting
 local ShamanClearcasting = XelAssist.Graph.ShamanClearcasting
 local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
@@ -365,6 +366,7 @@ local function syncFriendlyCompatibility(state)
     end
 end
 function A:Apply(out, source, candidate, context)
+    if DruidClearcasting then DruidClearcasting:Consume(out, candidate) end
     if MageClearcasting then MageClearcasting:Consume(out, candidate) end
     if ShamanClearcasting then ShamanClearcasting:Consume(out, candidate) end
     if PriestInnerFocus then PriestInnerFocus:Consume(out, candidate) end

@@ -25,6 +25,7 @@ local HealingTriageEvidence = XelAssist.Graph.HealingTriageEvidence
 local PersistentDamage = XelAssist.Graph.CasterPersistentDamage
 local ClassMechanics = XelAssist.Graph.ClassMechanics
 local HunterMark = XelAssist.Graph.HunterMark
+local HunterDistractingShot = XelAssist.Graph.HunterDistractingShot
 local PriestShadowform = XelAssist.Graph.PriestShadowform
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local StateUtilityScoring = XelAssist.Graph.StateUtilityScoring
@@ -355,6 +356,10 @@ function Scoring:Evaluate(action, state, descriptor)
     end
     local targetState = context.state
     resolveTargetNeed(context)
+    if HunterDistractingShot then
+        local prepared, reason, handled = HunterDistractingShot:Prepare(context)
+        if handled and not prepared then return nil, reason end
+    end
     if action.facts.healthFundedChannel then
         local prepared, reason
         if XelAssist.Graph.HealthTransfer then

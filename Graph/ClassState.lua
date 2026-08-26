@@ -13,6 +13,8 @@ local MageClearcastingRuntime = XelAssist.Game.Player.MageClearcasting
 local MageClearcasting = XelAssist.Graph.MageClearcasting
 local MagePresenceOfMindRuntime = XelAssist.Game.Player.MagePresenceOfMind
 local MagePresenceOfMind = XelAssist.Graph.MagePresenceOfMind
+local DruidClearcastingRuntime = XelAssist.Game.Player.DruidClearcasting
+local DruidClearcasting = XelAssist.Graph.DruidClearcasting
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local RogueRuthlessness = XelAssist.Graph.RogueRuthlessness
 local HunterMark = XelAssist.Graph.HunterMark
@@ -90,6 +92,9 @@ function S:Attach(state)
                 or attached
         end
         return attached
+    elseif token == "DRUID" then
+        return DruidClearcastingRuntime
+            and DruidClearcastingRuntime:Attach(state, token) or false
     elseif token == "ROGUE" then
         local attached = RogueSlice and RogueSlice:Attach(state) ~= nil
             or false
@@ -123,6 +128,7 @@ function S:Copy(source, target)
     if HunterHawk then HunterHawk:Copy(source, target) end
     if MageClearcasting then MageClearcasting:Copy(source, target) end
     if MagePresenceOfMind then MagePresenceOfMind:Copy(source, target) end
+    if DruidClearcasting then DruidClearcasting:Copy(source, target) end
     if ShamanClearcasting then ShamanClearcasting:Copy(source, target) end
     if RogueSlice then RogueSlice:Copy(source, target) end
     if RogueRuthlessness then RogueRuthlessness:Copy(source, target) end
@@ -140,6 +146,7 @@ function S:Copy(source, target)
         or source.hunterMarkRoot ~= nil or source.hunterHawk ~= nil
         or source.mageClearcasting ~= nil
         or source.magePresenceOfMind ~= nil
+        or source.druidClearcasting ~= nil
         or source.shamanClearcasting ~= nil
         or source.rogueSliceAndDice ~= nil
         or source.rogueRuthlessness ~= nil

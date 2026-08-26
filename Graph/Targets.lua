@@ -330,6 +330,11 @@ function T:Legal(action, state, descriptor)
     local forms = XelAssist.Graph.DruidForms
     if forms then tooltip, blocker = forms:PrepareLegal(action, state, tooltip) end
     if blocker then return false, blocker end
+    if XelAssist.Graph.DruidClearcasting then
+        tooltip, blocker = XelAssist.Graph.DruidClearcasting:PrepareLegal(
+            action, state, tooltip)
+    end
+    if blocker then return false, blocker end
     if XelAssist.Graph.WarriorStances then tooltip, blocker = XelAssist.Graph.WarriorStances:PrepareLegal(action, state, tooltip) end
     if blocker then return false, blocker end
     if XelAssist.Graph.PriestShadowform then tooltip, blocker = XelAssist.Graph.PriestShadowform:PrepareLegal(action, state, tooltip) end

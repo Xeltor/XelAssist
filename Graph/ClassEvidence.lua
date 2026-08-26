@@ -8,6 +8,7 @@ local PaladinMight = XelAssist.Game.Player.PaladinMight
 local MageShield = XelAssist.Game.Player.MageManaShield
 local MageClearcasting = XelAssist.Game.Player.MageClearcasting
 local MagePresenceOfMind = XelAssist.Game.Player.MagePresenceOfMind
+local DruidClearcasting = XelAssist.Game.Player.DruidClearcasting
 local ShamanClearcasting = XelAssist.Game.Player.ShamanClearcasting
 local PriestShield = XelAssist.Game.Player.PriestShield
 local RogueFeint = XelAssist.Game.Player.RogueFeint
@@ -18,6 +19,7 @@ local RogueRuthlessness = XelAssist.Game.Player.RogueRuthlessness
 local HunterMark = XelAssist.Game.Player.HunterMark
 local HunterMarkGraph = XelAssist.Graph.HunterMark
 local HunterHawk = XelAssist.Game.Player.HunterHawk
+local HunterDistractingShot = XelAssist.Game.Player.HunterDistractingShot
 local PriestShadowform = XelAssist.Game.Player.PriestShadowform
 local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
 local PriestPowerInfusionRuntime = XelAssist.Game.Player.PriestPowerInfusion
@@ -40,6 +42,9 @@ function E:CaptureFacts(action, facts, state)
     if MagePresenceOfMind then
         out = MagePresenceOfMind:CaptureFacts(action, out, state)
     end
+    if DruidClearcasting then
+        out = DruidClearcasting:CaptureFacts(action, out, state)
+    end
     if ShamanClearcasting then
         out = ShamanClearcasting:CaptureFacts(action, out, state)
     end
@@ -56,6 +61,9 @@ function E:CaptureFacts(action, facts, state)
     end
     if HunterMark then out = HunterMark:CaptureFacts(action, out) end
     if HunterHawk then out = HunterHawk:CaptureFacts(action, out) end
+    if HunterDistractingShot then
+        out = HunterDistractingShot:CaptureFacts(action, out, state)
+    end
     if PriestShadowform then
         out = PriestShadowform:CaptureFacts(action, out)
     end

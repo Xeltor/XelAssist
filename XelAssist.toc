@@ -29,6 +29,7 @@ Game\HealthTransfer.lua
 Game\Geometry.lua
 Game\Player\FormEvidence.lua
 Game\Player\DruidFormState.lua
+Game\Player\DruidClearcasting.lua
 Game\Player\DruidBearThreat.lua
 Game\Player\DruidCatThreat.lua
 Game\Player\PaladinAuraState.lua
@@ -53,6 +54,7 @@ Game\Player\RogueSliceAndDice.lua
 Game\Player\RogueRuthlessness.lua
 Game\Player\HunterMark.lua
 Game\Player\HunterHawk.lua
+Game\Player\HunterDistractingShot.lua
 Game\Player\WarlockDarkPact.lua
 Game\Player\WarlockSoulLink.lua
 Game\Player\WarriorBattleShoutRoot.lua
@@ -144,6 +146,7 @@ Graph\DruidShiftResources.lua
 Graph\DruidBearThreat.lua
 Graph\DruidCatThreat.lua
 Graph\DruidForms.lua
+Graph\DruidClearcasting.lua
 Graph\WarriorStances.lua
 Graph\PaladinAuraProjection.lua
 Graph\PaladinMight.lua
@@ -156,6 +159,7 @@ Graph\MageClearcasting.lua
 Graph\RogueSliceAndDice.lua
 Graph\RogueRuthlessness.lua
 Graph\PlayerThreat.lua
+Graph\HunterDistractingShot.lua
 Graph\WarriorBattleShout.lua
 Graph\ClassEvidence.lua
 Graph\ClassState.lua
