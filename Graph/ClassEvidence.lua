@@ -17,6 +17,7 @@ local DruidFrenziedRegeneration =
 local ShamanClearcasting = XelAssist.Game.Player.ShamanClearcasting
 local ShamanManaSpring = XelAssist.Game.Player.ShamanManaSpring
 local ShamanEarthShockRuntime = XelAssist.Game.Player.ShamanEarthShock
+local ShamanLightningStrike = XelAssist.Game.Player.ShamanLightningStrike
 local ShamanEarthShock = XelAssist.Graph.ShamanEarthShock
 local PriestShield = XelAssist.Game.Player.PriestShield
 local RogueFeint = XelAssist.Game.Player.RogueFeint
@@ -80,6 +81,9 @@ function E:CaptureFacts(action, facts, state)
     end
     if ShamanEarthShockRuntime then
         out = ShamanEarthShockRuntime:CaptureFacts(action, out, state)
+    end
+    if ShamanLightningStrike then
+        out = ShamanLightningStrike:CaptureFacts(action, out)
     end
     if RogueFeint then out = RogueFeint:CaptureFacts(action, out) end
     if RogueSliceRuntime then out = RogueSliceRuntime:CaptureFacts(action, out) end

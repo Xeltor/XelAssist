@@ -8,6 +8,7 @@ local MAIN_SLOT, RANGED_SLOT = 16, 18
 local INVTYPE_RANGED, INVTYPE_2HWEAPON = 15, 17
 local INVTYPE_THROWN, INVTYPE_RANGEDRIGHT = 25, 26
 local DAGGER_SUBCLASS = 15
+local DAGGER_MASTERY_SPELL_ID = 45591
 
 local function call(fn, a, b, c)
     if not fn then return nil end
@@ -117,7 +118,15 @@ local function normalizedSpeed(ranged, itemId)
         or inventoryType == INVTYPE_RANGEDRIGHT then
         return 2.8, "ranged normalized speed"
     end
-    if subclass == DAGGER_SUBCLASS then return 1.7, "dagger normalized speed" end
+    if subclass == DAGGER_SUBCLASS then
+        if type(IsPlayerSpell) == "function" then
+            local ok, learned = pcall(IsPlayerSpell, DAGGER_MASTERY_SPELL_ID)
+            if ok and learned then
+                return 2.3, "Dagger Mastery normalized speed"
+            end
+        end
+        return 1.7, "dagger normalized speed"
+    end
     if inventoryType ~= nil and subclass ~= nil then
         return 2.4, "one-handed normalized speed"
     end

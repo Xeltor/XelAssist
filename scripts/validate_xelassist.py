@@ -255,6 +255,7 @@ subprocess.run(["lua", str(root / "tests/hunter_hawk_test.lua")], cwd=root, chec
 subprocess.run(["lua", str(root / "tests/hunter_distracting_shot_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/hunter_rapid_fire_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/shaman_earth_shock_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/shaman_lightning_strike_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/shaman_earth_shock_wiring_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/attack_rounds_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/player_attack_test.lua")], cwd=root, check=True)

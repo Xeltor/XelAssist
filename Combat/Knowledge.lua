@@ -216,12 +216,6 @@ XelAssist.Combat.Knowledge = {
 
     -- Shaman
     ["Stormstrike"] = { kind = "damage", melee = true },
-    ["Lightning Strike"] = { kind = "damage", melee = true, mixedDamage = true,
-        dynamicSchool = "damageComponents",
-        damageComponents = {
-            { school = 0, schoolMask = 1, mitigation = "armor", weaponMultiplier = 0.60 },
-            { school = 3, schoolMask = 8, mitigation = "resistance", weaponMultiplier = 0.20 },
-        } },
     ["Lightning Bolt"] = { kind = "damage", ranged = true }, ["Chain Lightning"] = { kind = "damage", ranged = true, aoe = true },
     ["Earth Shock"] = { kind = "damage", ranged = true, interrupt = true, threat = 1.4 },
     ["Flame Shock"] = { kind = "dot", ranged = true }, ["Molten Blast"] = { kind = "damage", ranged = true },
@@ -236,12 +230,13 @@ XelAssist.Combat.Knowledge = {
     ["Frostbolt"] = { kind = "damage", ranged = true, slow = true }, ["Fireball"] = { kind = "damage", ranged = true },
     ["Fire Blast"] = { kind = "damage", ranged = true }, ["Scorch"] = { kind = "damage", ranged = true, debuff = true },
     ["Pyroblast"] = { kind = "damage", ranged = true }, ["Arcane Missiles"] = { kind = "damage", ranged = true, channel = true },
-    ["Arcane Surge"] = { kind = "damage", ranged = true, reactive = true }, ["Arcane Rupture"] = { kind = "debuff", ranged = true },
+    ["Arcane Surge"] = { kind = "damage", ranged = true, reactive = true }, ["Arcane Rupture"] = { kind = "damage", ranged = true },
     ["Blizzard"] = { kind = "damage", ranged = true, aoe = true, ground = true, channel = true },
     ["Cone of Cold"] = { kind = "damage", aoe = true }, ["Arcane Explosion"] = { kind = "damage", aoe = true },
     ["Counterspell"] = { kind = "interrupt", ranged = true }, ["Ice Barrier"] = { kind = "absorb", self = true },
     ["Ice Block"] = { kind = "defensive", cooldown = true }, ["Arcane Intellect"] = { kind = "buff" },
-    ["Icicles"] = { kind = "damage", ranged = true, reactive = true },
+    ["Icicles"] = { kind = "damage", ranged = true, reactive = true,
+        unmodeledUnsafe = "Icicles self-damage and immobilization are not modeled" },
     ["Presence of Mind"] = { kind = "modifier", cooldown = true, nextInstant = true },
     ["Frost Armor"] = { kind = "buff", self = true },
 

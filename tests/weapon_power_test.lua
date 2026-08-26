@@ -37,6 +37,10 @@ local W = XelAssist.Game.WeaponPower
 local melee = { facts = { melee = true } }
 local ranged = { facts = { ranged = true } }
 local normalized = { weaponNormalized = true, school = 0 }
+local daggerMastery = false
+IsPlayerSpell = function(spellId)
+    return spellId == 45591 and daggerMastery
+end
 
 local function close(actual, expected, message)
     assert(math.abs(actual - expected) < 0.0001,
@@ -47,6 +51,14 @@ local power, evidence = W:Basis(melee, normalized)
 close(power, 50.4, "dagger normalization")
 assert(evidence.exact and evidence.normalizedSpeed == 1.7,
     "dagger basis must be exact from live damage, AP, time and item type")
+
+daggerMastery = true
+power, evidence = W:Basis(melee, normalized)
+close(power, 57.6, "Dagger Mastery normalization")
+assert(evidence.exact and evidence.normalizedSpeed == 2.3
+    and evidence.source == "live UnitDamage; Dagger Mastery normalized speed",
+    "known patch-5 Dagger Mastery must replace the dagger normalization lane")
+daggerMastery = false
 
 mainItem = 101
 power, evidence = W:Basis(melee, normalized)

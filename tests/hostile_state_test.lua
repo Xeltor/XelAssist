@@ -578,6 +578,12 @@ XelAssist.Graph.ActionAdmission = {
 dofile("Game/Range.lua")
 dofile("Graph/SpatialRequirements.lua")
 dofile("Graph/ActionContextPolicy.lua")
+local unsafeReason = XelAssist.Graph.ActionContextPolicy:Blocker({
+    facts = { kind = "damage",
+        unmodeledUnsafe = "installed-client consequence is not modeled" },
+}, spatialState, {})
+assert(unsafeReason == "installed-client consequence is not modeled",
+    "explicit unsafe client consequences must fail closed before graph admission")
 dofile("Graph/TargetAuras.lua")
 dofile("Graph/Targets.lua")
 local spatialAction = { name = "Backstab", actor = "player", executor = "spell",

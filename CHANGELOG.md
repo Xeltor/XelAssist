@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.42
+
+- Replaced the localized, top-rank-only Lightning Strike profile with exact
+  numeric topology for all three installed Octo ranks. Physical and Nature
+  weapon packets now retain their own coefficients and resistance lanes; the
+  custom shield trigger is recorded but receives no invented value.
+- Applied Octo's learned Dagger Mastery normalized speed of 2.3 while retaining
+  the ordinary 1.7 dagger basis when the passive is absent.
+- Corrected Arcane Rupture from a pure debuff to direct damage and withheld
+  Icicles with an explicit blocker until its self-freeze, cancellation rules,
+  and potentially lethal self-damage are represented causally.
+
 ## 0.8.41
 
 - Extracted Octo's customized Execute ranks directly from `patch-5.mpq` and

@@ -6,6 +6,10 @@ local P = XelAssist.Graph.ActionContextPolicy
 
 function P:Blocker(action, state, tooltip)
     local facts, kind = action.facts, action.facts.kind
+    if facts.unmodeledUnsafe then
+        return type(facts.unmodeledUnsafe) == "string"
+            and facts.unmodeledUnsafe or "unsafe consequence is not modeled"
+    end
     local forms = XelAssist.Graph.FormRequirements
     local formBlocker = forms and forms:Blocker(state, tooltip)
     if formBlocker then return formBlocker end

@@ -51,6 +51,8 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.ShamanEarthShock, spellId)
     if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.ShamanLightningStrike, spellId)
+    if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarriorThunderClap, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarriorDemoralizingShout, spellId)
@@ -198,6 +200,9 @@ function I:InvalidateClass()
     if player.ShamanManaSpring then player.ShamanManaSpring:Invalidate() end
     if player.ShamanClearcasting then player.ShamanClearcasting:Invalidate() end
     if player.ShamanEarthShock then player.ShamanEarthShock:Invalidate() end
+    if player.ShamanLightningStrike then
+        player.ShamanLightningStrike:Invalidate()
+    end
     local projection = XelAssist.Graph and XelAssist.Graph.PaladinAuraProjection
     if projection then projection:Invalidate() end
 end

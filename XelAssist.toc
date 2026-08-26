@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.41
+## Version: 0.8.42
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -46,6 +46,7 @@ Game\Player\ShamanWindfuryTotem.lua
 Game\Player\ShamanManaSpring.lua
 Game\Player\ShamanClearcasting.lua
 Game\Player\ShamanEarthShock.lua
+Game\Player\ShamanLightningStrike.lua
 Game\Player\MageManaShield.lua
 Game\Player\MageClearcasting.lua
 Game\Player\MagePresenceOfMind.lua

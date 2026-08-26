@@ -19,7 +19,6 @@ local dynamic = {
     Judgement = "activeSeal",
     ["Kill Command"] = "petResult",
     ["Noxious Assault"] = "weaponsAndPoisons",
-    ["Lightning Strike"] = "damageComponents",
 }
 local name, source
 for name, source in pairs(dynamic) do
@@ -101,18 +100,7 @@ assert(hunter["Baited Shot"] == nil,
 assert(XelAssist.Combat.Knowledge["Noxious Assault"].mixedDamage,
     "Noxious Assault combines weapon hits with dynamically equipped poisons")
 
-local lightning = XelAssist.Combat.Knowledge["Lightning Strike"]
-assert(lightning.mixedDamage and table.getn(lightning.damageComponents) == 2,
-    "Lightning Strike must retain both documented damage components")
-assert(lightning.damageComponents[1].school == 0
-    and lightning.damageComponents[1].schoolMask == 1
-    and lightning.damageComponents[1].mitigation == "armor"
-    and lightning.damageComponents[1].weaponMultiplier == 0.60,
-    "Lightning Strike physical component changed")
-assert(lightning.damageComponents[2].school == 3
-    and lightning.damageComponents[2].schoolMask == 8
-    and lightning.damageComponents[2].mitigation == "resistance"
-    and lightning.damageComponents[2].weaponMultiplier == 0.20,
-    "Lightning Strike Nature component changed")
+assert(XelAssist.Combat.Knowledge["Lightning Strike"] == nil,
+    "Lightning Strike ranks must not fall back to localized top-rank coefficients")
 
 print("ok: explicit bleed, dynamic-school and mixed-damage action semantics")
