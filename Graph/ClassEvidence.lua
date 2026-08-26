@@ -38,6 +38,7 @@ local PriestFadeRuntime = XelAssist.Game.Player.PriestFade
 local PriestFade = XelAssist.Graph.PriestFade
 local WarriorBattleShout = XelAssist.Game.Player.WarriorBattleShout
 local WarriorThunderClap = XelAssist.Game.Player.WarriorThunderClap
+local WarriorExecute = XelAssist.Game.Player.WarriorExecute
 local WarriorDemoralizingShout =
     XelAssist.Game.Player.WarriorDemoralizingShout
 local WarriorShieldWall = XelAssist.Game.Player.WarriorShieldWall
@@ -92,6 +93,7 @@ function E:CaptureFacts(action, facts, state)
     if WarriorThunderClap then
         out = WarriorThunderClap:CaptureFacts(action, out)
     end
+    if WarriorExecute then out = WarriorExecute:CaptureFacts(action, out) end
     if WarriorDemoralizingShout then
         out = WarriorDemoralizingShout:CaptureFacts(action, out)
     end

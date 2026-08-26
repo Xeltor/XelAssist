@@ -34,6 +34,7 @@ local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
 local PriestPowerInfusion = XelAssist.Graph.PriestPowerInfusion
 local PriestFade = XelAssist.Graph.PriestFade
 local WarriorDemoralizingShout = XelAssist.Graph.WarriorDemoralizingShout
+local WarriorExecute = XelAssist.Graph.WarriorExecute
 local ShamanEarthShock = XelAssist.Graph.ShamanEarthShock
 local function legalityAndTiming(action, state, descriptor)
     local allowed, blocker, tooltip, target, actionStart, resolved, targetState =
@@ -388,6 +389,10 @@ function Scoring:Evaluate(action, state, descriptor)
     if ShamanEarthShock then
         local prepared, reason, handled = ShamanEarthShock:Prepare(context)
         if handled and not prepared then return nil, reason end
+    end
+    if WarriorExecute then
+        local prepared, reason = WarriorExecute:Prepare(context)
+        if prepared == nil then return nil, reason end
     end
     projectDamageAndResistance(context)
     if Windfury then Windfury:Adjust(context) end

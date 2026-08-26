@@ -163,7 +163,7 @@ function C:Build(context)
             and context.tooltip.druidFormTransition,
         warriorStanceTransition = context.tooltip
             and context.tooltip.warriorStanceTransition,
-        warriorDemoralizingShoutPackets = context.warriorDemoralizingShoutPackets,
+        warriorDemoralizingShoutPackets = context.warriorDemoralizingShoutPackets, warriorExecuteExtraRage = context.warriorExecuteExtraRage,
         priestShadowformTransition = context.tooltip
             and context.tooltip.priestShadowformTransition,
         classMechanicProjection = context.classMechanicProjection, shamanEarthShockTransition = context.shamanEarthShockTransition,

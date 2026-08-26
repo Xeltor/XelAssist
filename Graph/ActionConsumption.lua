@@ -103,5 +103,7 @@ function C:Consume(out, candidate, context)
     -- VMaNGOS TakeAmmo runs after power and reagent payment. Use one shared
     -- count so the chosen shot and ambient Auto Shot cannot spend it twice.
     if usesAmmo then spendAmmunition(out, ammoCount) end
+    local execute = XelAssist.Graph.WarriorExecute
+    if execute then execute:Consume(out, candidate) end
     return true
 end

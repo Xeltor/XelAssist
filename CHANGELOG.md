@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.41
+
+- Extracted Octo's customized Execute ranks directly from `patch-5.mpq` and
+  modeled their exact 20-percent gate, 15-rage base cost, rank damage, and
+  per-extra-rage conversion. A landed projection consumes remaining rage; a
+  proven miss retains it, while uncertain delivery carries a bounded resource
+  range and stops exact later rage planning until the private server profile is
+  verified in play.
+
 ## 0.8.40
 
 - Captured ClassicAPI's server-derived local-player school interrupt mask and
