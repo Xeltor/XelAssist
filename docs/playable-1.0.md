@@ -124,9 +124,14 @@ request to add a class priority rule:
   Tank because Defensive Stance evidence does not exist yet; onboarding must
   make that explicit rather than inventing an automatic role. Mid/60 threat
   has exact learned Charge-in-combat legality and all four Overpower rank
-  packets without inventing action-specific threat. Mid/60 threat still needs
-  exact Hamstring, Disarm and Shield Slam packets; Shield Bash now has exact
-  rank, cost, stance, equipment, range and interrupt semantics, with only its
+  packets without inventing action-specific threat. Shield Slam now owns exact
+  ranks, non-weapon base packets and learned Improved Shield Slam cooldowns;
+  its private AP, block-value and threat additions remain uncredited.
+  Hamstring owns its exact physical packets while target-motion value stays
+  neutral. Disarm's exact rank, stance, cost, range, duration and cooldown are
+  recognized, but the action is withheld until hostile weapon ownership can be
+  proven. Shield Bash has exact rank, cost, stance, equipment, range and
+  interrupt semantics, with only its
   private supplemental threat withheld. Defensive
   Tactics rank and shield ownership are observable, but its
   dummy-aura server arithmetic is not; cross-stance threat therefore remains

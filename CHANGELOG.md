@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.63
+
+- Added exact Octo patch-5 Hamstring rank identities. Its direct physical
+  packet now enters the graph without accidental main-hand damage, while the
+  unmodeled target-motion benefit and supplemental threat receive no proxy
+  value.
+- Sealed Disarm's exact stance, rage, range, duration and cooldown identity,
+  but withhold the action until hostile weapon ownership and the resulting
+  incoming-swing consequence can be proven.
+
 ## 0.8.62
 
 - Added exact patch-5 Improved Shield Slam talent ownership and linked

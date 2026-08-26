@@ -14,7 +14,8 @@ local PRIEST_INFERENCE = { "PriestDivergentActions", "PriestShield",
     "PriestShadowform", "PriestInnerFocus", "PriestPowerInfusion",
     "PriestChastise", "PriestFade", "PriestAscendance" }
 local WARRIOR_INFERENCE = { "WarriorThunderClap", "WarriorOverpower",
-    "WarriorShieldBash", "WarriorShieldSlam", "WarriorDemoralizingShout",
+    "WarriorShieldBash", "WarriorShieldSlam", "WarriorControl",
+    "WarriorDemoralizingShout",
     "WarriorHeroicStrikeThreat", "WarriorExecute",
     "WarriorRevengeThreat", "WarriorBattleShout", "WarriorShieldWall",
     "WarriorDevastate", "WarriorShieldBlock", "WarriorBerserkerRage" }
@@ -23,7 +24,8 @@ local ROOT_INVALIDATION = { "MageFrostfire", "MageAcceleratedArcana",
     "ShamanChainHealTiming", "ShamanFlameShockTiming",
     "DruidAncientBrutality", "DruidBloodFrenzy", "DruidGrowl",
     "PriestDivergentActions", "PaladinLayOnHands",
-    "WarriorShieldBash", "WarriorShieldSlam", "HunterFeignDeath",
+    "WarriorShieldBash", "WarriorShieldSlam", "WarriorControl",
+    "HunterFeignDeath",
     "MageArcaneSurge", "ShamanDivergentActions", "HunterStings",
     "PaladinDivergentGuards", "ShamanStormstrike", "WarriorBerserkerRage" }
 
