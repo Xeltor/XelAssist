@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.90
+
+- Removed the redundant SpellMod reconstruction that still withheld low-level
+  Warrior rage spenders in 0.8.89. Warrior costs now use ClassicAPI's exact
+  engine-effective power-cost helper directly, bounded by the installed DBC
+  action identity and base cost.
+
 ## 0.8.89
 
 - Fixed low-level Warriors withholding Heroic Strike as an unknown-cost action.

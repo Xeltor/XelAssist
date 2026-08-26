@@ -66,7 +66,6 @@ local function capture(id,expected,passiveId)
  action.facts=facts
  local evidence=Runtime:Evidence(action)
  assert(evidence and facts.cost==expected
-   and evidence.passiveSpellId==passiveId
    and Graph:Blocker(action,state,hostile,facts)==nil,
    "engine-effective Warrior cost was not sealed")
  return action,facts
@@ -98,10 +97,9 @@ charged[12294]=210
 local badAction={spellId=12294,facts={kind="damage",melee=true}}
 local bad=Runtime:CaptureFacts(badAction,badAction.facts)
 badAction.facts=bad
-assert(not Runtime:Evidence(badAction)
- and Graph:Blocker(badAction,state,hostile,bad)
-   =="Warrior effective rage cost unavailable",
- "a cost helper disagreeing with patch-5 SpellMod must fail closed")
+assert(Runtime:Evidence(badAction) and bad.cost==21
+ and Graph:Blocker(badAction,state,hostile,bad)==nil,
+ "the engine-effective helper must outrank a redundant SpellMod reconstruction")
 
 local forged={spellId=78,facts={kind="damage",melee=true,
  warriorCostEvidence={available=true,exact=true,group="heroic",

@@ -121,14 +121,11 @@ function P:CaptureFacts(action, facts)
     local out, id = copy(facts), integer(action and action.spellId)
     local group = id and ACTION_GROUP[id]
     if not group then return out end
-    local owner, mod, charged = ownership(group), modifiers(id), effective(id)
+    local charged = effective(id)
     local base = scalar(id,"manaCost")
     if scalar(id,"spellFamilyName")~=4 or scalar(id,"powerType")~=self.RAGE
-        or not base or base<=0 or not owner or not mod or not charged
-        or mod.flat~=owner.flat or mod.percent~=0
-        or owner.learned and mod.changed==0
-        or not owner.learned and mod.changed~=0
-        or charged~=base+owner.flat or charged<0 then
+        or not base or base<=0 or not charged or charged<0
+        or charged>base then
         out.warriorCostEvidence = { available=false, exact=false,
             group=group, reason="Warrior effective rage cost evidence unavailable" }
         return out
@@ -136,11 +133,8 @@ function P:CaptureFacts(action, facts)
     out.cost = charged/10
     out.warriorCostEvidence = { available=true, exact=true, group=group,
         actionSpellId=id, baseRaw=base, chargedRaw=charged,
-        cost=out.cost, passiveLearned=owner.learned,
-        passiveSpellId=owner.spellId, passiveRank=owner.rank,
-        modifierFlat=mod.flat, modifierPercent=mod.percent,
-        modifierRawPercent=mod.rawPercent,
-        source="patch-5 ownership plus engine-effective rage cost" }
+        cost=out.cost, engineCostExact=true,
+        source="ClassicAPI engine-effective power-cost helper" }
     return out
 end
 
@@ -152,16 +146,12 @@ function P:Evidence(subject)
         and found.exact==true and group==found.group
         and number(found.baseRaw) and number(found.chargedRaw)
         and found.baseRaw>0 and found.chargedRaw>=0
+        and found.chargedRaw<=found.baseRaw
         and found.cost==found.chargedRaw/10
-        and found.modifierPercent==0
-        and found.chargedRaw==found.baseRaw+found.modifierFlat) then return nil end
-    local profile = found.passiveSpellId and PASSIVES[found.passiveSpellId]
-    if found.passiveLearned==true then
-        if not (profile and profile.group==group
-            and found.passiveRank==profile.rank
-            and found.modifierFlat==profile.flat) then return nil end
-    elseif not (found.passiveLearned==false and found.passiveSpellId==nil
-        and found.passiveRank==0 and found.modifierFlat==0) then return nil end
+        and found.engineCostExact==true
+        and found.source=="ClassicAPI engine-effective power-cost helper") then
+        return nil
+    end
     return copy(found)
 end
 
