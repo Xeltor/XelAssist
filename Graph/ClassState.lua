@@ -7,6 +7,9 @@ local PaladinMight = XelAssist.Graph.PaladinMight
 local PaladinWisdom = XelAssist.Graph.PaladinWisdom
 local PaladinBlessingThreat = XelAssist.Graph.PaladinBlessingThreat
 local PaladinRighteousFury = XelAssist.Graph.PaladinRighteousFury
+local PaladinHolyShockRuntime =
+    XelAssist.Game.Player.PaladinHolyShockModifiers
+local PaladinHolyShock = XelAssist.Graph.PaladinHolyShockModifiers
 local Totems = XelAssist.Game.Player.TotemState
 local ShamanClearcastingRuntime = XelAssist.Game.Player.ShamanClearcasting
 local ShamanClearcasting = XelAssist.Graph.ShamanClearcasting
@@ -32,6 +35,7 @@ local HunterRapidFire = XelAssist.Graph.HunterRapidFire
 local HunterManaAspects = XelAssist.Graph.HunterManaAspects
 local PriestShadowform = XelAssist.Graph.PriestShadowform
 local PriestImprovedShadowform = XelAssist.Game.Player.PriestImprovedShadowform
+local PriestAscendance = XelAssist.Graph.PriestAscendance
 local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
 local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
 local PriestFade = XelAssist.Graph.PriestFade
@@ -81,7 +85,10 @@ function S:Attach(state)
         local wisdom = PaladinWisdom and PaladinWisdom:Attach(state) or false
         if PaladinBlessingThreat then PaladinBlessingThreat:Attach(state) end
         if PaladinRighteousFury then PaladinRighteousFury:Attach(state) end
-        return attached or might or wisdom
+        local shock = PaladinHolyShockRuntime and PaladinHolyShock
+            and PaladinHolyShock:Attach(state,
+                PaladinHolyShockRuntime:Snapshot(token)) or false
+        return attached or might or wisdom or shock
     elseif token == "SHAMAN" then
         local attached = false
         if Totems then
@@ -112,6 +119,9 @@ function S:Attach(state)
         end
         if PriestInnerFocusRuntime then
             attached = PriestInnerFocusRuntime:Attach(state, token) or attached
+        end
+        if PriestAscendance then
+            attached = PriestAscendance:Attach(state) or attached
         end
         return attached
     elseif token == "MAGE" then
@@ -179,6 +189,7 @@ function S:Copy(source, target)
         PaladinBlessingThreat:Copy(source, target)
     end
     if PaladinRighteousFury then PaladinRighteousFury:Copy(source, target) end
+    if PaladinHolyShock then PaladinHolyShock:Copy(source, target) end
     if source.totems then target.totems = copy(source.totems, 7) end
     if source.hunterMarkRoot then target.hunterMarkRoot = source.hunterMarkRoot end
     if HunterHawk then HunterHawk:Copy(source, target) end
@@ -201,6 +212,7 @@ function S:Copy(source, target)
     if PriestImprovedShadowform then
         PriestImprovedShadowform:Copy(source, target)
     end
+    if PriestAscendance then PriestAscendance:Copy(source, target) end
     if PriestInnerFocus then PriestInnerFocus:Copy(source, target) end
     if PriestFade then PriestFade:Copy(source, target) end
     if Windfury then Windfury:Copy(source, target) end
@@ -216,6 +228,7 @@ function S:Copy(source, target)
         or source.paladinWisdom ~= nil
         or source.paladinBlessingThreat ~= nil or source.totems ~= nil
         or source.paladinRighteousFury ~= nil
+        or source.paladinHolyShockModifiers ~= nil
         or source.hunterMarkRoot ~= nil or source.hunterHawk ~= nil
         or source.hunterRapidFire ~= nil
         or source.hunterManaAspect ~= nil
@@ -232,6 +245,7 @@ function S:Copy(source, target)
         or source.roguePreparationReset ~= nil
         or source.playerShadowformProfileExact == true
         or source.priestImprovedShadowform ~= nil
+        or source.priestAscendance ~= nil
         or source.priestInnerFocus ~= nil
         or source.priestFade ~= nil
         or source.shamanWindfuryTotem ~= nil

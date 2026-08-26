@@ -153,9 +153,10 @@ evidence-ranked queue includes:
 - Hunter Snake proc generation, Alone Against the World and Lock and Load;
 - Mage Hot Streak/Flash Freeze proc generation and post-proc baseline timing,
   Temporal Convergence and Resonance Cascade;
-- Paladin Holy Shock modifier chains and Blessed Strikes;
-- Priest Resurgent Shield and Ascendance;
-- Rogue Mark for Death, Noxious Assault and observed Nightblade procs;
+- Paladin Holy Shock proc generation/post-consumption baseline and Blessed
+  Strikes;
+- Priest Resurgent Shield and unresolved future Ascendance consequences;
+- Rogue Noxious Assault and observed Nightblade procs;
 - Shaman improved Chain Heal/Flame Shock, additional Elemental Focus triggers,
   Totemic Alignment and Calming Winds;
 - Warlock pet-cast modifiers, Mana Funnel and Shadow Strikes; and

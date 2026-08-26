@@ -18,6 +18,11 @@ local function frozenAura(action, state, descriptor)
 end
 local function divergentTooltip(action, state, descriptor, tooltip)
     local blocker
+    local holyShock = XelAssist.Graph.PaladinHolyShockModifiers
+    if holyShock then
+        tooltip, blocker = holyShock:PrepareLegal(action, state, tooltip)
+    end
+    if blocker then return nil, blocker end
     local mage = XelAssist.Graph.MageProcWindows
     if mage then tooltip, blocker = mage:PrepareLegal(action, state, tooltip) end
     if blocker then return nil, blocker end

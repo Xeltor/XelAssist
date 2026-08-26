@@ -4,7 +4,7 @@
 XelAssist.Game.ActionInference = {}
 local I = XelAssist.Game.ActionInference
 local ROGUE_INFERENCE = { "RogueSliceAndDice", "RoguePreparation",
-    "RogueFeint", "RogueSurpriseAttack", "RogueShiv" }
+    "RogueFeint", "RogueSurpriseAttack", "RogueShiv", "RogueMarkForDeath" }
 local HUNTER_INFERENCE = { "HunterHawk", "HunterMark",
     "HunterDistractingShot", "HunterRapidFire", "HunterManaAspects" }
 local WARRIOR_INFERENCE = { "WarriorThunderClap", "WarriorOverpower",
@@ -50,6 +50,8 @@ function I:ClassKnowledge(spellId)
     facts, reason, handled = infer(player.PriestChastise, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PriestFade, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.PriestAscendance, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.DruidProwl, spellId)
     if handled then return facts, reason, true end
@@ -149,6 +151,7 @@ function I:InvalidateClass()
     end
     if player.PriestChastise then player.PriestChastise:Invalidate() end
     if player.PriestFade then player.PriestFade:Invalidate() end
+    if player.PriestAscendance then player.PriestAscendance:Invalidate() end
     if player.DruidProwl then player.DruidProwl:Invalidate() end
     if player.DruidClearcasting then player.DruidClearcasting:Invalidate() end
     if player.DruidFrenziedRegeneration then
@@ -167,6 +170,7 @@ function I:InvalidateClass()
         player.RogueSurpriseAttack:Invalidate()
     end
     if player.RogueShiv then player.RogueShiv:Invalidate() end
+    if player.RogueMarkForDeath then player.RogueMarkForDeath:Invalidate() end
     if player.HunterMark then player.HunterMark:Invalidate() end
     if player.HunterHawk then player.HunterHawk:Invalidate() end
     if player.HunterDistractingShot then

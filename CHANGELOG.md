@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.49
+
+- Added observed-only Holy Shock GCD/cooldown modifier auras with exact numeric
+  consumer topology and branch-local consumption. The graph never predicts
+  their proc generation or reuses modified timing after consumption.
+- Added exact Ascendance action/aura/Apotheosis topology and active-state
+  engine healing costs. Future activation, control purging, private cast/cost
+  arithmetic and Apotheosis fanout remain fail-closed until observable.
+- Added Mark for Death's exact 135-percent main-hand packet, two target-owned
+  combo points, Energy/cooldown/range/equipment gates and avoidance bypass.
+  Ordinary weapon misses remain possible; Noxious Assault's private dual-weapon
+  and poison script remains explicitly unresolved.
+
 ## 0.8.48
 
 - Added Aspect of the Viper as an exact five-second, five-percent maximum-mana

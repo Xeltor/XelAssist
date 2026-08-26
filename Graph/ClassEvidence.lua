@@ -8,6 +8,8 @@ local PaladinConsecration = XelAssist.Game.Player.PaladinConsecration
 local PaladinRighteousness = XelAssist.Game.Player.PaladinRighteousness
 local PaladinMight = XelAssist.Game.Player.PaladinMight
 local PaladinWisdom = XelAssist.Game.Player.PaladinWisdom
+local PaladinHolyShockModifiers =
+    XelAssist.Game.Player.PaladinHolyShockModifiers
 local MageShield = XelAssist.Game.Player.MageManaShield
 local MageClearcasting = XelAssist.Game.Player.MageClearcasting
 local MagePresenceOfMind = XelAssist.Game.Player.MagePresenceOfMind
@@ -38,6 +40,8 @@ local HunterStingingNettle = XelAssist.Game.Player.HunterStingingNettle
 local HunterManaAspects = XelAssist.Game.Player.HunterManaAspects
 local PriestShadowform = XelAssist.Game.Player.PriestShadowform
 local PriestImprovedShadowform = XelAssist.Game.Player.PriestImprovedShadowform
+local PriestAscendanceRuntime = XelAssist.Game.Player.PriestAscendance
+local PriestAscendance = XelAssist.Graph.PriestAscendance
 local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
 local PriestPowerInfusionRuntime = XelAssist.Game.Player.PriestPowerInfusion
 local PriestPowerInfusion = XelAssist.Graph.PriestPowerInfusion
@@ -69,6 +73,7 @@ function E:CaptureFacts(action, facts, state)
     end
     if PaladinMight then out = PaladinMight:CaptureFacts(action, out) end
     if PaladinWisdom then out = PaladinWisdom:CaptureFacts(action, out) end
+    if PaladinHolyShockModifiers then out = PaladinHolyShockModifiers:CaptureFacts(action, out, state) end
     if MageShield then out = MageShield:CaptureFacts(action, out) end
     if MageClearcasting then
         out = MageClearcasting:CaptureFacts(action, out, state)
@@ -143,6 +148,7 @@ function E:CaptureFacts(action, facts, state)
     if PriestImprovedShadowform then
         out = PriestImprovedShadowform:CaptureFacts(action, out, state)
     end
+    if PriestAscendanceRuntime then out = PriestAscendanceRuntime:CaptureFacts(action, out, state) end
     if PriestInnerFocusRuntime then
         out = PriestInnerFocusRuntime:CaptureFacts(action, out, state)
     end
@@ -180,6 +186,12 @@ end
 
 function E:Blocker(action, state, descriptor, tooltip, actionStart)
     local blocker, handled
+    if PriestAscendance then
+        local prepared
+        prepared, blocker, handled = PriestAscendance:Prepare(
+            action, state, tooltip)
+        if handled then return blocker, true end
+    end
     if DruidCasterForms then
         blocker, handled = DruidCasterForms:FormBlocker(action, state)
         if handled then return blocker, true end

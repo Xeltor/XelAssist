@@ -27,6 +27,7 @@ local PriestFade = XelAssist.Graph.PriestFade
 local HunterStingingNettle = XelAssist.Graph.HunterStingingNettle
 local MageProcWindows = XelAssist.Graph.MageProcWindows
 local WarriorDevastate = XelAssist.Graph.WarriorDevastate
+local PaladinHolyShock = XelAssist.Graph.PaladinHolyShockModifiers
 local ThreatDrop, ClassMechanics = XelAssist.Graph.ThreatDrop, XelAssist.Graph.ClassMechanics
 local FriendlyActionEffects = XelAssist.Graph.FriendlyActionEffects
 function A:Context(source, candidate)
@@ -382,6 +383,7 @@ function A:Apply(out, source, candidate, context)
     if PriestInnerFocus then PriestInnerFocus:Consume(out, candidate) end
     if MagePresenceOfMind then MagePresenceOfMind:Consume(out, candidate) end
     if MageProcWindows then MageProcWindows:Consume(out, candidate) end
+    if PaladinHolyShock then PaladinHolyShock:Consume(out, candidate) end
     if candidate.classMechanicProjection then
         context.classMechanicHandled = true
         context.classMechanicApplied = ClassMechanics and ClassMechanics:Apply(out, candidate) or false
@@ -391,9 +393,7 @@ function A:Apply(out, source, candidate, context)
     if XelAssist.Graph.PriestShadowform then
         XelAssist.Graph.PriestShadowform:Apply(out, candidate)
     end
-    if ClassMechanics and ClassMechanics:ApplyExactAura(out, candidate) then
-        context.classMechanicHandled = true
-    end
+    if ClassMechanics and ClassMechanics:ApplyExactAura(out, candidate) then context.classMechanicHandled = true end
     applyModifierProjection(out, source, context)
     Readiness:Apply(out, candidate, context)
     local dotDirect, dotPeriodic, dotDuration, dotElapsed =
