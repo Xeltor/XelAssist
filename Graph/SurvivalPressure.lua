@@ -32,6 +32,24 @@ local function windowFraction(startAt, duration, lower, upper)
     return math.max(0, math.min(1, area / duration))
 end
 
+-- A fresh periodic aura does not deal a continuous stream of damage. When the
+-- installed DBC supplied an exact cadence, value only ticks which can occur
+-- while the target may still be alive. This is especially important for short
+-- leveling fights: a target dying before Rend's first tick must not receive a
+-- fractional slice of a tick that the server can never deliver.
+local function tickFraction(startAt, duration, interval, lower, upper)
+    interval = tonumber(interval)
+    if not (interval and interval > 0 and duration > 0) then return nil end
+    local at, expected, ticks = interval, 0, 0
+    while at <= duration + 0.0001 and ticks < 80 do
+        expected = expected + aliveAt(startAt + at, lower, upper)
+        ticks = ticks + 1
+        at = at + interval
+    end
+    if ticks <= 0 then return 0, 0 end
+    return math.max(0, math.min(1, expected / ticks)), ticks
+end
+
 local function evidence(context)
     local durationUtility = context.kind == "debuff"
     if not (context.damageKind or durationUtility) or not context.descriptor
@@ -98,7 +116,13 @@ function S:Adjust(context)
     elseif context.kind == "dot" then
         duration = math.max(0, tonumber(context.effectTooltip.duration)
             or tonumber(context.tooltip.duration) or 12)
-        periodicFactor = windowFraction(impactAt, duration, lower, upper)
+        local interval = tonumber(context.effectTooltip.periodicInterval)
+            or tonumber(context.tooltip.periodicInterval)
+        periodicFactor = tickFraction(
+            impactAt, duration, interval, lower, upper)
+        if periodicFactor == nil then
+            periodicFactor = windowFraction(impactAt, duration, lower, upper)
+        end
         local periodic = math.max(0,
             tonumber(context.dotPeriodicExpectedPower) or before)
         local direct = math.max(0, before - periodic)
@@ -125,7 +149,13 @@ function S:Adjust(context)
         utilityFactor = utilityFactor,
         expectedUtilitySeconds = expectedUtilitySeconds,
         utilityPaybackSeconds = utilityPaybackSeconds,
-        decisionFactor = factor }
+        decisionFactor = factor,
+        periodicInterval = context.kind == "dot"
+            and (tonumber(context.effectTooltip.periodicInterval)
+                or tonumber(context.tooltip.periodicInterval)) or nil,
+        tickDiscrete = context.kind == "dot"
+            and (tonumber(context.effectTooltip.periodicInterval)
+                or tonumber(context.tooltip.periodicInterval)) ~= nil or nil }
 end
 
 function S:Explain(context)

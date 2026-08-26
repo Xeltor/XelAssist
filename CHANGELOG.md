@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.60
+
+- Made target-survival pressure follow exact installed periodic tick cadence.
+  A short-lived target no longer gives Rend or another DoT fractional credit
+  for a tick which cannot occur, while targets surviving real ticks retain
+  only those tick probabilities.
+- Reduced the production search checkpoint from 1.50 to 1.25 ms after the
+  latest level-four Warrior runtime session recorded a 3.449 ms slice. Search
+  work and chosen plans remain unchanged and may span additional frames.
+
 ## 0.8.59
 
 - Added exact Octo patch-5 Druid Growl ownership, including Bear/Dire Bear

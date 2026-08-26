@@ -84,6 +84,27 @@ assert(dot.survival and dot.survival.periodicFactor > 0.17
     and dot.expectedPower < 90
     and dot.reason == "target may die before the effect pays back",
     "a long periodic effect must retain only output inside the learned survival window")
+local tickingDot = context("dot", 0, 9)
+tickingDot.tooltip.periodicInterval = 3
+tickingDot.effectTooltip.periodicInterval = 3
+P:Adjust(tickingDot); P:Explain(tickingDot)
+assert(tickingDot.survival.tickDiscrete == true
+    and tickingDot.survival.periodicInterval == 3
+    and tickingDot.survival.periodicFactor == 0
+    and tickingDot.expectedPower == 0,
+    "a target dying before the first exact tick must not receive continuous periodic credit")
+local oneTickDot = context("dot", 0, 9)
+oneTickDot.state.targetSurvival = { available = true, incomingDps = 100,
+    timeToDie = 4, lowerTimeToDie = 3, upperTimeToDie = 5,
+    observedFor = 3, samples = 7, confidence = "observed",
+    source = "exact hostile health trend" }
+oneTickDot.tooltip.periodicInterval = 3
+oneTickDot.effectTooltip.periodicInterval = 3
+P:Adjust(oneTickDot)
+assert(oneTickDot.survival.periodicFactor > 0.33
+    and oneTickDot.survival.periodicFactor < 0.34
+    and oneTickDot.expectedPower > 166 and oneTickDot.expectedPower < 167,
+    "exact cadence must value only the ticks whose recipients can survive")
 local instant = context("damage", 0)
 P:Adjust(instant)
 assert(instant.expectedPower == 500 and instant.survival.directFactor == 1,

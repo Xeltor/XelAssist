@@ -15,10 +15,11 @@ P.MAX_SECONDS = 45
 P.DISCOUNT_SECONDS = 4.5
 -- Leave enough room for one indivisible scoring/transition call after the
 -- checkpoint. Live Mage evidence showed a nominal 3 ms budget reaching
--- 4.25 ms, while a later level-1 Warrior session reached 3.292 ms with the
--- 1.75 ms checkpoint. A 1.50 ms checkpoint preserves the aggregate search
--- across frames while restoring measured headroom below the 3.23 ms ceiling.
-P.SLICE_MS = 1.50
+-- 4.25 ms, while later low-level Warrior sessions reached 3.292 and 3.449 ms
+-- with 1.75 and 1.50 ms checkpoints. A 1.25 ms checkpoint leaves room for the
+-- measured indivisible scoring tail while preserving aggregate work across
+-- frames and restoring headroom below the 3.23 ms ceiling.
+P.SLICE_MS = 1.25
 
 -- GetTime is updated at the frame boundary on the 1.12 client. A synchronous
 -- graph search therefore sees a frozen value and cannot enforce a millisecond

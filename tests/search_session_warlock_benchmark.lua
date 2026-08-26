@@ -337,9 +337,9 @@ local cases = {
     { name = "level-4 Warrior Charge", depth = 3,
         Build = levelFourWarrior, expected = "Charge",
         maxFactCalls = 3, rootRangeCalls = 2,
-        -- The production 1.50 ms checkpoint deliberately permits one extra
+        -- The production 1.25 ms checkpoint deliberately permits extra
         -- frame while preserving identical work and the hard frame ceiling.
-        maxSlices = 6, maxActive = 10, maxSlice = 3.23, maxExpanded = 20 },
+        maxSlices = 7, maxActive = 10, maxSlice = 3.23, maxExpanded = 20 },
     { name = "level-7 Warlock pet and DoTs", depth = 4,
         Build = levelSevenWarlock, expected = "Corruption" },
     { name = "rank-heavy Warlock", depth = 3,
