@@ -39,6 +39,11 @@ local function consumerKey(context)
         value = powerInfusion:ConsumerKey(context.tooltip)
             or powerInfusion:ConsumerKey(context.facts)
     end
+    local manaSpring = XelAssist.Graph.ShamanManaSpring
+    if value == nil and manaSpring then
+        value = manaSpring:ConsumerKey(context.tooltip)
+            or manaSpring:ConsumerKey(context.facts)
+    end
     if type(value) ~= "string" or value == ""
         or string.len(value) > 128 then return nil end
     return value
@@ -53,6 +58,8 @@ local function strategicSetup(tooltip)
         and XelAssist.Graph.MagePresenceOfMind:StrategicSetup(tooltip)
     local powerInfusion = XelAssist.Graph.PriestPowerInfusion
         and XelAssist.Graph.PriestPowerInfusion:StrategicSetup(tooltip)
+    local manaSpring = XelAssist.Graph.ShamanManaSpring
+        and XelAssist.Graph.ShamanManaSpring:StrategicSetup(tooltip)
     local warrior = tooltip and tooltip.warriorStanceTransition
     local druid = tooltip and tooltip.druidFormTransition
     local priest = tooltip and tooltip.priestShadowformTransition
@@ -61,11 +68,12 @@ local function strategicSetup(tooltip)
         if value then selected, count = value, count + 1 end
     end
     include(innerFocus); include(presence); include(powerInfusion)
+    include(manaSpring)
     include(warrior)
     include(druid); include(priest)
     if count ~= 1 then return nil end
     if selected == innerFocus or selected == presence
-        or selected == powerInfusion then return selected end
+        or selected == powerInfusion or selected == manaSpring then return selected end
     local transition, prefix = warrior or druid or priest,
         warrior and "warriorStance" or druid and "druidForm"
             or priest and "priestShadowform" or nil

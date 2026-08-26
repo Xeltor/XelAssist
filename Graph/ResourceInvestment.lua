@@ -98,6 +98,10 @@ function R:PotentialConsumer(path, _, sealedFacts)
     if key == nil and powerInfusion then
         key = powerInfusion:ConsumerKey(sealedFacts)
     end
+    local manaSpring = XelAssist.Graph.ShamanManaSpring
+    if key == nil and manaSpring then
+        key = manaSpring:ConsumerKey(sealedFacts)
+    end
     if type(key) ~= "string" or key == ""
         or string.len(key) > 128 then key = nil end
     return dependencyMatches(path, key,

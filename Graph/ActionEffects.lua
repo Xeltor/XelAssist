@@ -426,6 +426,9 @@ function A:Apply(out, source, candidate, context)
     if XelAssist.Graph.ShamanWindfuryTotem then
         XelAssist.Graph.ShamanWindfuryTotem:AfterCandidate(out, candidate)
     end
+    if XelAssist.Graph.ShamanManaSpring then
+        XelAssist.Graph.ShamanManaSpring:AfterCandidate(out, candidate)
+    end
     if WandCommitment then WandCommitment:AfterAction(out, candidate) end
     syncFriendlyCompatibility(out)
     if State.CommitActiveHostile then State:CommitActiveHostile(out) end

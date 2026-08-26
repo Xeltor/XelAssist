@@ -9,6 +9,7 @@ local PaladinRighteousFury = XelAssist.Graph.PaladinRighteousFury
 local Totems = XelAssist.Game.Player.TotemState
 local ShamanClearcastingRuntime = XelAssist.Game.Player.ShamanClearcasting
 local ShamanClearcasting = XelAssist.Graph.ShamanClearcasting
+local ShamanManaSpring = XelAssist.Graph.ShamanManaSpring
 local MageClearcastingRuntime = XelAssist.Game.Player.MageClearcasting
 local MageClearcasting = XelAssist.Graph.MageClearcasting
 local MagePresenceOfMindRuntime = XelAssist.Game.Player.MagePresenceOfMind
@@ -68,6 +69,9 @@ function S:Attach(state)
             state.totems = Totems:Snapshot()
             attached = state.totems and state.totems.available == true or false
             if Windfury then Windfury:Attach(state) end
+        end
+        if ShamanManaSpring then
+            attached = ShamanManaSpring:Attach(state) or attached
         end
         if ShamanClearcastingRuntime then
             attached = ShamanClearcastingRuntime:Attach(state, token) or attached
@@ -130,6 +134,7 @@ function S:Copy(source, target)
     if MagePresenceOfMind then MagePresenceOfMind:Copy(source, target) end
     if DruidClearcasting then DruidClearcasting:Copy(source, target) end
     if ShamanClearcasting then ShamanClearcasting:Copy(source, target) end
+    if ShamanManaSpring then ShamanManaSpring:Copy(source, target) end
     if RogueSlice then RogueSlice:Copy(source, target) end
     if RogueRuthlessness then RogueRuthlessness:Copy(source, target) end
     if PriestShadowform then PriestShadowform:Copy(source, target) end
@@ -148,6 +153,7 @@ function S:Copy(source, target)
         or source.magePresenceOfMind ~= nil
         or source.druidClearcasting ~= nil
         or source.shamanClearcasting ~= nil
+        or source.shamanManaSpring ~= nil
         or source.rogueSliceAndDice ~= nil
         or source.rogueRuthlessness ~= nil
         or source.playerShadowformProfileExact == true

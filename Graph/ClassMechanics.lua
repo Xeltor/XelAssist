@@ -16,6 +16,7 @@ local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
 local PriestPowerInfusion = XelAssist.Graph.PriestPowerInfusion
 local MagePresenceOfMind = XelAssist.Graph.MagePresenceOfMind
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
+local ManaSpring = XelAssist.Graph.ShamanManaSpring
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 local Evidence = XelAssist.Graph.ClassEvidence
 local ClassState = XelAssist.Graph.ClassState
@@ -138,6 +139,14 @@ local function shamanProjection(action, state)
     if Windfury then
         local prepared, handled
         prepared, reason, handled = Windfury:Prepare(state, projection)
+        if handled then
+            if not prepared then return nil, reason, true end
+            projection = prepared
+        end
+    end
+    if ManaSpring then
+        local prepared, handled
+        prepared, reason, handled = ManaSpring:Prepare(state, projection)
         if handled then
             if not prepared then return nil, reason, true end
             projection = prepared
@@ -277,6 +286,10 @@ function M:Score(context, projection)
         local scored, reason = Windfury:Score(context, projection)
         if scored or reason then return scored, reason end
     end
+    if ManaSpring then
+        local scored, reason = ManaSpring:Score(context, projection)
+        if scored or reason then return scored, reason end
+    end
     if PriestInnerFocus and projection.priestInnerFocusTransition then
         return PriestInnerFocus:Score(context, projection)
     end
@@ -312,6 +325,11 @@ function M:Apply(state, candidate)
         return true
     elseif projection.classMechanic == "shaman" and Totems then
         if not Totems:Apply(state, projection) then return false end
+        if projection.shamanManaSpring then
+            if not (ManaSpring and ManaSpring:Apply(state, projection)) then
+                return false
+            end
+        end
         if projection.shamanWindfuryTotem then
             return Windfury and Windfury:Apply(state, projection) or false
         end
@@ -334,6 +352,7 @@ function M:Apply(state, candidate)
 end
 
 function M:Advance(state, elapsed)
+    if ManaSpring then ManaSpring:Advance(state, elapsed) end
     local expired = Totems and Totems:Advance(state, elapsed) or 0
     if RogueSlice then RogueSlice:Advance(state, elapsed) end
     if WarriorBattleShout then WarriorBattleShout:Advance(state, elapsed) end

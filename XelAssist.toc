@@ -40,6 +40,7 @@ Game\Player\PaladinRighteousFury.lua
 Game\Player\TotemState.lua
 Game\Player\ShamanActions.lua
 Game\Player\ShamanWindfuryTotem.lua
+Game\Player\ShamanManaSpring.lua
 Game\Player\ShamanClearcasting.lua
 Game\Player\MageManaShield.lua
 Game\Player\MageClearcasting.lua
@@ -153,6 +154,7 @@ Graph\PaladinMight.lua
 Graph\PaladinRighteousFury.lua
 Graph\PaladinBlessingThreat.lua
 Graph\ShamanWindfuryTotem.lua
+Graph\ShamanManaSpring.lua
 Graph\ShamanClearcasting.lua
 Graph\RogueFeint.lua
 Graph\MageClearcasting.lua

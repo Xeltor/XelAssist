@@ -10,6 +10,7 @@ local MageClearcasting = XelAssist.Game.Player.MageClearcasting
 local MagePresenceOfMind = XelAssist.Game.Player.MagePresenceOfMind
 local DruidClearcasting = XelAssist.Game.Player.DruidClearcasting
 local ShamanClearcasting = XelAssist.Game.Player.ShamanClearcasting
+local ShamanManaSpring = XelAssist.Game.Player.ShamanManaSpring
 local PriestShield = XelAssist.Game.Player.PriestShield
 local RogueFeint = XelAssist.Game.Player.RogueFeint
 local RogueFeintGraph = XelAssist.Graph.RogueFeint
@@ -47,6 +48,9 @@ function E:CaptureFacts(action, facts, state)
     end
     if ShamanClearcasting then
         out = ShamanClearcasting:CaptureFacts(action, out, state)
+    end
+    if ShamanManaSpring then
+        out = ShamanManaSpring:CaptureFacts(action, out)
     end
     if RogueFeint then out = RogueFeint:CaptureFacts(action, out) end
     if RogueSliceRuntime then out = RogueSliceRuntime:CaptureFacts(action, out) end

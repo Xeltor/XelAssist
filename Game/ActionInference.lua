@@ -64,6 +64,9 @@ function I:ClassKnowledge(spellId)
         if facts and player.ShamanWindfuryTotem then
             facts = player.ShamanWindfuryTotem:Promote(spellId, facts)
         end
+        if facts and player.ShamanManaSpring then
+            facts = player.ShamanManaSpring:Promote(spellId, facts)
+        end
         return facts, reason, true
     end
     return nil, nil, false
@@ -143,6 +146,7 @@ function I:InvalidateClass()
     if player.ShamanWindfuryTotem then
         player.ShamanWindfuryTotem:Invalidate()
     end
+    if player.ShamanManaSpring then player.ShamanManaSpring:Invalidate() end
     if player.ShamanClearcasting then player.ShamanClearcasting:Invalidate() end
     local projection = XelAssist.Graph and XelAssist.Graph.PaladinAuraProjection
     if projection then projection:Invalidate() end
