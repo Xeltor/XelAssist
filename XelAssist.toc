@@ -52,6 +52,7 @@ Game\Player\HunterHawk.lua
 Game\Player\WarlockDarkPact.lua
 Game\Player\WarriorBattleShoutRoot.lua
 Game\Player\WarriorBattleShout.lua
+Game\Player\WarriorRevengeThreat.lua
 Game\ActionInference.lua
 Game\Player\WarriorRage.lua
 Game\CrowdControl.lua
@@ -123,6 +124,7 @@ Graph\HunterRangedPower.lua
 Graph\PriestShadowform.lua
 Graph\PriestInnerFocus.lua
 Graph\WarriorRage.lua
+Graph\WarriorRevengeThreat.lua
 Graph\CasterPersistentDamage.lua
 Graph\CrowdControl.lua
 Graph\DispelDecision.lua
@@ -185,6 +187,7 @@ Graph\Targets.lua
 Graph\StackedModifiers.lua
 Graph\Effects.lua
 Graph\AreaRecipients.lua
+Graph\PrimaryThreatEffects.lua
 Graph\HostileEffects.lua
 Graph\WandCommitment.lua
 Graph\AutoShotUncertainty.lua

@@ -18,6 +18,7 @@ local HunterHawk = XelAssist.Game.Player.HunterHawk
 local PriestShadowform = XelAssist.Game.Player.PriestShadowform
 local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
 local WarriorBattleShout = XelAssist.Game.Player.WarriorBattleShout
+local WarriorRevengeThreat = XelAssist.Graph.WarriorRevengeThreat
 local WarlockDarkPactRuntime = XelAssist.Game.Player.WarlockDarkPact
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
 
@@ -81,6 +82,11 @@ function E:Blocker(action, state, descriptor, tooltip, actionStart)
     if RogueSlice then
         blocker, handled = RogueSlice:Blocker(
             action, state, descriptor, tooltip)
+        if handled then return blocker, true end
+    end
+    if WarriorRevengeThreat then
+        blocker, handled = WarriorRevengeThreat:Blocker(
+            action, state, descriptor)
         if handled then return blocker, true end
     end
     if WarlockDarkPact then

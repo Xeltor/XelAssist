@@ -23,6 +23,7 @@ XelAssist.Graph.PlayerThreat = {
         record.primaryThreatAdded = amount
     end,
 }
+dofile("Graph/PrimaryThreatEffects.lua")
 dofile("Graph/HostileEffects.lua")
 
 local torment = {

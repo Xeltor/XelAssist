@@ -59,6 +59,7 @@ XelAssist.Combat.Resistance = {
 
 dofile("Graph/AreaRecipients.lua")
 dofile("Graph/PlayerThreat.lua")
+dofile("Graph/PrimaryThreatEffects.lua")
 dofile("Graph/HostileEffects.lua")
 
 local topology = { available = true, area = true, effects = {

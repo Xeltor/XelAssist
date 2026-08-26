@@ -4,6 +4,7 @@
 XelAssist.Graph.ThreatScoring = {}
 local T = XelAssist.Graph.ThreatScoring
 local PlayerThreat = XelAssist.Graph.PlayerThreat
+local Revenge = XelAssist.Graph.WarriorRevengeThreat
 
 local function playerThreatRisk(state)
     return state.hasAggro or state.targetPlayerThreatDeltaExact == false
@@ -57,13 +58,34 @@ local function resourceMaximum(context, state)
     return pet and tonumber(pet.resourceMax) or 0
 end
 
+local function augmentRevenge(context, threat, valueThreat)
+    if not Revenge then return threat, valueThreat, nil end
+    local handled, reason
+    threat, valueThreat, handled, reason = Revenge:Augment(
+        context, threat, valueThreat)
+    if handled and (threat == nil or valueThreat == nil) then
+        return nil, nil, reason or "Revenge threat evidence unavailable"
+    end
+    return threat, valueThreat, nil
+end
+
+local function scalePlayer(state, actor, context, threat, valueThreat)
+    local exact, multiplier = true, 1
+    if PlayerThreat then
+        threat, exact, multiplier = PlayerThreat:Scale(
+            state, actor, threat, context.threatSchool)
+        valueThreat = valueThreat * multiplier
+    end
+    if Revenge then exact = Revenge:Exactness(context, exact) end
+    return threat, valueThreat, exact, multiplier
+end
+
 function T:Apply(context)
     local state, facts, kind = context.state, context.facts, context.kind
-    local groupSize = tonumber(state.groupSize) or 0
-    local resourceMax = resourceMaximum(context, state)
+    local groupSize, resourceMax = tonumber(state.groupSize) or 0,
+        resourceMaximum(context, state)
     if kind == "petThreat" then
-        context.threat = 0
-        priceResource(context, resourceMax, 0)
+        context.threat = 0; priceResource(context, resourceMax, 0)
         return
     end
     if kind == "threatDrop" then
@@ -71,8 +93,7 @@ function T:Apply(context)
         -- it does not emit a new positive threat packet. Its mechanic owner
         -- already prices outcome uncertainty, while this layer only reserves
         -- its resource cost and exposes partial confidence.
-        context.threat = 0
-        priceResource(context, resourceMax, 0)
+        context.threat = 0; priceResource(context, resourceMax, 0)
         if facts.inferred or facts.runtimeUnverified then
             context.estimated = true
         end
@@ -107,6 +128,14 @@ function T:Apply(context)
         valueThreat = valueThreatPower
             * (tonumber(facts.petThreatMultiplierOnCast) or 1)
     end
+    local revengeReason
+    threat, valueThreat, revengeReason = augmentRevenge(
+        context, threat, valueThreat)
+    if revengeReason then
+        context.threat, context.value, context.estimated = 0, -100000, true
+        context.reason = revengeReason
+        return
+    end
     local actor = facts.damageActor or facts.effectActor
         or facts.healingThreatActor or context.action.actor
     local playerThreatExact, playerThreatMultiplier = true, 1
@@ -124,11 +153,8 @@ function T:Apply(context)
             context.value = context.value - valueThreat * 0.25
         end
     else
-        if PlayerThreat then
-            threat, playerThreatExact, playerThreatMultiplier =
-                PlayerThreat:Scale(state, actor, threat, context.threatSchool)
-            valueThreat = valueThreat * playerThreatMultiplier
-        end
+        threat, valueThreat, playerThreatExact, playerThreatMultiplier =
+            scalePlayer(state, actor, context, threat, valueThreat)
         context.playerThreatExact = playerThreatExact
         context.playerThreatMultiplier = playerThreatMultiplier
         if playerThreatExact == false then context.estimated = true end

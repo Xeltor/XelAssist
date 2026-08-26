@@ -32,6 +32,8 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.HunterMark, spellId)
     if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.WarriorRevengeThreat, spellId)
+    if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarriorBattleShout, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarlockDarkPact, spellId)
@@ -96,6 +98,9 @@ function I:InvalidateClass()
     if player.HunterHawk then player.HunterHawk:Invalidate() end
     if player.WarriorBattleShout then
         player.WarriorBattleShout:Invalidate()
+    end
+    if player.WarriorRevengeThreat then
+        player.WarriorRevengeThreat:Invalidate()
     end
     if player.WarlockDarkPact then player.WarlockDarkPact:Invalidate() end
     if player.PaladinActions then player.PaladinActions:Invalidate() end
