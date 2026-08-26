@@ -151,6 +151,7 @@ local cvars = {}
 GetCVar = function(name) return cvars[name] or "0" end
 SetCVar = function(name, value) cvars[name] = tostring(value) end
 UnitClass = function() return "Mage", "MAGE" end
+UnitLevel = function() return 12 end
 local unitNameCalls = {}
 UnitName = function(unit)
     table.insert(unitNameCalls, unit)
@@ -400,7 +401,10 @@ assert(XelAssistCharDB.schema == 5
     and XelAssistCharDB.toggles.engagedTargets == false,
     "saved-variable schema did not migrate with safe hostile-target defaults")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.51" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.52" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.class == "MAGE" and runtime.level == 12
+    and runtime.role == "auto" and runtime.session.decisions == 0,
+    "runtime smoke identity and session evidence missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(not runtime.apis.comboOwner and not runtime.apis.comboDuration,
@@ -520,7 +524,8 @@ local followAction = { name = "Fireball", rank = 1, actor = "pet",
 local estimatedFollowAction = { name = "Arcane Intellect", rank = 1, actor = "player",
     facts = { kind = "buff" } }
 local displayPlan = { action = tooltipAction, target = "target", reason = "test resistance",
-    confidence = "partial data", value = 1, threat = 1, downtime = 1.5, observed = {},
+    confidence = "partial data", value = 1, threat = 1, downtime = 1.5,
+    maxSliceMs = 2.5, observed = {},
     survival = { available = true, timeToDie = 4.2, incomingDps = 120,
         observedFor = 3.5, confidence = "observed", decisionFactor = 0.64 },
     rootBlockers = { ["Backstab:1:player"] = { name = "Backstab", rank = 1,
@@ -1025,6 +1030,7 @@ XelAssist.UI.HUD:Refresh(true)
 XelAssist.Graph.Evaluate = savedEvaluatorForTooltip
 tooltipResistance.school, tooltipResistance.schoolName = nil, nil
 XelAssistLog = {}
+local smokeDecisions = XelAssistCharDB.runtime.session.decisions
 XelAssist:RecordDecision(displayPlan, "smart")
 assert(XelAssistLog[1].resistanceDecisionMultiplier == 1.2
     and XelAssistLog[1].resistanceConfidence == "observed"
@@ -1034,6 +1040,9 @@ assert(XelAssistLog[1].resistanceDecisionMultiplier == 1.2
     and XelAssistLog[1].survivalIncomingDps == 120
     and XelAssistLog[1].survivalDecisionFactor == 0.64,
     "decision log must retain the resistance and survival evidence actually scored")
+assert(XelAssistCharDB.runtime.session.decisions == smokeDecisions + 1
+    and XelAssistCharDB.runtime.session.maxSliceMs == displayPlan.maxSliceMs,
+    "decision recording must persist automatic session smoke evidence")
 chatMessages = {}
 XelAssist:Command("log")
 local readableLog = table.concat(chatMessages, "|")

@@ -5,8 +5,9 @@
 XelAssist.Graph.ChannelBreakpoint = {}
 local B = XelAssist.Graph.ChannelBreakpoint
 local State = XelAssist.Graph.State
+local Cadence = XelAssist.Graph.ChannelCadence
 
-B.EXACT_CADENCE_SOURCE = "client DBC effectAmplitude"
+B.EXACT_CADENCE_SOURCE, B.ACCELERATED_CADENCE_SOURCE = Cadence.DBC, Cadence.ACCELERATED_ARCANA
 B.MAX_TICKS = 40
 
 local EPSILON = 0.0001
@@ -51,7 +52,7 @@ end
 
 local function phase(cadence, remaining)
     if type(cadence) ~= "table"
-        or cadence.source ~= B.EXACT_CADENCE_SOURCE then
+        or not Cadence:Exact(cadence.source) then
         return nil, "exact channel cadence unavailable"
     end
     local interval = nonnegative(cadence.interval)

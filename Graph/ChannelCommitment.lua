@@ -7,8 +7,8 @@ local HealthTransfer = XelAssist.Graph.HealthTransfer
 local SpellTiming = XelAssist.Game.SpellTiming
 local LeechChannel = XelAssist.Graph.LeechChannel
 local Breakpoint = XelAssist.Graph.ChannelBreakpoint
+local Cadence = XelAssist.Graph.ChannelCadence
 
-local EXACT_CADENCE_SOURCE = "client DBC effectAmplitude"
 local MAX_CHANNEL_TICKS = 40
 
 local ACTION = { name = "Continue channel", rank = 0, actor = "player",
@@ -85,8 +85,8 @@ local function observedChannel(action, remaining)
 end
 
 local function exactCadence(action, tooltip, remaining)
-    if not (tooltip and tooltip.channelIntervalSource
-        == EXACT_CADENCE_SOURCE and tonumber(tooltip.duration)
+    if not (tooltip and Cadence:Exact(tooltip.channelIntervalSource)
+        and tonumber(tooltip.duration)
         and SpellTiming and SpellTiming.TickCount and SpellTiming.Next) then
         return nil
     end

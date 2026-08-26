@@ -21,6 +21,23 @@ local function resistanceComponents(plan)
     return out
 end
 
+local function recordSession(plan)
+    if type(XelAssistCharDB.runtime) ~= "table" then
+        XelAssistCharDB.runtime = {}
+    end
+    local runtime = XelAssistCharDB.runtime
+    runtime.session = runtime.session or { startedAt = time and time() or 0,
+        decisions = 0, maxSliceMs = 0, budgetLimited = 0, errors = 0 }
+    local session = runtime.session
+    session.decisions = (tonumber(session.decisions) or 0) + 1
+    session.maxSliceMs = math.max(tonumber(session.maxSliceMs) or 0,
+        tonumber(plan.maxSliceMs) or 0)
+    if plan.budgetLimited then
+        session.budgetLimited = (tonumber(session.budgetLimited) or 0) + 1
+    end
+    session.lastDecisionAt = time and time() or 0
+end
+
 function L:Record(plan, mode)
     if type(XelAssistLog) ~= "table" then XelAssistLog = {} end
     local state, action = plan.observed or {}, plan.action
@@ -59,6 +76,7 @@ function L:Record(plan, mode)
         survivalReason = plan.survival and plan.survival.reason,
         survivalDecisionFactor = plan.survival and plan.survival.decisionFactor })
     while table.getn(XelAssistLog) > 200 do table.remove(XelAssistLog, 1) end
+    recordSession(plan)
 end
 
 function L:UpdateStatus(spellId, actor, status)
@@ -85,6 +103,8 @@ function L:RecordError(detail)
     if type(XelAssistCharDB.runtime) ~= "table" then XelAssistCharDB.runtime = {} end
     XelAssistCharDB.runtime.lastError = tostring(detail or "unknown evaluation failure")
     XelAssistCharDB.runtime.lastErrorAt = time and time() or 0
+    local session = XelAssistCharDB.runtime.session
+    if session then session.errors = (tonumber(session.errors) or 0) + 1 end
 end
 
 local function componentDetail(row)

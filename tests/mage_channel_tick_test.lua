@@ -42,6 +42,7 @@ end
 function XelAssist.Graph.CompanionCommandPolicy:UpdateRecovery() end
 
 dofile("Game/SpellTiming.lua")
+dofile("Graph/ChannelCadence.lua")
 dofile("Graph/ChannelCommitment.lua")
 local Timing = XelAssist.Game.SpellTiming
 local Channel = XelAssist.Graph.ChannelCommitment

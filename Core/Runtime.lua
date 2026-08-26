@@ -232,7 +232,7 @@ ev:SetScript("OnEvent", function()
         PlayerOnSwingEvents:Handle(event, arg1, arg2, arg3, arg4)
     end
     if event == "PLAYER_LOGIN" then
-        local runtime = XA:RuntimeAudit()
+        local runtime = XelAssist.Core.Diagnostics:BeginSession(XA)
         msg("v" .. XA.version .. " ready · " .. (runtime.actions or 0) .. " action nodes ("
             .. (runtime.inferred or 0) .. " inferred). Bind Smart Execute or click the action button.")
     end

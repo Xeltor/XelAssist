@@ -13,6 +13,9 @@ local WARRIOR_INFERENCE = { "WarriorThunderClap", "WarriorOverpower",
     "WarriorDemoralizingShout", "WarriorHeroicStrikeThreat", "WarriorExecute",
     "WarriorRevengeThreat", "WarriorBattleShout", "WarriorShieldWall",
     "WarriorDevastate", "WarriorShieldBlock" }
+local ROOT_INVALIDATION = { "MageFrostfire", "MageAcceleratedArcana",
+    "ShamanChainHealTiming", "ShamanFlameShockTiming",
+    "DruidAncientBrutality", "DruidBloodFrenzy" }
 
 local function infer(module, spellId)
     if not (module and type(module.InferKnowledge) == "function") then
@@ -64,7 +67,12 @@ function I:ClassKnowledge(spellId)
     facts, reason, handled = inferPortfolio(player, HUNTER_INFERENCE, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = inferPortfolio(player, SHAMAN_INFERENCE, spellId)
-    if handled then return facts, reason, true end
+    if handled then
+        if facts and player.ShamanFlameShockTiming then
+            facts = player.ShamanFlameShockTiming:Promote(spellId, facts)
+        end
+        return facts, reason, true
+    end
     facts, reason, handled = inferPortfolio(player, WARRIOR_INFERENCE, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarlockFelDomination, spellId)
@@ -141,8 +149,7 @@ end
 
 function I:InvalidateClass()
     local player = XelAssist.Game.Player or {}
-    invalidateNamed(player, { "MageFrostfire", "ShamanChainHealTiming",
-        "DruidAncientBrutality" })
+    invalidateNamed(player, ROOT_INVALIDATION)
     if player.MageManaShield then player.MageManaShield:Invalidate() end
     if player.MageEvocation then player.MageEvocation:Invalidate() end
     if player.MageClearcasting then player.MageClearcasting:Invalidate() end

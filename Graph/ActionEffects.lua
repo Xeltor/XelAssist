@@ -26,8 +26,7 @@ local WarriorDemoralizingShout = XelAssist.Graph.WarriorDemoralizingShout
 local PriestFade = XelAssist.Graph.PriestFade
 local HunterStingingNettle = XelAssist.Graph.HunterStingingNettle
 local MageProcWindows = XelAssist.Graph.MageProcWindows
-local WarriorDevastate = XelAssist.Graph.WarriorDevastate
-local PaladinHolyShock = XelAssist.Graph.PaladinHolyShockModifiers
+local WarriorDevastate, PaladinHolyShock = XelAssist.Graph.WarriorDevastate, XelAssist.Graph.PaladinHolyShockModifiers
 local ThreatDrop, ClassMechanics = XelAssist.Graph.ThreatDrop, XelAssist.Graph.ClassMechanics
 local FriendlyActionEffects = XelAssist.Graph.FriendlyActionEffects
 function A:Context(source, candidate)
@@ -432,6 +431,7 @@ function A:Apply(out, source, candidate, context)
     end
     applyAura(out, source, candidate, context, targetLocal,
         dotPeriodic, dotDuration, dotElapsed)
+    if XelAssist.Graph.DruidBloodFrenzy then XelAssist.Graph.DruidBloodFrenzy:ApplyImmediate(out, candidate) end
     if HunterStingingNettle then HunterStingingNettle:Apply(out, candidate) end
     if WarriorDemoralizingShout then
         WarriorDemoralizingShout:Apply(out, candidate)

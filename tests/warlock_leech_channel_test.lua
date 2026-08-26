@@ -47,6 +47,7 @@ function XelAssist.Graph.EventAuras:BeginScheduled() end
 dofile("Game/SpellTiming.lua")
 dofile("Graph/PlayerThreat.lua")
 dofile("Graph/LeechChannel.lua")
+dofile("Graph/ChannelCadence.lua")
 dofile("Graph/ChannelCommitment.lua")
 dofile("Graph/OngoingEffects.lua")
 local Channel = XelAssist.Graph.ChannelCommitment

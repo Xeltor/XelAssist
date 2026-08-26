@@ -17,6 +17,7 @@ function XelAssist.Graph.State:FriendlyByKey(state, key)
         and state.friendlies.byKey[key] or nil
 end
 
+dofile("Graph/ChannelCadence.lua")
 dofile("Graph/ChannelBreakpoint.lua")
 local Breakpoint = XelAssist.Graph.ChannelBreakpoint
 local SOURCE = Breakpoint.EXACT_CADENCE_SOURCE

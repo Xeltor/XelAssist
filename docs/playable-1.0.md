@@ -40,6 +40,9 @@ release candidate. Until both exist, its 1.0 status is **not proven**.
 - Lua 5.0 policy, module/function size ceilings, deterministic packaging, the
   complete automated suite, pushed Git state and exact two-root deployment all
   pass from the same commit.
+- Login and decision processing automatically persist class, level, role,
+  version, decision count, worst graph slice, budget-limit count and errors;
+  the offline smoke audit reads this evidence without requiring a player command.
 
 ## Required scenario bands
 
@@ -149,19 +152,19 @@ triggered children, proc auras, forms, pet modifiers, equipment masks and
 hidden SpellMods rather than relying on custom spell names. Its current
 evidence-ranked queue includes:
 
-- Druid remaining Moonkin/Tree party and tooltip-only consequences, plus Feral
-  Adrenaline;
+- Druid remaining Moonkin/Tree party and tooltip-only consequences, Enrage's
+  baseline/armor lifecycle, Blood Frenzy haste, plus Feral Adrenaline;
 - Hunter Snake/Swift Aspects proc generation, sting exclusivity, traps and Lock
   and Load;
 - Mage Hot Streak/Flash Freeze proc generation and post-proc baseline timing,
-  Temporal Convergence and Resonance Cascade;
+  Arcane Power, Temporal Convergence and Resonance Cascade;
 - Paladin Holy Shock proc generation/post-consumption baseline and Blessed
   Strikes;
 - Priest Resurgent Shield break arithmetic, custom mana-loop passives and
   unresolved future Ascendance consequences;
 - Rogue Noxious Assault and observed Nightblade procs;
-- Shaman improved Chain Heal/Flame Shock, additional Elemental Focus triggers,
-  Totemic Alignment and Calming Winds;
+- Shaman charged shield phases, additional Elemental Focus triggers, Totemic
+  Alignment and Calming Winds;
 - Warlock pet-cast modifiers, Mana Funnel and Shadow Strikes; and
 - Warrior Devastate's private supplemental threat, Shield Block value,
   Shield Mastery/Reprisal, weapon-dependent Master Strike and hidden

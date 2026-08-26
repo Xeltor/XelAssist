@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.52
+
+- Added zero-command session smoke evidence with exact addon version, class,
+  level, role, decision count, worst observed graph slice, budget-limit count
+  and graph-error count, plus a sandboxed offline SavedVariables audit tool.
+- Added Accelerated Arcana's exact engine-effective five-tick Arcane Missiles
+  channel cadence. Learned but incomplete timing fails closed; ordinary
+  untalented channels retain their installed DBC cadence.
+- Added Blood Frenzy's exact immediate five/ten-rage Enrage packet only after
+  an already-admitted Enrage action. Baseline rage, armor loss and haste remain
+  separate so the supplemental benefit cannot hide an unresolved tradeoff.
+- Added Improved Flame Shock's exact engine-effective 12/15/18-second duration
+  while preserving its three-second tick cadence and existing Molten Blast
+  phase-safe refresh behavior.
+- Centralized trusted channel-cadence provenance in a focused graph module
+  instead of duplicating class knowledge in the breakpoint and commitment code.
+
 ## 0.8.51
 
 - Added a patch-5-wide installed Spell.dbc topology audit that ranks class and

@@ -20,6 +20,7 @@ end
 XelAssist = { Game = {}, Graph = { State = {} } }
 function XelAssist.Graph.State:FriendlyByKey() return nil end
 dofile("Game/SpellTiming.lua")
+dofile("Graph/ChannelCadence.lua")
 dofile("Graph/ChannelBreakpoint.lua")
 local Timing = XelAssist.Game.SpellTiming
 local Breakpoint = XelAssist.Graph.ChannelBreakpoint

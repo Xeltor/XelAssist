@@ -25,14 +25,38 @@ local function discoveredActions()
     return found
 end
 
+local function playerIdentity()
+    local class, level
+    if type(UnitClass) == "function" then
+        local ok, _, token = pcall(UnitClass, "player")
+        if ok then class = token end
+    end
+    if type(UnitLevel) == "function" then
+        local ok, value = pcall(UnitLevel, "player")
+        if ok then level = tonumber(value) end
+    end
+    return class, level
+end
+
+function D:BeginSession(owner)
+    XelAssistCharDB.runtime = { session = {
+        startedAt = time and time() or 0, decisions = 0,
+        maxSliceMs = 0, budgetLimited = 0, errors = 0 } }
+    return self:Audit(owner)
+end
+
 function D:Audit(owner)
     if type(XelAssistCharDB.runtime) ~= "table" then XelAssistCharDB.runtime = {} end
     local runtime = XelAssistCharDB.runtime
     runtime.version, runtime.schema = owner.version, XelAssistCharDB.schema
+    runtime.class, runtime.level = playerIdentity()
+    runtime.role = XelAssistCharDB.role or "auto"
+    runtime.session = runtime.session or { startedAt = time and time() or 0,
+        decisions = 0, maxSliceMs = 0, budgetLimited = 0, errors = 0 }
     runtime.hostileTargetPolicy = XelAssist.Graph.HostileTargetPolicy
         and XelAssist.Graph.HostileTargetPolicy:Describe()
         or "selected enemy only"
-    runtime.loadedAt = time and time() or 0
+    runtime.loadedAt = runtime.session.startedAt
     runtime.superWoW = SUPERWOW_VERSION and tostring(SUPERWOW_VERSION) or nil
     runtime.nampower = versionOfNampower()
     runtime.apis = { queue = QueueSpellByName and true or false,
