@@ -606,8 +606,10 @@ a bounded heuristic, not an exhaustive proof of every long setup chain.
 - A player round is executable only after exact classified main-hand evidence
   and live normal-damage magnitude establish phase and replacement value. Before
   the first such round, after a target/weapon/form/control change, or when melee
-  geometry is not exact, on-next-swing actions hold. Area on-next-swing abilities
-  remain withheld until every replacement and secondary recipient can be proven.
+  geometry is not exact, on-next-swing actions hold. An exact target-centered
+  DBC chain may credit its selected origin; because the server chooses its
+  secondary, possible secondary records become uncertain at impact and receive
+  no invented damage or threat.
 - Hunter pet focus is observed exactly at each live snapshot and known pet costs
   are reserved across the shared autocast clock. Passive regeneration becomes
   executable only after three same-identity, uncapped `UNIT_FOCUS` gains establish

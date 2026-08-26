@@ -14,10 +14,10 @@ local HunterRapidFire = XelAssist.Graph.HunterRapidFire
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 local WarriorThreat = XelAssist.Graph.WarriorThreatPackets
 local PaladinMight = XelAssist.Graph.PaladinMight
+local SwingArea = XelAssist.Graph.PlayerSwingArea
 
 local MAX_EVENTS = 8
 local READY_DELAY = 0.05
-
 local function afterCastLocks(state, candidate, offset)
     offset = math.max(READY_DELAY, tonumber(offset) or 0)
     local currentEnd = state and state.playerCasting and math.max(0,
@@ -34,7 +34,6 @@ local function afterCastLocks(state, candidate, offset)
     end
     return offset
 end
-
 local WHITE_ACTION = { name = "Attack", actor = "player", facts = {
     kind = "damage", school = 0, melee = true, whiteAttack = true,
     weaponHand = "main", deliveryModel = "physical",
@@ -95,7 +94,8 @@ end
 
 function S:Blocker(action, state, descriptor, tooltip)
     if not onSwing(action, tooltip) then return nil end
-    if area(action, tooltip) then
+    if area(action, tooltip) and not (SwingArea
+        and SwingArea:SelectedOrigin(tooltip)) then
         return "next-swing area recipients unresolved"
     end
     local attack = state and state.playerAttack
@@ -164,6 +164,8 @@ function S:Arm(out, candidate)
     pending.reservedCost = pending.costKnown and math.max(0,
         tonumber(pending.reservedCost) or tonumber(candidate.cost) or 0) or nil
     pending.threatMultiplier = tonumber(facts.threat) or 1
+    pending.areaSecondaryUnknown = area(candidate.action, candidate.tooltip)
+        and SwingArea and SwingArea:SelectedOrigin(candidate.tooltip) or nil
     return true
 end
 
@@ -398,6 +400,9 @@ function S:Apply(out, entry)
                     "next-swing outcome magnitude unavailable")
             elseif threatReason then
                 markThreatUnknown(target, record, threatReason)
+            end
+            if pending.areaSecondaryUnknown and SwingArea then
+                SwingArea:MarkSecondariesUnknown(out, entry.targetGuid)
             end
         end
         out.playerAttack.onSwing = { occupied = false, pending = false,

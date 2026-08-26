@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.58
+
+- Admitted area-shaped on-next-swing actions when the installed DBC proves a
+  target-centered chain origin. The graph credits only the selected-target
+  replacement and marks possible server-selected secondaries uncertain rather
+  than withholding Cleave or inventing its extra recipient.
+- Split the chain-recipient boundary into `Graph/PlayerSwingArea.lua` so the
+  main swing timeline remains within the human-review architecture ceiling.
+
 ## 0.8.57
 
 - Protected Battle Shout as a graph-native zero-output setup until an exact

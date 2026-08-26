@@ -55,6 +55,7 @@ XelAssist.Graph.WarriorBattleShout = {
 dofile("Graph/CompanionTargets.lua")
 dofile("Graph/PlayerRage.lua")
 dofile("Graph/PlayerThreat.lua")
+dofile("Graph/PlayerSwingArea.lua")
 dofile("Graph/PlayerSwings.lua")
 dofile("Graph/PlayerSwingScoring.lua")
 dofile("Game/SpellClassification.lua")
@@ -205,6 +206,33 @@ assert(XelAssist.Graph.PlayerSwings:Blocker(
     cleave, state, descriptor, tooltip)
         == "next-swing area recipients unresolved",
     "unproven Cleave topology must be withheld rather than duplicated")
+local cleaveTooltip = copy(tooltip)
+cleaveTooltip.topology = { available = true, area = true, chain = true,
+    hostile = { { relation = "hostile", shape = "chain", center = "target",
+        maxTargets = 2 } } }
+assert(not XelAssist.Graph.PlayerSwings:Blocker(
+    cleave, state, descriptor, cleaveTooltip),
+    "a DBC-proven chain origin must admit selected-target Cleave damage")
+local cleaveCandidate = copy(candidate)
+cleaveCandidate.action, cleaveCandidate.tooltip = cleave, cleaveTooltip
+local cleaveArmed = XelAssist.Graph.Transitions:Advance(state, cleaveCandidate)
+assert(cleaveArmed.playerAttack.onSwing.areaSecondaryUnknown == true,
+    "Cleave must retain unresolved secondary-recipient state until impact")
+local cleaveRecipients = { hostiles = { order = { "one", "two" },
+    byKey = {
+        one = { guid = targetGuid, healthExact = true, threat = {
+            playerDeltaExact = true } },
+        two = { guid = "secondary-guid", healthExact = true, threat = {
+            playerDeltaExact = true } },
+    } } }
+XelAssist.Graph.PlayerSwingArea:MarkSecondariesUnknown(
+    cleaveRecipients, targetGuid)
+assert(cleaveRecipients.hostiles.byKey.one.healthExact == true
+    and cleaveRecipients.hostiles.byKey.two.healthExact == false
+    and cleaveRecipients.hostiles.byKey.two.threat.playerDeltaExact == false
+    and cleaveRecipients.hostiles.byKey.two.playerSwingUnknownReason
+        == "next-swing secondary recipient unresolved",
+    "Cleave impact must preserve its primary and invalidate possible secondaries")
 
 local score = { onNextSwing = true, state = state, target = "target",
     expectedPower = 80, impactDelay = 1 }

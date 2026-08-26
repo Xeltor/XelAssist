@@ -1,4 +1,4 @@
-# XelAssist 0.8.57
+# XelAssist 0.8.58
 
 XelAssist is a private, input-driven combat decision addon for OctoWoW 1.18.
 It discovers the character's known spell ranks and evaluates them as an action
@@ -340,7 +340,9 @@ runway; an otherwise usable current action never becomes a budget HOLD. It accou
   their cost until that round, replace the ordinary white result rather than
   double-counting it, and are scored only for their marginal improvement over
   the displaced white swing. Unknown phase, damage, geometry, target identity,
-  or area recipients holds the action instead of inventing a melee outcome;
+  holds the action instead of inventing a melee outcome. For a DBC-proven
+  target-centered chain such as Cleave, the selected origin is credited while
+  possible server-selected secondary records become explicitly uncertain;
 - equipped weapon durability and ammunition, plus opt-in immediate-use healing
   and mana consumables discovered conservatively from live bag tooltips;
 - OctoWoW VMaNGOS weapon-effect coefficients and delivered

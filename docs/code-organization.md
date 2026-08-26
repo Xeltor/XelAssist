@@ -197,7 +197,8 @@ never class rotations or ordered priority lists.
   spending one action more than once. `Graph/AutoShotEffects.lua` and
   `Graph/CompanionEvents.lua` own target-pinned ambient events;
   `Graph/PlayerSwings.lua` owns player main-hand and on-next-swing timeline
-  consequences, while `Graph/PlayerSwingScoring.lua` owns displaced-white
+  consequences, `Graph/PlayerSwingArea.lua` separates proven chain origins
+  from unknown server-selected secondaries, and `Graph/PlayerSwingScoring.lua` owns displaced-white
   marginal utility;
   `Graph/CompanionTargets.lua` owns their identity boundary and
   `Graph/CompanionSwings.lua` owns ordinary melee scheduling.
