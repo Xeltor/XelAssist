@@ -47,6 +47,8 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.HunterDistractingShot, spellId)
     if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.HunterRapidFire, spellId)
+    if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarriorThunderClap, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarriorDemoralizingShout, spellId)
@@ -152,6 +154,7 @@ function I:InvalidateClass()
     if player.HunterDistractingShot then
         player.HunterDistractingShot:Invalidate()
     end
+    if player.HunterRapidFire then player.HunterRapidFire:Invalidate() end
     if player.WarriorBattleShout then
         player.WarriorBattleShout:Invalidate()
     end

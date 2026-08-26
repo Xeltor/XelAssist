@@ -25,6 +25,8 @@ local RogueRuthlessness = XelAssist.Graph.RogueRuthlessness
 local RoguePreparation = XelAssist.Graph.RoguePreparation
 local HunterMark = XelAssist.Graph.HunterMark
 local HunterHawk = XelAssist.Graph.HunterHawk
+local HunterRapidFireRuntime = XelAssist.Game.Player.HunterRapidFire
+local HunterRapidFire = XelAssist.Graph.HunterRapidFire
 local PriestShadowform = XelAssist.Graph.PriestShadowform
 local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
 local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
@@ -91,7 +93,10 @@ function S:Attach(state)
     elseif token == "HUNTER" then
         local mark = HunterMark and HunterMark:Attach(state)
         local hawk = HunterHawk and HunterHawk:Attach(state) or false
-        return mark ~= nil or hawk
+        local rapid = HunterRapidFireRuntime and HunterRapidFire
+            and HunterRapidFire:Attach(
+                state, HunterRapidFireRuntime:Snapshot(token)) or false
+        return mark ~= nil or hawk or rapid
     elseif token == "PRIEST" then
         local attached = PriestShadowform
             and PriestShadowform:Attach(state, token) or false
@@ -159,6 +164,7 @@ function S:Copy(source, target)
     if source.totems then target.totems = copy(source.totems, 7) end
     if source.hunterMarkRoot then target.hunterMarkRoot = source.hunterMarkRoot end
     if HunterHawk then HunterHawk:Copy(source, target) end
+    if HunterRapidFire then HunterRapidFire:Copy(source, target) end
     if MageClearcasting then MageClearcasting:Copy(source, target) end
     if MagePresenceOfMind then MagePresenceOfMind:Copy(source, target) end
     if MageColdSnap then MageColdSnap:Copy(source, target) end
@@ -187,6 +193,7 @@ function S:Copy(source, target)
         or source.paladinBlessingThreat ~= nil or source.totems ~= nil
         or source.paladinRighteousFury ~= nil
         or source.hunterMarkRoot ~= nil or source.hunterHawk ~= nil
+        or source.hunterRapidFire ~= nil
         or source.mageClearcasting ~= nil
         or source.magePresenceOfMind ~= nil
         or source.mageColdSnapReset ~= nil

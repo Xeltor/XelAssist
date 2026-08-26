@@ -66,6 +66,11 @@ local function consumerKey(context)
             or preparation:ConsumerKey(
                 context.state, context.action, context.facts)
     end
+    local rapidFire = XelAssist.Graph.HunterRapidFire
+    if value == nil and rapidFire then
+        value = rapidFire:ConsumerKey(context.tooltip)
+            or rapidFire:ConsumerKey(context.facts)
+    end
     if type(value) ~= "string" or value == ""
         or string.len(value) > 128 then return nil end
     return value
@@ -90,6 +95,8 @@ local function strategicSetup(tooltip)
         and XelAssist.Graph.WarlockFelDomination:StrategicSetup(tooltip)
     local preparation = XelAssist.Graph.RoguePreparation
         and XelAssist.Graph.RoguePreparation:StrategicSetup(tooltip)
+    local rapidFire = XelAssist.Graph.HunterRapidFire
+        and XelAssist.Graph.HunterRapidFire:StrategicSetup(tooltip)
     local warrior = tooltip and tooltip.warriorStanceTransition
     local druid = tooltip and tooltip.druidFormTransition
     local priest = tooltip and tooltip.priestShadowformTransition
@@ -99,14 +106,15 @@ local function strategicSetup(tooltip)
     end
     include(innerFocus); include(presence); include(powerInfusion)
     include(manaSpring); include(wisdom); include(coldSnap)
-    include(felDomination); include(preparation)
+    include(felDomination); include(preparation); include(rapidFire)
     include(warrior)
     include(druid); include(priest)
     if count ~= 1 then return nil end
     if selected == innerFocus or selected == presence
         or selected == powerInfusion or selected == manaSpring
         or selected == wisdom or selected == coldSnap
-        or selected == felDomination or selected == preparation then
+        or selected == felDomination or selected == preparation
+        or selected == rapidFire then
         return selected
     end
     local transition, prefix = warrior or druid or priest,

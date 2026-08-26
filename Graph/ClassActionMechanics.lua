@@ -8,6 +8,7 @@ local BattleShout = XelAssist.Graph.WarriorBattleShout
 local ShieldWall = XelAssist.Graph.WarriorShieldWall
 local FelDomination = XelAssist.Graph.WarlockFelDomination
 local Hawk = XelAssist.Graph.HunterHawk
+local RapidFire = XelAssist.Graph.HunterRapidFire
 local InnerFocus = XelAssist.Graph.PriestInnerFocus
 local PowerInfusion = XelAssist.Graph.PriestPowerInfusion
 local PresenceOfMind = XelAssist.Graph.MagePresenceOfMind
@@ -84,6 +85,20 @@ local handlers = {
         end,
         prepare = function(module, action, state, _, facts)
             return module:PrepareSetup(action, state, facts)
+        end,
+    },
+    {
+        name = "Hunter Rapid Fire", module = RapidFire,
+        claims = function(facts)
+            return facts.hunterRapidFire == true
+                or facts.requiresHunterRapidFireEvidence == true
+                or facts.hunterRapidFireTransition ~= nil
+        end,
+        matches = function(projection)
+            return projection.hunterRapidFireTransition ~= nil
+        end,
+        prepare = function(module, action, state, descriptor, facts)
+            return module:PrepareSetup(action, state, descriptor, facts)
         end,
     },
     {
@@ -219,6 +234,7 @@ function A:Advance(state, elapsed)
     if BattleShout then BattleShout:Advance(state, elapsed) end
     if ShieldWall then ShieldWall:Advance(state, elapsed) end
     if FelDomination then FelDomination:Advance(state, elapsed) end
+    if RapidFire then RapidFire:Advance(state, elapsed) end
 end
 
 function A:RootBlocker(state)

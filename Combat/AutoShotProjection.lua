@@ -9,7 +9,7 @@ local function arrayCount(values)
 end
 
 local function runFree(nextIn, span, speed, remainingAmmo, base, launches,
-    includeEnd)
+    includeEnd, source)
     local count, elapsed = 0, 0
     span = math.max(0, tonumber(span) or 0)
     nextIn = math.max(0.05, tonumber(nextIn) or speed)
@@ -18,7 +18,11 @@ local function runFree(nextIn, span, speed, remainingAmmo, base, launches,
         span, elapsed = span - nextIn, elapsed + nextIn
         count = count + 1
         table.insert(launches, base + elapsed)
-        nextIn = speed
+        local rapidFire = XelAssist.Graph
+            and XelAssist.Graph.HunterRapidFire
+        nextIn = rapidFire
+            and rapidFire:RangedIntervalAfter(source, base + elapsed, speed)
+            or speed
     end
     if remainingAmmo == nil or count < remainingAmmo then
         nextIn = math.max(0.05, nextIn - span)
@@ -128,7 +132,8 @@ function A:Project(snapshot, candidate, source)
                 local count
                 nextIn, count = runFree(nextIn, span, speed,
                     remainingAmmo, left, out.launchOffsets,
-                    not (playerGeneric and not floorApplied and right == wait))
+                    not (playerGeneric and not floorApplied and right == wait),
+                    source)
                 launches = launches + count
                 if remainingAmmo then remainingAmmo = remainingAmmo - count end
             end

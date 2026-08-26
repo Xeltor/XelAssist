@@ -308,6 +308,23 @@ local function effectBlocker(owner, action, state, descriptor, target,
     end
     return nil
 end
+local function settleAdmission(action, state, tooltip)
+    local actionStart, blocker
+    local felDomination = XelAssist.Graph.WarlockFelDomination
+    if felDomination and state.classMechanicClass == "WARLOCK" then
+        actionStart, tooltip, blocker = felDomination:SettleAdmission(
+            action, state, tooltip)
+    else
+        actionStart, blocker = Admission:Start(action, state, tooltip)
+    end
+    local rapidFire = XelAssist.Graph.HunterRapidFire
+    if not blocker and rapidFire
+        and state.classMechanicClass == "HUNTER" then
+        tooltip, blocker = rapidFire:SettleAdmission(
+            action, state, tooltip, actionStart)
+    end
+    return actionStart, tooltip, blocker
+end
 function T:Legal(action, state, descriptor)
     if not descriptor or not descriptor.unit then return false, "target" end
     if descriptor.relation == "hostile" and state.hostiles then
@@ -386,11 +403,7 @@ function T:Legal(action, state, descriptor)
         and XelAssist.Graph.PlayerTaunt:Blocker(action, state, descriptor)
     if blocker then return false, blocker end
     local actionStart
-    local felDomination = XelAssist.Graph.WarlockFelDomination
-    if felDomination and state.classMechanicClass == "WARLOCK" then
-        actionStart, tooltip, blocker = felDomination:SettleAdmission(
-            action, state, tooltip)
-    else actionStart, blocker = Admission:Start(action, state, tooltip) end
+    actionStart, tooltip, blocker = settleAdmission(action, state, tooltip)
     if blocker then return false, blocker end blocker = Admission:Readiness(action, state, tooltip, actionStart)
     if blocker then return false, blocker end blocker = XelAssist.Graph.SpatialRequirements:Blocker(
         action, state, descriptor, target, tooltip)

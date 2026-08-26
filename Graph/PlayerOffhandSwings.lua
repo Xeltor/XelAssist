@@ -12,6 +12,7 @@ local PlayerThreat = XelAssist.Graph.PlayerThreat
 local MAX_EVENTS = 8
 local READY_DELAY = 0.05
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
+local HunterRapidFire = XelAssist.Graph.HunterRapidFire
 
 local WHITE_ACTION = { name = "Attack", actor = "player", facts = {
     kind = "damage", school = 0, melee = true, whiteAttack = true,
@@ -112,9 +113,11 @@ function O:Events(state, candidate)
     while offset <= window and count < MAX_EVENTS do
         table.insert(events, event(state, round, round.targetGuid,
             key, targetLocal, offset, window))
-        local reset = RogueSlice
-            and RogueSlice:IntervalAfter(state, "off", offset, interval)
-            or interval
+        local reset = state.classMechanicClass == "HUNTER" and HunterRapidFire
+            and HunterRapidFire:MeleeIntervalAfter(
+                state, "off", offset, interval)
+            or RogueSlice and RogueSlice:IntervalAfter(
+                state, "off", offset, interval) or interval
         offset = afterCastLocks(state, candidate, offset + reset)
         count = count + 1
     end

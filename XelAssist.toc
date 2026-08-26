@@ -62,6 +62,7 @@ Game\Player\RoguePreparation.lua
 Game\Player\HunterMark.lua
 Game\Player\HunterHawk.lua
 Game\Player\HunterDistractingShot.lua
+Game\Player\HunterRapidFire.lua
 Game\Player\WarlockFelDomination.lua
 Game\Player\WarlockDarkPact.lua
 Game\Player\WarlockSoulLink.lua
@@ -142,6 +143,7 @@ Graph\WarlockFelDomination.lua
 Graph\HunterMark.lua
 Graph\HunterHawk.lua
 Graph\HunterRangedPower.lua
+Graph\HunterRapidFire.lua
 Graph\PriestShadowform.lua
 Graph\PriestInnerFocus.lua
 Graph\PriestPowerInfusion.lua

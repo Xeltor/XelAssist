@@ -10,6 +10,7 @@ local PlayerRage = XelAssist.Graph.PlayerRage
 local PlayerThreat = XelAssist.Graph.PlayerThreat
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
+local HunterRapidFire = XelAssist.Graph.HunterRapidFire
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 local WarriorThreat = XelAssist.Graph.WarriorThreatPackets
 local PaladinMight = XelAssist.Graph.PaladinMight
@@ -230,9 +231,11 @@ function S:Events(state, candidate)
     while offset <= window and count < MAX_EVENTS do
         table.insert(events, event(state, round, round.targetGuid, key,
             targetLocal, offset, window))
-        local reset = RogueSlice
-            and RogueSlice:IntervalAfter(state, "main", offset, interval)
-            or interval
+        local reset = state.classMechanicClass == "HUNTER" and HunterRapidFire
+            and HunterRapidFire:MeleeIntervalAfter(
+                state, "main", offset, interval)
+            or RogueSlice and RogueSlice:IntervalAfter(
+                state, "main", offset, interval) or interval
         offset, count = afterCastLocks(state, candidate, offset + reset),
             count + 1
     end

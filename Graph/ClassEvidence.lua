@@ -27,6 +27,7 @@ local HunterMark = XelAssist.Game.Player.HunterMark
 local HunterMarkGraph = XelAssist.Graph.HunterMark
 local HunterHawk = XelAssist.Game.Player.HunterHawk
 local HunterDistractingShot = XelAssist.Game.Player.HunterDistractingShot
+local HunterRapidFire = XelAssist.Game.Player.HunterRapidFire
 local PriestShadowform = XelAssist.Game.Player.PriestShadowform
 local PriestInnerFocusRuntime = XelAssist.Game.Player.PriestInnerFocus
 local PriestPowerInfusionRuntime = XelAssist.Game.Player.PriestPowerInfusion
@@ -102,6 +103,9 @@ function E:CaptureFacts(action, facts, state)
     if HunterHawk then out = HunterHawk:CaptureFacts(action, out) end
     if HunterDistractingShot then
         out = HunterDistractingShot:CaptureFacts(action, out, state)
+    end
+    if HunterRapidFire then
+        out = HunterRapidFire:CaptureFacts(action, out, state)
     end
     if PriestShadowform then
         out = PriestShadowform:CaptureFacts(action, out)

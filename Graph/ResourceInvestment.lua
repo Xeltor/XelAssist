@@ -118,6 +118,10 @@ function R:PotentialConsumer(path, action, sealedFacts)
     if key == nil and felDomination then
         key = felDomination:ConsumerKey(sealedFacts)
     end
+    local rapidFire = XelAssist.Graph.HunterRapidFire
+    if key == nil and rapidFire then
+        key = rapidFire:ConsumerKey(sealedFacts)
+    end
     if type(key) ~= "string" or key == ""
         or string.len(key) > 128 then key = nil end
     return dependencyMatches(path, key,
