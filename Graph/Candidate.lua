@@ -207,7 +207,7 @@ function C:Build(context)
             and context.state.channelCommitment or nil,
         channelOpportunityValue = context.channelOpportunityValue,
         healthTransfer = context.healthTransfer,
-        healingTriage = context.healingTriage,
+        healingTriage = context.healingTriage, dispelDecision = context.tooltip and context.tooltip.dispelDecision,
         recipientEffects = context.recipientEffects,
         areaRecipientGroups = context.areaRecipientGroups,
         areaUnknowns = context.areaUnknowns,

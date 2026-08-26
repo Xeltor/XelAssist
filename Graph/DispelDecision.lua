@@ -153,7 +153,7 @@ function D:InferKnowledge(spellId)
     return { kind = "dispel", inferred = true, dbcDispel = true,
         requiresDispelCapture = true, dispelPolymorphic = polymorphic,
         semanticDispelTypes = types,
-        source = "installed-client dispel semantic atom" }, nil
+        source = "installed-client dispel semantic atom" }, nil, true
 end
 
 local function dispelTypes(action, exactRelation)
@@ -177,8 +177,8 @@ local function dispelTypes(action, exactRelation)
         local atom = descriptor.atoms[index]
         if type(atom) == "table" and atom.kind == "dispel" then
             local recipient = atom.recipient
-            local primary = recipient and recipient.primary
-            local relation = primary and primary.relation
+            local relation = recipient and recipient.primary
+                and recipient.primary.relation
             local auraType = normalized(atom.dispelType)
             if recipient and recipient.exact == true and auraType
                 and semanticCompatible(relation, exactRelation)
@@ -277,6 +277,16 @@ function D:Capture(action, state, descriptor)
         source = "installed-client dispel semantics plus exact live aura type" }, nil
 end
 
+function D:CaptureRecord(record, action, state, descriptor)
+    if type(record) ~= "table" then return false end
+    local ok, captured, blocker = pcall(
+        self.Capture, self, action, state, descriptor)
+    record.dispelKnown = ok
+    record.dispelDecision = ok and captured or nil
+    record.dispelBlocker = ok and blocker or "dispel evidence capture failed"
+    return ok
+end
+
 -- Search consumes a frozen capture through this projection and performs no
 -- live reads. It records only what the dispel guarantees: at least one aura in
 -- each represented type is removed. When several auras share a type, their
@@ -310,6 +320,58 @@ function D:Apply(state, decision)
     end
     if type(target) ~= "table" then return false end
     local auraType, value
-    for auraType, value in pairs(projection) do target[auraType] = value end
+    for auraType, value in pairs(projection) do
+        local previous = target[auraType]
+        value.removedLowerBound = value.removedLowerBound
+            + (type(previous) == "table"
+                and tonumber(previous.removedLowerBound) or 0)
+        target[auraType] = value
+    end
     return true
+end
+
+-- A root capture is immutable, but descendants may already have spent part of
+-- its guaranteed removal capacity. Keep the edge only while at least one
+-- observed eligible aura remains; never invent an aura identity.
+function D:ProjectedRelevant(state, decision)
+    if type(state) ~= "table" or type(decision) ~= "table"
+        or decision.captured ~= true or decision.observed ~= true
+        or not validGuid(decision.targetGUID)
+        or type(decision.effects) ~= "table" then
+        return false, "dispel projection evidence unavailable"
+    end
+    local projected = state.dispelProjection
+        and state.dispelProjection[decision.targetGUID] or nil
+    local index
+    for index = 1, table.getn(decision.effects) do
+        local effect = decision.effects[index]
+        local auraType = type(effect) == "table"
+            and normalized(effect.dispelType) or nil
+        local count = type(effect) == "table" and tonumber(effect.count) or nil
+        local removed = auraType and projected and projected[auraType]
+        removed = type(removed) == "table"
+            and tonumber(removed.removedLowerBound) or 0
+        if auraType and count and count > removed then return true, nil end
+    end
+    return false, "captured dispel effects already removed"
+end
+
+-- Legality consumes only the sealed per-recipient root capture. Returning a
+-- shallow action-facts copy prevents candidate-local transport from mutating
+-- the shared observation record.
+function D:Prepare(state, action, descriptor, tooltip)
+    local root = XelAssist.Graph.RootObservation
+    if not root then return nil, "dispel requires root evidence" end
+    local decision, status, reason = root:DispelDecision(
+        state, action, descriptor)
+    if status ~= "known" then return nil, "dispel evidence unknown" end
+    if not decision then return nil, reason or "nothing eligible to dispel" end
+    local useful, projectedReason = self:ProjectedRelevant(state, decision)
+    if not useful then
+        return nil, projectedReason or "nothing eligible to dispel"
+    end
+    local copied, key, value = {}, nil, nil
+    for key, value in pairs(tooltip or {}) do copied[key] = value end
+    copied.dispelDecision = decision
+    return copied, nil
 end

@@ -140,6 +140,12 @@ function R:Reagent(state, action)
     if not record.reagent then return nil, "unknown" end
     return record.reagent, "known"
 end
+function R:DispelDecision(state, action, descriptor)
+    local record, status = self:Recipient(state, action, descriptor)
+    if status ~= "known" then return nil, status end
+    if record.dispelKnown ~= true then return nil, "unknown" end
+    return record.dispelDecision, "known", record.dispelBlocker
+end
 local function remaining(start, duration, observedAt)
     start, duration = tonumber(start), tonumber(duration)
     if not start or not duration then return nil end
@@ -374,6 +380,9 @@ local function captureRecipient(observed, descriptor)
     record.targetEvidence = targetEvidence(observed, descriptor)
     record.auraKnown, record.auraActive = auraEvidence(observed, action, descriptor)
     record.pendingKnown, record.pending = pendingEvidence(observed, action, descriptor)
+    local dispel = XelAssist.Graph.DispelDecision
+    if action.facts and action.facts.kind == "dispel" and dispel then
+        dispel:CaptureRecord(record, action, state, descriptor) end
     if XelAssist.Graph.ClassMechanics then XelAssist.Graph.ClassMechanics:CaptureRecipient(observed, action, descriptor) end
     record.observationKnown = true
     if descriptor.relation == "hostile" and XelAssist.Combat.Observations

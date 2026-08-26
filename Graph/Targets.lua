@@ -1,8 +1,7 @@
 XelAssist.Graph.Targets = {}
 local T = XelAssist.Graph.Targets
 local S, Selection = XelAssist.Graph.State, XelAssist.Graph.TargetSelection
-local Admission, ContextPolicy = XelAssist.Graph.ActionAdmission, XelAssist.Graph.ActionContextPolicy
-local TargetAuras = XelAssist.Graph.TargetAuras
+local Admission, ContextPolicy, TargetAuras = XelAssist.Graph.ActionAdmission, XelAssist.Graph.ActionContextPolicy, XelAssist.Graph.TargetAuras
 function T:VariableFriendlyAction(action) return Selection:VariableFriendlyAction(action) end
 function T:Targets(action, state) return Selection:Targets(action, state) end
 local function observed(method, state, action, descriptor)
@@ -18,6 +17,11 @@ local function frozenAura(action, state, descriptor)
 end
 local function divergentTooltip(action, state, descriptor, tooltip)
     local blocker
+    local dispel = XelAssist.Graph.DispelDecision
+    if action.facts.kind == "dispel" then
+        tooltip, blocker = dispel and dispel:Prepare(state, action, descriptor, tooltip)
+        if not tooltip then return nil, blocker or "dispel evidence adapter unavailable" end
+    end
     local holyShock = XelAssist.Graph.PaladinHolyShockModifiers
     if holyShock then
         tooltip, blocker = holyShock:PrepareLegal(action, state, tooltip)

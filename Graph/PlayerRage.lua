@@ -31,12 +31,21 @@ function R:FromIncomingDamage(state, damage)
     damage = math.max(0, tonumber(damage) or 0)
     if damage <= 0 then return 0 end
     -- VMaNGOS RewardRage uses the final delivered damage at 2.5/conversion.
-    -- The server's configurable income rate and Berserker Rage modifier are
-    -- not observable here, so this remains a conservative baseline estimate.
-    return math.floor(damage * 2.5 / self:Conversion(state.playerLevel))
+    -- The server's configurable income rate remains unknown. Patch-5 does
+    -- expose Berserker Rage's exact modifier, which composes with this
+    -- conservative baseline only while its finite aura is active.
+    local multiplier = 1
+    local berserker = XelAssist.Graph.WarriorBerserkerRage
+    if berserker then
+        local exact
+        multiplier, exact = berserker:IncomingRageMultiplier(state)
+        if exact ~= true then return 0 end
+    end
+    return math.floor(damage * 2.5 * multiplier
+        / self:Conversion(state.playerLevel))
 end
 
-local function gain(state, amount, source)
+local function gain(state, amount, source, berserkerMultiplier)
     if state.playerResourceExact == false then return 0 end
     local current, maximum = tonumber(state.resource), tonumber(state.resourceMax)
     if not current or not maximum or amount <= 0 then return 0 end
@@ -45,18 +54,21 @@ local function gain(state, amount, source)
     state.playerResourceProjected = true
     state.playerRageProjection = { estimated = true,
         source = source .. "; " .. R.SERVER_PROFILE, gained = gained,
-        incomeRateKnown = false, berserkerRageMultiplierKnown = false }
+        incomeRateKnown = false, berserkerRageMultiplierKnown = true,
+        berserkerRageMultiplier = berserkerMultiplier or 1 }
     return gained
 end
 
 function R:GainFromWhite(state, damage)
     if not self:Is(state) then return 0 end
     local amount = self:FromOutgoingDamage(state, damage)
-    return gain(state, amount, "projected ordinary weapon damage")
+    return gain(state, amount, "projected ordinary weapon damage", 1)
 end
 
 function R:GainFromIncomingDamage(state, damage)
     if not self:Is(state) then return 0 end
     local amount = self:FromIncomingDamage(state, damage)
-    return gain(state, amount, "projected delivered incoming damage")
+    local multiplier, berserker = 1, XelAssist.Graph.WarriorBerserkerRage
+    if berserker then multiplier = berserker:IncomingRageMultiplier(state) end
+    return gain(state, amount, "projected delivered incoming damage", multiplier)
 end

@@ -54,6 +54,8 @@ local WarriorExecute = XelAssist.Game.Player.WarriorExecute
 local WarriorDemoralizingShout =
     XelAssist.Game.Player.WarriorDemoralizingShout
 local WarriorShieldWall = XelAssist.Game.Player.WarriorShieldWall
+local WarriorBerserkerRage = XelAssist.Game.Player.WarriorBerserkerRage
+local WarriorBerserkerRageGraph = XelAssist.Graph.WarriorBerserkerRage
 local WarriorThreatPackets = XelAssist.Graph.WarriorThreatPackets
 local WarlockFelDominationRuntime =
     XelAssist.Game.Player.WarlockFelDomination
@@ -102,6 +104,7 @@ captureModule(WarriorThunderClap)
 captureModule(WarriorExecute)
 captureModule(WarriorDemoralizingShout)
 captureModule(WarriorShieldWall)
+captureModule(WarriorBerserkerRage)
 captureModule(WarlockFelDominationRuntime)
 captureModule(WarlockDarkPactRuntime)
 captureModule(WarlockNightfallRuntime)
@@ -155,6 +158,11 @@ end
 
 function E:Blocker(action, state, descriptor, tooltip, actionStart)
     local blocker, handled
+    if WarriorBerserkerRageGraph then
+        blocker, handled = WarriorBerserkerRageGraph:Blocker(
+            action, state, descriptor, tooltip)
+        if handled then return blocker, true end
+    end
     if PriestAscendance then
         local prepared
         prepared, blocker, handled = PriestAscendance:Prepare(
@@ -216,6 +224,8 @@ function E:Blocker(action, state, descriptor, tooltip, actionStart)
 end
 
 function E:ApplyExactAura(state, candidate)
+    if WarriorBerserkerRageGraph
+        and WarriorBerserkerRageGraph:Apply(state, candidate) then return true end
     if RogueSlice and RogueSlice:Apply(state, candidate) then return true end
     return HunterMarkGraph and HunterMarkGraph:Apply(state, candidate) or false
 end

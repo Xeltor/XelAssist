@@ -1,7 +1,10 @@
 -- One addon-owned namespace is the only runtime global API. WoW's 1.12
 -- loader executes files in TOC order, so every later module attaches here.
 XelAssist = XelAssist or {}
-XelAssist.version = "0.8.55"
+-- Lua 5.0 hosts do not consistently expose this later-standard constant.
+-- Production modules use it only as a finite-value guard or sort sentinel.
+math.huge = math.huge or (1 / 0)
+XelAssist.version = "0.8.56"
 XelAssist.mode = XelAssist.mode or "smart"
 XelAssist.Core = XelAssist.Core or {}
 XelAssist.Game = XelAssist.Game or {}

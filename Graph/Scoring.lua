@@ -294,7 +294,6 @@ local function scoreDamageAndHealing(context)
     else return false end
     return true
 end
-
 local function scoreKindUtility(context)
     -- A mechanic may explicitly own its immediate kind consequence. Generic
     -- heal/damage/buff fallbacks must not replace a score that already proved
@@ -303,6 +302,7 @@ local function scoreKindUtility(context)
     if XelAssist.Graph.Charge and XelAssist.Graph.Charge:Score(context) then return end
     if XelAssist.Graph.PlayerTaunt and XelAssist.Graph.PlayerTaunt:Score(context) then return end
     if XelAssist.Graph.WarriorStances and XelAssist.Graph.WarriorStances:Score(context) then return end
+    if XelAssist.Graph.WarriorBerserkerRage and XelAssist.Graph.WarriorBerserkerRage:Score(context) then return end
     if RogueFeint and RogueFeint:Score(context) then return end
     if HunterMark and HunterMark:Score(context) then return end
     if PriestShadowform and PriestShadowform:Score(context) then return end

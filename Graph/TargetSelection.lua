@@ -110,7 +110,8 @@ function T:VariableFriendlyAction(action)
         return false
     end
     local kind = action.facts.kind
-    return kind == "heal" or kind == "hot" or kind == "absorb" or kind == "buff"
+    return kind == "heal" or kind == "hot" or kind == "absorb"
+        or kind == "buff" or kind == "dispel"
 end
 
 function T:Fixed(action, state)
@@ -145,12 +146,7 @@ function T:Fixed(action, state)
             return unitDescriptor(state, "pet", "pet", "companion")
         end
         if kind == "dispel" then
-            local unit = XelAssist.Game.Actors:DispelTarget(state)
-            if not unit then return nil end
-            if unit == "target" and state.hostile then
-                return unitDescriptor(state, unit, "hostile", "selected")
-            end
-            return unitDescriptor(state, unit, "friendly", "dispel")
+            return unitDescriptor(state, "target", "hostile", "selected")
         end
         return unitDescriptor(state, "target", "hostile", "selected")
     end
@@ -183,6 +179,13 @@ function T:Targets(action, state)
         if record and not record.dead then
             table.insert(out, friendlyDescriptor(state, record))
         end
+    end
+    -- Installed-client semantics decide whether a dispel is friendly-only,
+    -- hostile-only or polymorphic. Enumerate both retained recipient classes
+    -- here; the frozen per-edge capture rejects every incompatible relation.
+    if action.facts.kind == "dispel" then
+        local hostile = hostileDescriptor(state)
+        if hostile and hostile.guid ~= nil then table.insert(out, hostile) end
     end
     return out
 end

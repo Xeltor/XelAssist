@@ -20,6 +20,7 @@ local EarthShock = XelAssist.Graph.ShamanEarthShock
 local ActionMechanics = XelAssist.Graph.ClassActionMechanics
 local Evidence = XelAssist.Graph.ClassEvidence
 local ClassState = XelAssist.Graph.ClassState
+local WarriorBerserkerRage = XelAssist.Graph.WarriorBerserkerRage
 
 local function mergeActionFacts(action, captured)
     local facts, key, value = {}, nil, nil
@@ -328,6 +329,7 @@ function M:Advance(state, elapsed)
     if PaladinMight then PaladinMight:Advance(state, elapsed) end
     if PaladinWisdom then PaladinWisdom:Advance(state, elapsed) end
     if PriestFade then PriestFade:Advance(state, elapsed) end
+    if WarriorBerserkerRage then WarriorBerserkerRage:Advance(state, elapsed) end
     if ActionMechanics then ActionMechanics:Advance(state, elapsed) end
     return expired
 end

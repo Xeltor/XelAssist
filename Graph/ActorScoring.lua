@@ -3,6 +3,19 @@
 XelAssist.Graph.ActorScoring = {}
 local A = XelAssist.Graph.ActorScoring
 
+-- Pet Attack is a zero-GCD setup edge, not an immediate damage packet.  A
+-- fixed low proxy lets an ordinary high-rank player spell win every root and
+-- can therefore leave a healthy Hunter/Warlock companion idle for the whole
+-- fight.  Exact remaining hostile health is the one safe measure of how much
+-- combat is still available for the companion to participate in.  Keep the
+-- old conservative floor when health is percentage-scaled or otherwise
+-- unknown, and cap the setup value so it cannot masquerade as damage.
+local function attackCommandValue(state)
+    if not (state and state.targetHealthExact == true) then return 850 end
+    local remaining = math.max(0, tonumber(state.targetHealth) or 0)
+    return math.max(850, math.min(3200, remaining * 4))
+end
+
 local function scoreAutoRepeat(context, state, facts)
     local auto = facts.wandRepeat and (state.wand or {})
         or state.autoShot or {}
@@ -102,8 +115,10 @@ function A:Score(context)
     elseif kind == "command" then
         local pet = state.actors and state.actors.pet
         if context.action.command == "attack" then
-            context.value, context.reason = 850,
-                "sends the companion to the current target"
+            context.value = attackCommandValue(state)
+            context.reason = context.value > 850
+                and "starts companion participation while the target can survive"
+                or "sends the companion to the current target"
         elseif context.action.command == "passive" then
             context.value, context.reason = 2900,
                 "stops the endangered companion from re-engaging"

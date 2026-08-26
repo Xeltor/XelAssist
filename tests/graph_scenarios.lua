@@ -22,6 +22,7 @@ dofile("Game/ResourceCost.lua")
 dofile("Game/ResourceExchange.lua")
 dofile("Game/HealthTransfer.lua")
 dofile("Game/CrowdControl.lua")
+dofile("Graph/DispelDecision.lua")
 dofile("Game/Player/RogueFeint.lua")
 dofile("Game/ActionInference.lua")
 dofile("Game/CapabilityInvalidation.lua")
@@ -191,8 +192,6 @@ XelAssist.Game.Actors.Facts = function(_, action) return action.mock end
 XelAssist.Game.Actors.PetCooldown = function() return 0 end
 local reagentAvailable = true
 XelAssist.Game.Actors.HasReagent = function() return reagentAvailable end
-local dispelTarget
-XelAssist.Game.Actors.DispelTarget = function() return dispelTarget end
 XelAssist.Game.Capabilities.IsReady = function() return true end
 local rangeQueries = {}
 XelAssist.Game.Capabilities.InRange = function(_, spell, unit)
@@ -377,7 +376,7 @@ if XelAssistGraphScenarioSetupOnly then
             currentState = source
             scenarioActions = actions or {}
             scenarioItems = items or {}
-            pendingAura, dispelTarget = nil, nil
+            pendingAura = nil
             reagentAvailable = true
             rangeQueries = {}
             XelAssist.Graph.testDelivery = nil
@@ -3226,19 +3225,39 @@ expect("consume shadows combat gate", "Shadow Bolt")
 currentState = state("smart"); currentState.pet = true
 currentState.actors.pet = { health = 1000, healthMax = 1000, resource = 300, resourceMax = 300,
     targetExists = true, targetsCurrent = true, hasAggro = false, distance = 20 }
-dispelTarget = nil
+XelAssist.Graph.priorDevourPrepare = XelAssist.Graph.DispelDecision.Prepare
+XelAssist.Graph.DispelDecision.Prepare = function(self, state, action, descriptor, tooltip)
+    local byTarget = state.dispelEvidenceBySpellId
+        and state.dispelEvidenceBySpellId[action.spellId]
+    local decision = byTarget and byTarget[descriptor.guid]
+    if not decision then return nil, "nothing eligible to dispel" end
+    local useful, reason = self:ProjectedRelevant(state, decision)
+    if not useful then return nil, reason end
+    local copied, key, value = {}, nil, nil
+    for key, value in pairs(tooltip) do copied[key] = value end
+    copied.dispelDecision = decision
+    return copied, nil
+end
 scenarioActions = { petAction("Devour Magic", "dispel", 0, 60, { ranged = true }),
     action("Shadow Bolt", 1, "damage", 200, 20) }
+scenarioActions[1].spellId = 19505
 expect("devour requires magic aura", "Shadow Bolt")
-dispelTarget = "target"
 scenarioActions = { petAction("Devour Magic", "dispel", 0, 60, { ranged = true }) }
+scenarioActions[1].spellId = 19505
+currentState.dispelEvidenceBySpellId = { [19505] = {
+    [currentState.targetGUID] = { captured = true, observed = true,
+        targetGUID = currentState.targetGUID, effects = {
+            { dispelType = "magic", count = 1, identityKnown = true,
+                aura = { name = "Exact magic fixture", spellId = 990001 } } } } } }
 expect("felhunter devour", "Devour Magic")
-dispelTarget = "party1"
+currentState.dispelEvidenceBySpellId = nil
 scenarioActions = { petAction("Devour Magic", "dispel", 0, 60, { ranged = true }),
     action("Shadow Bolt", 1, "damage", 200, 20) }
+scenarioActions[1].spellId = 19505
 expect("pet friendly target safety", "Shadow Bolt")
-dispelTarget = "player"
 expect("pet owner target safety", "Shadow Bolt")
+XelAssist.Graph.DispelDecision.Prepare = XelAssist.Graph.priorDevourPrepare
+XelAssist.Graph.priorDevourPrepare = nil
 
 currentState = state("smart")
 setFriendlies(currentState, {

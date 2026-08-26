@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.56
+
+- Added exact patch-5 Berserker Rage ownership: its ten-second branch-local
+  aura amplifies only incoming-damage rage by 30 percent. Fear and
+  incapacitate utility remain unvalued without hostile-control evidence.
+- Connected installed-client dispel semantics to action discovery, frozen
+  per-recipient aura evidence, friendly/selected-hostile target selection and
+  branch-local removal counts so a stale root cannot recommend extra dispels.
+- Made healthy companion engagement competitive on exact durable targets
+  without manufacturing long-fight value for short or health-unknown targets.
+- Added the missing Lua 5.0 `math.huge` bootstrap fallback used by finite-value
+  guards and graph sort sentinels.
+
 ## 0.8.55
 
 - Added permutation-stable, rank-heavy level-60 scenario tranches for all nine

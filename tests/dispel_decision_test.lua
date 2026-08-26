@@ -334,4 +334,49 @@ assert(not Decision:Apply(invalidState, { captured = true, observed = true,
     and invalidState.dispelProjection == nil,
     "an incomplete future projection must fail atomically")
 
+local projected = {}
+local repeated = { captured = true, observed = true,
+    targetGUID = "party-guid", effects = {
+        { dispelType = "magic", count = 2, identityKnown = false } } }
+assert(Decision:ProjectedRelevant(projected, repeated)
+    and Decision:Apply(projected, repeated)
+    and projected.dispelProjection["party-guid"].magic.removedLowerBound == 1
+    and Decision:ProjectedRelevant(projected, repeated)
+    and Decision:Apply(projected, repeated)
+    and projected.dispelProjection["party-guid"].magic.removedLowerBound == 2,
+    "descendants must retain exact remaining dispel capacity per recipient")
+local useful, projectedReason = Decision:ProjectedRelevant(projected, repeated)
+assert(not useful and projectedReason == "captured dispel effects already removed",
+    "a frozen root capture must not manufacture a third removable aura")
+
+local prepareCalls = 0
+XelAssist.Graph.RootObservation = {
+    DispelDecision = function(_, foundState, foundAction, foundDescriptor)
+        prepareCalls = prepareCalls + 1
+        assert(foundState == projected and foundAction.spellId == 527
+            and foundDescriptor.guid == "party-guid")
+        return repeated, "known", nil
+    end,
+}
+local sourceFacts = { cost = 100 }
+local prepared
+prepared, projectedReason = Decision:Prepare(projected, action(527),
+    descriptors.party, sourceFacts)
+assert(prepared == nil
+    and projectedReason == "captured dispel effects already removed"
+    and sourceFacts.dispelDecision == nil and prepareCalls == 1,
+    "legality must consume sealed evidence and preserve shared action facts")
+projected.dispelProjection = nil
+prepared = Decision:Prepare(projected, action(527), descriptors.party, sourceFacts)
+assert(prepared and prepared ~= sourceFacts
+    and prepared.dispelDecision == repeated and sourceFacts.dispelDecision == nil,
+    "candidate-local dispel transport must use a shallow facts copy")
+
+dofile("Game/ActionInference.lua")
+local discovered, discoveryReason, discoveryHandled =
+    XelAssist.Game.ActionInference:ExactKnowledge(527, true)
+assert(discoveryHandled and discoveryReason == nil and discovered
+    and discovered.kind == "dispel" and discovered.requiresDispelCapture,
+    "exact DBC dispels must enter the ordinary spell catalogue")
+
 print("ok: exact bounded polymorphic dispel decisions")

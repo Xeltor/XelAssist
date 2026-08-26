@@ -16,13 +16,13 @@ local WARRIOR_INFERENCE = { "WarriorThunderClap", "WarriorOverpower",
     "WarriorShieldBash", "WarriorDemoralizingShout",
     "WarriorHeroicStrikeThreat", "WarriorExecute",
     "WarriorRevengeThreat", "WarriorBattleShout", "WarriorShieldWall",
-    "WarriorDevastate", "WarriorShieldBlock" }
+    "WarriorDevastate", "WarriorShieldBlock", "WarriorBerserkerRage" }
 local ROOT_INVALIDATION = { "MageFrostfire", "MageAcceleratedArcana",
     "ShamanChainHealTiming", "ShamanFlameShockTiming",
     "DruidAncientBrutality", "DruidBloodFrenzy",
     "PriestDivergentActions", "WarriorShieldBash", "HunterFeignDeath",
     "MageArcaneSurge", "ShamanDivergentActions", "HunterStings",
-    "PaladinDivergentGuards", "ShamanStormstrike" }
+    "PaladinDivergentGuards", "ShamanStormstrike", "WarriorBerserkerRage" }
 
 local function infer(module, spellId)
     if not (module and type(module.InferKnowledge) == "function") then
@@ -128,6 +128,9 @@ function I:ExactKnowledge(spellId, skipClass)
     if handled then return facts, reason, true end
     local control = XelAssist.Game.CrowdControl
     facts, reason, handled = infer(control, spellId)
+    if handled then return facts, reason, true end
+    local dispel = XelAssist.Graph and XelAssist.Graph.DispelDecision
+    facts, reason, handled = infer(dispel, spellId)
     if handled then return facts, reason, true end
     local forms = player.DruidFormState
     facts = forms and forms:InferKnowledge(spellId)

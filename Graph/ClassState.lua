@@ -191,6 +191,11 @@ local function attachWarrior(state, token)
     if WarriorShieldWall then
         attached = WarriorShieldWall:Attach(state, token) or attached
     end
+    local graph = XelAssist.Graph.WarriorBerserkerRage
+    local runtime = XelAssist.Game.Player.WarriorBerserkerRage
+    if runtime and graph then
+        attached = graph:Attach(state, runtime:Snapshot()) or attached
+    end
     return attached
 end
 
@@ -218,6 +223,14 @@ function S:Attach(state)
         return attachWarrior(state, token)
     end
     return false
+end
+
+local function copyWarrior(source, target)
+    if WarriorBattleShout then WarriorBattleShout:Copy(source, target) end
+    if WarriorShieldWall then WarriorShieldWall:Copy(source, target) end
+    if WarriorShieldBlock then WarriorShieldBlock:Copy(source, target) end
+    local berserker = XelAssist.Graph.WarriorBerserkerRage
+    if berserker then berserker:Copy(source, target) end
 end
 
 function S:Copy(source, target)
@@ -275,9 +288,7 @@ function S:Copy(source, target)
     if PriestInnerFocus then PriestInnerFocus:Copy(source, target) end
     if PriestFade then PriestFade:Copy(source, target) end
     if Windfury then Windfury:Copy(source, target) end
-    if WarriorBattleShout then WarriorBattleShout:Copy(source, target) end
-    if WarriorShieldWall then WarriorShieldWall:Copy(source, target) end
-    if WarriorShieldBlock then WarriorShieldBlock:Copy(source, target) end
+    copyWarrior(source, target)
     if WarlockFelDomination then WarlockFelDomination:Copy(source, target) end
     if WarlockNightfall then WarlockNightfall:Copy(source, target) end
     if source.warlockSoulLink then
@@ -317,6 +328,7 @@ function S:Copy(source, target)
         or source.warriorBattleShout ~= nil
         or source.warriorShieldWall ~= nil
         or source.warriorShieldBlock ~= nil
+        or source.warriorBerserkerRage ~= nil
         or source.warlockFelDomination ~= nil
         or source.warlockNightfall ~= nil
 end

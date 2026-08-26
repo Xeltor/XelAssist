@@ -8,8 +8,7 @@ local DotProjection, ResourceExchange = XelAssist.Graph.DotProjection, XelAssist
 local HealthTransfer, WandCommitment = XelAssist.Graph.HealthTransfer, XelAssist.Graph.WandCommitment
 local PlayerTaunt, StackedModifiers = XelAssist.Graph.PlayerTaunt, XelAssist.Graph.StackedModifiers
 local DruidForms, DruidClearcasting = XelAssist.Graph.DruidForms, XelAssist.Graph.DruidClearcasting
-local MageClearcasting = XelAssist.Graph.MageClearcasting
-local ShamanClearcasting = XelAssist.Graph.ShamanClearcasting
+local MageClearcasting, ShamanClearcasting = XelAssist.Graph.MageClearcasting, XelAssist.Graph.ShamanClearcasting
 local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
 local MagePresenceOfMind = XelAssist.Graph.MagePresenceOfMind
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
@@ -262,7 +261,8 @@ local function applyActorOrInventory(out, candidate, context)
         out.resource = math.min(out.resourceMax,
             out.resource + candidate.power)
     elseif facts.kind == "dispel" then
-        out.dispelled = true
+        local dispel = XelAssist.Graph.DispelDecision
+        if dispel then dispel:Apply(out, candidate.dispelDecision) end
     elseif facts.petLifecycle and XelAssist.Game.Pets
         and XelAssist.Game.Pets.Actions
         and XelAssist.Game.Pets.Actions:ApplyLifecycle(out, candidate) then
