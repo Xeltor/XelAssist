@@ -9,6 +9,12 @@ B.SPELL_ID = 18499
 B.WARRIOR_FAMILY = 4
 B.WARRIOR_FAMILY_FLAG = 268435456
 B.RAGE_MULTIPLIER = 1.3
+B.IMPROVED_RANKS = {
+    [20501] = { rank = 2, rageSpellId = 23691, rageGain = 10,
+        breakChance = 1 },
+    [20500] = { rank = 1, rageSpellId = 23690, rageGain = 5,
+        breakChance = 0.5 },
+}
 local CACHE
 
 local function finite(value, low, high)
@@ -61,6 +67,65 @@ local function classToken()
     if type(UnitClass) ~= "function" then return nil end
     local ok, _, token = pcall(UnitClass, "player")
     return ok and token or nil
+end
+
+local function learned(spellId)
+    if type(IsPlayerSpell) ~= "function" then return nil end
+    local ok, value = pcall(IsPlayerSpell, spellId)
+    if not ok then return nil end
+    return value == true or value == 1
+end
+
+local function improvedTopology(spellId, profile)
+    local breakPoints = profile.rank == 2 and 99 or 49
+    local childPoints = profile.rageGain * 10 - 1
+    return scalar(spellId, "attributes") == 464
+        and scalar(spellId, "spellFamilyName") == B.WARRIOR_FAMILY
+        and scalar(spellId, "procFlags") == 0
+        and scalar(spellId, "procChance") == 101
+        and equal(triple(spellId, "effect"), 6, 6, 0)
+        and equal(triple(spellId, "effectApplyAuraName"), 109, 109, 0)
+        and equal(triple(spellId, "effectBasePoints"), 99, breakPoints, 0)
+        and equal(triple(spellId, "effectImplicitTargetB"), 1, 1, 0)
+        and equal(triple(spellId, "effectTriggerSpell"),
+            profile.rageSpellId, 117, 0)
+        and scalar(profile.rageSpellId, "spellFamilyName") == 0
+        and equal(triple(profile.rageSpellId, "effect"), 30, 0, 0)
+        and equal(triple(profile.rageSpellId, "effectBasePoints"),
+            childPoints, 0, 0)
+        and equal(triple(profile.rageSpellId, "effectImplicitTargetB"), 1, 0, 0)
+        and equal(triple(profile.rageSpellId, "effectMiscValue"), 1, 0, 0)
+end
+
+local function improvedEvidence()
+    local ordered = { 20501, 20500 }
+    local anyKnown, index = false, nil
+    for index = 1, 2 do
+        local spellId, profile = ordered[index], B.IMPROVED_RANKS[ordered[index]]
+        local owned = learned(spellId)
+        if owned == nil then
+            return { available = false, exact = false,
+                reason = "Improved Berserker Rage ownership unavailable" }
+        end
+        anyKnown = true
+        if owned then
+            if not improvedTopology(spellId, profile) then
+                return { available = false, exact = false,
+                    reason = "Improved Berserker Rage topology is incomplete" }
+            end
+            return { available = true, exact = true, learned = true,
+                passiveSpellId = spellId, rank = profile.rank,
+                rageSpellId = profile.rageSpellId,
+                rageGain = profile.rageGain,
+                breakChance = profile.breakChance,
+                controlUtilityMode = "ledger-required",
+                source = "installed patch-5 passive and triggered rage packet" }
+        end
+    end
+    return { available = anyKnown, exact = anyKnown, learned = false,
+        rank = 0, rageGain = 0, breakChance = 0,
+        controlUtilityMode = "ledger-required",
+        source = "exact absent Improved Berserker Rage ownership" }
 end
 
 local function classify()
@@ -126,10 +191,31 @@ function B:Evidence(subject)
     return copy(found)
 end
 
+function B:ImprovedEvidence(subject)
+    local found = self:Evidence(subject)
+    local improved = found and found.improved
+    if not (type(improved) == "table" and improved.available == true
+        and improved.exact == true
+        and improved.controlUtilityMode == "ledger-required") then return nil end
+    if improved.learned == false and improved.rank == 0
+        and improved.rageGain == 0 and improved.breakChance == 0 then
+        return copy(improved)
+    end
+    local profile = improved.passiveSpellId
+        and self.IMPROVED_RANKS[improved.passiveSpellId]
+    if not (improved.learned == true and profile
+        and improved.rank == profile.rank
+        and improved.rageSpellId == profile.rageSpellId
+        and improved.rageGain == profile.rageGain
+        and improved.breakChance == profile.breakChance) then return nil end
+    return copy(improved)
+end
+
 function B:CaptureFacts(action, facts)
     local out, found = copy(facts), self:Evidence(action)
     if not found then return out end
     out.warriorBerserkerRageEvidence = copy(found)
+    out.warriorBerserkerRageEvidence.improved = improvedEvidence()
     out.duration, out.cost, out.cast = found.duration, 0, 0
     return out
 end

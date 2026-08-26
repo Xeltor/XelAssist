@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.78
+
+- Added exact patch-5 Improved Berserker Rage ownership and triggered-resource
+  topology. Activating Berserker Rage now adds five or ten rage at the learned
+  talent rank before later graph actions consume it.
+- Kept the talent's movement-impairment break chance explicit but neutral until
+  a hostile-control ledger can prove a useful active effect.
+
 ## 0.8.77
 
 - Added exact learned Reprisal rank ownership and engine-effective Revenge

@@ -44,24 +44,36 @@ function B:Blocker(action, state, descriptor, tooltip)
     if active and tonumber(active.remaining) and active.remaining > 0 then
         return "Berserker Rage already active", true
     end
+    local improved = runtime():ImprovedEvidence(action)
+    if not improved then
+        return "Improved Berserker Rage evidence unavailable", true
+    end
     return nil, true
 end
 function B:Score(context)
     if not (context and self:Is(context.action)) then return false end
     context.power, context.expectedPower, context.effectivePower = 0, 0, 0
     context.value, context.estimated = 0, false
-    context.reason = "amplifies rage from incoming damage for 10 seconds"
+    local improved = runtime():ImprovedEvidence(context.action)
+    context.reason = improved and improved.rageGain > 0
+        and "generates rage and amplifies incoming-damage rage for 10 seconds"
+        or "amplifies rage from incoming damage for 10 seconds"
     return true
 end
 function B:Apply(state, candidate)
     local action = candidate and candidate.action
     local found = self:Is(action) and runtime():Evidence(action)
-    if not found then return false end
+    local improved = found and runtime():ImprovedEvidence(action)
+    if not (found and improved) then return false end
     state.warriorBerserkerRage = { active = true, exact = true,
         projected = true, spellId = found.spellId,
         remaining = found.duration,
         incomingRageMultiplier = found.incomingRageMultiplier,
         source = found.source }
+    if improved.learned == true and improved.rageGain > 0 then
+        state.resource = math.min(tonumber(state.resourceMax) or 100,
+            math.max(0, tonumber(state.resource) or 0) + improved.rageGain)
+    end
     return true
 end
 function B:Advance(state, elapsed)

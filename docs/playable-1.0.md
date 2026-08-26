@@ -156,8 +156,9 @@ request to add a class priority rule:
   unknown rather than guessed. Grouped Battle Shout is now usable through exact
   self AP and bounded subgroup/pet fanout instead of hard-HOLDing. Berserker
   Rage now owns its exact ten-second 30-percent incoming-damage rage modifier;
-  fear/incapacitate utility and Improved Berserker Rage talent packets remain
-  withheld without a hostile-control or exact triggered-resource contract.
+  its learned Improved Berserker Rage rank now adds the exact five/ten-rage
+  triggered packet. Fear/incapacitate and movement-break utility remain
+  withheld without a hostile-control ledger.
 - **Hunter and Warlock pets:** actor, command, resource, range, threat and
   recovery coverage is substantial, and Voidwalker Sacrifice already applies
   the player shield before removing the demon. Hunter Shell Shield now pays its
