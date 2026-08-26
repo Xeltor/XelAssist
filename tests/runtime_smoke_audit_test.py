@@ -6,7 +6,12 @@ import tempfile
 
 root = Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory() as directory:
-    account = Path(directory) / "Realm" / "Testmage" / "SavedVariables"
+    account_root = Path(directory) / "Account" / "TEST"
+    shared = account_root / "SavedVariables"
+    shared.mkdir(parents=True)
+    (shared / "XelAssist.lua").write_text(
+        'XelAssistCharDB = { runtime = { class = "" } }')
+    account = account_root / "Realm" / "Testmage" / "SavedVariables"
     account.mkdir(parents=True)
     (account / "XelAssist.lua").write_text('''
 XelAssistCharDB = { role = "damage", runtime = {

@@ -78,7 +78,7 @@ def main() -> int:
     args = parser.parse_args()
     paths = [path for path in sorted(args.wtf.rglob(
         "SavedVariables/XelAssist.lua"))
-        if len(path.relative_to(args.wtf).parts) == 4]
+        if path.parents[2].name.lower() != "account"]
     records = [read(path, args.lua) for path in paths]
     for record in records:
         if "error" not in record and args.expected_version:
