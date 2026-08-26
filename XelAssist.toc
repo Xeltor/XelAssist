@@ -57,6 +57,7 @@ Game\Player\DruidProwl.lua
 Game\Player\RogueFeint.lua
 Game\Player\RogueSliceAndDice.lua
 Game\Player\RogueRuthlessness.lua
+Game\Player\RoguePreparation.lua
 Game\Player\HunterMark.lua
 Game\Player\HunterHawk.lua
 Game\Player\HunterDistractingShot.lua
@@ -146,6 +147,7 @@ Graph\PriestPowerInfusion.lua
 Graph\PriestFade.lua
 Graph\MagePresenceOfMind.lua
 Graph\MageColdSnap.lua
+Graph\RoguePreparation.lua
 Graph\WarriorRage.lua
 Graph\WarriorRevengeThreat.lua
 Graph\WarriorHeroicStrikeThreat.lua

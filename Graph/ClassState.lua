@@ -22,6 +22,7 @@ local DruidFrenziedRegeneration =
     XelAssist.Graph.DruidFrenziedRegeneration
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local RogueRuthlessness = XelAssist.Graph.RogueRuthlessness
+local RoguePreparation = XelAssist.Graph.RoguePreparation
 local HunterMark = XelAssist.Graph.HunterMark
 local HunterHawk = XelAssist.Graph.HunterHawk
 local PriestShadowform = XelAssist.Graph.PriestShadowform
@@ -169,6 +170,7 @@ function S:Copy(source, target)
     if ShamanManaSpring then ShamanManaSpring:Copy(source, target) end
     if RogueSlice then RogueSlice:Copy(source, target) end
     if RogueRuthlessness then RogueRuthlessness:Copy(source, target) end
+    if RoguePreparation then RoguePreparation:Copy(source, target) end
     if PriestShadowform then PriestShadowform:Copy(source, target) end
     if PriestInnerFocus then PriestInnerFocus:Copy(source, target) end
     if PriestFade then PriestFade:Copy(source, target) end
@@ -194,6 +196,7 @@ function S:Copy(source, target)
         or source.shamanManaSpring ~= nil
         or source.rogueSliceAndDice ~= nil
         or source.rogueRuthlessness ~= nil
+        or source.roguePreparationReset ~= nil
         or source.playerShadowformProfileExact == true
         or source.priestInnerFocus ~= nil
         or source.priestFade ~= nil

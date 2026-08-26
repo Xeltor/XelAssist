@@ -354,7 +354,7 @@ function Scoring:Evaluate(action, state, descriptor)
     if ClassMechanics then
         local projection, reason, handled = ClassMechanics:Prepare(
             context.action, context.state, context.descriptor,
-            context.tooltip)
+            context.tooltip, context.actionStart)
         if handled then
             if not projection then return nil, reason end
             local scored

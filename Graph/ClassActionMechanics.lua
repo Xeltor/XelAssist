@@ -13,6 +13,7 @@ local PowerInfusion = XelAssist.Graph.PriestPowerInfusion
 local PresenceOfMind = XelAssist.Graph.MagePresenceOfMind
 local ColdSnap = XelAssist.Graph.MageColdSnap
 local FrenziedRegeneration = XelAssist.Graph.DruidFrenziedRegeneration
+local RoguePreparation = XelAssist.Graph.RoguePreparation
 
 local handlers = {
     {
@@ -28,6 +29,21 @@ local handlers = {
         end,
         prepare = function(module, action, state, descriptor, facts)
             return module:Prepare(action, state, descriptor, facts)
+        end,
+    },
+    {
+        name = "Rogue Preparation", module = RoguePreparation,
+        needsActionStart = true,
+        claims = function(facts)
+            return facts.roguePreparation == true
+                or facts.requiresRoguePreparationEvidence == true
+                or facts.roguePreparationTransition ~= nil
+        end,
+        matches = function(projection)
+            return projection.roguePreparationTransition ~= nil
+        end,
+        prepare = function(module, action, state, _, facts, actionStart)
+            return module:Prepare(action, state, facts, actionStart)
         end,
     },
     {
@@ -164,16 +180,20 @@ local function selectProjection(projection)
     return selected
 end
 
-function A:Prepare(action, state, descriptor, facts)
+function A:Prepare(action, state, descriptor, facts, actionStart)
     local actionFacts = action and action.facts or {}
     facts = facts or actionFacts
     local handler, reason, handled = selectClaim(facts, actionFacts)
     if not handled then return nil, reason, false end
     if not handler then return nil, reason, true end
+    if handler.needsActionStart and actionStart == nil then
+        return nil, nil, false
+    end
     if not handler.module then
         return nil, handler.name .. " graph unavailable", true
     end
-    return handler.prepare(handler.module, action, state, descriptor, facts)
+    return handler.prepare(
+        handler.module, action, state, descriptor, facts, actionStart)
 end
 
 function A:Score(context, projection)

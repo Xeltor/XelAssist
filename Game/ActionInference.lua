@@ -37,6 +37,8 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.RogueSliceAndDice, spellId)
     if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.RoguePreparation, spellId)
+    if handled then return facts, reason, true end
     facts, reason, handled = infer(player.RogueFeint, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.HunterHawk, spellId)
@@ -140,6 +142,7 @@ function I:InvalidateClass()
     if player.RogueRuthlessness then
         player.RogueRuthlessness:Invalidate()
     end
+    if player.RoguePreparation then player.RoguePreparation:Invalidate() end
     if player.RogueFeint then player.RogueFeint:Invalidate() end
     if player.HunterMark then player.HunterMark:Invalidate() end
     if player.HunterHawk then player.HunterHawk:Invalidate() end

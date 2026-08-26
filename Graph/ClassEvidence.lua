@@ -21,6 +21,7 @@ local RogueFeintGraph = XelAssist.Graph.RogueFeint
 local RogueSliceRuntime = XelAssist.Game.Player.RogueSliceAndDice
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local RogueRuthlessness = XelAssist.Game.Player.RogueRuthlessness
+local RoguePreparation = XelAssist.Game.Player.RoguePreparation
 local HunterMark = XelAssist.Game.Player.HunterMark
 local HunterMarkGraph = XelAssist.Graph.HunterMark
 local HunterHawk = XelAssist.Game.Player.HunterHawk
@@ -74,6 +75,7 @@ function E:CaptureFacts(action, facts, state)
     if RogueRuthlessness then
         out = RogueRuthlessness:CaptureFacts(action, out)
     end
+    if RoguePreparation then out = RoguePreparation:CaptureFacts(action, out) end
     if WarriorBattleShout then
         out = WarriorBattleShout:CaptureFacts(action, out)
     end

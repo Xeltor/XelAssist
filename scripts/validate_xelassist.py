@@ -329,6 +329,7 @@ subprocess.run(["lua", str(root / "tests/rogue_self_finisher_test.lua")], cwd=ro
 subprocess.run(["lua", str(root / "tests/rogue_slice_and_dice_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/rogue_ruthlessness_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/rogue_combo_investment_test.lua")], cwd=root, check=True)
+subprocess.run(["lua", str(root / "tests/rogue_preparation_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/hit_bonuses_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/recommendation_stability_test.lua")], cwd=root, check=True)
 subprocess.run(["lua", str(root / "tests/recommendation_snapshot_test.lua")], cwd=root, check=True)

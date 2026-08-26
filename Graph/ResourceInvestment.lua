@@ -109,6 +109,11 @@ function R:PotentialConsumer(path, action, sealedFacts)
         and coldSnap:PotentialConsumer(path, action, sealedFacts) then
         key = coldSnap.CONSUMER_KEY
     end
+    local preparation = XelAssist.Graph.RoguePreparation
+    if key == nil and preparation
+        and preparation:PotentialConsumer(path, action, sealedFacts) then
+        key = preparation.CONSUMER_KEY
+    end
     local felDomination = XelAssist.Graph.WarlockFelDomination
     if key == nil and felDomination then
         key = felDomination:ConsumerKey(sealedFacts)

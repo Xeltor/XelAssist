@@ -138,14 +138,14 @@ local function shamanProjection(action, state)
     return projection, nil, true
 end
 
-function M:Prepare(action, state, descriptor, tooltip)
+function M:Prepare(action, state, descriptor, tooltip, actionStart)
     local actionFacts = action and action.facts or {}
     local facts = tooltip or actionFacts
     if ActionMechanics then
         local blocker, handled = ActionMechanics:RootBlocker(state)
         if handled and blocker then return nil, blocker, true end
         local projection, reason, handled = ActionMechanics:Prepare(
-            action, state, descriptor, facts)
+            action, state, descriptor, facts, actionStart)
         if handled then return projection, reason, true end
     end
     if paladinClaimed(actionFacts) or paladinClaimed(facts) then
@@ -162,9 +162,9 @@ function M:Prepare(action, state, descriptor, tooltip)
     return nil, nil, false
 end
 
-function M:Blocker(action, state, descriptor, tooltip)
+function M:Blocker(action, state, descriptor, tooltip, actionStart)
     local projection, reason, handled = self:Prepare(
-        action, state, descriptor, tooltip)
+        action, state, descriptor, tooltip, actionStart)
     if not handled then return nil, false end
     if not projection then return reason or "class mechanic unavailable", true end
     return nil, true, projection
