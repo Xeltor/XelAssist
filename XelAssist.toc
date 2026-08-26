@@ -59,6 +59,7 @@ Game\Player\RogueRuthlessness.lua
 Game\Player\HunterMark.lua
 Game\Player\HunterHawk.lua
 Game\Player\HunterDistractingShot.lua
+Game\Player\WarlockFelDomination.lua
 Game\Player\WarlockDarkPact.lua
 Game\Player\WarlockSoulLink.lua
 Game\Player\WarriorBattleShoutRoot.lua
@@ -134,6 +135,7 @@ Graph\HostileState.lua
 Graph\State.lua
 Graph\WarlockDarkPact.lua
 Graph\WarlockSoulLink.lua
+Graph\WarlockFelDomination.lua
 Graph\HunterMark.lua
 Graph\HunterHawk.lua
 Graph\HunterRangedPower.lua

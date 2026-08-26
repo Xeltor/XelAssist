@@ -54,6 +54,8 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarriorShieldWall, spellId)
     if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.WarlockFelDomination, spellId)
+    if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarlockDarkPact, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PaladinActions, spellId)
@@ -152,6 +154,9 @@ function I:InvalidateClass()
         player.WarriorDemoralizingShout:Invalidate()
     end
     if player.WarriorShieldWall then player.WarriorShieldWall:Invalidate() end
+    if player.WarlockFelDomination then
+        player.WarlockFelDomination:Invalidate()
+    end
     if player.WarlockDarkPact then player.WarlockDarkPact:Invalidate() end
     if player.WarlockSoulLink then player.WarlockSoulLink:Invalidate() end
     if player.PaladinActions then player.PaladinActions:Invalidate() end

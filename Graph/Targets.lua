@@ -386,7 +386,11 @@ function T:Legal(action, state, descriptor)
         and XelAssist.Graph.PlayerTaunt:Blocker(action, state, descriptor)
     if blocker then return false, blocker end
     local actionStart
-    actionStart, blocker = Admission:Start(action, state, tooltip)
+    local felDomination = XelAssist.Graph.WarlockFelDomination
+    if felDomination and state.classMechanicClass == "WARLOCK" then
+        actionStart, tooltip, blocker = felDomination:SettleAdmission(
+            action, state, tooltip)
+    else actionStart, blocker = Admission:Start(action, state, tooltip) end
     if blocker then return false, blocker end blocker = Admission:Readiness(action, state, tooltip, actionStart)
     if blocker then return false, blocker end blocker = XelAssist.Graph.SpatialRequirements:Blocker(
         action, state, descriptor, target, tooltip)

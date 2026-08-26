@@ -54,6 +54,11 @@ local function consumerKey(context)
         value = coldSnap:ConsumerKey(
             context.state, context.action, context.tooltip)
     end
+    local felDomination = XelAssist.Graph.WarlockFelDomination
+    if value == nil and felDomination then
+        value = felDomination:ConsumerKey(context.tooltip)
+            or felDomination:ConsumerKey(context.facts)
+    end
     if type(value) ~= "string" or value == ""
         or string.len(value) > 128 then return nil end
     return value
@@ -74,6 +79,8 @@ local function strategicSetup(tooltip)
         and XelAssist.Graph.PaladinWisdom:StrategicSetup(tooltip)
     local coldSnap = XelAssist.Graph.MageColdSnap
         and XelAssist.Graph.MageColdSnap:StrategicSetup(tooltip)
+    local felDomination = XelAssist.Graph.WarlockFelDomination
+        and XelAssist.Graph.WarlockFelDomination:StrategicSetup(tooltip)
     local warrior = tooltip and tooltip.warriorStanceTransition
     local druid = tooltip and tooltip.druidFormTransition
     local priest = tooltip and tooltip.priestShadowformTransition
@@ -83,13 +90,16 @@ local function strategicSetup(tooltip)
     end
     include(innerFocus); include(presence); include(powerInfusion)
     include(manaSpring); include(wisdom); include(coldSnap)
+    include(felDomination)
     include(warrior)
     include(druid); include(priest)
     if count ~= 1 then return nil end
     if selected == innerFocus or selected == presence
         or selected == powerInfusion or selected == manaSpring
         or selected == wisdom
-        or selected == coldSnap then return selected end
+        or selected == coldSnap or selected == felDomination then
+        return selected
+    end
     local transition, prefix = warrior or druid or priest,
         warrior and "warriorStance" or druid and "druidForm"
             or priest and "priestShadowform" or nil

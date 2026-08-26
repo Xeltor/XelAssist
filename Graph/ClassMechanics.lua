@@ -22,6 +22,7 @@ local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local ManaSpring = XelAssist.Graph.ShamanManaSpring
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 local WarriorShieldWall = XelAssist.Graph.WarriorShieldWall
+local WarlockFelDomination = XelAssist.Graph.WarlockFelDomination
 local Evidence = XelAssist.Graph.ClassEvidence
 local ClassState = XelAssist.Graph.ClassState
 
@@ -62,6 +63,12 @@ local function warriorShieldWallClaimed(facts)
     return facts.warriorShieldWall == true
         or facts.requiresExactWarriorShieldWall == true
         or facts.warriorShieldWallTransition ~= nil
+end
+
+local function warlockFelDominationClaimed(facts)
+    return facts.warlockFelDomination == true
+        or facts.requiresWarlockFelDominationEvidence == true
+        or facts.warlockFelDominationTransition ~= nil
 end
 
 local function hunterHawkClaimed(facts)
@@ -183,7 +190,13 @@ end
 function M:Prepare(action, state, descriptor, tooltip)
     local actionFacts = action and action.facts or {}
     local facts = tooltip or actionFacts
-    if mageColdSnapClaimed(facts) or mageColdSnapClaimed(actionFacts) then
+    if warlockFelDominationClaimed(facts)
+        or warlockFelDominationClaimed(actionFacts) then
+        if not WarlockFelDomination then
+            return nil, "Warlock Fel Domination graph unavailable", true
+        end
+        return WarlockFelDomination:PrepareSetup(action, state, facts)
+    elseif mageColdSnapClaimed(facts) or mageColdSnapClaimed(actionFacts) then
         if not MageColdSnap then
             return nil, "Mage Cold Snap graph unavailable", true
         end
@@ -345,6 +358,10 @@ function M:Score(context, projection)
     if WarriorShieldWall and projection.warriorShieldWallTransition then
         return WarriorShieldWall:Score(context, projection)
     end
+    if WarlockFelDomination
+        and projection.warlockFelDominationTransition then
+        return WarlockFelDomination:Score(context, projection)
+    end
     return false, "exact class mechanic consequence scoring unavailable"
 end
 
@@ -389,6 +406,9 @@ function M:Apply(state, candidate)
     elseif projection.classMechanic == "warriorShieldWall"
         and WarriorShieldWall then
         return WarriorShieldWall:Apply(state, candidate)
+    elseif projection.classMechanic == "warlockFelDomination"
+        and WarlockFelDomination then
+        return WarlockFelDomination:Apply(state, candidate)
     elseif projection.mageColdSnapTransition and MageColdSnap then
         return MageColdSnap:Apply(state, candidate)
     elseif projection.magePresenceOfMindTransition
@@ -414,5 +434,6 @@ function M:Advance(state, elapsed)
     if PaladinWisdom then PaladinWisdom:Advance(state, elapsed) end
     if PriestFade then PriestFade:Advance(state, elapsed) end
     if WarriorShieldWall then WarriorShieldWall:Advance(state, elapsed) end
+    if WarlockFelDomination then WarlockFelDomination:Advance(state, elapsed) end
     return expired
 end

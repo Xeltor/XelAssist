@@ -29,6 +29,9 @@ local PriestFade = XelAssist.Graph.PriestFade
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 local WarriorShieldWall = XelAssist.Graph.WarriorShieldWall
+local WarlockFelDominationRuntime =
+    XelAssist.Game.Player.WarlockFelDomination
+local WarlockFelDomination = XelAssist.Graph.WarlockFelDomination
 local WarlockSoulLinkRuntime = XelAssist.Game.Player.WarlockSoulLink
 local WarlockSoulLink = XelAssist.Graph.WarlockSoulLink
 
@@ -111,10 +114,15 @@ function S:Attach(state)
             attached = RogueRuthlessness:Attach(state) or attached
         end
         return attached
-    elseif token == "WARLOCK" and WarlockSoulLinkRuntime
-        and WarlockSoulLink then
-        return WarlockSoulLink:Attach(
-            state, WarlockSoulLinkRuntime:Snapshot(token))
+    elseif token == "WARLOCK" then
+        local attached = WarlockSoulLinkRuntime and WarlockSoulLink
+            and WarlockSoulLink:Attach(
+                state, WarlockSoulLinkRuntime:Snapshot(token)) or false
+        if WarlockFelDominationRuntime and WarlockFelDomination then
+            attached = WarlockFelDominationRuntime:Attach(state, token)
+                or attached
+        end
+        return attached
     elseif token == "WARRIOR" then
         local attached = WarriorBattleShout
             and WarriorBattleShout:Attach(state) or false
@@ -157,6 +165,7 @@ function S:Copy(source, target)
     if Windfury then Windfury:Copy(source, target) end
     if WarriorBattleShout then WarriorBattleShout:Copy(source, target) end
     if WarriorShieldWall then WarriorShieldWall:Copy(source, target) end
+    if WarlockFelDomination then WarlockFelDomination:Copy(source, target) end
     if source.warlockSoulLink then
         target.warlockSoulLink = copy(source.warlockSoulLink, 4)
     end
@@ -181,4 +190,5 @@ function S:Copy(source, target)
         or source.warlockSoulLink ~= nil
         or source.warriorBattleShout ~= nil
         or source.warriorShieldWall ~= nil
+        or source.warlockFelDomination ~= nil
 end

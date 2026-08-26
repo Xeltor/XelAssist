@@ -109,6 +109,10 @@ function R:PotentialConsumer(path, action, sealedFacts)
         and coldSnap:PotentialConsumer(path, action, sealedFacts) then
         key = coldSnap.CONSUMER_KEY
     end
+    local felDomination = XelAssist.Graph.WarlockFelDomination
+    if key == nil and felDomination then
+        key = felDomination:ConsumerKey(sealedFacts)
+    end
     if type(key) ~= "string" or key == ""
         or string.len(key) > 128 then key = nil end
     return dependencyMatches(path, key,

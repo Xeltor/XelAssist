@@ -21,6 +21,7 @@ local ShamanClearcasting = XelAssist.Graph.ShamanClearcasting
 local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
 local MagePresenceOfMind = XelAssist.Graph.MagePresenceOfMind
 local WarlockDarkPact = XelAssist.Graph.WarlockDarkPact
+local WarlockFelDomination = XelAssist.Graph.WarlockFelDomination
 local RogueRuthlessness = XelAssist.Graph.RogueRuthlessness
 local WarriorDemoralizingShout = XelAssist.Graph.WarriorDemoralizingShout
 local PriestFade = XelAssist.Graph.PriestFade
@@ -371,6 +372,9 @@ local function syncFriendlyCompatibility(state)
     end
 end
 function A:Apply(out, source, candidate, context)
+    if WarlockFelDomination then
+        WarlockFelDomination:Consume(out, candidate)
+    end
     if DruidClearcasting then DruidClearcasting:Consume(out, candidate) end
     if MageClearcasting then MageClearcasting:Consume(out, candidate) end
     if ShamanClearcasting then ShamanClearcasting:Consume(out, candidate) end
