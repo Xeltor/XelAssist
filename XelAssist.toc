@@ -179,6 +179,7 @@ Graph\WarriorBattleShout.lua
 Graph\WarriorShieldWall.lua
 Graph\ClassEvidence.lua
 Graph\ClassState.lua
+Graph\ClassActionMechanics.lua
 Graph\ClassMechanics.lua
 Graph\FormRequirements.lua
 Graph\EquipmentRequirements.lua

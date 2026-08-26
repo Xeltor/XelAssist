@@ -198,6 +198,7 @@ assert(projection and projection.attackPower == 19.5
 
 dofile("Graph/ClassEvidence.lua")
 dofile("Graph/ClassState.lua")
+dofile("Graph/ClassActionMechanics.lua")
 dofile("Graph/ClassMechanics.lua")
 local integrated, integratedReason, integratedHandled =
     XelAssist.Graph.ClassMechanics:Prepare(

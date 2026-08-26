@@ -12,17 +12,10 @@ local PaladinRighteousFury = XelAssist.Graph.PaladinRighteousFury
 local Totems = XelAssist.Game.Player.TotemState
 local ShamanActions = XelAssist.Game.Player.ShamanActions
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
-local HunterHawk = XelAssist.Graph.HunterHawk
-local PriestInnerFocus = XelAssist.Graph.PriestInnerFocus
-local PriestPowerInfusion = XelAssist.Graph.PriestPowerInfusion
 local PriestFade = XelAssist.Graph.PriestFade
-local MagePresenceOfMind = XelAssist.Graph.MagePresenceOfMind
-local MageColdSnap = XelAssist.Graph.MageColdSnap
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local ManaSpring = XelAssist.Graph.ShamanManaSpring
-local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
-local WarriorShieldWall = XelAssist.Graph.WarriorShieldWall
-local WarlockFelDomination = XelAssist.Graph.WarlockFelDomination
+local ActionMechanics = XelAssist.Graph.ClassActionMechanics
 local Evidence = XelAssist.Graph.ClassEvidence
 local ClassState = XelAssist.Graph.ClassState
 
@@ -52,48 +45,6 @@ end
 local function shamanClaimed(facts)
     return facts.shamanAction == true or facts.shamanTotem == true
         or facts.requiresShamanTotemState == true
-end
-
-local function warriorClaimed(facts)
-    return facts.warriorBattleShout == true
-        or facts.requiresExactBattleShoutDownstream == true
-end
-
-local function warriorShieldWallClaimed(facts)
-    return facts.warriorShieldWall == true
-        or facts.requiresExactWarriorShieldWall == true
-        or facts.warriorShieldWallTransition ~= nil
-end
-
-local function warlockFelDominationClaimed(facts)
-    return facts.warlockFelDomination == true
-        or facts.requiresWarlockFelDominationEvidence == true
-        or facts.warlockFelDominationTransition ~= nil
-end
-
-local function hunterHawkClaimed(facts)
-    return facts.hunterHawk == true
-        or facts.requiresExactHunterHawkDownstream == true
-end
-
-local function priestInnerFocusClaimed(facts)
-    return facts.priestInnerFocus == true
-        or facts.priestInnerFocusTransition ~= nil
-end
-
-local function priestPowerInfusionClaimed(facts)
-    return facts.priestPowerInfusion == true
-        or facts.priestPowerInfusionTransition ~= nil
-end
-
-local function magePresenceOfMindClaimed(facts)
-    return facts.magePresenceOfMind == true
-        or facts.magePresenceOfMindTransition ~= nil
-end
-
-local function mageColdSnapClaimed(facts)
-    return facts.mageColdSnap == true
-        or facts.mageColdSnapTransition ~= nil
 end
 
 local function paladinProjection(action, state, descriptor, facts)
@@ -190,54 +141,12 @@ end
 function M:Prepare(action, state, descriptor, tooltip)
     local actionFacts = action and action.facts or {}
     local facts = tooltip or actionFacts
-    if warlockFelDominationClaimed(facts)
-        or warlockFelDominationClaimed(actionFacts) then
-        if not WarlockFelDomination then
-            return nil, "Warlock Fel Domination graph unavailable", true
-        end
-        return WarlockFelDomination:PrepareSetup(action, state, facts)
-    elseif mageColdSnapClaimed(facts) or mageColdSnapClaimed(actionFacts) then
-        if not MageColdSnap then
-            return nil, "Mage Cold Snap graph unavailable", true
-        end
-        return MageColdSnap:Prepare(action, state, facts)
-    elseif magePresenceOfMindClaimed(facts)
-        or magePresenceOfMindClaimed(actionFacts) then
-        if not MagePresenceOfMind then
-            return nil, "Mage Presence of Mind graph unavailable", true
-        end
-        return MagePresenceOfMind:PrepareSetup(action, state, facts)
-    elseif hunterHawkClaimed(facts) or hunterHawkClaimed(actionFacts) then
-        if not HunterHawk then
-            return nil, "Hunter Hawk graph unavailable", true
-        end
-        return HunterHawk:Prepare(action, state, descriptor, facts)
-    elseif priestInnerFocusClaimed(facts)
-        or priestInnerFocusClaimed(actionFacts) then
-        if not PriestInnerFocus then
-            return nil, "Priest Inner Focus graph unavailable", true
-        end
-        return PriestInnerFocus:PrepareSetup(action, state, facts)
-    elseif priestPowerInfusionClaimed(facts)
-        or priestPowerInfusionClaimed(actionFacts) then
-        if not PriestPowerInfusion then
-            return nil, "Priest Power Infusion graph unavailable", true
-        end
-        return PriestPowerInfusion:Prepare(
+    if ActionMechanics then
+        local projection, reason, handled = ActionMechanics:Prepare(
             action, state, descriptor, facts)
-    elseif warriorShieldWallClaimed(facts)
-        or warriorShieldWallClaimed(actionFacts) then
-        if not WarriorShieldWall then
-            return nil, "Warrior Shield Wall graph unavailable", true
-        end
-        return WarriorShieldWall:Prepare(action, state, descriptor, facts)
-    elseif warriorClaimed(facts) or warriorClaimed(actionFacts) then
-        if not WarriorBattleShout then
-            return nil, "Warrior Battle Shout graph unavailable", true
-        end
-        return WarriorBattleShout:Prepare(
-            action, state, descriptor, facts)
-    elseif paladinClaimed(actionFacts) or paladinClaimed(facts) then
+        if handled then return projection, reason, true end
+    end
+    if paladinClaimed(actionFacts) or paladinClaimed(facts) then
         if not (Paladin and PaladinActions) then
             return nil, "Paladin graph mechanic unavailable", true
         end
@@ -281,8 +190,8 @@ function M:EvidenceBlocker(action, state, descriptor, tooltip, actionStart)
     local blocker, handled = Evidence:Blocker(
         action, state, descriptor, tooltip, actionStart)
     if handled then return blocker, true end
-    if WarriorBattleShout then
-        blocker, handled = WarriorBattleShout:Blocker(
+    if ActionMechanics then
+        blocker, handled = ActionMechanics:EvidenceBlocker(
             action, state, descriptor, tooltip)
         if handled then return blocker, true end
     end
@@ -312,16 +221,6 @@ function M:Score(context, projection)
     if not (context and projection and projection.classMechanic) then
         return false, "class mechanic projection unavailable"
     end
-    if MageColdSnap and projection.mageColdSnapTransition then
-        return MageColdSnap:Score(context, projection)
-    end
-    if MagePresenceOfMind and projection.magePresenceOfMindTransition then
-        return MagePresenceOfMind:Score(context, projection)
-    end
-    if PriestPowerInfusion
-        and projection.priestPowerInfusionTransition then
-        return PriestPowerInfusion:Score(context, projection)
-    end
     if PaladinMight and projection.paladinMightTransition then
         return PaladinMight:Score(context, projection)
     end
@@ -345,22 +244,10 @@ function M:Score(context, projection)
         local scored, reason = ManaSpring:Score(context, projection)
         if scored or reason then return scored, reason end
     end
-    if PriestInnerFocus and projection.priestInnerFocusTransition then
-        return PriestInnerFocus:Score(context, projection)
-    end
-    if HunterHawk and projection.hunterHawk then
-        return HunterHawk:Score(context, projection)
-    end
-    if WarriorBattleShout then
-        local scored, reason = WarriorBattleShout:Score(context, projection)
-        if scored or reason then return scored, reason end
-    end
-    if WarriorShieldWall and projection.warriorShieldWallTransition then
-        return WarriorShieldWall:Score(context, projection)
-    end
-    if WarlockFelDomination
-        and projection.warlockFelDominationTransition then
-        return WarlockFelDomination:Score(context, projection)
+    if ActionMechanics then
+        local scored, reason, handled = ActionMechanics:Score(
+            context, projection)
+        if handled then return scored, reason end
     end
     return false, "exact class mechanic consequence scoring unavailable"
 end
@@ -400,40 +287,17 @@ function M:Apply(state, candidate)
             return Windfury and Windfury:Apply(state, projection) or false
         end
         return true
-    elseif projection.classMechanic == "warriorBattleShout"
-        and WarriorBattleShout then
-        return WarriorBattleShout:Apply(state, candidate)
-    elseif projection.classMechanic == "warriorShieldWall"
-        and WarriorShieldWall then
-        return WarriorShieldWall:Apply(state, candidate)
-    elseif projection.classMechanic == "warlockFelDomination"
-        and WarlockFelDomination then
-        return WarlockFelDomination:Apply(state, candidate)
-    elseif projection.mageColdSnapTransition and MageColdSnap then
-        return MageColdSnap:Apply(state, candidate)
-    elseif projection.magePresenceOfMindTransition
-        and MagePresenceOfMind then
-        return MagePresenceOfMind:Apply(state, candidate)
-    elseif projection.priestPowerInfusionTransition
-        and PriestPowerInfusion then
-        return PriestPowerInfusion:Apply(state, candidate)
-    elseif projection.priestInnerFocusTransition and PriestInnerFocus then
-        return PriestInnerFocus:Apply(state, candidate)
-    elseif projection.hunterHawk and HunterHawk then
-        return HunterHawk:Apply(state, candidate)
     end
-    return false
+    return ActionMechanics and ActionMechanics:Apply(state, candidate) or false
 end
 
 function M:Advance(state, elapsed)
     if ManaSpring then ManaSpring:Advance(state, elapsed) end
     local expired = Totems and Totems:Advance(state, elapsed) or 0
     if RogueSlice then RogueSlice:Advance(state, elapsed) end
-    if WarriorBattleShout then WarriorBattleShout:Advance(state, elapsed) end
     if PaladinMight then PaladinMight:Advance(state, elapsed) end
     if PaladinWisdom then PaladinWisdom:Advance(state, elapsed) end
     if PriestFade then PriestFade:Advance(state, elapsed) end
-    if WarriorShieldWall then WarriorShieldWall:Advance(state, elapsed) end
-    if WarlockFelDomination then WarlockFelDomination:Advance(state, elapsed) end
+    if ActionMechanics then ActionMechanics:Advance(state, elapsed) end
     return expired
 end
