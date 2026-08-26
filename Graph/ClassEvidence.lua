@@ -50,6 +50,8 @@ local PriestFadeRuntime = XelAssist.Game.Player.PriestFade
 local PriestFade = XelAssist.Graph.PriestFade
 local WarriorBattleShout = XelAssist.Game.Player.WarriorBattleShout
 local WarriorThunderClap = XelAssist.Game.Player.WarriorThunderClap
+local WarriorOverpoweringRage =
+    XelAssist.Game.Player.WarriorOverpoweringRage
 local WarriorExecute = XelAssist.Game.Player.WarriorExecute
 local WarriorDemoralizingShout =
     XelAssist.Game.Player.WarriorDemoralizingShout
@@ -103,6 +105,7 @@ captureModule(RogueRuthlessness)
 captureModule(RoguePreparation)
 captureModule(WarriorBattleShout)
 captureModule(WarriorThunderClap)
+captureModule(WarriorOverpoweringRage)
 captureModule(WarriorExecute)
 captureModule(WarriorDemoralizingShout)
 captureModule(WarriorShieldWall)

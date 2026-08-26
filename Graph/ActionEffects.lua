@@ -431,6 +431,7 @@ function A:Apply(out, source, candidate, context)
     applyAura(out, source, candidate, context, targetLocal,
         dotPeriodic, dotDuration, dotElapsed)
     if XelAssist.Graph.DruidBloodFrenzy then XelAssist.Graph.DruidBloodFrenzy:ApplyImmediate(out, candidate) end
+    if XelAssist.Graph.WarriorOverpoweringRage then XelAssist.Graph.WarriorOverpoweringRage:Apply(out, candidate) end
     if HunterStingingNettle then HunterStingingNettle:Apply(out, candidate) end
     if WarriorDemoralizingShout then
         WarriorDemoralizingShout:Apply(out, candidate)

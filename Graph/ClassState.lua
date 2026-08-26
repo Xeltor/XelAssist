@@ -51,6 +51,8 @@ local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 local WarriorShieldWall = XelAssist.Graph.WarriorShieldWall
 local WarriorShieldBlock = XelAssist.Graph.WarriorShieldBlock
+local WarriorOverpoweringRage =
+    XelAssist.Graph.WarriorOverpoweringRage
 local WarlockFelDominationRuntime =
     XelAssist.Game.Player.WarlockFelDomination
 local WarlockFelDomination = XelAssist.Graph.WarlockFelDomination
@@ -218,6 +220,12 @@ local function attachWarrior(state, token)
     if WarriorShieldWall then
         attached = WarriorShieldWall:Attach(state, token) or attached
     end
+    local overpoweringRuntime =
+        XelAssist.Game.Player.WarriorOverpoweringRage
+    if WarriorOverpoweringRage and overpoweringRuntime then
+        attached = WarriorOverpoweringRage:Attach(
+            state, overpoweringRuntime:Snapshot()) or attached
+    end
     local graph = XelAssist.Graph.WarriorBerserkerRage
     local runtime = XelAssist.Game.Player.WarriorBerserkerRage
     if runtime and graph then
@@ -256,6 +264,9 @@ local function copyWarrior(source, target)
     if WarriorBattleShout then WarriorBattleShout:Copy(source, target) end
     if WarriorShieldWall then WarriorShieldWall:Copy(source, target) end
     if WarriorShieldBlock then WarriorShieldBlock:Copy(source, target) end
+    if WarriorOverpoweringRage then
+        WarriorOverpoweringRage:Copy(source, target)
+    end
     local berserker = XelAssist.Graph.WarriorBerserkerRage
     if berserker then berserker:Copy(source, target) end
 end

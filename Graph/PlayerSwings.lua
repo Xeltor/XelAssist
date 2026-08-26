@@ -6,13 +6,10 @@ local Effects = XelAssist.Graph.Effects
 local Targets = XelAssist.Graph.CompanionTargets
 local PlayerRage = XelAssist.Graph.PlayerRage
 local PlayerThreat = XelAssist.Graph.PlayerThreat
-local Windfury, RogueSlice = XelAssist.Graph.ShamanWindfuryTotem,
-    XelAssist.Graph.RogueSliceAndDice
+local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local ShamanWeaponImbues = XelAssist.Graph.ShamanWeaponImbues
-local DruidBarkskin, DruidBloodFrenzy = XelAssist.Graph.DruidBarkskin,
-    XelAssist.Graph.DruidBloodFrenzy
-local HunterRapidFire, WarriorBattleShout = XelAssist.Graph.HunterRapidFire,
-    XelAssist.Graph.WarriorBattleShout
+local SwingModifiers = XelAssist.Graph.PlayerSwingModifiers
+local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 local WarriorThreat = XelAssist.Graph.WarriorThreatPackets
 local PaladinMight = XelAssist.Graph.PaladinMight
 local SwingArea = XelAssist.Graph.PlayerSwingArea
@@ -219,15 +216,8 @@ function S:Events(state, candidate)
     while offset <= window and count < MAX_EVENTS do
         table.insert(events, event(state, round, round.targetGuid, key,
             targetLocal, offset, window))
-        local reset = state.classMechanicClass == "HUNTER" and HunterRapidFire
-            and HunterRapidFire:MeleeIntervalAfter(
-                state, "main", offset, interval)
-            or RogueSlice and RogueSlice:IntervalAfter(
-                state, "main", offset, interval) or interval
-        reset = DruidBloodFrenzy and DruidBloodFrenzy:IntervalAfter(
-            state, "main", offset, reset) or reset
-        reset = DruidBarkskin
-            and DruidBarkskin:MeleeInterval(state, reset) or reset
+        local reset = SwingModifiers and SwingModifiers:IntervalAfter(
+            state, "main", offset, interval) or interval
         offset, count = afterCastLocks(state, candidate, offset + reset),
             count + 1
     end

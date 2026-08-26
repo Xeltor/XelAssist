@@ -22,6 +22,8 @@ local ShamanWeaponImbues = XelAssist.Graph.ShamanWeaponImbues
 local DruidBarkskin = XelAssist.Graph.DruidBarkskin
 local RoguePreparation = XelAssist.Graph.RoguePreparation
 local RogueBladeFlurry = XelAssist.Graph.RogueBladeFlurry
+local WarriorOverpoweringRage =
+    XelAssist.Graph.WarriorOverpoweringRage
 
 local handlers = {
     {
@@ -324,6 +326,9 @@ function A:Advance(state, elapsed)
     if BattleShout then BattleShout:Advance(state, elapsed) end
     if ShieldWall then ShieldWall:Advance(state, elapsed) end
     if ShieldBlock then ShieldBlock:Advance(state, elapsed) end
+    if WarriorOverpoweringRage then
+        WarriorOverpoweringRage:Advance(state, elapsed)
+    end
     if FelDomination then FelDomination:Advance(state, elapsed) end
     if RapidFire then RapidFire:Advance(state, elapsed) end
 end

@@ -303,6 +303,7 @@ XelAssist.Graph.CompanionTargets = {
     ProvenDead = function() return false end,
     Hostiles = function() return true end,
 }
+dofile("Graph/PlayerSwingModifiers.lua")
 dofile("Graph/PlayerSwings.lua")
 dofile("Graph/PlayerOffhandSwings.lua")
 local swingCandidate = { downtime = 5, wait = 0, cast = 0,

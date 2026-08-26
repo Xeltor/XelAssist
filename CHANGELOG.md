@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.76
+
+- Added exact Octo Overpowering Rage ownership and trigger topology. A learned
+  passive now exposes its five-second, fifteen-percent melee-haste aura without
+  relying on its localized talent or aura name.
+- Root-observed and guaranteed projected Overpower haste now changes only
+  future player swing resets, expires branch-locally, and thereby reaches
+  ordinary white damage and rage generation without inventing a landed proc.
+- Extracted player melee-clock modifier composition from `PlayerSwings.lua` so
+  Hunter, Rogue, Druid and Warrior haste owners remain independent and the
+  core swing scheduler stays below its architecture ceiling.
+
 ## 0.8.75
 
 - Added name-independent discovery for every installed Rockbiter, Flametongue,
