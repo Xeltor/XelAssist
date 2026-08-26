@@ -13,6 +13,12 @@ function T:Is(action)
         and action.facts and action.facts.playerTaunt == true
 end
 
+local function exactIdentity(action)
+    if tonumber(action and action.spellId) == 355 then return true end
+    local hand = XelAssist.Game.Player.PaladinHandOfReckoning
+    return hand and hand:Evidence(action) ~= nil
+end
+
 local function usability(state, action)
     local root = XelAssist.Graph.RootObservation
     if root and root.Usability then
@@ -74,7 +80,7 @@ end
 
 function T:Blocker(action, state, descriptor)
     if not self:Is(action) then return nil end
-    if tonumber(action.spellId) ~= 355 then return "unknown player Taunt rank" end
+    if not exactIdentity(action) then return "unknown player Taunt rank" end
     local record = selected(state, descriptor)
     if not record then return "Taunt requires the selected hostile" end
     if not record.threat then return "hostile threat state unavailable" end

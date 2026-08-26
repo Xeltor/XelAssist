@@ -28,6 +28,8 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PriestPowerInfusion, spellId)
     if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.PriestChastise, spellId)
+    if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PriestFade, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.DruidProwl, spellId)
@@ -70,6 +72,8 @@ function I:ClassKnowledge(spellId)
     facts, reason, handled = infer(player.WarlockFelDomination, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarlockDarkPact, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.PaladinHandOfReckoning, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.PaladinActions, spellId)
     if handled then
@@ -141,6 +145,7 @@ function I:InvalidateClass()
     if player.PriestPowerInfusion then
         player.PriestPowerInfusion:Invalidate()
     end
+    if player.PriestChastise then player.PriestChastise:Invalidate() end
     if player.PriestFade then player.PriestFade:Invalidate() end
     if player.DruidProwl then player.DruidProwl:Invalidate() end
     if player.DruidClearcasting then player.DruidClearcasting:Invalidate() end
@@ -182,6 +187,9 @@ function I:InvalidateClass()
     if player.WarlockDarkPact then player.WarlockDarkPact:Invalidate() end
     if player.WarlockSoulLink then player.WarlockSoulLink:Invalidate() end
     if player.PaladinActions then player.PaladinActions:Invalidate() end
+    if player.PaladinHandOfReckoning then
+        player.PaladinHandOfReckoning:Invalidate()
+    end
     if player.PaladinRighteousness then
         player.PaladinRighteousness:Invalidate()
     end

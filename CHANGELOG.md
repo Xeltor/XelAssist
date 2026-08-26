@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.43
+
+- Added exact installed-Octo Hand of Reckoning support. Its zero-cost,
+  off-GCD, ranged Paladin taunt now uses the existing target-victim threat
+  transition and is withheld when the hostile already attacks the Paladin or
+  when any identifying client field changes.
+- Added Chastise's exact hostile Holy-damage lane without exposing its
+  polymorphic friendly lane. The latter remains explicit and withheld because
+  Octo damages the ally while applying health-, level-, and critical-dependent
+  haste consequences that are not yet represented.
+
 ## 0.8.42
 
 - Replaced the localized, top-rank-only Lightning Strike profile with exact

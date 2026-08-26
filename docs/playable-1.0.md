@@ -102,8 +102,10 @@ request to add a class priority rule:
   Tank because Defensive Stance evidence does not exist yet; onboarding must
   make that explicit rather than inventing an automatic role. Mid/60 threat
   still needs exact Shield Bash, Hamstring, Disarm, Overpower and Shield Slam
-  packets. Grouped Battle Shout is now usable through exact self AP and bounded
-  subgroup/pet fanout instead of hard-HOLDing.
+  packets. Defensive Tactics rank and shield ownership are observable, but its
+  dummy-aura server arithmetic is not; cross-stance threat therefore remains
+  unknown rather than guessed. Grouped Battle Shout is now usable through exact
+  self AP and bounded subgroup/pet fanout instead of hard-HOLDing.
 - **Hunter and Warlock pets:** actor, command, resource, range, threat and
   recovery coverage is substantial, and Voidwalker Sacrifice already applies
   the player shield before removing the demon. Defensive autocasts remain
