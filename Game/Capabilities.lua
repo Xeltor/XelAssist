@@ -4,6 +4,8 @@ local DruidForms = XelAssist.Game.Player and XelAssist.Game.Player.DruidFormStat
 local WarriorRage = XelAssist.Game.Player and XelAssist.Game.Player.WarriorRage
 local WarriorChargeCombat = XelAssist.Game.Player
     and XelAssist.Game.Player.WarriorChargeCombat
+local WarriorShieldSlam = XelAssist.Game.Player
+    and XelAssist.Game.Player.WarriorShieldSlam
 local RogueShiv = XelAssist.Game.Player and XelAssist.Game.Player.RogueShiv
 local RogueMark = XelAssist.Game.Player and XelAssist.Game.Player.RogueMarkForDeath
 local ActionInference = XelAssist.Game.ActionInference
@@ -12,6 +14,9 @@ local function captureWarriorFacts(action, facts)
         facts = WarriorChargeCombat:CaptureFacts(action, facts)
     end
     if WarriorRage then facts = WarriorRage:CaptureFacts(action, facts) end
+    if WarriorShieldSlam then
+        facts = WarriorShieldSlam:CaptureFacts(action, facts)
+    end
     return facts
 end
 local function captureRogueFacts(action, facts)

@@ -15,7 +15,14 @@ local RANKS = {
     [23925] = { rank = 4, level = 54, base = 303, die = 15 },
     [52315] = { rank = 5, level = 60, base = 342, die = 17 },
 }
+local TALENTS = {
+    [51598] = { rank = 1, reduction = 0.75, trigger = 51596,
+        blockChance = 0.35 },
+    [51599] = { rank = 2, reduction = 1.50, trigger = 51597,
+        blockChance = 0.70 },
+}
 local CACHE = {}
+local TALENT_CACHE = {}
 
 local function copy(source)
     local out, key, value = {}, nil, nil
@@ -118,6 +125,69 @@ local function warrior()
     return ok and token == "WARRIOR"
 end
 
+local function talentTopology(spellId, talent)
+    return scalar(spellId, "procFlags") == 16
+        and scalar(spellId, "procChance") == 100
+        and equal(triple(spellId, "effect"), 6, 6, 0)
+        and equal(triple(spellId, "effectBasePoints", true),
+            talent.rank == 1 and -751 or -1501, 0, 0)
+        and equal(triple(spellId, "effectApplyAuraName"), 107, 42, 0)
+        and equal(triple(spellId, "effectMiscValue"), 11, 0, 0)
+        and equal(triple(spellId, "effectTriggerSpell"),
+            0, talent.trigger, 0)
+end
+
+local function procTopology(spellId, talent)
+    return scalar(spellId, "procFlags") == 680
+        and scalar(spellId, "procCharges") == 1
+        and scalar(spellId, "durationIndex") == 557
+        and scalar(spellId, "equippedItemClass") == 4
+        and scalar(spellId, "equippedItemSubClassMask") == 64
+        and equal(triple(spellId, "effect"), 6, 0, 0)
+        and equal(triple(spellId, "effectApplyAuraName"), 51, 0, 0)
+        and equal(triple(spellId, "effectBasePoints", true),
+            talent.blockChance * 100 - 1, 0, 0)
+end
+
+function S:ImprovedEvidence()
+    if type(IsPlayerSpell) ~= "function" then
+        return nil, "talent ownership API unavailable"
+    end
+    local spellId
+    if IsPlayerSpell(51599) then spellId = 51599
+    elseif IsPlayerSpell(51598) then spellId = 51598 end
+    if not spellId then return nil, "Improved Shield Slam not learned" end
+    if TALENT_CACHE[spellId] ~= nil then
+        local cached = TALENT_CACHE[spellId]
+        return cached.valid and copy(cached) or nil, cached.reason
+    end
+    local talent = TALENTS[spellId]
+    local found = copy(talent)
+    found.spellId, found.valid = spellId, false
+    if not (talentTopology(spellId, talent)
+        and procTopology(talent.trigger, talent)) then
+        found.reason = "Improved Shield Slam DBC topology is incomplete"
+        TALENT_CACHE[spellId] = found
+        return nil, found.reason
+    end
+    found.valid, found.baseCooldown = true, 6
+    found.effectiveCooldown = 6 - talent.reduction
+    found.procValueKnown = false
+    found.source = "installed Octo patch-5 Improved Shield Slam DBC topology"
+    TALENT_CACHE[spellId] = found
+    return copy(found)
+end
+
+function S:CaptureFacts(action, facts)
+    if not (type(action) == "table" and type(facts) == "table"
+        and self:Evidence(action)) then return facts end
+    local improved = self:ImprovedEvidence()
+    if not improved then return facts end
+    facts.categoryCooldown = improved.effectiveCooldown
+    facts.improvedShieldSlamEvidence = improved
+    return facts
+end
+
 function S:Classify(spellId)
     spellId = integer(spellId)
     local rank = spellId and RANKS[spellId]
@@ -186,4 +256,7 @@ function S:Evidence(subject)
     return copy(found)
 end
 
-function S:Invalidate() CACHE = {} end
+function S:Invalidate()
+    CACHE = {}
+    TALENT_CACHE = {}
+end

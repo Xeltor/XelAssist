@@ -58,6 +58,31 @@ for spellId, rank in pairs(ranks) do
     rows[spellId] = row
 end
 
+rows[51598] = {
+    procFlags = 16, procChance = 100,
+    effect = { 6, 6, 0 }, effectBasePoints = { -751, 0, 0 },
+    effectApplyAuraName = { 107, 42, 0 }, effectMiscValue = { 11, 0, 0 },
+    effectTriggerSpell = { 0, 51596, 0 },
+}
+rows[51599] = {
+    procFlags = 16, procChance = 100,
+    effect = { 6, 6, 0 }, effectBasePoints = { -1501, 0, 0 },
+    effectApplyAuraName = { 107, 42, 0 }, effectMiscValue = { 11, 0, 0 },
+    effectTriggerSpell = { 0, 51597, 0 },
+}
+rows[51596] = {
+    procFlags = 680, procCharges = 1, durationIndex = 557,
+    equippedItemClass = 4, equippedItemSubClassMask = 64,
+    effect = { 6, 0, 0 }, effectApplyAuraName = { 51, 0, 0 },
+    effectBasePoints = { 34, 0, 0 },
+}
+rows[51597] = {
+    procFlags = 680, procCharges = 1, durationIndex = 557,
+    equippedItemClass = 4, equippedItemSubClassMask = 64,
+    effect = { 6, 0, 0 }, effectApplyAuraName = { 51, 0, 0 },
+    effectBasePoints = { 69, 0, 0 },
+}
+
 GetSpellRecField = function(spellId, field, array)
     local value = rows[spellId] and rows[spellId][field]
     if array == 1 and type(value) == "table" then
@@ -70,6 +95,8 @@ GetSpellRangeData = function(index)
     return 0, 5
 end
 UnitClass = function() return "Warrior", "WARRIOR" end
+local learned = {}
+IsPlayerSpell = function(spellId) return learned[spellId] == true end
 
 dofile("Game/Player/WarriorShieldSlam.lua")
 local S = XelAssist.Game.Player.WarriorShieldSlam
@@ -89,6 +116,31 @@ for spellId, rank in pairs(ranks) do
         and evidence.magicDispelProbabilityKnown == false,
         "Shield Slam must retain exact base packet and explicit private gaps")
 end
+
+
+local shieldAction = { facts = S:InferKnowledge(23922) }
+local baseFacts = { categoryCooldown = 6 }
+assert(S:CaptureFacts(shieldAction, baseFacts).categoryCooldown == 6,
+    "unlearned Improved Shield Slam must retain the base cooldown")
+learned[51598] = true
+local rankOne = S:CaptureFacts(shieldAction, { categoryCooldown = 6 })
+assert(rankOne.categoryCooldown == 5.25
+    and rankOne.improvedShieldSlamEvidence.rank == 1
+    and rankOne.improvedShieldSlamEvidence.procValueKnown == false,
+    "rank one must reduce cooldown without inventing block value")
+learned[51599] = true
+local rankTwo = S:CaptureFacts(shieldAction, { categoryCooldown = 6 })
+assert(rankTwo.categoryCooldown == 4.5
+    and rankTwo.improvedShieldSlamEvidence.rank == 2,
+    "highest learned exact talent rank must own the cooldown")
+rows[51599].effectTriggerSpell[2] = 51596
+S:Invalidate()
+local shiftedTalent = S:CaptureFacts(shieldAction, { categoryCooldown = 6 })
+assert(shiftedTalent.categoryCooldown == 6
+    and shiftedTalent.improvedShieldSlamEvidence == nil,
+    "shifted talent topology must fail closed to the base cooldown")
+rows[51599].effectTriggerSpell[2] = 51597
+S:Invalidate()
 
 rows[23922].effectMiscValue[1] = 2
 S:Invalidate()

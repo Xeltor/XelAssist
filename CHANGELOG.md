@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.62
+
+- Added exact patch-5 Improved Shield Slam talent ownership and linked
+  one-charge block-proc validation. Learned ranks now reduce Shield Slam's
+  projected shared cooldown from 6 seconds to 5.25 or 4.5 seconds.
+- Kept the proc's defensive value explicitly uncredited until an exact
+  blockable incoming swing and shield block value are available.
+
 ## 0.8.61
 
 - Replaced Shield Slam's localized-name fallback and invented `2.0` threat
