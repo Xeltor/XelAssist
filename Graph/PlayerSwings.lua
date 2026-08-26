@@ -1,6 +1,4 @@
--- Player main-hand rounds are ambient timeline events. A next-swing button
--- press only arms one target-pinned modifier; damage and threat occur when the
--- resolved melee clock reaches that target, never at input time.
+-- Main-hand rounds are ambient events; a button press only arms one target-pinned modifier, and damage resolves later on its melee clock.
 XelAssist.Graph.PlayerSwings = {}
 local S = XelAssist.Graph.PlayerSwings
 local State = XelAssist.Graph.State
@@ -10,12 +8,12 @@ local PlayerRage = XelAssist.Graph.PlayerRage
 local PlayerThreat = XelAssist.Graph.PlayerThreat
 local Windfury = XelAssist.Graph.ShamanWindfuryTotem
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
+local DruidBarkskin = XelAssist.Graph.DruidBarkskin
 local HunterRapidFire = XelAssist.Graph.HunterRapidFire
 local WarriorBattleShout = XelAssist.Graph.WarriorBattleShout
 local WarriorThreat = XelAssist.Graph.WarriorThreatPackets
 local PaladinMight = XelAssist.Graph.PaladinMight
 local SwingArea = XelAssist.Graph.PlayerSwingArea
-
 local MAX_EVENTS = 8
 local READY_DELAY = 0.05
 local function afterCastLocks(state, candidate, offset)
@@ -238,6 +236,8 @@ function S:Events(state, candidate)
                 state, "main", offset, interval)
             or RogueSlice and RogueSlice:IntervalAfter(
                 state, "main", offset, interval) or interval
+        reset = DruidBarkskin
+            and DruidBarkskin:MeleeInterval(state, reset) or reset
         offset, count = afterCastLocks(state, candidate, offset + reset),
             count + 1
     end

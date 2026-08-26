@@ -196,6 +196,20 @@ assert(XelAssist.Graph.PlayerTaunt:Blocker(action, state,
         descriptor(action, state)) == "Taunt usability evidence unknown",
     "unknown stance/proc usability must fail closed")
 usable = true
+dofile("Game/Player/DruidGrowl.lua")
+local growl = taunt(6795)
+growl.name = "Growl"
+growl.facts.warriorTaunt = nil
+growl.facts.druidGrowl = true
+growl.facts.druidGrowlEvidence = { valid = true, exact = true,
+    spellId = 6795, formMask = 144, rangeIndex = 2, cooldown = 10,
+    gcd = 0, cost = 0, powerType = 1, tauntFocusDuration = 3,
+    noOpWhenTargetingCaster = true }
+local growlBlocker = XelAssist.Graph.PlayerTaunt:Blocker(growl, state,
+    descriptor(growl, state))
+assert(growlBlocker == nil,
+    "exact Druid Growl must reuse victim-sensitive player-taunt semantics: "
+        .. tostring(growlBlocker))
 local unknown = taunt(999999)
 assert(XelAssist.Graph.PlayerTaunt:Blocker(unknown, state,
         descriptor(unknown, state)) == "unknown player Taunt rank",

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.59
+
+- Added exact Octo patch-5 Druid Growl ownership, including Bear/Dire Bear
+  legality, off-GCD timing, cooldown, range and three-second fixate. Generalized
+  the live taunt boundary so Warrior, Paladin and Druid taunts retain their own
+  legality while still requiring a selected hostile attacking the player pet
+  or a current group member.
+- Added exact Barkskin branch consequences for physical mitigation, cast-time
+  extension and player melee slowdown. Pushback prevention remains explicitly
+  uncredited until the graph can observe a counterfactual incoming pushback.
+- Added exact shield-gated Spirit Armor threat multipliers without inventing
+  the private armor benefit.
+- Sealed Octo's Lay on Hands ranks against generic free-heal inference. The
+  action remains withheld until its private all-mana debit and recipient-mana
+  ordering can be represented atomically.
+
 ## 0.8.58
 
 - Admitted area-shaped on-next-swing actions when the installed DBC proves a

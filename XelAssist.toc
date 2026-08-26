@@ -2,7 +2,7 @@
 ## Title: XelAssist
 ## Notes: Standalone input-driven action graph for OctoWoW 1.18.
 ## Author: Xeltor
-## Version: 0.8.58
+## Version: 0.8.59
 ## Dependencies: SuperAPI
 ## SavedVariables: XelAssistDB
 ## SavedVariablesPerCharacter: XelAssistCharDB, XelAssistLog
@@ -31,6 +31,8 @@ Game\Player\FormEvidence.lua
 Game\Player\DruidFormState.lua
 Game\Player\DruidClearcasting.lua
 Game\Player\DruidFrenziedRegeneration.lua
+Game\Player\DruidGrowl.lua
+Game\Player\DruidBarkskin.lua
 Game\Player\DruidAncientBrutality.lua
 Game\Player\DruidBloodFrenzy.lua
 Game\Player\DruidBearThreat.lua
@@ -39,6 +41,7 @@ Game\Player\DruidCasterForms.lua
 Game\Player\PaladinAuraState.lua
 Game\Player\PaladinActions.lua
 Game\Player\PaladinDivergentGuards.lua
+Game\Player\PaladinLayOnHands.lua
 Game\Player\PaladinRighteousness.lua
 Game\Player\PaladinMight.lua
 Game\Player\PaladinWisdom.lua
@@ -53,6 +56,7 @@ Game\Player\ShamanActions.lua
 Game\Player\ShamanWindfuryTotem.lua
 Game\Player\ShamanManaSpring.lua
 Game\Player\ShamanClearcasting.lua
+Game\Player\ShamanSpiritArmor.lua
 Game\Player\ShamanEarthShock.lua
 Game\Player\ShamanStormstrike.lua
 Game\Player\ShamanLightningStrike.lua
@@ -221,6 +225,7 @@ Graph\DruidShiftResources.lua
 Graph\DruidBearThreat.lua
 Graph\DruidCatThreat.lua
 Graph\DruidFrenziedRegeneration.lua
+Graph\DruidBarkskin.lua
 Graph\DruidAncientBrutality.lua
 Graph\DruidBloodFrenzy.lua
 Graph\DruidForms.lua
@@ -237,6 +242,7 @@ Graph\PaladinMartyr.lua
 Graph\ShamanWindfuryTotem.lua
 Graph\ShamanManaSpring.lua
 Graph\ShamanClearcasting.lua
+Graph\ShamanSpiritArmor.lua
 Graph\ShamanEarthShock.lua
 Graph\ShamanStormstrike.lua
 Graph\RogueFeint.lua
@@ -373,7 +379,7 @@ Core\AuraApplicationReservations.lua
 Core\TargetGuard.lua
 Core\ExecutionReach.lua
 Core\DispatchReadiness.lua
-Core\WarriorTankGuard.lua
+Core\PlayerTauntGuard.lua
 Core\PublicationGuard.lua
 Core\WandExecution.lua
 Core\DecisionLog.lua

@@ -13,6 +13,7 @@ local PaladinHolyShock = XelAssist.Graph.PaladinHolyShockModifiers
 local Totems = XelAssist.Game.Player.TotemState
 local ShamanClearcastingRuntime = XelAssist.Game.Player.ShamanClearcasting
 local ShamanClearcasting = XelAssist.Graph.ShamanClearcasting
+local ShamanSpiritArmorRuntime = XelAssist.Game.Player.ShamanSpiritArmor
 local ShamanManaSpring = XelAssist.Graph.ShamanManaSpring
 local MageClearcastingRuntime = XelAssist.Game.Player.MageClearcasting
 local MageClearcasting = XelAssist.Graph.MageClearcasting
@@ -25,6 +26,7 @@ local DruidClearcastingRuntime = XelAssist.Game.Player.DruidClearcasting
 local DruidClearcasting = XelAssist.Graph.DruidClearcasting
 local DruidFrenziedRegeneration =
     XelAssist.Graph.DruidFrenziedRegeneration
+local DruidBarkskin = XelAssist.Graph.DruidBarkskin
 local RogueSlice = XelAssist.Graph.RogueSliceAndDice
 local RogueRuthlessness = XelAssist.Graph.RogueRuthlessness
 local RoguePreparation = XelAssist.Graph.RoguePreparation
@@ -116,6 +118,10 @@ local function attachShaman(state, token)
     if ShamanClearcastingRuntime then
         attached = ShamanClearcastingRuntime:Attach(state, token) or attached
     end
+    if ShamanSpiritArmorRuntime then
+        state.shamanSpiritArmor = ShamanSpiritArmorRuntime:Snapshot(state)
+        attached = state.shamanSpiritArmor ~= nil or attached
+    end
     local stormstrike = XelAssist.Graph.ShamanStormstrike
     local runtime = XelAssist.Game.Player.ShamanStormstrike
     if stormstrike and runtime then
@@ -158,6 +164,9 @@ local function attachDruid(state, token)
         and DruidClearcastingRuntime:Attach(state, token) or false
     if DruidFrenziedRegeneration then
         attached = DruidFrenziedRegeneration:Attach(state, token) or attached
+    end
+    if DruidBarkskin then
+        attached = DruidBarkskin:Attach(state, token) or attached
     end
     local brutality = XelAssist.Graph.DruidAncientBrutality
     if brutality then
@@ -233,6 +242,16 @@ local function copyWarrior(source, target)
     if berserker then berserker:Copy(source, target) end
 end
 
+local function copyDruid(source, target)
+    if DruidClearcasting then DruidClearcasting:Copy(source, target) end
+    if DruidFrenziedRegeneration then
+        DruidFrenziedRegeneration:Copy(source, target)
+    end
+    if DruidBarkskin then DruidBarkskin:Copy(source, target) end
+    local brutality = XelAssist.Graph.DruidAncientBrutality
+    if brutality then brutality:Copy(source, target) end
+end
+
 function S:Copy(source, target)
     if not (source and target) then return false end
     target.classMechanicClass = source.classMechanicClass
@@ -263,15 +282,11 @@ function S:Copy(source, target)
     if MagePresenceOfMind then MagePresenceOfMind:Copy(source, target) end
     if MageColdSnap then MageColdSnap:Copy(source, target) end
     if MageProcWindows then MageProcWindows:Copy(source, target) end
-    if DruidClearcasting then DruidClearcasting:Copy(source, target) end
-    if DruidFrenziedRegeneration then
-        DruidFrenziedRegeneration:Copy(source, target)
-    end
-    local brutality = XelAssist.Graph.DruidAncientBrutality
-    if brutality then
-        brutality:Copy(source, target)
-    end
+    copyDruid(source, target)
     if ShamanClearcasting then ShamanClearcasting:Copy(source, target) end
+    if source.shamanSpiritArmor then
+        target.shamanSpiritArmor = copy(source.shamanSpiritArmor, 2)
+    end
     if ShamanManaSpring then ShamanManaSpring:Copy(source, target) end
     if XelAssist.Graph.ShamanStormstrike then XelAssist.Graph.ShamanStormstrike:Copy(source, target) end
     if RogueSlice then RogueSlice:Copy(source, target) end
@@ -310,6 +325,7 @@ function S:Copy(source, target)
         or source.mageProcWindows ~= nil
         or source.druidClearcasting ~= nil
         or source.druidFrenziedRegeneration ~= nil
+        or source.druidBarkskin ~= nil
         or source.druidAncientBrutality ~= nil
         or source.shamanClearcasting ~= nil
         or source.shamanManaSpring ~= nil

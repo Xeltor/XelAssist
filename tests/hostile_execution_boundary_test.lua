@@ -296,7 +296,7 @@ C_Spell = { IsSpellInRange = function(name, unit)
     return spellRangeVerdict
 end }
 dofile("Core/TargetGuard.lua")
-dofile("Core/WarriorTankGuard.lua")
+dofile("Core/PlayerTauntGuard.lua")
 dofile("Game/SpellClassification.lua")
 dofile("Game/Range.lua")
 dofile("Game/Pets/Actions.lua")
@@ -385,7 +385,7 @@ GetNumRaidMembers = function() return 0 end
 GetNumPartyMembers = function() return 1 end
 units.targettarget = { guid = allyGuid }
 currentPlan = hostilePlan(playerAction("Taunt", { kind = "taunt", gcd = 0,
-    playerTaunt = true, immediateDispatch = true,
+    playerTaunt = true, warriorTaunt = true, immediateDispatch = true,
     requiresExactUsability = true, submissionGuarded = true }))
 currentPlan.action.spellId, currentPlan.action.slot,
     currentPlan.tooltip.gcd = 355, 1, 0
@@ -398,7 +398,7 @@ assert(effects.direct == 1 and effects.directName == "Taunt"
 resetEffects()
 units.targettarget = { guid = playerGuid }
 currentPlan = hostilePlan(playerAction("Taunt", { kind = "taunt", gcd = 0,
-    playerTaunt = true, immediateDispatch = true,
+    playerTaunt = true, warriorTaunt = true, immediateDispatch = true,
     requiresExactUsability = true, submissionGuarded = true }))
 currentPlan.action.spellId, currentPlan.action.slot,
     currentPlan.tooltip.gcd = 355, 1, 0

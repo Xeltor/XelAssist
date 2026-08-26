@@ -30,7 +30,7 @@ XelAssist.Combat.Knowledge = {
         chargeStunSpellId = 7922, chargeStunDuration = 1,
         rageGainBySpellId = { [100] = 9, [6178] = 12, [11578] = 15 },
         spellIds = { 100, 6178, 11578 }, gcd = 0 },
-    ["Taunt"] = { kind = "taunt", playerTaunt = true, tankOnly = true,
+    ["Taunt"] = { kind = "taunt", playerTaunt = true, warriorTaunt = true, tankOnly = true,
         immediateDispatch = true, requiresExactUsability = true,
         submissionGuarded = true, stanceMask = 131072,
         tauntFocusDuration = 3, spellIds = { 355 }, gcd = 0 },

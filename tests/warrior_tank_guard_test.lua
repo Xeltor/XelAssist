@@ -1,4 +1,10 @@
-XelAssist = { Core = {}, Game = { Capabilities = {} } }
+XelAssist = { Core = {}, Game = { Capabilities = {}, Player = {} } }
+XelAssist.Game.Player.PaladinHandOfReckoning = { Evidence = function(_, action)
+    return action and action.spellId == 51302 and {} or nil
+end }
+XelAssist.Game.Player.DruidGrowl = { Evidence = function(_, action)
+    return action and action.spellId == 6795 and {} or nil
+end }
 
 local units, targetHostile = {}, true
 local combat, form = true, 2
@@ -6,6 +12,7 @@ local usable, ready, inRange = true, true, true
 local raidCount, partyCount = 0, 1
 local hooks = {}
 local calls = { selected = 0, usable = 0, ready = 0, range = 0 }
+local expectedName = "Taunt"
 
 function UnitExists(unit)
     local guid = units[unit]
@@ -44,7 +51,7 @@ XelAssist.Game.Capabilities.Usable = function()
 end
 XelAssist.Game.Capabilities.IsReady = function(_, name, projected)
     calls.ready = calls.ready + 1
-    assert(name == "Taunt" and projected == 0,
+    assert(name == expectedName and projected == 0,
         "the guard must query Taunt at the immediate dispatch boundary")
     if hooks.ready then hooks.ready() end
     return ready
@@ -54,20 +61,22 @@ XelAssist.Game.Capabilities.CastName = function(_, action)
 end
 XelAssist.Game.Capabilities.InRange = function(_, name, unit)
     calls.range = calls.range + 1
-    assert(name == "Taunt" and unit == "target",
+    assert(name == expectedName and unit == "target",
         "the guard must query exact selected-target Taunt range")
     if hooks.range then hooks.range() end
     return inRange
 end
 
-dofile("Core/WarriorTankGuard.lua")
-local Guard = XelAssist.Core.WarriorTankGuard
+dofile("Core/PlayerTauntGuard.lua")
+local Guard = XelAssist.Core.PlayerTauntGuard
 
-local function plan(taunt)
+local function plan(taunt, spellId, name)
     local guid = "enemy-a"
-    return { action = { name = "Taunt", actor = "player",
+    return { action = { name = name or "Taunt", spellId = spellId or 355,
+            actor = "player",
             facts = taunt == false and { kind = "taunt" }
-                or { kind = "taunt", playerTaunt = true } },
+                or { kind = "taunt", playerTaunt = true,
+                    warriorTaunt = spellId == nil or spellId == 355 } },
         target = "target", targetGUID = guid, targetRelation = "hostile",
         targetRef = { unit = "target", guid = guid, relation = "hostile" },
         castTarget = "target", castTargetGUID = guid,
@@ -85,6 +94,7 @@ local function reset()
     raidCount, partyCount = 0, 1
     hooks = {}
     calls = { selected = 0, usable = 0, ready = 0, range = 0 }
+    expectedName = "Taunt"
 end
 
 local function rejected(message, expected)
@@ -98,6 +108,12 @@ assert(Guard:Validate(plan(false)) and calls.selected == 0
     and calls.usable == 0 and calls.ready == 0 and calls.range == 0,
     "a non-player Taunt plan must bypass every live tank gate")
 assert(Guard:Validate(nil), "a missing non-Taunt plan must remain unrelated")
+reset()
+local unknownTaunt = plan(true, 999999, "Unknown Taunt")
+local unknownValid, unknownReason = Guard:Validate(unknownTaunt)
+assert(not unknownValid and unknownReason == "Taunt identity unavailable"
+    and calls.selected == 0,
+    "unknown player-taunt identities must fail before mutable live reads")
 
 reset()
 assert(Guard:Validate(plan()) and calls.selected == 2 and calls.usable == 1
@@ -143,6 +159,17 @@ reset(); GetShapeshiftForm = function() error("unavailable") end
 rejected("failed stance state must fail closed", "Defensive Stance required")
 GetShapeshiftForm = function() return form end
 
+reset(); form = 0
+expectedName = "Hand of Reckoning"
+local hand = plan(true, 51302, "Hand of Reckoning")
+assert(Guard:Validate(hand),
+    "a non-Warrior exact player taunt must not inherit Defensive Stance")
+reset(); form = 3
+expectedName = "Growl"
+local growl = plan(true, 6795, "Growl")
+assert(Guard:Validate(growl),
+    "Druid Growl must rely on exact spell usability, not Warrior stance index")
+
 reset(); usable = false
 rejected("an explicitly unusable Taunt must be blocked", "Taunt unavailable")
 reset(); usable = nil
@@ -176,13 +203,13 @@ rejected("unknown player identity must fail victim classification",
 
 reset(); inRange = false
 rejected("Taunt outside exact melee range must be blocked",
-    "Taunt melee range required")
+    "Taunt range required")
 reset(); inRange = nil
-rejected("unknown Taunt range must fail closed", "Taunt melee range required")
+rejected("unknown Taunt range must fail closed", "Taunt range required")
 reset(); inRange = 1
-rejected("only exact true melee range may pass", "Taunt melee range required")
+rejected("only exact true melee range may pass", "Taunt range required")
 reset(); hooks.range = function() error("unavailable") end
-rejected("failed Taunt range must fail closed", "Taunt melee range required")
+rejected("failed Taunt range must fail closed", "Taunt range required")
 
 reset(); hooks.range = function() units.target = "enemy-b" end
 rejected("a selected-target race must be caught", "selected hostile changed")

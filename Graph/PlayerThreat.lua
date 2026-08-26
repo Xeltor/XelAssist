@@ -7,6 +7,7 @@ local PaladinBlessingThreat = XelAssist.Graph.PaladinBlessingThreat
 local PaladinRighteousFury = XelAssist.Graph.PaladinRighteousFury
 local DruidBearThreat = XelAssist.Graph.DruidBearThreat
 local DruidCatThreat = XelAssist.Graph.DruidCatThreat
+local ShamanSpiritArmor = XelAssist.Graph.ShamanSpiritArmor
 
 local function nonNegative(value)
     value = tonumber(value)
@@ -28,6 +29,11 @@ local function compose(state, actor, school, multiplier, exact, profile)
     end
     if DruidCatThreat then
         multiplier, exact, component = DruidCatThreat:Resolve(
+            state, actor, multiplier, exact)
+        profile = component or profile
+    end
+    if ShamanSpiritArmor then
+        multiplier, exact, component = ShamanSpiritArmor:Resolve(
             state, actor, multiplier, exact)
         profile = component or profile
     end

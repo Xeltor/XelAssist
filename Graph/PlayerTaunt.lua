@@ -16,7 +16,9 @@ end
 local function exactIdentity(action)
     if tonumber(action and action.spellId) == 355 then return true end
     local hand = XelAssist.Game.Player.PaladinHandOfReckoning
-    return hand and hand:Evidence(action) ~= nil
+    if hand and hand:Evidence(action) ~= nil then return true end
+    local growl = XelAssist.Game.Player.DruidGrowl
+    return growl and growl:Evidence(action) ~= nil
 end
 
 local function usability(state, action)

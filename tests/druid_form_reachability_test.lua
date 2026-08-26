@@ -217,7 +217,7 @@ XelAssist.Core.WandExecution = {}
 XelAssist.Core.PlayerNormalQueue = {
     MayOccupy = function() return false end,
 }
-XelAssist.Core.WarriorTankGuard = { Validate = function() return true end }
+XelAssist.Core.PlayerTauntGuard = { Validate = function() return true end }
 XelAssist.Game.Player.OnSwing = nil
 capabilities.ValidateFriendlyRef = function() return "player", playerKey end
 capabilities.SameUnitRef = function() return true end

@@ -8,7 +8,7 @@ local WandExecution = XelAssist.Core.WandExecution
 local PlayerNormalQueue = XelAssist.Core.PlayerNormalQueue
 local PlayerOnSwing = XelAssist.Game.Player
     and XelAssist.Game.Player.OnSwing
-local WarriorTankGuard = XelAssist.Core.WarriorTankGuard
+local PlayerTauntGuard = XelAssist.Core.PlayerTauntGuard
 local function applicationGuarded(facts, tooltip)
     if facts and facts.submissionGuarded then return true end
     local kind = facts and facts.kind
@@ -300,7 +300,7 @@ local function dispatchPlayerContext(owner, plan, context)
     local reachable
     reachable, reason = ExecutionReach:Validate(plan, context.unit)
     if not reachable then return rejectPlayer(owner, reason) end
-    local tankSafe, tankReason = WarriorTankGuard:Validate(plan)
+    local tankSafe, tankReason = PlayerTauntGuard:Validate(plan)
     if not tankSafe then return rejectPlayer(owner, tankReason) end
     local queueRecord, swingRecord
     if context.normalQueue and (facts.petLifecycle

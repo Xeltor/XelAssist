@@ -2,8 +2,8 @@
 -- Taunt is useful, but publication and dispatch must still prove that the
 -- selected enemy is attacking the player's current companion or group member.
 XelAssist.Core = XelAssist.Core or {}
-XelAssist.Core.WarriorTankGuard = {}
-local W = XelAssist.Core.WarriorTankGuard
+XelAssist.Core.PlayerTauntGuard = {}
+local W = XelAssist.Core.PlayerTauntGuard
 
 local function unitGuid(unit)
     if type(UnitExists) ~= "function" then return nil end
@@ -82,15 +82,34 @@ local function defensiveStance()
     return value == 2
 end
 
+local function exactTauntKind(action)
+    local facts = action and action.facts or {}
+    if tonumber(action and action.spellId) == 355
+        and facts.warriorTaunt == true then return "warrior" end
+    local player = XelAssist.Game and XelAssist.Game.Player or {}
+    if player.PaladinHandOfReckoning
+        and player.PaladinHandOfReckoning:Evidence(action) then
+        return "paladin"
+    end
+    if player.DruidGrowl and player.DruidGrowl:Evidence(action) then
+        return "druid"
+    end
+    return nil
+end
+
 function W:Validate(plan)
     local action = type(plan) == "table" and plan.action or nil
     local facts = type(action) == "table" and action.facts or nil
     if type(facts) ~= "table" or not facts.playerTaunt then return true, nil end
+    local tauntKind = exactTauntKind(action)
+    if not tauntKind then return false, "Taunt identity unavailable" end
     if (tonumber(plan.wait) or 0) > 0 then return false, "Taunt must be ready now" end
 
     local targetGuid, reason = selectedHostile(plan)
     if targetGuid == nil then return false, reason end
-    if defensiveStance() ~= true then return false, "Defensive Stance required" end
+    if tauntKind == "warrior" and defensiveStance() ~= true then
+        return false, "Defensive Stance required"
+    end
 
     local capabilities = XelAssist.Game and XelAssist.Game.Capabilities
     local usable, known = exactCall(capabilities, "Usable", action)
@@ -114,7 +133,7 @@ function W:Validate(plan)
     end
     local inRange
     inRange, known = exactCall(capabilities, "InRange", castName, "target")
-    if not known or inRange ~= true then return false, "Taunt melee range required" end
+    if not known or inRange ~= true then return false, "Taunt range required" end
 
     local finalTarget
     finalTarget, reason = selectedHostile(plan)

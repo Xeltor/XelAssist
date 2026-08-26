@@ -156,7 +156,8 @@ request to add a class priority rule:
 
 The patch-5-wide divergence audit also promoted these unowned ordinary-loop
 mechanics into the tracked backlog: Druid Blood Frenzy and Ancient Brutality's
-Bear branch; Hunter Coordinated Assault; Shaman Spirit Armor; and Warrior hidden
+Bear branch; Hunter Coordinated Assault; Spirit Armor's private shield-armor
+increase; and Warrior hidden
 haste, recipient, threat and cost passives. Frostfire resistance selection and
 Improved Chain Heal timing are now exact. Seal of
 the Martyr, Resurgent Shield, Improved Shadowform, Shiv, two-charge Elemental

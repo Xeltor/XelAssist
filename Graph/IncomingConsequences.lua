@@ -7,6 +7,7 @@ local IncomingAbsorbs = XelAssist.Graph.IncomingAbsorbs
 local PriestShadowform = XelAssist.Graph.PriestShadowform
 local WarriorStances = XelAssist.Graph.WarriorStances
 local WarriorShieldWall = XelAssist.Graph.WarriorShieldWall
+local DruidBarkskin = XelAssist.Graph.DruidBarkskin
 local WarlockSoulLink = XelAssist.Graph.WarlockSoulLink
 local PlayerRage = XelAssist.Graph.PlayerRage
 
@@ -179,6 +180,12 @@ function I:Preview(state, cast)
         end
         if WarriorShieldWall then
             adjusted, adjustmentReason, handled = WarriorShieldWall:AdjustIncoming(
+                state, recipient, rawAmount, facts.school)
+            if handled and adjusted == nil then return nil, adjustmentReason end
+            if handled then rawAmount = adjusted end
+        end
+        if DruidBarkskin then
+            adjusted, adjustmentReason, handled = DruidBarkskin:AdjustIncoming(
                 state, recipient, rawAmount, facts.school)
             if handled and adjusted == nil then return nil, adjustmentReason end
             if handled then rawAmount = adjusted end

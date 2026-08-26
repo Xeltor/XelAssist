@@ -95,15 +95,19 @@ never class rotations or ordered priority lists.
   projection arithmetic. Focused `Game/Player` owners seal Mage Mana Shield,
   Clearcasting, Presence of Mind, Cold Snap and the fatal Arcane Power guard; Priest Shield, Shadowform,
   Inner Focus, Power Infusion and Fade; Druid Prowl, Clearcasting, Frenzied
-  Regeneration and Cat/Bear threat; Rogue Feint, Slice and Dice, Ruthlessness,
+  Regeneration, Growl, Barkskin and Cat/Bear threat; Rogue Feint, Slice and Dice, Ruthlessness,
   Preparation and the patch-5 Blade Flurry fail-closed recipient guard; Hunter
   Mark, Hawk, Distracting Shot and Rapid Fire; Shaman
-  Windfury, Mana Spring, Clearcasting and Earth Shock; Warlock Dark Pact, Soul
+  Windfury, Mana Spring, Clearcasting, Spirit Armor threat and Earth Shock; Warlock Dark Pact, Soul
   Link and Fel Domination;
-  Paladin Might, Wisdom, Righteousness, blessing threat and Righteous Fury; and
+  Paladin Might, Wisdom, Righteousness, blessing threat, Righteous Fury and the
+  fail-closed Lay on Hands boundary; and
   Warrior stance, Battle Shout, Revenge, Heroic Strike, Thunder Clap,
   Demoralizing Shout and Shield Wall evidence. Each file seals one installed
   mechanic without scoring or ordering its class.
+  `Core/PlayerTauntGuard.lua` revalidates exact class taunt identity, current
+  usability, selected-hostile identity and current friendly victim immediately
+  before publication and dispatch.
   `Game/SpatialEvidence.lua` owns immediate
   blocking and settled recovery for noisy live geometry edges.
 - `Combat` owns declarative player and companion spell meaning, stateless

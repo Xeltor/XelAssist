@@ -32,7 +32,7 @@ end
 local auraPending = false
 function XelAssist:IsAuraPending() return auraPending end
 local warriorSafe = true
-XelAssist.Core.WarriorTankGuard = { Validate = function(_, current)
+XelAssist.Core.PlayerTauntGuard = { Validate = function(_, current)
     if current.action.facts.playerTaunt and not warriorSafe then
         return false, "Taunt victim changed"
     end

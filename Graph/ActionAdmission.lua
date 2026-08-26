@@ -10,6 +10,8 @@ local function castTime(action, state, tooltip)
     if facts.channel and cast <= 0 then
         cast = math.max(0, tonumber(tooltip.duration) or 3)
     end
+    local barkskin = XelAssist.Graph.DruidBarkskin
+    if barkskin then cast = barkskin:CastTime(state, cast) end
     if state.instantNext and cast > 0 then cast = 0 end
     return cast
 end

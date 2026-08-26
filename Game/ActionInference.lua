@@ -21,8 +21,9 @@ local WARRIOR_INFERENCE = { "WarriorThunderClap", "WarriorOverpower",
 local ROOT_INVALIDATION = { "MageFrostfire", "MageAcceleratedArcana",
     "MageArcanePower",
     "ShamanChainHealTiming", "ShamanFlameShockTiming",
-    "DruidAncientBrutality", "DruidBloodFrenzy",
-    "PriestDivergentActions", "WarriorShieldBash", "HunterFeignDeath",
+    "DruidAncientBrutality", "DruidBloodFrenzy", "DruidGrowl",
+    "PriestDivergentActions", "PaladinLayOnHands",
+    "WarriorShieldBash", "HunterFeignDeath",
     "MageArcaneSurge", "ShamanDivergentActions", "HunterStings",
     "PaladinDivergentGuards", "ShamanStormstrike", "WarriorBerserkerRage" }
 
@@ -45,7 +46,9 @@ end
 
 function I:ClassKnowledge(spellId)
     local player = XelAssist.Game.Player or {}
-    local facts, reason, handled = infer(player.MageArcanePower, spellId)
+    local facts, reason, handled = infer(player.PaladinLayOnHands, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.MageArcanePower, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.MageArcaneSurge, spellId)
     if handled then return facts, reason, true end
@@ -62,6 +65,10 @@ function I:ClassKnowledge(spellId)
     facts, reason, handled = infer(player.DruidProwl, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.DruidFrenziedRegeneration, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.DruidGrowl, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.DruidBarkskin, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = inferPortfolio(player, ROGUE_INFERENCE, spellId)
     if handled then return facts, reason, true end
@@ -152,6 +159,9 @@ local function invalidateNamed(player, names)
         if module then module:Invalidate() end
     end
 end
+local function invalidate(module)
+    if module then module:Invalidate() end
+end
 
 function I:InvalidateClass()
     local player = XelAssist.Game.Player or {}
@@ -159,6 +169,7 @@ function I:InvalidateClass()
     if player.MageManaShield then player.MageManaShield:Invalidate() end
     if player.MageEvocation then player.MageEvocation:Invalidate() end
     if player.MageClearcasting then player.MageClearcasting:Invalidate() end
+    if player.ShamanSpiritArmor then player.ShamanSpiritArmor:Invalidate() end
     if player.MagePresenceOfMind then player.MagePresenceOfMind:Invalidate() end
     if player.MageColdSnap then player.MageColdSnap:Invalidate() end
     if player.PriestShield then player.PriestShield:Invalidate() end
@@ -172,16 +183,13 @@ function I:InvalidateClass()
     if player.PriestResurgentShield then player.PriestResurgentShield:Invalidate() end
     if player.DruidProwl then player.DruidProwl:Invalidate() end
     if player.DruidClearcasting then player.DruidClearcasting:Invalidate() end
-    if player.DruidFrenziedRegeneration then
-        player.DruidFrenziedRegeneration:Invalidate()
-    end
+    invalidate(player.DruidFrenziedRegeneration)
+    invalidate(player.DruidBarkskin)
     if player.DruidBearThreat then player.DruidBearThreat:Invalidate() end
     if player.DruidCatThreat then player.DruidCatThreat:Invalidate() end
     if player.DruidCasterForms then player.DruidCasterForms:Invalidate() end
     if player.RogueSliceAndDice then player.RogueSliceAndDice:Invalidate() end
-    if player.RogueRuthlessness then
-        player.RogueRuthlessness:Invalidate()
-    end
+    invalidate(player.RogueRuthlessness)
     if player.RoguePreparation then player.RoguePreparation:Invalidate() end
     if player.RogueFeint then player.RogueFeint:Invalidate() end
     if player.RogueSurpriseAttack then
