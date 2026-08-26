@@ -49,6 +49,20 @@ assert(XelAssist.Graph.PeriodicRefresh:Adjust(projected)
     and projected.expectedPower == 0,
     "projected branches must subtract all already-owned future ticks")
 
+local incomplete = context(nil, nil, 1, 5)
+incomplete.state.targetAuras.Rend.name = "Rend"
+assert(XelAssist.Graph.PeriodicRefresh:Adjust(incomplete)
+    and incomplete.periodicRefreshUnproductive
+    and incomplete.periodicRefresh.exact == false,
+    "an observed owned DoT with incomplete timing must fail closed")
+
+local nameOnly = context(nil, nil, 1, 5)
+nameOnly.state.targetAuras.Rend.name = "Rend"
+nameOnly.state.targetAuras.Rend.spellId = nil
+assert(XelAssist.Graph.PeriodicRefresh:Adjust(nameOnly)
+    and nameOnly.periodicRefreshUnproductive,
+    "an exact owned aura name must not become refresh permission when its ID is absent")
+
 local otherRank = context(1.2, 1.2, 1, 5)
 otherRank.state.targetAuras.Rend.spellId = 6546
 assert(not XelAssist.Graph.PeriodicRefresh:Adjust(otherRank)

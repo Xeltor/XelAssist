@@ -18,11 +18,25 @@ local MageEvocation = XelAssist.Graph.MageEvocation
 local FrenziedRegeneration = XelAssist.Graph.DruidFrenziedRegeneration
 local DruidEnrage = XelAssist.Graph.DruidEnrage
 local DruidBloodFrenzy = XelAssist.Graph.DruidBloodFrenzy
+local ShamanWeaponImbues = XelAssist.Graph.ShamanWeaponImbues
 local DruidBarkskin = XelAssist.Graph.DruidBarkskin
 local RoguePreparation = XelAssist.Graph.RoguePreparation
 local RogueBladeFlurry = XelAssist.Graph.RogueBladeFlurry
 
 local handlers = {
+    {
+        name = "Shaman Weapon Imbue", module = ShamanWeaponImbues,
+        claims = function(facts)
+            return facts.shamanWeaponImbue == true
+                or facts.requiresExactShamanWeaponImbue == true
+        end,
+        matches = function(projection)
+            return projection.shamanWeaponImbueTransition ~= nil
+        end,
+        prepare = function(module, action, state, descriptor, facts)
+            return module:Prepare(action, state, descriptor, facts)
+        end,
+    },
     {
         name = "Druid Enrage", module = DruidEnrage,
         claims = function(facts)
@@ -306,6 +320,7 @@ function A:Advance(state, elapsed)
     end
     if DruidEnrage then DruidEnrage:Advance(state, elapsed) end
     if DruidBloodFrenzy then DruidBloodFrenzy:Advance(state, elapsed) end
+    if ShamanWeaponImbues then ShamanWeaponImbues:Advance(state, elapsed) end
     if BattleShout then BattleShout:Advance(state, elapsed) end
     if ShieldWall then ShieldWall:Advance(state, elapsed) end
     if ShieldBlock then ShieldBlock:Advance(state, elapsed) end

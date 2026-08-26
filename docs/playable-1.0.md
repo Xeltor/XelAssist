@@ -134,6 +134,10 @@ request to add a class priority rule:
   Stormstrike now owns its exact two-charge direct-Nature amplifier and distinct
   landed/missed expiry branches; periodic, pet and ambient charge consumption
   remains explicitly uncredited pending an Octo event contract.
+  Every installed weapon-imbue rank is now identity- and replacement-safe;
+  Rockbiter and Flametongue have causal main-hand damage/threat consequences.
+  Frostbrand and Windfury Weapon remain withheld behind private or conflicting
+  proc evidence rather than receiving generic buff value.
 - **Warrior:** low-level grouped play requires the character role to be set to
   Tank because Defensive Stance evidence does not exist yet; onboarding must
   make that explicit rather than inventing an automatic role. Mid/60 threat

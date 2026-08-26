@@ -170,6 +170,8 @@ function B:Build(state, observed, path, counter, started, observedAt)
         warriorStanceTransition = best.warriorStanceTransition,
         priestShadowformTransition = best.priestShadowformTransition,
         resistance = best.resistance, tooltip = best.tooltip,
+        periodicUndeliveredPower = best.periodicUndeliveredPower,
+        periodicRefresh = best.periodicRefresh,
         recipientEffects = best.recipientEffects,
         areaRecipientGroups = best.areaRecipientGroups,
         areaUnknowns = best.areaUnknowns,

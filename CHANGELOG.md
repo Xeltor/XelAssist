@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.8.75
+
+- Added name-independent discovery for every installed Rockbiter, Flametongue,
+  Frostbrand and Windfury Weapon rank, verified through patch-5 spell topology
+  and ClassicAPI's live temporary-enchant record.
+- Modeled Rockbiter's level-scaled main-hand attack power and exact 1.35 weapon
+  threat multiplier, and Flametongue's speed-scaled Fire packet. Flametongue
+  damage is conditional on the parent melee delivery and receives its own Fire
+  resistance/delivery consequence.
+- Added exact hour-long main-hand enchant replacement and expiry state, early
+  same-rank refresh suppression, and direct cast dispatch. Frostbrand and
+  Windfury are recognized but fail closed because their private proc chance or
+  conflicting installed proc evidence cannot yet support safe expected value.
+- Closed a live Warrior Rend refresh gap: an observed matching periodic aura
+  with incomplete expiry, tick-phase, or rank metadata is now retained instead
+  of being treated as permission to overwrite damage it may still deliver.
+  Refresh displacement evidence is also carried into the persistent decision
+  log for the next runtime validation.
+
 ## 0.8.74
 
 - Corrected Enrage's installed evidence boundary: `-75` is a private dummy

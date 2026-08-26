@@ -17,7 +17,11 @@ local function sameAction(aura, action)
     if not spellId and aura and aura.periodicAction then
         spellId = tonumber(aura.periodicAction.spellId)
     end
-    return spellId and tonumber(action and action.spellId) == spellId
+    if spellId then return tonumber(action and action.spellId) == spellId end
+    -- Some 1.12 aura lanes expose an exact localized name and ownership but
+    -- omit the spell ID. activeAura already selected this record by the
+    -- action's exact name, so absent rank metadata cannot permit an overwrite.
+    return aura and action and aura.name == action.name
 end
 
 local function activeAura(context)
@@ -65,19 +69,34 @@ local function expectedOldTicks(remaining, firstIn, interval,
 end
 
 function R:Adjust(context)
-    if not (context and context.kind == "dot" and context.survival
-        and context.survival.available == true) then return false end
+    if not (context and context.kind == "dot") then return false end
+    local aura = activeAura(context)
+    if not aura then return false end
+    if not (context.survival and context.survival.available == true) then
+        context.periodicRefreshUnproductive = true
+        context.periodicRefresh = { exact = false,
+            source = "owned aura present; marginal refresh timing unavailable" }
+        return true
+    end
     local interval = finite(context.survival.periodicInterval, 0.0001)
     local newExpectedTicks = finite(
         context.survival.expectedPeriodicTicks, 0)
     local totalTicks = finite(context.survival.periodicTicks, 1)
-    if not (interval and newExpectedTicks and totalTicks) then return false end
-    local aura = activeAura(context)
-    if not aura then return false end
+    if not (interval and newExpectedTicks and totalTicks) then
+        context.periodicRefreshUnproductive = true
+        context.periodicRefresh = { exact = false,
+            source = "owned aura present; periodic cadence unavailable" }
+        return true
+    end
     local offset = math.max(0, tonumber(context.wait) or 0)
         + math.max(0, tonumber(context.cast) or 0)
     local remaining, firstIn = phaseAtApplication(aura, interval, offset)
-    if not remaining then return false end
+    if not remaining then
+        context.periodicRefreshUnproductive = true
+        context.periodicRefresh = { exact = false,
+            source = "owned aura present; expiry or tick phase unavailable" }
+        return true
+    end
     local applicationAt = math.max(0, tonumber(context.state.time) or 0) + offset
     local lower = math.max(0, tonumber(context.survival.lowerTimeToDie) or 0)
     local upper = math.max(lower,

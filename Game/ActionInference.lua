@@ -8,7 +8,7 @@ local ROGUE_INFERENCE = { "RogueSliceAndDice", "RoguePreparation",
     "RogueBladeFlurry" }
 local HUNTER_INFERENCE = { "HunterStings", "HunterFeignDeath", "HunterHawk", "HunterMark",
     "HunterDistractingShot", "HunterRapidFire", "HunterManaAspects" }
-local SHAMAN_INFERENCE = { "ShamanStormstrike", "ShamanDivergentActions", "ShamanChainHealTiming", "ShamanEarthShock",
+local SHAMAN_INFERENCE = { "ShamanWeaponImbues", "ShamanStormstrike", "ShamanDivergentActions", "ShamanChainHealTiming", "ShamanEarthShock",
     "ShamanMoltenBlast", "ShamanLightningStrike" }
 local PRIEST_INFERENCE = { "PriestDivergentActions", "PriestShield",
     "PriestShadowform", "PriestInnerFocus", "PriestPowerInfusion",
@@ -21,7 +21,7 @@ local WARRIOR_INFERENCE = { "WarriorThunderClap", "WarriorOverpower",
     "WarriorDevastate", "WarriorShieldBlock", "WarriorBerserkerRage" }
 local ROOT_INVALIDATION = { "MageFrostfire", "MageAcceleratedArcana",
     "MageArcanePower",
-    "ShamanChainHealTiming", "ShamanFlameShockTiming",
+    "ShamanChainHealTiming", "ShamanFlameShockTiming", "ShamanWeaponImbues",
     "DruidAncientBrutality", "DruidEnrage", "DruidBloodFrenzy", "DruidGrowl",
     "PriestDivergentActions", "PaladinLayOnHands",
     "WarriorShieldBash", "WarriorShieldSlam", "WarriorControl",

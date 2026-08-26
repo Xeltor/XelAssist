@@ -15,6 +15,7 @@ local ShamanClearcastingRuntime = XelAssist.Game.Player.ShamanClearcasting
 local ShamanClearcasting = XelAssist.Graph.ShamanClearcasting
 local ShamanSpiritArmorRuntime = XelAssist.Game.Player.ShamanSpiritArmor
 local ShamanManaSpring = XelAssist.Graph.ShamanManaSpring
+local ShamanWeaponImbues = XelAssist.Graph.ShamanWeaponImbues
 local MageClearcastingRuntime = XelAssist.Game.Player.MageClearcasting
 local MageClearcasting = XelAssist.Graph.MageClearcasting
 local MagePresenceOfMindRuntime = XelAssist.Game.Player.MagePresenceOfMind
@@ -118,6 +119,9 @@ local function attachShaman(state, token)
     end
     if ShamanManaSpring then
         attached = ShamanManaSpring:Attach(state) or attached
+    end
+    if ShamanWeaponImbues then
+        attached = ShamanWeaponImbues:Attach(state, token) or attached
     end
     if ShamanClearcastingRuntime then
         attached = ShamanClearcastingRuntime:Attach(state, token) or attached
@@ -305,6 +309,7 @@ function S:Copy(source, target)
         target.shamanSpiritArmor = copy(source.shamanSpiritArmor, 2)
     end
     if ShamanManaSpring then ShamanManaSpring:Copy(source, target) end
+    if ShamanWeaponImbues then ShamanWeaponImbues:Copy(source, target) end
     if XelAssist.Graph.ShamanStormstrike then XelAssist.Graph.ShamanStormstrike:Copy(source, target) end
     if RogueSlice then RogueSlice:Copy(source, target) end
     if RogueRuthlessness then RogueRuthlessness:Copy(source, target) end

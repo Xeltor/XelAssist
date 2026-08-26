@@ -8,6 +8,7 @@ local PlayerRage = XelAssist.Graph.PlayerRage
 local PlayerThreat = XelAssist.Graph.PlayerThreat
 local Windfury, RogueSlice = XelAssist.Graph.ShamanWindfuryTotem,
     XelAssist.Graph.RogueSliceAndDice
+local ShamanWeaponImbues = XelAssist.Graph.ShamanWeaponImbues
 local DruidBarkskin, DruidBloodFrenzy = XelAssist.Graph.DruidBarkskin,
     XelAssist.Graph.DruidBloodFrenzy
 local HunterRapidFire, WarriorBattleShout = XelAssist.Graph.HunterRapidFire,
@@ -57,17 +58,14 @@ local function addUnknown(candidate, reason)
     end
     table.insert(candidate.playerSwingUnknowns, reason)
 end
-
 function S:Is(action, tooltip)
     return onSwing(action, tooltip)
 end
-
 function S:ImpactDelay(state)
     local round = state and state.playerAttack and state.playerAttack.attackRound
     if not (round and round.projectable) then return nil end
     return afterCastLocks(state, nil, round.nextSwingIn)
 end
-
 function S:ExpectedWhite(state, targetGuid)
     local round = state and state.playerAttack and state.playerAttack.attackRound
     local raw = round and tonumber(round.power)
@@ -83,11 +81,9 @@ function S:ExpectedWhite(state, targetGuid)
     decision = math.max(0, tonumber(decision) or 0)
     return raw * decision, decision
 end
-
 function S:Occupancy()
     return READY_DELAY
 end
-
 function S:Blocker(action, state, descriptor, tooltip)
     if not onSwing(action, tooltip) then return nil end
     if area(action, tooltip) and not (SwingArea
@@ -119,7 +115,6 @@ function S:Blocker(action, state, descriptor, tooltip)
     end
     return nil
 end
-
 function S:Reserve(out, candidate)
     if not onSwing(candidate and candidate.action,
         candidate and candidate.tooltip) then return false end
@@ -138,7 +133,6 @@ function S:Reserve(out, candidate)
         source = "graph next-swing reservation" }
     return true
 end
-
 function S:Arm(out, candidate)
     if not onSwing(candidate and candidate.action,
         candidate and candidate.tooltip) then return false end
@@ -164,7 +158,6 @@ function S:Arm(out, candidate)
         and SwingArea and SwingArea:SelectedOrigin(candidate.tooltip) or nil
     return true
 end
-
 local function targetIdentity(state, guid)
     local key, record = Targets:ForGuid(state, guid)
     if key and record and not Targets:ProvenDead(record) then
@@ -175,14 +168,12 @@ local function targetIdentity(state, guid)
     end
     return nil, nil, nil
 end
-
 local function geometry(state, record)
     local observed = record and record.geometry and record.geometry.player
     if observed then return observed end
     return { distance = state.targetDistance, distanceKind = state.targetDistanceKind,
         lineOfSight = state.targetLineOfSight }
 end
-
 local function legalGeometry(state, record)
     local observed = geometry(state, record)
     if type(observed.distance) ~= "number" then
@@ -195,7 +186,6 @@ local function legalGeometry(state, record)
     if observed.distance > 5 then return false, "range" end
     return true, nil
 end
-
 local function event(state, round, guid, key, targetLocal, offset, window)
     return { owner = "ongoing", kind = "playerMainSwing", priority = 50,
         offset = offset, windowEnd = window, targetGuid = guid,
@@ -431,13 +421,23 @@ function S:Apply(out, entry)
             raw, windReason, windHandled, windDelivery =
                 Windfury:WhiteSwingRawPower(out, entry.targetGuid, raw)
         end
-        local dealt = raw and applyKnown(target, record, WHITE_ACTION,
-            WHITE_TOOLTIP, raw, 1) or nil
+        local dealt, imbueReason, imbueHandled
+        if raw and ShamanWeaponImbues then
+            dealt, imbueReason, imbueHandled = ShamanWeaponImbues
+                :ResolveMainHand(out, entry.targetGuid, raw,
+                    function(a, t, p, m)
+                        return applyKnown(target, record, a, t, p, m)
+                    end)
+        end
+        if not imbueHandled then dealt = raw and applyKnown(target, record,
+            WHITE_ACTION, WHITE_TOOLTIP, raw, 1) or nil end
         if dealt == nil then
             markUnknown(target, record, windReason
                 or battleShoutReason
                 or mightReason
+                or imbueReason
                 or "ordinary player swing outcome magnitude unavailable")
+        elseif imbueReason then markUnknown(target, record, imbueReason)
         elseif PlayerRage then
             PlayerRage:GainFromWhite(out, dealt)
         end
