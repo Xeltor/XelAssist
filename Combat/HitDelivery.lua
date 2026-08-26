@@ -54,6 +54,7 @@ function H:ApplyPhysicalResult(result, physical, alwaysHit)
     result.positionRelevant, result.positionSource =
         physical.positionRelevant, physical.positionSource
     result.ordinaryMissBypassed = alwaysHit and true or false
+    result.avoidanceBypassed = physical.avoidanceBypassed and true or false
     result.dualWieldWhitePenalty = physical.dualWieldWhitePenalty
     result.dualWieldStateKnown = physical.dualWieldStateKnown
     result.formWeaponUseKnown = physical.formWeaponUseKnown

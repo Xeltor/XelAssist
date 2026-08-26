@@ -400,7 +400,7 @@ assert(XelAssistCharDB.schema == 5
     and XelAssistCharDB.toggles.engagedTargets == false,
     "saved-variable schema did not migrate with safe hostile-target defaults")
 local runtime = XelAssist:RuntimeAudit()
-assert(runtime.version == "0.8.45" and runtime.nampower == "4.7.1", "runtime versions missing")
+assert(runtime.version == "0.8.46" and runtime.nampower == "4.7.1", "runtime versions missing")
 assert(runtime.actions == 0 and runtime.inferred == 0 and runtime.apis.queue,
     "runtime capability/node audit missing")
 assert(not runtime.apis.comboOwner and not runtime.apis.comboDuration,
@@ -1265,6 +1265,8 @@ XelAssist:TouchPendingSpell(
     348, "started", 3.5, "player-guid", "target-a")
 XelAssist:MarkAuraPending(
     "Immolate", 3.5, "target-a", 348, "player-guid", "debuff")
+XelAssist.Game.Player.ChannelRuntime:Start(
+    348, "target-a", 3500, false)
 XelAssistTestUndelayedApplication = XelAssist.pendingAuras[
     XelAssist:PendingAuraKey("Immolate", "target-a", "player-guid")]
 XelAssistTestUndelayedDeadline = XelAssistTestUndelayedApplication.untilAt
@@ -1274,8 +1276,9 @@ fireEvent("SPELL_DELAYED_SELF", "player-guid", 600)
 fireEvent("SPELL_DELAYED_SELF", "player-guid", 400)
 assert(math.abs(XelAssistTestUndelayedApplication.untilAt
         - XelAssistTestUndelayedDeadline - 2.157) < 0.001
-    and math.abs(XelAssistTestUndelayedApplication.delaySeconds - 2.157) < 0.001,
-    "exact self pushback must extend the matching started application guard")
+    and math.abs(XelAssistTestUndelayedApplication.delaySeconds - 2.157) < 0.001
+    and math.abs(XelAssist.playerCastUntil - mockTime - 5.657) < 0.001,
+    "exact self pushback must extend active cast timing and its application guard")
 mockTime = XelAssistTestUndelayedDeadline + 0.25
 assert(XelAssist:IsAuraPending("Immolate"),
     "a pushed-back cast must not outlive its application reservation")

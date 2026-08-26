@@ -2,7 +2,16 @@ XelAssist.Game.Capabilities = {}
 local C = XelAssist.Game.Capabilities
 local DruidForms = XelAssist.Game.Player and XelAssist.Game.Player.DruidFormState
 local WarriorRage = XelAssist.Game.Player and XelAssist.Game.Player.WarriorRage
+local WarriorChargeCombat = XelAssist.Game.Player
+    and XelAssist.Game.Player.WarriorChargeCombat
 local ActionInference = XelAssist.Game.ActionInference
+local function captureWarriorFacts(action, facts)
+    if WarriorChargeCombat then
+        facts = WarriorChargeCombat:CaptureFacts(action, facts)
+    end
+    if WarriorRage then facts = WarriorRage:CaptureFacts(action, facts) end
+    return facts
+end
 local TIP_NAME = "XelAssistScanTip"
 local scanTip
 local function tooltipText(slot, bookType)
@@ -697,7 +706,7 @@ function C:Facts(action)
     if XelAssist.Game.SpellEffectPower then XelAssist.Game.SpellEffectPower:Apply(action, out, dbc, dbcArray) end
     if XelAssist.Game.HealthTransfer then XelAssist.Game.HealthTransfer:Apply(action, out, dbc, dbcArray) end
     XelAssist.Game.TargetModifierFacts:Apply(action, out)
-    if WarriorRage then out = WarriorRage:CaptureFacts(action, out) end
+    out = captureWarriorFacts(action, out)
     XelAssist.Game.SpellFactCache:Store(factCache, cacheKey, out)
     return out
 end

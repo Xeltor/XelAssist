@@ -253,6 +253,16 @@ local function physicalHitFromSkills(attackerSkill, defense, targetLevel,
     return 1 - miss / 100, miss, baseMiss
 end
 
+local function appendDefenseGap(gaps, facts, subtype)
+    local bypassed = facts.bypassesDodge == true
+        and facts.bypassesParry == true and facts.bypassesBlock == true
+    if bypassed or subtype == "ranged" then
+        table.insert(gaps, "mechanic resistance")
+    elseif facts.whiteAttack then table.insert(gaps, "active defenses")
+    else table.insert(gaps, "active defenses/mechanic resistance") end
+    return bypassed
+end
+
 -- Build only the initial physical miss roll here. Dodge/parry/block/mechanic
 -- outcomes remain exact learned evidence because their availability depends on
 -- position and target flags. The +19% dual-wield term is valid only for white
@@ -376,13 +386,7 @@ function D:PhysicalContext(action, metadata, context, identity)
     if not alwaysHit and not (bonuses and bonuses.totalKnown) then
         table.insert(priorGaps, "talent/aura +hit")
     end
-    if facts.whiteAttack then
-        table.insert(priorGaps, "active defenses")
-    elseif subtype == "ranged" then
-        table.insert(priorGaps, "mechanic resistance")
-    else
-        table.insert(priorGaps, "active defenses/mechanic resistance")
-    end
+    local avoidsDefense = appendDefenseGap(priorGaps, facts, subtype)
     return { key = token, subtype = subtype, hand = hand,
         weaponSkill = attackerSkill, weaponSkillKnown = skillKnown,
         weaponSkillSource = skillSource, usesWeaponSkill = actualSkill,
@@ -392,6 +396,7 @@ function D:PhysicalContext(action, metadata, context, identity)
         dualWieldStateKnown = dualStateKnown,
         deliveryModelKnown = modelKnown,
         alwaysHit = alwaysHit, alwaysHitKnown = alwaysHitKnown,
+        avoidanceBypassed = avoidsDefense,
         formWeaponUseKnown = type(skills) == "table" and skills.formWeaponUseKnown,
         attackPosition = attackPosition, positionKnown = positionKnown,
         positionRelevant = positionRelevant,

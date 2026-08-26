@@ -51,10 +51,13 @@ function C:Blocker(action, state, descriptor)
         and descriptor.guid == state.targetGUID and state.hostile == true) then
         return "Charge requires the selected hostile"
     end
-    if state.inCombat ~= false then return "combat state" end
+    if state.inCombat ~= false and action.facts.chargeInCombat ~= true then
+        return "combat state"
+    end
     if tonumber(state.resourceType) ~= RAGE then return "resource type" end
     local future = (tonumber(state.time) or 0) > 0
-    if future and state.movementSetupTargetGUID ~= descriptor.guid then
+    if future and action.facts.chargeInCombat ~= true
+        and state.movementSetupTargetGUID ~= descriptor.guid then
         return "Charge is only available before combat"
     end
     local usable, reason = frozenUsability(state, action)

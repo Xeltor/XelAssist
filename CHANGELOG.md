@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.46
+
+- Made normal-cast pushback extend the fallback cast deadline and consumed
+  Nampower's exact channel-start/update remaining time. Both paths trigger
+  event-driven soft revisions, reject stale identities, and add no frame loop.
+- Added Octo's learned Charge in Combat passive as a root-sealed legality fact;
+  ordinary Warriors retain the pre-combat restriction and shifted passive data
+  cannot manufacture in-combat admission.
+- Added all installed Overpower ranks with exact Battle-Stance, rage, weapon,
+  normalized-damage and dodge-reactive topology. Upstream threat tables remain
+  corroborative only, so no action-specific Octo threat multiplier is invented.
+- Added Surprise Attack's exact 90-percent main-hand packet, one combo point,
+  Energy/cooldown timing and dodge/parry/block bypass. Ordinary weapon-skill
+  misses and mechanic uncertainty remain live branches.
+- Recorded a patch-5-wide class divergence backlog covering hidden talents,
+  passives, proc auras, triggered spells, pets, forms, costs and threat effects.
+
 ## 0.8.45
 
 - Re-audited the installed Bear attack families and removed unsupported typed

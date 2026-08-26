@@ -107,8 +107,10 @@ request to add a class priority rule:
 - **Warrior:** low-level grouped play requires the character role to be set to
   Tank because Defensive Stance evidence does not exist yet; onboarding must
   make that explicit rather than inventing an automatic role. Mid/60 threat
-  still needs exact Shield Bash, Hamstring, Disarm, Overpower and Shield Slam
-  packets. Defensive Tactics rank and shield ownership are observable, but its
+  has exact learned Charge-in-combat legality and all four Overpower rank
+  packets without inventing action-specific threat. Mid/60 threat still needs
+  exact Shield Bash, Hamstring, Disarm and Shield Slam packets. Defensive
+  Tactics rank and shield ownership are observable, but its
   dummy-aura server arithmetic is not; cross-stance threat therefore remains
   unknown rather than guessed. Grouped Battle Shout is now usable through exact
   self AP and bounded subgroup/pet fanout instead of hard-HOLDing.
@@ -129,6 +131,15 @@ request to add a class priority rule:
   Dice, Ruthlessness, Preparation and Feint coverage is sufficient for focused
   scenario proof. Poison stocks and Blade Flurry remain optimization unless a
   live smoke test proves they block ordinary leveling.
+
+The patch-5-wide divergence audit also promoted these unowned ordinary-loop
+mechanics into the tracked backlog: Druid Ancient Brutality/Blood Frenzy;
+Hunter Coordinated Assault; Mage Frostfire resistance selection; Paladin Seal
+of the Martyr; Priest Improved Shadowform; Rogue Shiv; Shaman Spirit Armor and
+custom two-charge Elemental Focus; Warlock Nightfall/Shadow Trance; and
+Warrior hidden haste, recipient, threat and cost passives. Client topology is
+available for each, but private arithmetic, proc phase or recipient behavior
+remains bounded until Octo-authoritative evidence exists.
 
 ## Evidence ledger
 

@@ -3,6 +3,8 @@
 -- cannot fall through to a generic damage, buff, or utility shape.
 XelAssist.Game.ActionInference = {}
 local I = XelAssist.Game.ActionInference
+local ROGUE_INFERENCE = { "RogueSliceAndDice", "RoguePreparation",
+    "RogueFeint", "RogueSurpriseAttack" }
 
 local function infer(module, spellId)
     if not (module and type(module.InferKnowledge) == "function") then
@@ -36,15 +38,13 @@ function I:ClassKnowledge(spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.DruidProwl, spellId)
     if handled then return facts, reason, true end
-    facts, reason, handled = infer(
-        player.DruidFrenziedRegeneration, spellId)
+    facts, reason, handled = infer(player.DruidFrenziedRegeneration, spellId)
     if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.RogueSliceAndDice, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.RoguePreparation, spellId)
-    if handled then return facts, reason, true end
-    facts, reason, handled = infer(player.RogueFeint, spellId)
-    if handled then return facts, reason, true end
+    local index
+    for index = 1, 4 do
+        facts, reason, handled = infer(player[ROGUE_INFERENCE[index]], spellId)
+        if handled then return facts, reason, true end
+    end
     facts, reason, handled = infer(player.HunterHawk, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.HunterMark, spellId)
@@ -60,6 +60,8 @@ function I:ClassKnowledge(spellId)
     facts, reason, handled = infer(player.ShamanLightningStrike, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarriorThunderClap, spellId)
+    if handled then return facts, reason, true end
+    facts, reason, handled = infer(player.WarriorOverpower, spellId)
     if handled then return facts, reason, true end
     facts, reason, handled = infer(player.WarriorDemoralizingShout, spellId)
     if handled then return facts, reason, true end
@@ -167,6 +169,9 @@ function I:InvalidateClass()
     end
     if player.RoguePreparation then player.RoguePreparation:Invalidate() end
     if player.RogueFeint then player.RogueFeint:Invalidate() end
+    if player.RogueSurpriseAttack then
+        player.RogueSurpriseAttack:Invalidate()
+    end
     if player.HunterMark then player.HunterMark:Invalidate() end
     if player.HunterHawk then player.HunterHawk:Invalidate() end
     if player.HunterDistractingShot then
@@ -176,6 +181,9 @@ function I:InvalidateClass()
     if player.WarriorBattleShout then
         player.WarriorBattleShout:Invalidate()
     end
+    if player.WarriorChargeCombat then
+        player.WarriorChargeCombat:Invalidate()
+    end
     if player.WarriorRevengeThreat then
         player.WarriorRevengeThreat:Invalidate()
     end
@@ -184,6 +192,7 @@ function I:InvalidateClass()
     end
     if player.WarriorExecute then player.WarriorExecute:Invalidate() end
     if player.WarriorThunderClap then player.WarriorThunderClap:Invalidate() end
+    if player.WarriorOverpower then player.WarriorOverpower:Invalidate() end
     if player.WarriorDemoralizingShout then
         player.WarriorDemoralizingShout:Invalidate()
     end

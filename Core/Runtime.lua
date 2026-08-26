@@ -192,6 +192,8 @@ end
 ev:RegisterEvent("SPELL_START_SELF")
 ev:RegisterEvent("SPELL_START_OTHER")
 ev:RegisterEvent("SPELL_DELAYED_SELF")
+ev:RegisterEvent("SPELL_CHANNEL_START")
+ev:RegisterEvent("SPELL_CHANNEL_UPDATE")
 ev:RegisterEvent("SPELL_GO_SELF")
 ev:RegisterEvent("SPELL_GO_OTHER")
 ev:RegisterEvent("SPELL_FAILED_SELF")
@@ -208,6 +210,15 @@ ev:RegisterEvent("AURA_CAST_ON_SELF")
 ev:RegisterEvent("AURA_CAST_ON_OTHER")
 ev:RegisterEvent("DEBUFF_ADDED_OTHER")
 if CombatRevisionEvents then CombatRevisionEvents:Register(ev) end
+local function updatePlayerCastTiming(kind, first, second, third)
+    local runtime = XA.Game.Player.ChannelRuntime
+    if kind == "SPELL_DELAYED_SELF" then runtime:Delay(first, second)
+    elseif kind == "SPELL_CHANNEL_START" then
+        runtime:Start(first, second, third, true)
+    elseif kind == "SPELL_CHANNEL_UPDATE" then
+        runtime:UpdateChannel(first, second, third)
+    end
+end
 ev:SetScript("OnEvent", function()
     if CombatRevisionEvents then CombatRevisionEvents:Observe(event, arg1) end
     if event == "ADDON_LOADED" and arg1 == "XelAssist" then
@@ -266,6 +277,7 @@ ev:SetScript("OnEvent", function()
     if event == "SPELL_DELAYED_SELF" then
         XA:DelayCurrentPendingAura(arg1, arg2)
     end
+    updatePlayerCastTiming(event, arg1, arg2, arg3)
     if event == "SPELL_FAILED_SELF" then
         PlayerOnSwingEvents:Handle(event, arg1, arg2, arg3, arg4)
         local _, playerGuid = UnitExists("player")
